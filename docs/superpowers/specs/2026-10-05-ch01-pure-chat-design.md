@@ -4,13 +4,13 @@
 
 项目：`D:\shixi\ecommerce-customer-service`
 
-状态：用户已确认聊天中的设计；本文自审完成后，提交用户审阅正式 spec。
+状态：用户已批准正式 spec，选择 Subagent-Driven 执行；实现计划待审阅。
 
 ## 1. 目标与已确认的约束
 
 为简历项目建立可演示、可验证的电商客服后端。第一章跑通纯对话：多轮上下文、SSE 流式回复、模板化 Prompt、售后描述结构化提取和上下文预算控制。
 
-用户于本阶段回复“确认”，批准此前展示的设计方案。该回复允许生成本文，不代表实现计划或产品实现已经获批。
+用户先回复“确认”批准聊天中的设计，再回复“确认，选择Subagent-Driven进行开发”批准已落盘的正式 spec 并指定执行方式；尚未展示的实现计划仍需审阅。
 
 - 使用 Python、FastAPI、LangChain；模型调用统一使用 OpenAI 兼容 Chat Completions 接口，直连所配置的上游。
 - 使用 LangChain 的 `PromptTemplate` 和 `with_structured_output`。
@@ -102,7 +102,7 @@ data: {"code":"upstream_error","message":"模型服务暂时不可用，请稍�
 - 每个增量可以包含多个 token。接口承诺及时转发文本增量，不承诺每个 SSE 事件恰好一个 tokenizer token。
 - 忽略没有可展示文本的模型块；正常完成且有非空回复时发送一次 `done`。
 - 失败发送一次 `error` 后结束，不再发送 `done`，不将未完成的回复保存为历史。
-- 客户端断开时取消/关闭上游流、释放会话占用；不承诺断开后继续生成或自动续传。
+- 客户端断开时取消/关闭上游流、释放会话占用；不承诺断开后继续生成或自动续传。完成边界为模型正常非空结束且终止 done 帧的 ASGI send 正常返回；此边界前的断开/发送失败不保存本轮，此边界后已完成历史保留。ASGI send 成功不等于证明客户端实际收到了字节。
 - 本章无需在 SSE 中公开模型推理过程；只转发回复文本。
 
 ### 4.2 POST /api/extract
@@ -159,7 +159,7 @@ data: {"code":"upstream_error","message":"模型服务暂时不可用，请稍�
 2. 生成 System Prompt，计算 System Prompt 和当前问题是否能放入输入预算。
 3. 从已完成历史中保留尽量新的完整轮次；使用 LangChain `trim_messages` 配合计数器，保证消息序列合法，不留下孤立的 assistant 消息，不裁断用户当前问题。
 4. 将 System Prompt、保留历史、当前问题交给模型流式生成。
-5. 只有模型正常结束并得到非空回复，才提交本轮及实际保留的历史；失败/断开时原历史不变。
+5. 模型正常结束并得到非空回复后，先准备本轮及实际保留的历史；终止 done 帧的 ASGI send 正常返回后，无 await 提交一次。done 是最后一次响应发送；该完成边界之前失败/断开时原历史不变，成功后的清理不回滚历史。
 6. 在所有结束路径释放会话占用。保存的历史下一次调用仍按预算裁剪，不累积全部旧轮次。
 
 输入预算默认 2,000 个估算 token；输出上限默认 512 个模型 token，二者独立配置，并要求配置值为正数。调用方配置预算时为输出留出模型上下文空间。
@@ -235,4 +235,4 @@ Claude 官方 OpenAI 兼容层忽略 `response_format`；因此 Claude 路径主
 - [FastAPI 流式响应](https://fastapi.tiangolo.com/advanced/custom-response)
 - [Claude OpenAI SDK 兼容层](https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk)
 
-本阶段完成本文自审和 Git 提交后，交用户审阅正式 spec。用户批准正式 spec 后，启用 writing-plans 编写并审阅实现计划，选择执行方式，再开始产品实现。
+本文自审和 Git 提交后已交用户审阅并获批准，执行方式已选定 Subagent-Driven。后续启用 writing-plans 编写并审阅实现计划，保留已选执行方式；用户批准落盘计划后再开始产品实现。
