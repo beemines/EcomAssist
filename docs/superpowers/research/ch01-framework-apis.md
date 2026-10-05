@@ -115,3 +115,17 @@ Context7 查询后从各 `https://pypi.org/pypi/{package}/json` 读取版本、r
 需要特别确认 OpenAI 3.x 的 httpx2 与 LangChain HTTP client 集成；latest 的 requires_dist 允许 3.x，但实际 Client 签名/运行行为仍需锁后检查。可以在查相应版本官方 API 后选择仍稳定的 OpenAI 2.x 组合，不能只凭记忆指定下界。项目只用 PromptTemplate/messages/trim_messages/ChatOpenAI 时直接依赖 `langchain-core` + `langchain-openai` 就属于 LangChain 技术栈；若用户的“LangChain”要求安装 umbrella 包则保留 `langchain`。umbrella 的 langgraph 传递安装不等于产品使用 Agent。
 
 此文件为实现计划依据；尚无产品实现、依赖安装、真实模型或网络增量测试结论。
+
+## 6. 执行前补充 Context7 查询
+
+控制器于用户批准计划后、相应任务实现前实际查询官方 MCP：
+
+- Task 1：`/pydantic/pydantic-settings` 和 `/pydantic/pydantic`，再次核对源优先级、validation_alias、dotenv extra、必填 nullable 与 extra forbid；版本相关行为仍用安装后的测试核验。
+- Task 2：`/websites/reference_langchain`，确认 trim_messages 的完整签名和 role 边界；allow_partial=False 不能单独保证成对历史。
+- Task 3：同一官方参考库，核对 PromptTemplate.from_template/format、ChatOpenAI 公开参数与 with_structured_output(method='json_mode', include_raw=True)。返回内容混有旧默认值，因此不依赖默认 method，按锁定版本实际签名和 wire 测试验证。
+- Task 4：`/websites/fastapi_tiangolo`，核对返回编码 bytes 的 StreamingResponse 路径；另 resolve AnyIO 得到 `/agronholm/anyio`，再 query-docs 核对 create_task_group、cancel_scope.cancel、get_cancelled_exc_class、CancelScope(shield=True)。取消捕获后须重抛，异步清理需 shield 并设有限超时。
+- HTTPX：resolve 得到 `/encode/httpx`，query-docs 确认 AsyncClient.stream、aiter_lines/aiter_bytes/aclose、MockTransport 和 ASGITransport 的公开用法。Context7 索引标注版本 0.27.2，当前锁为 0.28.1；不足部分对照锁定安装的公开接口及官方版本源码，不将旧索引当成当前运行保证。
+
+原始 MCP 返回保存在本计划 SDD 临时工作区对应 context7-*.md；核心依据记录于本文，临时区清理不删除研究结论。
+
+官方来源：[AnyIO cancellation](https://anyio.readthedocs.io/en/stable/cancellation.html)、[HTTPX async](https://www.python-httpx.org/async/)、[HTTPX transports](https://www.python-httpx.org/advanced/transports/)。本补充只报告文档核对，不代替真实运行和模型验收。
