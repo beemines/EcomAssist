@@ -140,13 +140,23 @@ async def evaluate(base_url: str, cases_path: Path, output_path: Path, *, http_c
     owns_client = http_client is None
     client = http_client if http_client is not None else httpx.AsyncClient(timeout=REQUEST_DEADLINE_SECONDS, trust_env=False)
     records = []
+    attempted_count = 0
+    first_case_failed = False
     try:
         for case in cases:
-            records.append({**case, **await extract_request(client, base_url, case["text"], deadline=REQUEST_DEADLINE_SECONDS)})
+            if first_case_failed:
+                result = {"status_code": None, "response": None, "error_code": "not_attempted"}
+            else:
+                attempted_count += 1
+                result = await extract_request(client, base_url, case["text"], deadline=REQUEST_DEADLINE_SECONDS)
+                if attempted_count == 1 and result["error_code"] is not None:
+                    first_case_failed = True
+            records.append({**case, **result})
     finally:
         if owns_client:
             await client.aclose()
-    report = {"kind": "extract_evaluation", "identity": identity(), "request_count": len(records),
+    report = {"kind": "extract_evaluation", "identity": identity(), "request_count": attempted_count,
+              "attempted_count": attempted_count, "not_attempted_count": len(cases) - attempted_count,
               "first_case_json_compatible": records[0]["error_code"] is None,
               "metrics": score_cases(records), "records": records}
     save_report(output_path, report)

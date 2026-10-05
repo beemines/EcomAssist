@@ -81,7 +81,7 @@ curl --max-time 75 -H 'Content-Type: application/json' --data-binary '{"text":"�
 uv run --locked python -m evals.evaluate --base-url http://127.0.0.1:8000 --cases evals/ch01_cases.jsonl --output docs/validation/round-1-evaluation.json --configured-upstream https://open.bigmodel.cn/api/paas/v4/ --configured-model glm-5.3-flash
 ```
 
-先检查退出码、`first_case_json_compatible` 和 `records[0]`。失败不会静默绕过；记录错误再诊断。不能仅由安全的 `upstream_error` 推断上游拒绝 `response_format`，需确认实证。固定技术选型不兼容时请用户决定，不能自动换协议或模型。评估会保存全部样例，错误按总数计入分母；有任意失败/标签不一致返回退出码 1，这用于提醒检查，不代表新增一个准确率验收阈值。
+先检查退出码、`first_case_json_compatible` 和 `records[0]`。首条 HTTP、JSON/schema 或传输失败会停止后续评估请求：只尝试 1 次，剩余样例保留原文和 gold，以 `error_code: "not_attempted"`、null 状态/响应明确记录，仍计入全部样例分母。`request_count` / `attempted_count` 表示实际请求尝试数，`not_attempted_count` 表示未尝试数；首条有效 JSON 的标签差异不会触发此门槛，仍继续 Prompt 效果评测。首条兼容检查失败时先诊断，不运行下面的 smoke。不能仅由安全的 `upstream_error` 推断上游拒绝 `response_format`，需确认实证。固定技术选型不兼容时请用户决定，不能自动换协议或模型。有任意失败/未尝试/标签不一致返回退出码 1，这用于提醒检查，不代表新增一个准确率验收阈值。
 
 ```powershell
 uv run --locked python -m evals.smoke --base-url http://127.0.0.1:8000 --output docs/validation/round-1-smoke.json --configured-upstream https://open.bigmodel.cn/api/paas/v4/ --configured-model glm-5.3-flash
@@ -89,7 +89,7 @@ uv run --locked python -m evals.smoke --base-url http://127.0.0.1:8000 --output 
 
 smoke 共三次请求：同一新会话的两轮聊天、一次精确提取。每轮至少两个非空增量、最后一次 done、无 error；第二轮包含前轮订单号。报告保存增量、首增量耗时、终止事件和提取结果。`human_role_review` 始终是 `pending`，须人工检查客服角色、政策/订单状态/已执行操作是否编造。报告中的上游/模型只来自显式 CLI 配置声明，缺省为 unknown，包含本地库版本，不存密钥、不自动读取 `.env`，不宣称提供方身份已验证。`--base-url` 是运行中的应用地址，不能传模型端点；身份参数只填公开端点和模型名。
 
-默认完整一轮为 **20 次提取 + 3 次 smoke = 23 次上游调用**。上面的三个手动 curl 会另增加 3 次，勿计入自动轮次。真实失败或角色违规时先诊断，必要时改 Prompt 并定向复测失败样例，再完整评估+smoke（再 23 次），记录返工和实际次数；完整复测仍失败则报告问题，不无限重试。512 截断时记录实证并请用户决定 `.env` 输出预算。
+首条兼容检查成功时，默认完整一轮为 **20 次提取 + 3 次 smoke = 23 次上游调用**；首条失败时只尝试 1 次评估请求，剩余 19 条未尝试，先诊断且不运行 smoke。请求尝试次数不证明上游实际收到多少次，HTTP/传输失败应按报告记录实际证据。上面的三个手动 curl 会另增加 3 次，勿计入自动轮次。真实失败或角色违规时先诊断，必要时改 Prompt 并定向复测失败样例，再完整评估+smoke（首条成功时再 23 次），记录返工和实际次数；完整复测仍失败则报告问题，不无限重试。512 截断时记录实证并请用户决定 `.env` 输出预算。
 
 指标分母始终包含失败：三字段准确率分别计数；有效率要求 HTTP 200、无错误、完整三键 schema；missing 指标以 gold 的订单 null、方案 null、类型 unknown 的**字段位置**计数；source 指标以样例计数，要求有效输出和所有非 null 订单/方案为原文片段。分母为零时率为 null，无自行设定的准确率阈值。
 
