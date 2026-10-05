@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>MewHelp · 智能客服</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='14' fill='%23286659'/%3E%3Cpath d='M14 17h20v19H14zM19 17v-3a5 5 0 0 1 10 0v3' fill='none' stroke='white' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/chat.css">
+  <script src="/static/chat.js" defer></script>
+</head>
+<body>
+  <svg class="svg-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="icon-bag" viewBox="0 0 24 24"><path d="M5 7h14l1 13H4L5 7Z"/><path d="M8 7V5a4 4 0 0 1 8 0v2M8 12c1 3 7 3 8 0"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="icon-chat" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 1-8 8H4v-8a8 8 0 1 1 16 0Z"/><path d="M8 10h8M8 14h5"/></symbol>
+    <symbol id="icon-truck" viewBox="0 0 24 24"><path d="M3 5h11v12H3V5Zm11 5h4l3 4v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+    <symbol id="icon-return" viewBox="0 0 24 24"><path d="M8 4 4 8l4 4M4 8h10a6 6 0 0 1 0 12H9"/></symbol>
+    <symbol id="icon-spark" viewBox="0 0 24 24"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24"><path d="m4 11 16-7-7 16-2-7-7-2Zm7 2 9-9"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  </svg>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="会话导航">
+      <a class="brand" href="/" aria-label="MewHelp 首页"><span class="brand-mark"><svg><use href="#icon-bag"/></svg></span><span>MewHelp<small>每一个问题，都认真回应</small></span></a>
+      <button class="new-chat" id="new-chat"><svg><use href="#icon-plus"/></svg>开启新对话</button>
+      <p class="section-label">当前会话</p>
+      <div class="conversation-card"><svg><use href="#icon-chat"/></svg><span id="conversation-title">新的客服对话</span><span class="conversation-dot"></span></div>
+      <div class="sidebar-bottom"><span class="care-icon"><svg><use href="#icon-check"/></svg></span><div><strong>让沟通简单一点</strong><p>把问题说清楚，剩下的我们一起梳理。</p></div></div>
+      <div class="sidebar-signoff">MEWHELP <span>·</span> ALWAYS HERE</div>
+    </aside>
+    <main class="main-panel">
+      <header class="topbar"><div><h1>客服对话</h1><p>订单、售后与商品咨询</p></div><div class="header-actions"><span class="connection" id="connection"><i></i><span id="connection-text">连接中</span></span><button class="mobile-new" id="mobile-new-chat" aria-label="开启新对话"><svg><use href="#icon-plus"/></svg></button></div></header>
+      <div class="chat-scroll" id="chat-scroll">
+        <section class="welcome" id="welcome">
+          <div class="welcome-mark"><svg><use href="#icon-bag"/></svg><span class="welcome-spark">✦</span></div>
+          <div class="eyebrow">你的专属购物小助手</div>
+          <h2>有问题，放心问。</h2>
+          <p class="welcome-copy">订单、退换货或商品使用上的疑问，<br>都可以从这里开始。</p>
+          <div class="suggestions" aria-label="常见问题">
+            <button class="suggestion" data-prompt="我的快递一直没更新，怎么办？"><span class="suggestion-icon"><svg><use href="#icon-truck"/></svg></span><strong>查询配送</strong><span>物流没有更新怎么办？</span><b>↗</b></button>
+            <button class="suggestion" data-prompt="商品收到就损坏了，我该如何申请退货？"><span class="suggestion-icon peach"><svg><use href="#icon-return"/></svg></span><strong>退换货咨询</strong><span>商品有问题，想了解售后</span><b>↗</b></button>
+            <button class="suggestion" data-prompt="新买的商品不太会用，能帮我看看吗？"><span class="suggestion-icon lavender"><svg><use href="#icon-spark"/></svg></span><strong>商品使用</strong><span>一起解决使用上的疑问</span><b>↗</b></button>
+          </div>
+        </section>
+        <div class="message-list" id="messages" role="log" aria-label="对话消息" aria-live="polite" aria-relevant="additions"></div>
+      </div>
+      <footer class="composer-area">
+        <button class="scroll-to-bottom" id="scroll-to-bottom" hidden>↓ 查看最新消息</button>
+        <form class="composer" id="chat-form">
+          <label class="visually-hidden" for="message-input">输入你的问题</label>
+          <textarea id="message-input" placeholder="把你的问题告诉我…" rows="1" maxlength="20000"></textarea>
+          <div class="composer-bottom"><span id="composer-hint">Enter 发送 · Shift + Enter 换行</span><button type="submit" id="send-button" class="send-button" aria-label="发送消息" disabled><svg><use href="#icon-send"/></svg></button></div>
+        </form>
+        <p class="fine-print">AI 为你提供参考建议，具体订单与售后政策请以商家确认为准。</p>
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

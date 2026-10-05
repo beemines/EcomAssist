@@ -147,3 +147,11 @@ Task 6 准备阶段补查 Context7 `/encode/httpx`：AsyncClient.stream 的 asyn
 Context7 官方 LangChain query-docs 展示 ChatOpenAI 流尾公开 `response_metadata={"finish_reason":"stop"}`；`chunk_position='last'` 文档用于聚合/工具块解析，不能独自证明上游正常完成。索引未回答缺reason的EOF行为，final reviewer随后用锁定工厂和MockTransport离线验证：仅content且finish_reason=null、无[DONE]的合法HTTP结束仍被SDK视为iterator EOF，旧服务误发done并提交partial。对照正常stop及length/content_filter均有公开元数据。
 
 修正按spec的正常完成/不存半轮要求：非空EOF之外必须看到公开正常finish_reason=stop；缺失/异常reason安全报错，不依赖私有[DONE]拦截，不切协议或模型。原始MCP返回为SDD context7-final-completion.md，依据 [ChatOpenAI streaming](https://reference.langchain.com/python/langchain-openai/ChatOpenAI)。真实上游仍未测，缺规范终止元数据的兼容服务会明确失败。
+
+## 9. 聊天页面实现前的 Context7 查询
+
+先 query-docs `/websites/fastapi_tiangolo`，确认 `StaticFiles(directory=...)` 的 mount、`FileResponse(path)` 及根路径排除 OpenAPI 的公开接口。静态目录通过 `Path(__file__).resolve().parent` 定位，页面与接口同源。
+
+再 resolve MDN 得到 `/mdn/content`，两次 query-docs 核对 fetch POST 与 AbortController、ReadableStream.getReader/read、TextDecoder.decode 的 `stream: true` 和 EOF flush、requestAnimationFrame、crypto.randomUUID、KeyboardEvent.isComposing。浏览器 fetch 请求 POST SSE，按空行拆事件；UTF-8 解码跨网络片段保留状态，避免中文被拆坏。SSE delta 与网络块、token 不要求一一对应；前端另按 Unicode code point 逐字显示。
+
+依据：[FastAPI StaticFiles](https://fastapi.tiangolo.com/tutorial/static-files/)、[FastAPI FileResponse](https://fastapi.tiangolo.com/advanced/custom-response/#fileresponse)、[MDN Streams](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API/Using_readable_streams)、[MDN TextDecoder.decode](https://developer.mozilla.org/en-US/docs/Web/API/TextDecoder/decode)、[MDN AbortController](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)。原始查询文件为 SDD context7-chat-page-fastapi.md、context7-chat-page-web-resolve.md、context7-chat-page-web.md、context7-chat-page-decoder.md。
