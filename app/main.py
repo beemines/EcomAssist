@@ -5,9 +5,11 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.api.chat import router as chat_router
+from app.api.extract import router as extract_router
 from app.config import Settings, load_settings
 from app.core.chat import ChatService
 from app.core.errors import ServiceError
+from app.core.extraction import ExtractionService
 from app.core.llm import create_model
 from app.core.memory import SessionStore
 
@@ -34,7 +36,9 @@ def create_app(
 
     app = FastAPI(lifespan=lifespan)
     app.state.chat_service = ChatService(model, memory, settings.input_token_budget)
+    app.state.extraction_service = ExtractionService(model, settings.input_token_budget)
     app.include_router(chat_router)
+    app.include_router(extract_router)
 
     @app.exception_handler(ServiceError)
     async def service_error(request: Request, exc: ServiceError):

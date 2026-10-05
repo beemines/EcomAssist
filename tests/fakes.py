@@ -1,7 +1,7 @@
 import asyncio
 import json
 
-from langchain_core.messages import AIMessageChunk
+from langchain_core.messages import AIMessage, AIMessageChunk
 
 from app.config import Settings
 
@@ -30,6 +30,9 @@ class StreamingModel:
         self.eof = asyncio.Event()
         self.calls = []
 
+    def with_structured_output(self, schema, *, method, include_raw):
+        return StructuredModel()
+
     async def astream(self, messages):
         self.calls.append(messages)
         self.started.set()
@@ -47,6 +50,39 @@ class StreamingModel:
             self.eof.set()
         finally:
             self.closed.set()
+
+
+class StructuredModel(StreamingModel):
+    """Replace the external structured invocation, including its raw envelope."""
+
+    def __init__(self, result=None, *, failure=None):
+        super().__init__()
+        self.result = result
+        self.failure = failure
+        self.structured_options = []
+
+    def with_structured_output(self, schema, *, method, include_raw):
+        self.structured_options.append((schema, method, include_raw))
+        return self
+
+    async def ainvoke(self, messages):
+        self.calls.append(messages)
+        if self.failure is not None:
+            raise self.failure
+        return self.result
+
+
+def structured_result(data, *, raw=None, parsed=None, parsing_error=None, finish_reason="stop"):
+    from app.schemas.extract import AfterSalesResult
+
+    return {
+        "raw": AIMessage(
+            content=json.dumps(data, ensure_ascii=False) if raw is None else raw,
+            response_metadata={"finish_reason": finish_reason},
+        ),
+        "parsed": AfterSalesResult.model_validate(data) if parsed is None else parsed,
+        "parsing_error": parsing_error,
+    }
 
 
 def decode_sse(text):
