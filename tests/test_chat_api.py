@@ -71,11 +71,15 @@ async def test_raw_deltas_headers_and_complete_second_turn_history():
         AIMessageChunk(content='您好，\n"订单"'),
         AIMessageChunk(content=[{"type": "text", "text": "可以咨询。"}]),
         AIMessageChunk(content="", response_metadata={"finish_reason": "stop"}),
+        AIMessageChunk(content="", chunk_position="last"),
     ])
     memory = SessionStore()
     async with client_for(model, memory) as client:
         first = await client.post("/api/chat", json={"session_id": "s", "message": "first"})
-        model.chunks = [AIMessageChunk(content="second answer")]
+        model.chunks = [
+            AIMessageChunk(content="second answer"),
+            AIMessageChunk(content="", response_metadata={"finish_reason": "stop"}),
+        ]
         second = await client.post("/api/chat", json={"session_id": "s", "message": "second"})
     assert first.headers["content-type"].startswith("text/event-stream")
     assert first.headers["cache-control"] == "no-cache"

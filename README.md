@@ -11,7 +11,7 @@ Python + FastAPI + LangChain 的单进程后端。聊天通过 SSE 返回文本�
 ```powershell
 $env:UV_CACHE_DIR = '.cache/uv'
 uv sync --locked
-Copy-Item .env.example .env
+if (-not (Test-Path -LiteralPath '.env')) { Copy-Item .env.example .env }
 ```
 
 在本项目 `.env` 中填写 `LLM_API_KEY`。首个真实验收模型为 `glm-5.3-flash`，标准端点为 `https://open.bigmodel.cn/api/paas/v4/`，不是 Coding 端点；然后启动：
@@ -34,7 +34,7 @@ uv run --locked uvicorn app.main:create_app --factory --host 127.0.0.1 --port 80
 | `MAX_OUTPUT_TOKENS` | `512` | 独立的模型输出上限 |
 | `LLM_TIMEOUT_SECONDS` | `60.0` | 上游请求超时 |
 
-所有预算和超时须为正值。保留完整 user/assistant 轮次；system 和当前输入不裁断，必留输入超预算返回 422 `input_too_long`。已知截断、断开、失败及空回答不提交半轮历史；同会话同时请求返回 409 `session_busy`。应用不查询订单或执行退款，只给建议，不公开推理内容。GLM 的 JSON 模式与 512 上限是否足够等待实测；文档存在 `response_format` 差异，不能静默改变格式、模型或默认预算。
+所有预算和超时须为正值。保留完整 user/assistant 轮次；system 和当前输入不裁断，必留输入超预算返回 422 `input_too_long`。聊天仅在上游公开 `response_metadata.finish_reason="stop"`、流正常结束且回复非空时准备 `done`，终止帧发送成功后提交历史。缺失结束原因、异常结束原因（如 `content_filter`、`tool_calls`）、已知截断、断开、失败及空回答不提交半轮历史；单独的 EOF 或 LangChain 最后块标记不足以确认正常完成。同会话同时请求返回 409 `session_busy`。应用不查询订单或执行退款，只给建议，不公开推理内容。GLM 的 JSON 模式与 512 上限是否足够等待实测；文档存在 `response_format` 差异，不能静默改变格式、模型或默认预算。
 
 `.env.example` 包含 GPT、Claude、DeepSeek、Ollama 的端点示例。调用统一使用 OpenAI 兼容 Chat Completions、LangChain `PromptTemplate` 及 `with_structured_output(method="json_mode")`。Claude 官方兼容层忽略 `response_format`，JSON 依赖提示与应用校验，能力不等同原生 JSON 模式；切换端点不保证提取成功。配置声明也不是上游自行返回的身份证明。
 

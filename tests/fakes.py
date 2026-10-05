@@ -20,7 +20,10 @@ class StreamingModel:
     """Replace only the external stream; retain real messages and event gating."""
 
     def __init__(self, chunks=None, *, failure=None, gate_at=None):
-        self.chunks = chunks if chunks is not None else [AIMessageChunk(content="你好")]
+        self.chunks = chunks if chunks is not None else [
+            AIMessageChunk(content="你好"),
+            AIMessageChunk(content="", response_metadata={"finish_reason": "stop"}),
+        ]
         self.failure = failure
         self.gate_at = gate_at
         self.gate = asyncio.Event()

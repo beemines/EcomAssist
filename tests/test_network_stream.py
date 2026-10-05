@@ -41,7 +41,10 @@ async def local_server(app):
 
 async def test_real_network_first_event_arrives_before_last_chunk_allowed():
     _, _, create_app = implementations()
-    model = StreamingModel([AIMessageChunk(content="first"), AIMessageChunk(content="last")], gate_at=1)
+    model = StreamingModel([
+        AIMessageChunk(content="first"), AIMessageChunk(content="last"),
+        AIMessageChunk(content="", response_metadata={"finish_reason": "stop"}),
+    ], gate_at=1)
     memory = SessionStore()
     app = create_app(fake_settings(), model=model, memory=memory)
     async with local_server(app) as url, httpx.AsyncClient(base_url=url, trust_env=False) as client:
@@ -61,7 +64,10 @@ async def test_real_network_first_event_arrives_before_last_chunk_allowed():
 
 async def test_real_network_disconnect_stops_upstream_and_session_is_reusable():
     _, _, create_app = implementations()
-    model = StreamingModel([AIMessageChunk(content="first"), AIMessageChunk(content="last")], gate_at=1)
+    model = StreamingModel([
+        AIMessageChunk(content="first"), AIMessageChunk(content="last"),
+        AIMessageChunk(content="", response_metadata={"finish_reason": "stop"}),
+    ], gate_at=1)
     memory = SessionStore()
     app = create_app(fake_settings(), model=model, memory=memory)
     async with local_server(app) as url, httpx.AsyncClient(base_url=url, trust_env=False) as client:

@@ -49,7 +49,10 @@ def assert_rolled_back_and_released(store):
 
 
 async def test_done_send_success_commits_once_after_send_and_ends_body():
-    model = StreamingModel([AIMessageChunk(content="A"), AIMessageChunk(content="B")])
+    model = StreamingModel([
+        AIMessageChunk(content="A"), AIMessageChunk(content="B"),
+        AIMessageChunk(content="", response_metadata={"finish_reason": "stop"}),
+    ])
     response, store, prepared = response_for(model)
     sent = []
 
@@ -73,8 +76,9 @@ async def test_done_send_success_commits_once_after_send_and_ends_body():
 @pytest.mark.parametrize("stage", ["before_first", "next_wait", "last_delta", "eof_before_done"])
 async def test_disconnect_at_each_precommit_boundary_rolls_back(spec, stage):
     model = StreamingModel(
-        [AIMessageChunk(content="A"), AIMessageChunk(content="B")],
-        gate_at={"before_first": 0, "next_wait": 1, "last_delta": 2}.get(stage),
+        [AIMessageChunk(content="A"), AIMessageChunk(content="B"),
+         AIMessageChunk(content="", response_metadata={"finish_reason": "stop"})],
+        gate_at={"before_first": 0, "next_wait": 1, "last_delta": 3}.get(stage),
     )
     response, store, _ = response_for(model)
     disconnect = asyncio.Event()

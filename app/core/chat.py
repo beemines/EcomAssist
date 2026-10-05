@@ -43,12 +43,15 @@ class ChatService:
 
     async def stream(self, prepared: PreparedChat) -> AsyncIterator[StreamEvent]:
         parts = []
-        truncated = False
+        finish_reasons = set()
         try:
             prepared.upstream = self.model.astream(prepared.messages)
             async for chunk in prepared.upstream:
-                if chunk.response_metadata.get("finish_reason") == "length":
-                    truncated = True
+                reason = chunk.response_metadata.get("finish_reason")
+                if reason is not None:
+                    # Empty/synthetic final chunks cannot erase confirmation,
+                    # and a later stop cannot erase an abnormal completion.
+                    finish_reasons.add(reason)
                 text = chunk.text
                 if text:
                     parts.append(text)
@@ -61,10 +64,12 @@ class ChatService:
             return
 
         answer = "".join(parts)
-        if truncated:
+        if "length" in finish_reasons:
             yield StreamEvent("error", {"code": "upstream_error", "message": "模型回复被截断，请检查输出上限。"})
         elif not answer.strip():
             yield StreamEvent("error", {"code": "upstream_error", "message": "模型未返回有效回复，请稍后重试。"})
+        elif finish_reasons != {"stop"}:
+            yield StreamEvent("error", {"code": "upstream_error", "message": "模型回复未正常完成，请稍后重试。"})
         else:
             prepared.pending_completed = [*prepared.messages[1:], AIMessage(content=answer)]
             yield StreamEvent("done", {"session_id": prepared.lease.session_id})
