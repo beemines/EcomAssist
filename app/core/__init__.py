@@ -1,1 +1,1 @@
-"""Core chat services."""
+"""核心对话服务。"""

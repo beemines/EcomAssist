@@ -26,7 +26,7 @@ from tests.fakes import decode_sse, fake_settings
 async def test_factory_stream_requires_normal_completion_before_history_commit(
     reasons, done_marker, terminal,
 ):
-    """Catch accepting public EOF/synthetic last or abnormal reasons as success."""
+    """防止把流结束、合成的末尾块或异常结束原因误判为成功。"""
     settings = fake_settings()
     memory = SessionStore()
     lease = memory.acquire("same")

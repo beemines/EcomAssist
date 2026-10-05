@@ -1,1 +1,1 @@
-"""HTTP-only offline-testable acceptance tools; imports never load credentials."""
+"""仅通过 HTTP 调用、可离线测试的验收工具；导入时不会加载凭据。"""

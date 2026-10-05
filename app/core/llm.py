@@ -7,7 +7,7 @@ from app.config import Settings
 def create_model(
     settings: Settings, *, http_async_client: httpx.AsyncClient | None = None,
 ) -> ChatOpenAI:
-    """Build a direct Chat Completions client with the configured wire limit."""
+    """创建直连上游的 Chat Completions 客户端，并按配置设置请求中的输出上限。"""
     return ChatOpenAI(
         model=settings.llm_model,
         base_url=str(settings.llm_base_url),

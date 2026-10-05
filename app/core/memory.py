@@ -8,9 +8,9 @@ from app.core.errors import InputTooLong, SessionBusy
 
 
 def estimate_tokens(messages: list[BaseMessage]) -> int:
-    """Conservative UTF-8 byte estimate plus overhead, not model token counts.
+    """按 UTF-8 字节数加固定开销保守估算，不代表模型的精确 token 数。
 
-    This text-only chat estimate is nonnegative and additive across messages.
+    该估算仅用于纯文本对话，结果非负，各条消息的估算值可以相加。
     """
     return sum(len(message.content.encode("utf-8")) + 12 for message in messages)
 
@@ -36,8 +36,8 @@ def prepare_messages(
         raise InputTooLong()
     _validate_completed(history)
 
-    # The explicit list annotation prevents trim_messages from interpreting a
-    # caller's unannotated callable as a per-message token counter.
+    # 显式标注列表类型，避免 trim_messages 将调用方未标注类型的函数
+    # 误判为只接收单条消息的 token 计数器。
     def list_counter(messages: list[BaseMessage]) -> int:
         return counter(messages)
 
@@ -72,10 +72,10 @@ class SessionLease:
 
 
 class SessionStore:
-    """In-process history and leases for callers on a single event loop.
+    """在单个事件循环内管理进程内的历史消息与会话占用凭证。
 
-    Operations contain no awaits. Snapshots are tuples of defensive message
-    copies, so callers cannot modify stored history through LangChain messages.
+    各项操作不包含 await。快照由消息的防御性副本组成元组，
+    调用方修改拿到的 LangChain 消息不会影响已保存的历史。
     """
 
     def __init__(self):

@@ -1,1 +1,1 @@
-"""HTTP API routes."""
+"""HTTP 接口路由。"""

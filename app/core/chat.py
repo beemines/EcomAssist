@@ -49,8 +49,8 @@ class ChatService:
             async for chunk in prepared.upstream:
                 reason = chunk.response_metadata.get("finish_reason")
                 if reason is not None:
-                    # Empty/synthetic final chunks cannot erase confirmation,
-                    # and a later stop cannot erase an abnormal completion.
+                    # 空块或合成的末尾块不能抹除已确认的结束原因；
+                    # 后续的 stop 也不能抹除先前出现的异常结束原因。
                     finish_reasons.add(reason)
                 text = chunk.text
                 if text:

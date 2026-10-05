@@ -1,4 +1,4 @@
-"""Evaluate human-labelled cases against the running application's extract API."""
+"""调用运行中应用的提取接口，评估人工标注样例。"""
 
 import argparse
 import asyncio
@@ -67,7 +67,7 @@ def score_cases(records: Sequence[dict]) -> dict:
 
 
 def identity(*, configured_upstream=None, configured_model=None) -> dict:
-    # Explicit CLI declarations only. Never read .env or claim provider-returned identity.
+    # 只使用命令行显式声明的信息，不读取 .env，也不将其称为供应方返回的身份。
     if configured_upstream:
         parts = urlsplit(configured_upstream)
         hostname = parts.hostname or ""
@@ -175,7 +175,7 @@ def main() -> int:
     report["identity"] = identity(configured_upstream=args.configured_upstream, configured_model=args.configured_model)
     save_report(args.output, report)
     print(json.dumps(report["metrics"], ensure_ascii=False))
-    # Label mismatches are reported without an invented accuracy threshold.
+    # 如实报告标签不匹配，不自行设定准确率阈值。
     return 1 if report["metrics"]["failures"] else 0
 
 

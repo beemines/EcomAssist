@@ -1,5 +1,5 @@
 class ServiceError(Exception):
-    """An application error with a safe public message and HTTP status."""
+    """应用异常，包含可安全展示给用户的提示和 HTTP 状态码。"""
 
     def __init__(self, code: str, message: str, status_code: int):
         super().__init__(message)

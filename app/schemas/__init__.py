@@ -1,1 +1,1 @@
-"""Validated request and response contracts."""
+"""带校验的请求与响应数据结构。"""

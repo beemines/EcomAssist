@@ -17,10 +17,10 @@ def encode_sse(event: StreamEvent) -> bytes:
 
 
 class ManagedChatResponse(StreamingResponse):
-    """Own the iterators and lease, including while either generator is paused.
+    """负责迭代器和会话占用凭证的生命周期，包括生成器暂停期间。
 
-    A successful terminal ASGI send is the commit boundary. It cannot guarantee
-    that the remote client actually received those bytes.
+    ASGI 终止帧发送成功是提交历史的边界，
+    但这不能保证远端客户端确实收到了这些字节。
     """
 
     def __init__(self, service: ChatService, prepared: PreparedChat):
@@ -39,7 +39,7 @@ class ManagedChatResponse(StreamingResponse):
             terminal = event.event != "delta"
             await send({"type": "http.response.body", "body": encode_sse(event), "more_body": not terminal})
             if event.event == "done":
-                # No await may separate successful terminal send and commit.
+                # 终止帧发送成功与历史提交之间不能插入 await。
                 self.service.commit(self.prepared)
             if terminal:
                 return
@@ -48,7 +48,7 @@ class ManagedChatResponse(StreamingResponse):
         try:
             version = tuple(map(int, scope.get("asgi", {}).get("spec_version", "2.0").split(".")))
             if version < (2, 4):
-                # Starlette owns receive for this branch; never compete for it.
+                # 此分支由 Starlette 负责 receive，不能与它竞争读取。
                 await super().__call__(scope, receive, send)
             else:
                 try:
@@ -61,8 +61,8 @@ class ManagedChatResponse(StreamingResponse):
                         await super().__call__(scope, receive, send)
                         tasks.cancel_scope.cancel()
                 except BaseExceptionGroup as exc:
-                    # Preserve the parent's ordinary ClientDisconnect / cancel
-                    # error rather than adding a one-member group wrapper.
+                    # 保留父类原有的 ClientDisconnect 或取消异常，
+                    # 避免额外包裹一层只含单个异常的异常组。
                     while isinstance(exc, BaseExceptionGroup) and len(exc.exceptions) == 1:
                         exc = exc.exceptions[0]
                     raise exc

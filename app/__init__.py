@@ -1,1 +1,1 @@
-"""Ecommerce customer service backend."""
+"""电商智能客服后端。"""

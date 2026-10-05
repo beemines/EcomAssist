@@ -17,7 +17,7 @@ def fake_settings(**overrides):
 
 
 class StreamingModel:
-    """Replace only the external stream; retain real messages and event gating."""
+    """仅替换外部模型流，保留真实消息与事件控制逻辑。"""
 
     def __init__(self, chunks=None, *, failure=None, gate_at=None):
         self.chunks = chunks if chunks is not None else [
@@ -56,7 +56,7 @@ class StreamingModel:
 
 
 class StructuredModel(StreamingModel):
-    """Replace the external structured invocation, including its raw envelope."""
+    """替换外部结构化调用，包括包裹原始响应的数据结构。"""
 
     def __init__(self, result=None, *, failure=None):
         super().__init__()
@@ -97,8 +97,8 @@ def decode_sse(text):
 
 
 def implementations():
-    # Missing production APIs must report an intentional assertion, not a
-    # collection error, so the first RED proves the feature is absent.
+    # 产品接口缺失时，应主动报告断言失败而非测试收集错误，
+    # 这样首次红灯才能证明功能尚未实现。
     import pytest
 
     try:

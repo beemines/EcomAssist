@@ -48,8 +48,8 @@ class ExtractionService:
             or raw.response_metadata.get("finish_reason") == "length"
         ):
             raise invalid_output()
-        # LangChain's JSON parser can repair missing closing braces. Validate
-        # the complete raw text independently instead of accepting that repair.
+        # LangChain 的 JSON 解析器可能补齐缺失的右括号。
+        # 必须独立校验原始文本的完整性，不能直接接受修补后的结果。
         try:
             result = AfterSalesResult.model_validate_json(raw.text)
         except ValidationError as exc:

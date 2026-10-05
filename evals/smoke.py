@@ -1,4 +1,4 @@
-"""Three-request smoke acceptance against the running application, never a model API."""
+"""向运行中的应用发送三次请求完成冒烟验收，不直接调用模型接口。"""
 
 import argparse
 import asyncio
@@ -64,7 +64,7 @@ async def chat_round(client, base_url, session_id, message) -> dict:
             if data != {"session_id": session_id}:
                 protocol_errors.append("wrong_session")
         else:
-            # Keep evidence of an error event; discard untrusted error messages.
+            # 保留错误事件的证据，丢弃不可信的错误提示内容。
             protocol_errors.append("error_event")
 
     try:

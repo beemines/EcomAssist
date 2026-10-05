@@ -12,7 +12,7 @@ from tests.fakes import StreamingModel, fake_settings, implementations
 
 @asynccontextmanager
 async def local_server(app):
-    """A real temporary loopback socket, never a provider or visible console."""
+    """使用真实的临时回环套接字，不连接模型供应方，也不打开可见控制台。"""
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         listener.listen()
@@ -78,8 +78,8 @@ async def test_real_network_disconnect_stops_upstream_and_session_is_reusable():
         await asyncio.wait_for(model.closed.wait(), 2)
         assert model.eof.is_set() is False
         assert memory.snapshot("s") == ()
-        # This gate remains shut: successful reuse proves disconnect cancelled
-        # the original generation rather than simply finishing it in background.
+        # 此事件门始终保持关闭；会话能成功复用，说明断连取消了原有生成，
+        # 而非仅让它在后台继续完成。
         assert model.gate.is_set() is False
         model.gate_at = None
         response = await client.post("/api/chat", json={"session_id": "s", "message": "retry"})

@@ -105,7 +105,7 @@ function finishVisual(state) {
 function tick(state, now) {
   state.animation = null;
   const elapsed = Math.min(now - state.lastPaint, 100);
-  // Code points preserve Chinese and surrogate pairs across the typing queue.
+  // 按 Unicode 码点处理文字，避免逐字队列拆坏中文或代理对字符。
   const count = reducedMotion ? state.queue.length : Math.floor(elapsed / 17);
   if (state.queue.length && count > 0) {
     beginText(state);
@@ -127,7 +127,7 @@ function stopReply() {
   const state = active;
   if (!state) return;
   state.stopped = true;
-  // Once done has arrived, finish displaying received text; history is complete.
+  // 收到 done 后，历史已完成提交；此时只需显示完已经收到的文字。
   if (!state.done) state.controller.abort();
   if (state.queue.length) {
     beginText(state);
@@ -144,7 +144,7 @@ function acceptFrame(frame, state) {
     if (line.startsWith("event:")) event = line.slice(6).trim();
     else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
   }
-  if (!data.length) return; // SSE comments/keepalive frames have no payload.
+  if (!data.length) return; // SSE 注释或保活帧不包含数据载荷。
   if (state.terminal) throw new Error("回复结束后收到多余事件，请重新尝试。");
   let payload;
   try { payload = JSON.parse(data.join("\n")); }
@@ -173,7 +173,7 @@ async function readReply(state, message) {
     });
     if (!response.ok) {
       let payload;
-      try { payload = await response.json(); } catch { /* Fall back to safe copy. */ }
+      try { payload = await response.json(); } catch { /* 解析失败时使用安全的默认提示。 */ }
       throw new Error(typeof payload?.message === "string" ? payload.message : response.status === 422 ? "问题为空或超过输入限制，请缩短后重试。" : "暂时无法获取回复，请稍后重试。");
     }
     if (!response.body || !response.headers.get("content-type")?.includes("text/event-stream")) {
@@ -204,7 +204,7 @@ async function readReply(state, message) {
     if (!state.stopped) state.error = error instanceof TypeError ? "连接失败，请检查服务是否启动后重试。" : error.message || "回复失败，请稍后重试。";
   } finally {
     if (reader) {
-      try { await reader.cancel(); } catch { /* Abort already closed the reader. */ }
+      try { await reader.cancel(); } catch { /* 中止请求可能已经关闭了读取器。 */ }
       reader.releaseLock();
     }
     state.networkFinished = true;
