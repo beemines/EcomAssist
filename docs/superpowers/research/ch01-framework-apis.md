@@ -141,3 +141,9 @@ Task 5 实现前补查 Context7 官方 LangChain parser 和 Pydantic model_valid
 依据：[AnyIO cancellation](https://anyio.readthedocs.io/en/stable/cancellation.html)、[Uvicorn server](https://github.com/kludex/uvicorn/blob/0.54.0/uvicorn/server.py)、[LangChain JSON parser](https://github.com/langchain-ai/langchain/blob/master/libs/core/langchain_core/utils/json.py)、[Pydantic JSON validation](https://docs.pydantic.dev/latest/concepts/models/#validating-data)。MCP 返回位于对应 SDD context7-task4-cleanup、context7-task4-uvicorn、context7-task5-parser、context7-task5-validation 文件；这些文档查询不代替实际测试。
 
 Task 6 准备阶段补查 Context7 `/encode/httpx`：AsyncClient.stream 的 async with/aiter_bytes 与 finally aclose、MockTransport、timeout、client ownership；该客户端每段 read timeout 不作为验收总请求时限，验收器另设 75 秒有界 deadline。官方调用方式用于实际 HTTP 评估；MockTransport/AsyncByteStream 仅用于验收器自身单测。原始返回为 context7-task6-httpx.md。
+
+## 8. 最终评审的完成证据补查
+
+Context7 官方 LangChain query-docs 展示 ChatOpenAI 流尾公开 `response_metadata={"finish_reason":"stop"}`；`chunk_position='last'` 文档用于聚合/工具块解析，不能独自证明上游正常完成。索引未回答缺reason的EOF行为，final reviewer随后用锁定工厂和MockTransport离线验证：仅content且finish_reason=null、无[DONE]的合法HTTP结束仍被SDK视为iterator EOF，旧服务误发done并提交partial。对照正常stop及length/content_filter均有公开元数据。
+
+修正按spec的正常完成/不存半轮要求：非空EOF之外必须看到公开正常finish_reason=stop；缺失/异常reason安全报错，不依赖私有[DONE]拦截，不切协议或模型。原始MCP返回为SDD context7-final-completion.md，依据 [ChatOpenAI streaming](https://reference.langchain.com/python/langchain-openai/ChatOpenAI)。真实上游仍未测，缺规范终止元数据的兼容服务会明确失败。
