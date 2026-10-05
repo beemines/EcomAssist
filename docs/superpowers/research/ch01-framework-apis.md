@@ -129,3 +129,5 @@ Context7 查询后从各 `https://pypi.org/pypi/{package}/json` 读取版本、r
 原始 MCP 返回保存在本计划 SDD 临时工作区对应 context7-*.md；核心依据记录于本文，临时区清理不删除研究结论。
 
 官方来源：[AnyIO cancellation](https://anyio.readthedocs.io/en/stable/cancellation.html)、[HTTPX async](https://www.python-httpx.org/async/)、[HTTPX transports](https://www.python-httpx.org/advanced/transports/)。本补充只报告文档核对，不代替真实运行和模型验收。
+
+Task 4 前另补查 LangChain AIMessageChunk/文本属性、FastAPI lifespan/exception_handler，以及 resolve→query `/openai/openai-python` 的 AsyncOpenAI.close/APITimeoutError。异步 SDK 关闭应 await；注入客户端的 SDK close 也会关闭底层客户端，须明确所有权。Context7 SDK 返回混有新版 httpx2 示例，本项目继续采用已锁 OpenAI 2.54.0 的实际公开接口，不迁移该依赖组合。
