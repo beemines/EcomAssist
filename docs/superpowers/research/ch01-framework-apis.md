@@ -131,3 +131,13 @@ Context7 查询后从各 `https://pypi.org/pypi/{package}/json` 读取版本、r
 官方来源：[AnyIO cancellation](https://anyio.readthedocs.io/en/stable/cancellation.html)、[HTTPX async](https://www.python-httpx.org/async/)、[HTTPX transports](https://www.python-httpx.org/advanced/transports/)。本补充只报告文档核对，不代替真实运行和模型验收。
 
 Task 4 前另补查 LangChain AIMessageChunk/文本属性、FastAPI lifespan/exception_handler，以及 resolve→query `/openai/openai-python` 的 AsyncOpenAI.close/APITimeoutError。异步 SDK 关闭应 await；注入客户端的 SDK close 也会关闭底层客户端，须明确所有权。Context7 SDK 返回混有新版 httpx2 示例，本项目继续采用已锁 OpenAI 2.54.0 的实际公开接口，不迁移该依赖组合。
+
+## 7. 流清理、网络替身与原始 JSON 完整性
+
+Task 4 实现前补查 Context7 `/agronholm/anyio` 的 move_on_after/fail_after；同步上下文管理器可组合 shield=True，清理须限时且取消重抛。控制器选择 5 秒清理上限，释放会话无 await。补查 `/kludex/uvicorn` 的 Config、Server、serve/lifespan；socket 参数未被索引返回，随后查已安装 Uvicorn 0.54.0 官方 server.py，公开签名为 `async def serve(self, sockets: list[socket.socket] | None = None) -> None`。网络替身使用注入 app 与本地临时 socket，不请求上游。
+
+Task 5 实现前补查 Context7 官方 LangChain parser 和 Pydantic model_validate_json。随后核对锁定 langchain-core 1.6.6 的 `output_parsers/json.py`、`utils/json.py`：JsonOutputParser.parse_result 即使 partial=False 仍调用 parse_json_markdown，其默认 parse_partial_json 可补齐缺失括号。因此 include_raw 的 parsed 存在不能单独证明上游 JSON 完整，应用使用现有 AfterSalesResult.model_validate_json 再验 raw 完整内容，并拒绝明确 length 截断；这贯彻 spec 的非 JSON/截断报错，不添加修复循环。
+
+依据：[AnyIO cancellation](https://anyio.readthedocs.io/en/stable/cancellation.html)、[Uvicorn server](https://github.com/kludex/uvicorn/blob/0.54.0/uvicorn/server.py)、[LangChain JSON parser](https://github.com/langchain-ai/langchain/blob/master/libs/core/langchain_core/utils/json.py)、[Pydantic JSON validation](https://docs.pydantic.dev/latest/concepts/models/#validating-data)。MCP 返回位于对应 SDD context7-task4-cleanup、context7-task4-uvicorn、context7-task5-parser、context7-task5-validation 文件；这些文档查询不代替实际测试。
+
+Task 6 准备阶段补查 Context7 `/encode/httpx`：AsyncClient.stream 的 async with/aiter_bytes 与 finally aclose、MockTransport、timeout、client ownership；该客户端每段 read timeout 不作为验收总请求时限，验收器另设 75 秒有界 deadline。官方调用方式用于实际 HTTP 评估；MockTransport/AsyncByteStream 仅用于验收器自身单测。原始返回为 context7-task6-httpx.md。
