@@ -1,4 +1,5 @@
 .worktrees/
+.idea/
 .env
 !.env.example
 .venv/
