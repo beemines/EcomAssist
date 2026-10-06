@@ -1,0 +1,2 @@
+# Docker 入口脚本在 Windows checkout 后也必须保持 LF。
+*.sh text eol=lf

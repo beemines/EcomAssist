@@ -1,0 +1,7 @@
+# 初始化客户端必须按 UTF-8 解码用户 SQL 中的中文 ENUM 与注释。
+[client]
+default-character-set=utf8mb4
+
+[mysqld]
+character-set-server=utf8mb4
+collation-server=utf8mb4_0900_ai_ci
