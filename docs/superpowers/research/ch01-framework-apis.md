@@ -115,3 +115,43 @@ Context7 查询后从各 `https://pypi.org/pypi/{package}/json` 读取版本、r
 需要特别确认 OpenAI 3.x 的 httpx2 与 LangChain HTTP client 集成；latest 的 requires_dist 允许 3.x，但实际 Client 签名/运行行为仍需锁后检查。可以在查相应版本官方 API 后选择仍稳定的 OpenAI 2.x 组合，不能只凭记忆指定下界。项目只用 PromptTemplate/messages/trim_messages/ChatOpenAI 时直接依赖 `langchain-core` + `langchain-openai` 就属于 LangChain 技术栈；若用户的“LangChain”要求安装 umbrella 包则保留 `langchain`。umbrella 的 langgraph 传递安装不等于产品使用 Agent。
 
 此文件为实现计划依据；尚无产品实现、依赖安装、真实模型或网络增量测试结论。
+
+## 6. 执行前补充 Context7 查询
+
+控制器于用户批准计划后、相应任务实现前实际查询官方 MCP：
+
+- Task 1：`/pydantic/pydantic-settings` 和 `/pydantic/pydantic`，再次核对源优先级、validation_alias、dotenv extra、必填 nullable 与 extra forbid；版本相关行为仍用安装后的测试核验。
+- Task 2：`/websites/reference_langchain`，确认 trim_messages 的完整签名和 role 边界；allow_partial=False 不能单独保证成对历史。
+- Task 3：同一官方参考库，核对 PromptTemplate.from_template/format、ChatOpenAI 公开参数与 with_structured_output(method='json_mode', include_raw=True)。返回内容混有旧默认值，因此不依赖默认 method，按锁定版本实际签名和 wire 测试验证。
+- Task 4：`/websites/fastapi_tiangolo`，核对返回编码 bytes 的 StreamingResponse 路径；另 resolve AnyIO 得到 `/agronholm/anyio`，再 query-docs 核对 create_task_group、cancel_scope.cancel、get_cancelled_exc_class、CancelScope(shield=True)。取消捕获后须重抛，异步清理需 shield 并设有限超时。
+- HTTPX：resolve 得到 `/encode/httpx`，query-docs 确认 AsyncClient.stream、aiter_lines/aiter_bytes/aclose、MockTransport 和 ASGITransport 的公开用法。Context7 索引标注版本 0.27.2，当前锁为 0.28.1；不足部分对照锁定安装的公开接口及官方版本源码，不将旧索引当成当前运行保证。
+
+原始 MCP 返回保存在本计划 SDD 临时工作区对应 context7-*.md；核心依据记录于本文，临时区清理不删除研究结论。
+
+官方来源：[AnyIO cancellation](https://anyio.readthedocs.io/en/stable/cancellation.html)、[HTTPX async](https://www.python-httpx.org/async/)、[HTTPX transports](https://www.python-httpx.org/advanced/transports/)。本补充只报告文档核对，不代替真实运行和模型验收。
+
+Task 4 前另补查 LangChain AIMessageChunk/文本属性、FastAPI lifespan/exception_handler，以及 resolve→query `/openai/openai-python` 的 AsyncOpenAI.close/APITimeoutError。异步 SDK 关闭应 await；注入客户端的 SDK close 也会关闭底层客户端，须明确所有权。Context7 SDK 返回混有新版 httpx2 示例，本项目继续采用已锁 OpenAI 2.54.0 的实际公开接口，不迁移该依赖组合。
+
+## 7. 流清理、网络替身与原始 JSON 完整性
+
+Task 4 实现前补查 Context7 `/agronholm/anyio` 的 move_on_after/fail_after；同步上下文管理器可组合 shield=True，清理须限时且取消重抛。控制器选择 5 秒清理上限，释放会话无 await。补查 `/kludex/uvicorn` 的 Config、Server、serve/lifespan；socket 参数未被索引返回，随后查已安装 Uvicorn 0.54.0 官方 server.py，公开签名为 `async def serve(self, sockets: list[socket.socket] | None = None) -> None`。网络替身使用注入 app 与本地临时 socket，不请求上游。
+
+Task 5 实现前补查 Context7 官方 LangChain parser 和 Pydantic model_validate_json。随后核对锁定 langchain-core 1.6.6 的 `output_parsers/json.py`、`utils/json.py`：JsonOutputParser.parse_result 即使 partial=False 仍调用 parse_json_markdown，其默认 parse_partial_json 可补齐缺失括号。因此 include_raw 的 parsed 存在不能单独证明上游 JSON 完整，应用使用现有 AfterSalesResult.model_validate_json 再验 raw 完整内容，并拒绝明确 length 截断；这贯彻 spec 的非 JSON/截断报错，不添加修复循环。
+
+依据：[AnyIO cancellation](https://anyio.readthedocs.io/en/stable/cancellation.html)、[Uvicorn server](https://github.com/kludex/uvicorn/blob/0.54.0/uvicorn/server.py)、[LangChain JSON parser](https://github.com/langchain-ai/langchain/blob/master/libs/core/langchain_core/utils/json.py)、[Pydantic JSON validation](https://docs.pydantic.dev/latest/concepts/models/#validating-data)。MCP 返回位于对应 SDD context7-task4-cleanup、context7-task4-uvicorn、context7-task5-parser、context7-task5-validation 文件；这些文档查询不代替实际测试。
+
+Task 6 准备阶段补查 Context7 `/encode/httpx`：AsyncClient.stream 的 async with/aiter_bytes 与 finally aclose、MockTransport、timeout、client ownership；该客户端每段 read timeout 不作为验收总请求时限，验收器另设 75 秒有界 deadline。官方调用方式用于实际 HTTP 评估；MockTransport/AsyncByteStream 仅用于验收器自身单测。原始返回为 context7-task6-httpx.md。
+
+## 8. 最终评审的完成证据补查
+
+Context7 官方 LangChain query-docs 展示 ChatOpenAI 流尾公开 `response_metadata={"finish_reason":"stop"}`；`chunk_position='last'` 文档用于聚合/工具块解析，不能独自证明上游正常完成。索引未回答缺reason的EOF行为，final reviewer随后用锁定工厂和MockTransport离线验证：仅content且finish_reason=null、无[DONE]的合法HTTP结束仍被SDK视为iterator EOF，旧服务误发done并提交partial。对照正常stop及length/content_filter均有公开元数据。
+
+修正按spec的正常完成/不存半轮要求：非空EOF之外必须看到公开正常finish_reason=stop；缺失/异常reason安全报错，不依赖私有[DONE]拦截，不切协议或模型。原始MCP返回为SDD context7-final-completion.md，依据 [ChatOpenAI streaming](https://reference.langchain.com/python/langchain-openai/ChatOpenAI)。真实上游仍未测，缺规范终止元数据的兼容服务会明确失败。
+
+## 9. 聊天页面实现前的 Context7 查询
+
+先 query-docs `/websites/fastapi_tiangolo`，确认 `StaticFiles(directory=...)` 的 mount、`FileResponse(path)` 及根路径排除 OpenAPI 的公开接口。静态目录通过 `Path(__file__).resolve().parent` 定位，页面与接口同源。
+
+再 resolve MDN 得到 `/mdn/content`，两次 query-docs 核对 fetch POST 与 AbortController、ReadableStream.getReader/read、TextDecoder.decode 的 `stream: true` 和 EOF flush、requestAnimationFrame、crypto.randomUUID、KeyboardEvent.isComposing。浏览器 fetch 请求 POST SSE，按空行拆事件；UTF-8 解码跨网络片段保留状态，避免中文被拆坏。SSE delta 与网络块、token 不要求一一对应；前端另按 Unicode code point 逐字显示。
+
+依据：[FastAPI StaticFiles](https://fastapi.tiangolo.com/tutorial/static-files/)、[FastAPI FileResponse](https://fastapi.tiangolo.com/advanced/custom-response/#fileresponse)、[MDN Streams](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API/Using_readable_streams)、[MDN TextDecoder.decode](https://developer.mozilla.org/en-US/docs/Web/API/TextDecoder/decode)、[MDN AbortController](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)。原始查询文件为 SDD context7-chat-page-fastapi.md、context7-chat-page-web-resolve.md、context7-chat-page-web.md、context7-chat-page-decoder.md。

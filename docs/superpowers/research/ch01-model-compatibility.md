@@ -55,3 +55,7 @@ Claude JSON 依赖 Prompt 遵循与应用 Pydantic 验证；不自动换原生 M
 实现后必须用模拟 HTTP transport 捕获完整最终 JSON：选择 max_tokens 时存在正数 max_tokens 且无 max_completion_tokens；反向选择亦然；同时断言 `chat/completions` 路径、流式参数和提取 `response_format`。不要只断言工厂对象属性，不能静默丢弃上限。官方允许的参数与某一模型/账号实际可用能力仍需真实验收。
 
 若 JSON mode 被上游拒绝，按 spec 报错并记录能力限制，不自动换协议、调用工具、换模型或删除格式参数。Claude 官方忽略 response_format 的已知行为仍按 Prompt 与应用校验验收。
+
+## 执行时补查 OpenAI 配置示例
+
+在既有 Context7 参考查询之后，补查 [OpenAI 官方 Chat Completions API](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)：base_url 为 `https://api.openai.com/v1/`，新模型的示例输出上限字段为 `max_completion_tokens`。`.env.example` 的 GPT 注释要求填写实际可用且支持 Chat Completions 的模型 ID，不以固定示例宣称所有型号都兼容。本章仍按用户固定协议实施，不自动切 Responses。
