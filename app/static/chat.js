@@ -15,9 +15,9 @@ let active = null;
 let followBottom = true;
 let composing = false;
 const toolLabels = {
-  query_order: "查询订单 · 演示",
-  query_product: "查询商品 · 演示",
-  query_logistics: "查询物流 · 演示",
+  query_order: "查询订单",
+  query_product: "查询商品",
+  query_logistics: "查询物流",
   query_faq: "查询常见问题",
   create_ticket: "创建人工工单",
 };
