@@ -2,7 +2,7 @@
 
 Python + FastAPI + LangChain 的单进程应用，包含客服聊天页面。聊天通过 SSE 返回文本增量，提取通过 OpenAI 兼容 Chat Completions 的 JSON 模式返回三个字段。当前没有数据库、检索、业务工具或 Agent 循环。
 
-当前交付状态：**OFFLINE_READY / REAL_ACCEPTANCE_PENDING**。密钥尚待用户填写，真实 GLM JSON 兼容性、聊天角色表现与标注准确率尚未实测。离线测试通过不表示整章真实验收通过，详见 [验收记录](docs/validation/ch01-results.md)。
+当前交付状态：**OFFLINE_READY / REAL_ACCEPTANCE_PENDING**。完整代码已合并到 `master`，本机密钥已配置；真实 GLM JSON 兼容性、聊天角色表现与标注准确率尚未实测。离线测试通过不表示整章真实验收通过，详见 [验收记录](docs/validation/ch01-results.md)。
 
 ## 安装与启动
 
