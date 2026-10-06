@@ -87,4 +87,7 @@ async def test_seed_is_complete_and_postage_misses(mysql_database):
         assert any("运费" in faq.question for faq in faqs)
         assert all("邮费" not in faq.question for faq in faqs)
         assert not (await session.scalars(select(FAQ).where(FAQ.question.contains("邮费", autoescape=True)))).all()
-        assert not (await session.scalars(select(Conversation).where(Conversation.user_id == "demo-user"))).all()
+        # 已有卷可包含浏览器验收的 demo-user 对话；种子只核对自身身份与关联。
+        assert conversation.user_id == "seed-user"
+        assert ticket.ticket_no == "Tseed000000000000000000000000001"
+        assert ticket.conversation_id == conversation.id

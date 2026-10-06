@@ -1,4 +1,4 @@
-"""向运行中的应用发送三次请求完成冒烟验收，不直接调用模型接口。"""
+"""创建持久会话后通过两轮聊天和提取完成冒烟验收。"""
 
 import argparse
 import asyncio
@@ -15,12 +15,37 @@ from evals.evaluate import extract_request, identity, save_report
 
 
 REQUEST_DEADLINE_SECONDS = 75.0
+CHAT_DEADLINE_SECONDS = 150.0
 ORDER = "20261005001"
 EXTRACT_TEXT = "订单 20261005001 的杯子收到就碎了，我想退货退款。"
 EXTRACT_EXPECTED = {"order_id": ORDER, "request_type": "return_refund", "expected_solution": "退货退款"}
 
 
-async def chat_round(client, base_url, session_id, message) -> dict:
+async def create_conversation(client, base_url, user_id) -> dict:
+    from app.repositories.conversations import _conversation_id
+    result = {"conversation_id": None, "status_code": None, "error_code": None}
+    try:
+        with anyio.fail_after(REQUEST_DEADLINE_SECONDS):
+            response = await client.post(base_url.rstrip('/') + '/api/conversations', json={"user_id": user_id}, timeout=REQUEST_DEADLINE_SECONDS)
+            result['status_code'] = response.status_code
+            if response.status_code != 200:
+                result['error_code'] = 'http_error'
+            else:
+                data = response.json()
+                if not isinstance(data, dict) or set(data) != {'conversation_id'}:
+                    raise ValueError
+                _conversation_id(data['conversation_id'])
+                result['conversation_id'] = data['conversation_id']
+    except (TimeoutError, httpx.TimeoutException):
+        result['error_code'] = 'timeout'
+    except httpx.HTTPError:
+        result['error_code'] = 'transport_error'
+    except Exception:
+        result['error_code'] = 'invalid_conversation'
+    return result
+
+
+async def chat_round(client, base_url, conversation_id, message, *, min_deltas=2) -> dict:
     result = {"status_code": None, "events": [], "deltas": [], "text": "", "nonempty_delta_count": 0,
               "done_count": 0, "first_delta_seconds": None, "error_code": None}
     started = monotonic()
@@ -45,13 +70,18 @@ async def chat_round(client, base_url, session_id, message) -> dict:
                 data_lines.append(value)
         if event is None and not data_lines:
             return
-        if event not in {"delta", "done", "error"}:
+        if event not in {"status", "delta", "done", "error"}:
             raise ValueError
         data = json.loads("\n".join(data_lines))
         if not isinstance(data, dict):
             raise ValueError
         result["events"].append(event)
-        if event == "delta":
+        if result["done_count"]:
+            protocol_errors.append('event_after_done')
+        if event == 'status':
+            if data.get('phase') not in {'selecting', 'tool_running', 'tool_completed', 'answering'}:
+                raise ValueError
+        elif event == "delta":
             if set(data) != {"delta"} or not isinstance(data["delta"], str):
                 raise ValueError
             result["deltas"].append(data["delta"])
@@ -61,16 +91,18 @@ async def chat_round(client, base_url, session_id, message) -> dict:
                     result["first_delta_seconds"] = monotonic() - started
         elif event == "done":
             result["done_count"] += 1
-            if data != {"session_id": session_id}:
-                protocol_errors.append("wrong_session")
+            if data != {"conversation_id": conversation_id}:
+                protocol_errors.append("wrong_identity")
         else:
             # 保留错误事件的证据，丢弃不可信的错误提示内容。
             protocol_errors.append("error_event")
+            code = data.get('code')
+            result['server_error_code'] = code if code in {'upstream_error', 'upstream_timeout', 'input_too_long', 'database_error'} else 'unknown_error'
 
     try:
-        with anyio.fail_after(REQUEST_DEADLINE_SECONDS):
+        with anyio.fail_after(CHAT_DEADLINE_SECONDS):
             async with client.stream("POST", base_url.rstrip("/") + "/api/chat",
-                                     json={"session_id": session_id, "message": message}, timeout=REQUEST_DEADLINE_SECONDS) as response:
+                                     json={"conversation_id": conversation_id, "message": message}, timeout=CHAT_DEADLINE_SECONDS) as response:
                 result["status_code"] = response.status_code
                 if response.status_code != 200:
                     result["error_code"] = "http_error"
@@ -102,31 +134,46 @@ async def chat_round(client, base_url, session_id, message) -> dict:
             result["error_code"] = protocol_errors[0]
         elif result["done_count"] != 1 or not result["events"] or result["events"][-1] != "done":
             result["error_code"] = "invalid_terminal_event"
-        elif result["nonempty_delta_count"] < 2:
+        elif result["nonempty_delta_count"] < min_deltas:
             result["error_code"] = "insufficient_deltas"
     return result
 
 
 async def smoke(base_url: str, output_path: Path, *, http_client: httpx.AsyncClient | None = None) -> dict:
-    session_id = "smoke-" + uuid4().hex
+    user_id = "smoke-" + uuid4().hex
     owns_client = http_client is None
     client = http_client if http_client is not None else httpx.AsyncClient(timeout=REQUEST_DEADLINE_SECONDS, trust_env=False)
     try:
-        first = await chat_round(client, base_url, session_id, f"我的订单号是 {ORDER}，杯子收到就碎了，请给我售后建议。")
-        second = await chat_round(client, base_url, session_id, "我刚才提供的订单号是什么？请复述并说明下一步。")
-        extracted = await extract_request(client, base_url, EXTRACT_TEXT, deadline=REQUEST_DEADLINE_SECONDS)
+        created = await create_conversation(client, base_url, user_id)
+        conversation_id = created['conversation_id']
+        if created['error_code'] is not None:
+            report = {'kind': 'interface_smoke', 'passed': False, 'failures': [{'scenario': 'create_conversation', 'error_code': created['error_code']}], 'identity': identity(), 'http_request_count': 1, 'request_count': 1, 'model_request_count': None, 'conversation_id': None, 'rounds': [], 'extract': None, 'human_role_review': 'pending'}
+            save_report(output_path, report)
+            return report
+        first = await chat_round(client, base_url, conversation_id, f"我的订单号是 {ORDER}，杯子收到就碎了，请给我售后建议。")
+        request_count = 2
+        second = {'error_code': 'not_attempted'}
+        extracted = {'error_code': 'not_attempted', 'response': None}
+        if first['error_code'] is None:
+            second = await chat_round(client, base_url, conversation_id, "我刚才提供的订单号是什么？请复述并说明下一步。")
+            request_count += 1
+            if second['error_code'] is None and ORDER not in second['text']:
+                second['error_code'] = 'lost_order_continuity'
+            if second['error_code'] is None:
+                extracted = await extract_request(client, base_url, EXTRACT_TEXT, deadline=REQUEST_DEADLINE_SECONDS)
+                request_count += 1
     finally:
         if owns_client:
             await client.aclose()
-    if second["error_code"] is None and ORDER not in second["text"]:
-        second["error_code"] = "lost_order_continuity"
     if extracted["error_code"] is None and extracted["response"] != EXTRACT_EXPECTED:
         extracted["error_code"] = "unexpected_extraction"
     failures = [{"scenario": name, "error_code": result["error_code"]}
                 for name, result in (("chat_round_1", first), ("chat_round_2", second), ("extract", extracted))
                 if result["error_code"] is not None]
     report = {"kind": "interface_smoke", "passed": not failures, "failures": failures,
-              "identity": identity(), "request_count": 3, "session_id": session_id,
+              "identity": identity(), "request_count": request_count, "http_request_count": request_count,
+              "model_request_count": None, "model_count_source": "requires_upstream_instrumentation",
+              "conversation_id": conversation_id,
               "rounds": [first, second], "extract": extracted,
               "human_role_review": "pending"}
     save_report(output_path, report)
@@ -136,7 +183,7 @@ async def smoke(base_url: str, output_path: Path, *, http_client: httpx.AsyncCli
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
-    parser.add_argument("--output", type=Path, default=Path("docs/validation/ch01-smoke.json"))
+    parser.add_argument("--output", type=Path, default=Path(".cache/tool-smoke.json"))
     parser.add_argument("--configured-upstream")
     parser.add_argument("--configured-model")
     args = parser.parse_args()

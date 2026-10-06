@@ -45,10 +45,12 @@ async def run_smoke(tmp_path, *, mode="good", extraction=EXTRACT, monkeypatch=No
     def handler(request):
         payload = json.loads(request.content)
         requests.append((request.url.path, payload))
+        if request.url.path == "/api/conversations":
+            return httpx.Response(200, json={"conversation_id": "9007199254741099"})
         if request.url.path == "/api/extract":
             return httpx.Response(200, json=extraction)
-        session = payload["session_id"]
-        data = frame("delta", {"delta": "您好"}) + frame("delta", {"delta": ORDER}) + frame("done", {"session_id": session})
+        session = payload["conversation_id"]
+        data = frame("delta", {"delta": "您好"}) + frame("delta", {"delta": ORDER}) + frame("done", {"conversation_id": session})
         if mode == "non200":
             return httpx.Response(502, content=b"SECRET")
         if mode == "missing_done":
@@ -56,30 +58,33 @@ async def run_smoke(tmp_path, *, mode="good", extraction=EXTRACT, monkeypatch=No
         if mode == "error_done":
             data = frame("error", {"code": "upstream_error", "message": "SECRET"}) + data
         if mode == "duplicate_done":
-            data += frame("done", {"session_id": session})
+            data += frame("done", {"conversation_id": session})
         if mode == "after_done":
             data += frame("delta", {"delta": "later"})
         if mode == "one_delta":
-            data = frame("delta", {"delta": ORDER}) + frame("done", {"session_id": session})
-        if mode == "wrong_session":
-            data = data[:data.rfind(b"event: done")] + frame("done", {"session_id": "wrong"})
-        if mode == "continuity" and len(requests) == 2:
-            data = frame("delta", {"delta": "不记得"}) + frame("delta", {"delta": "订单"}) + frame("done", {"session_id": session})
+            data = frame("delta", {"delta": ORDER}) + frame("done", {"conversation_id": session})
+        if mode == "wrong_identity":
+            data = data[:data.rfind(b"event: done")] + frame("done", {"conversation_id": "wrong"})
+        if mode == "continuity" and len(requests) == 3:
+            data = frame("delta", {"delta": "不记得"}) + frame("delta", {"delta": "订单"}) + frame("done", {"conversation_id": session})
         stream = Fragments(data, failure=httpx.ReadError("SECRET") if mode == "disconnect" else None,
                            delay=.005 if mode == "timeout" else 0)
         streams.append(stream)
         return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=stream)
 
     if monkeypatch:
-        monkeypatch.setattr(module, "REQUEST_DEADLINE_SECONDS", .02)
+        monkeypatch.setattr(module, "CHAT_DEADLINE_SECONDS", .02)
     output = tmp_path / f"{mode}.json"
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         report = await module.smoke("http://app.invalid", output, http_client=client)
         assert not client.is_closed
-    assert len(requests) == report["request_count"] == 3
-    assert requests[0][1]["session_id"] == requests[1][1]["session_id"]
-    assert ORDER in requests[0][1]["message"]
-    assert ORDER not in requests[1][1]["message"]
+    expected_requests = 4 if mode == 'good' else 3 if mode == 'continuity' else 2
+    assert len(requests) == report["request_count"] == expected_requests
+    if len(requests) >= 3:
+        assert requests[1][1]["conversation_id"] == requests[2][1]["conversation_id"]
+    assert ORDER in requests[1][1]["message"]
+    if len(requests) >= 3:
+        assert ORDER not in requests[2][1]["message"]
     assert all(s.closed for s in streams)
     assert "SECRET" not in output.read_text(encoding="utf-8")
     assert json.loads(output.read_text(encoding="utf-8")) == report
@@ -99,10 +104,10 @@ async def test_fragmented_utf8_sse_and_round_continuity(tmp_path):
         assert round["text"] == "您好20261005001"
     assert report["identity"]["provider_verified"] is False
     _, second = await run_smoke(tmp_path)
-    assert first[0][1]["session_id"] != second[0][1]["session_id"]
+    assert first[0][1]["user_id"] != second[0][1]["user_id"]
 
 
-@pytest.mark.parametrize("mode", ["non200", "missing_done", "error_done", "duplicate_done", "after_done", "one_delta", "wrong_session", "continuity", "disconnect"])
+@pytest.mark.parametrize("mode", ["non200", "missing_done", "error_done", "duplicate_done", "after_done", "one_delta", "wrong_identity", "continuity", "disconnect"])
 async def test_invalid_streams_cannot_pass(tmp_path, mode):
     report, _ = await run_smoke(tmp_path, mode=mode)
     assert report["passed"] is False
@@ -119,4 +124,17 @@ async def test_extraction_must_match_exact_expected_three_fields(tmp_path, extra
 async def test_stream_wall_clock_deadline_even_when_chunks_keep_arriving(tmp_path, monkeypatch):
     report, _ = await run_smoke(tmp_path, mode="timeout", monkeypatch=monkeypatch)
     assert report["passed"] is False
-    assert all(r["error_code"] == "timeout" for r in report["rounds"])
+    assert report['rounds'][0]['error_code'] == 'timeout'
+    assert report['rounds'][1]['error_code'] == 'not_attempted'
+
+
+async def test_creation_failure_never_calls_model_routes(tmp_path):
+    requests = []
+    def handler(request):
+        requests.append(request.url.path)
+        return httpx.Response(200, json={'conversation_id': 9007199254741099})
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        report = await implementation().smoke('http://test', tmp_path / 'creation.json', http_client=client)
+    assert report['passed'] is False
+    assert report['http_request_count'] == 1
+    assert requests == ['/api/conversations']
