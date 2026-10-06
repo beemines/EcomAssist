@@ -1,6 +1,7 @@
 import pytest
 
 from app.tools.executor import ToolExecutor
+from app.repositories.tickets import TicketRepository
 from app.tools.registry import build_registry
 from app.tools.types import ToolCall, ToolContext
 
@@ -38,7 +39,10 @@ async def test_registry_hides_context_and_injects_actual_call_id():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("name,args", [("query_order", {"order_id": "001"}), ("query_product", {"product_id": "p1"}), ("query_logistics", {"order_id": "o1"})])
+@pytest.mark.parametrize("name,args", [
+    ("query_order", {"order_id": "001"}), ("query_product", {"product_id": "p1"}), ("query_logistics", {"order_id": "o1"}),
+    ("query_order", {"order_id": " \t001\n"}), ("query_product", {"product_id": "\u3000p1 "}), ("query_logistics", {"order_id": " o1\t"}),
+])
 async def test_mock_tools_preserve_identifiers_and_mark_demo_data(name, args):
     registry = build_registry(FAQStub(), TicketStub(), ToolContext("10", 42, "查询"))
     outcome = await ToolExecutor().execute(ToolCall("call", name, args), registry)
@@ -86,3 +90,65 @@ async def test_business_arguments_reject_bad_lengths_types_and_extra_fields(name
     assert outcome.status == "error" and outcome.attempts == 0
     assert outcome.content["error"]["code"] == "invalid_arguments"
     assert tickets.inputs == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("blank", ["   ", "\t", "\n", "\u3000\u00a0"])
+@pytest.mark.parametrize("name,field", [
+    ("query_order", "order_id"), ("query_product", "product_id"),
+    ("query_logistics", "order_id"), ("query_faq", "keyword"),
+    ("create_ticket", "description"),
+])
+async def test_blank_business_text_is_rejected_before_any_execution(blank, name, field, monkeypatch):
+    faq, tickets = FAQStub(), TicketStub()
+    registry = build_registry(faq, tickets, ToolContext("10", 42, "问题" + blank + "详情"))
+    invocations = []
+    original_invoke = type(registry[name]).ainvoke
+
+    async def record_invoke(tool, *args, **kwargs):
+        invocations.append(tool.name)
+        return await original_invoke(tool, *args, **kwargs)
+
+    monkeypatch.setattr(type(registry[name]), "ainvoke", record_invoke)
+    args = {field: blank}
+    if name == "create_ticket":
+        args["ticket_type"] = "咨询"
+    outcome = await ToolExecutor().execute(ToolCall("call", name, args), registry)
+    assert outcome.status == "error" and outcome.content["error"]["code"] == "invalid_arguments"
+    assert outcome.attempts == 0
+    assert invocations == [] and faq.keywords == [] and tickets.inputs == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("description", ["   ", "\t", "\n", "\u3000\u00a0"])
+async def test_direct_blank_ticket_description_is_rejected_before_database_access(description):
+    class NoDatabaseAccess:
+        def session(self):
+            raise AssertionError("空白描述不得打开数据库会话")
+
+    with pytest.raises(ValueError, match="Invalid ticket arguments"):
+        await TicketRepository(NoDatabaseAccess()).create(
+            conversation_id="10", user_message_id=42, tool_call_id="call",
+            description=description, ticket_type="咨询",
+        )
+
+
+@pytest.mark.asyncio
+async def test_nonblank_faq_and_ticket_text_preserve_surrounding_whitespace():
+    faq, tickets = FAQStub(), TicketStub()
+    registry = build_registry(faq, tickets, ToolContext("10", 42, "请问 \t退货\n 政策"))
+    faq_outcome = await ToolExecutor().execute(ToolCall("faq", "query_faq", {"keyword": " \t退货\n "}), registry)
+    ticket_outcome = await ToolExecutor().execute(ToolCall("ticket", "create_ticket", {"description": "\u3000损坏\t\n", "ticket_type": "售后"}), registry)
+    assert faq_outcome.status == "success" and faq_outcome.attempts == 1
+    assert faq.keywords == [" \t退货\n "]
+    assert ticket_outcome.status == "success" and ticket_outcome.attempts == 1
+    assert tickets.inputs == [{"conversation_id": "10", "user_message_id": 42, "tool_call_id": "ticket", "description": "\u3000损坏\t\n", "ticket_type": "售后"}]
+
+
+@pytest.mark.asyncio
+async def test_surrounding_whitespace_cannot_turn_keyword_into_a_question_fragment():
+    faq = FAQStub()
+    registry = build_registry(faq, TicketStub(), ToolContext("10", 42, "退货政策是什么"))
+    outcome = await ToolExecutor().execute(ToolCall("faq", "query_faq", {"keyword": " 退货 "}), registry)
+    assert outcome.status == "error" and outcome.content["error"]["code"] == "invalid_keyword"
+    assert faq.keywords == []

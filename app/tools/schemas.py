@@ -1,11 +1,19 @@
 from typing import Annotated, Literal
 
 from langchain_core.tools import InjectedToolCallId
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ToolArgs(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
+
+    @field_validator("order_id", "product_id", "keyword", "description", check_fields=False)
+    @classmethod
+    def require_nonblank_business_text(cls, value: str) -> str:
+        # 仅拒绝全空白；合法参数保留原文，避免改变标识符或 FAQ 连续片段。
+        if not value.strip():
+            raise ValueError("Business text must not be blank.")
+        return value
 
 
 class OrderArgs(ToolArgs):

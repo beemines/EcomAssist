@@ -27,7 +27,7 @@ class TicketRepository:
             raise ServiceError("invalid_user_message", "Invalid user message identity.", 422)
         if not isinstance(tool_call_id, str) or not 1 <= len(tool_call_id) <= 64:
             raise ValueError("Invalid tool call identity.")
-        if not isinstance(description, str) or not 1 <= len(description) <= 2000 or ticket_type not in ("售后", "投诉", "咨询"):
+        if not isinstance(description, str) or not 1 <= len(description) <= 2000 or not description.strip() or ticket_type not in ("售后", "投诉", "咨询"):
             raise ValueError("Invalid ticket arguments.")
         ticket_no = "T" + sha256(f"{conversation_id}:{user_message_id}:{tool_call_id}".encode()).hexdigest()[:31]
         try:

@@ -77,6 +77,34 @@ async def test_ticket_retry_is_same_but_next_user_message_is_new(mysql_database,
 
 
 @pytest.mark.asyncio
+async def test_blank_ticket_descriptions_cannot_write_or_transfer(mysql_database, owned_rows):
+    identifier, message_id = await new_turn(mysql_database, owned_rows)
+    repository = TicketRepository(mysql_database)
+    for description in ("   ", "\t", "\n", "\u3000\u00a0"):
+        with pytest.raises(ValueError, match="Invalid ticket arguments"):
+            await repository.create(
+                conversation_id=identifier, user_message_id=message_id, tool_call_id="blank",
+                description=description, ticket_type="咨询",
+            )
+    async with mysql_database.session() as session:
+        assert await session.scalar(select(func.count()).select_from(Ticket).where(Ticket.conversation_id == int(identifier))) == 0
+        assert (await session.get(Conversation, int(identifier))).status == "进行中"
+
+
+@pytest.mark.asyncio
+async def test_ticket_keeps_nonblank_description_whitespace_in_storage(mysql_database, owned_rows):
+    identifier, message_id = await new_turn(mysql_database, owned_rows)
+    result = await TicketRepository(mysql_database).create(
+        conversation_id=identifier, user_message_id=message_id, tool_call_id="spaced",
+        description="\u3000损坏\t\n ", ticket_type="售后",
+    )
+    async with mysql_database.session() as session:
+        row = await session.get(Ticket, result["ticket_no"])
+        assert row.description == "\u3000损坏\t\n " and row.ticket_type == "售后"
+        assert (await session.get(Conversation, int(identifier))).status == "已转人工"
+
+
+@pytest.mark.asyncio
 async def test_ticket_commit_then_timeout_keeps_one_row(mysql_database, owned_rows):
     identifier, message_id = await new_turn(mysql_database, owned_rows)
     real = TicketRepository(mysql_database)
