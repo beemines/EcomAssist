@@ -12,8 +12,8 @@ from app.core.prompts import build_chat_system_prompt
 
 @dataclass
 class StreamEvent:
-    event: Literal["delta", "done", "error"]
-    data: dict[str, str]
+    event: Literal["status", "delta", "done", "error"]
+    data: dict[str, Any]
 
 
 @dataclass

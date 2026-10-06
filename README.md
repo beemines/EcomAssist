@@ -1,25 +1,12 @@
-# 电商智能客服系统
+# 电商智能客服
 
-基于 Python、FastAPI 和 LangChain 的电商智能客服项目，包含客服聊天页面与后端接口。
+第二步加入 MySQL 持久会话与单轮工具调用，沿用 FastAPI、LangChain 和 OpenAI 兼容 Chat Completions。每条用户消息一次工具选择、最多一个逻辑工具、一次最终流式回答，没有 Agent Loop。订单、商品和物流返回随机模拟数据；FAQ 读取 MySQL 问题列；人工工单真实写库并将会话转人工。原售后信息提取接口继续保留。
 
-## 第一步：跑通纯对话
+离线测试、真实 MySQL 集成和保留数据的重启检查已通过。真实物流闸门通过，八类评估在人工工单项发生错误后停止，剩余真实验收待完成，见 [验证记录](docs/validation/tool-calling-results.md)。开发过程见 [dev-notes/ch02.md](dev-notes/ch02.md)，原始建表文件为 [sql/schema.sql](sql/schema.sql)。
 
-当前已实现：
+## 安装、数据库与启动
 
-- 多轮客服对话：按会话保存历史消息，并通过历史裁剪控制输入 token 预算。
-- SSE 流式回复：后端推送文本增量，聊天页面逐字显示回复。
-- Prompt 模板管理：使用 `PromptTemplate` 管理客服角色设定与行为约束。
-- 售后信息提取：使用 `with_structured_output` 提取订单号、诉求类型和期望方案。
-
-这一步使用单进程、内存会话，模型通过 OpenAI 兼容 Chat Completions 协议直连上游。数据库、知识库检索、业务工具调用和 Agent 循环尚未实现。
-
-验证状态：离线测试已通过，真实上游的 JSON 兼容性、客服角色表现与标注准确率仍待验证，详见 [验收记录](docs/validation/ch01-results.md)。
-
-开发提示词及使用过的插件见 [prompt.md](prompt.md)，阶段产出、纠偏与返工见 [开发过程记录](dev-notes/ch01.md)。
-
-## 安装与启动
-
-在本项目根目录使用 Python 3.11–3.13（开发验证使用 Python 3.13.5、uv 0.11.7）：
+在项目根目录使用 Python 3.11–3.13；本次验证 Python 3.13.5、uv 0.11.7。
 
 ```powershell
 $env:UV_CACHE_DIR = '.cache/uv'
@@ -27,104 +14,98 @@ uv sync --locked
 if (-not (Test-Path -LiteralPath '.env')) { Copy-Item .env.example .env }
 ```
 
-在本项目 `.env` 中填写 `LLM_API_KEY`。首个真实验收模型为 `glm-5.3-flash`，标准端点为 `https://open.bigmodel.cn/api/paas/v4/`，不是 Coding 端点；然后启动：
+在 `.env` 填写 `LLM_API_KEY`、`MYSQL_PASSWORD` 和 `MYSQL_ROOT_PASSWORD`。沿用 `glm-5.3-flash` 和标准端点 `https://open.bigmodel.cn/api/paas/v4/`。应用默认连接 `127.0.0.1:3307/customer_service`；独立测试库固定为 `127.0.0.1:3308/customer_service_test`。
 
 ```powershell
-uv run --locked uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000
+docker compose -p ecs-tool-calling --profile test up -d --wait --wait-timeout 120
+docker compose -p ecs-tool-calling --profile test ps
+uv run --locked uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-保持一个 worker：会话历史及占用锁在进程内，重启丢失，多 worker 无法保证同会话连续性。`GET /health` 返回 `{"status":"ok"}` 仅证明应用存活，不调用模型，也不证明模型连通或 JSON 模式兼容。
+首次空卷启动由官方入口原样执行挂载的 `sql/schema.sql`，再执行 `sql/seed.sql`。客户端明确使用 utf8mb4；仅有 faq/conversations/messages/tickets 四表。种子使用 seed-user，包含完整对话、人工售后工单、退货与运费 FAQ；不占用浏览器 demo-user 的会话。种子采用存在性检查，不清空数据。
 
-## 聊天页面
+既有卷再次 up 不重跑初始化 SQL。维护时保留 `ecs-tool-calling_mysql-data-initialized` 与 `ecs-tool-calling_mysql-test-data-initialized` 卷。可只重启独立测试库：
 
-启动后在浏览器打开 <http://127.0.0.1:8000/>。页面与接口由同一个 FastAPI 应用提供，无需启动额外前端服务。
+```powershell
+docker compose -p ecs-tool-calling --profile test restart mysql-test
+docker compose -p ecs-tool-calling --profile test ps
+```
 
-- 输入问题后按 Enter 或发送按钮。页面直接 POST `/api/chat`，边接收 SSE 增量边逐字显示回复。
-- 同一页面连续发送使用同一个 `session_id`，下一轮带上后端保存的完整历史。可先发送“我的订单号是 20261005001，杯子收到就碎了”，再问“我刚才提供的订单号是什么？”。
-- Shift + Enter 换行；常见问题卡片填入输入框；生成中可停止。中断和失败会提示本轮未完整完成。
-- “开启新对话”生成新的会话 ID。刷新页面也开启新会话；当前没有浏览器聊天记录持久化。
+应用不执行 ORM 建表、create_all/drop_all。初始化 SQL 或数据库密码改动不会自动修改已有卷内数据库，需按实际库状态明确维护，不能用删除卷代替迁移。
 
-页面上的“服务已就绪”仅来自 `/health`，不表示模型配置已验收。密钥由后端 `.env` 读取，浏览器不接触密钥。修改 `.env` 后重启服务；未填有效密钥时可以打开页面，真实回答仍待验收。
+保持单 worker：历史保存在 MySQL，可跨应用重启读取；同会话占用锁仍在单进程内。模型生成和 SSE 等待期间不持有事务。`GET /health` 的 `{"status":"ok"}` 仅表示服务存活。
 
-本次浏览器检查使用独立测试端口的本地模型替身，已验证逐字显示、两轮上下文、新会话、停止及错误恢复；详见 [验收记录](docs/validation/ch01-results.md)。正常启动命令始终使用真实上游配置，测试替身未接入产品启动入口。
+## 页面与 API
 
-## 配置与边界
+打开 <http://127.0.0.1:8000/>。页面先 POST `/api/conversations`，获得数据库分配的正整数十进制字符串 ID，再以 `conversation_id` 连续聊天；徽章显示工具阶段。Enter 发送，Shift + Enter 换行，生成中可停止；失败/取消提示本轮未完整完成。新对话创建独立会话，页面不加载已有数据库记录。
 
-| 配置 | 默认/示例 | 用途 |
-| --- | --- | --- |
-| `LLM_BASE_URL` | GLM 标准端点 | 直接连接 OpenAI 兼容上游 |
-| `LLM_MODEL` | `glm-5.3-flash` | 上游实际可用模型 ID |
-| `LLM_API_KEY` | 用户填写 | 不得提交或写入验收报告 |
-| `LLM_TOKEN_LIMIT_FIELD` | `max_tokens` | 可设 `max_completion_tokens` |
-| `INPUT_TOKEN_BUDGET` | `2000` | 输入估算 token 预算，并非模型 tokenizer 精确计数 |
-| `MAX_OUTPUT_TOKENS` | `512` | 独立的模型输出上限 |
-| `LLM_TIMEOUT_SECONDS` | `60.0` | 上游请求超时 |
+ID 全程保持字符串，包括 JavaScript 安全整数范围以外的值。拒绝 UUID、数字 JSON、布尔、浮点、空串、前导零及超出 unsigned BIGINT 的值。消息最多 20000 字符。同会话并发返回 409 session_busy，不存在返回 404，已结束返回 409；已转人工的会话仍可聊天。
 
-所有预算和超时须为正值。保留完整 user/assistant 轮次；system 和当前输入不裁断，必留输入超预算返回 422 `input_too_long`。聊天仅在上游公开 `response_metadata.finish_reason="stop"`、流正常结束且回复非空时准备 `done`，终止帧发送成功后提交历史。缺失结束原因、异常结束原因（如 `content_filter`、`tool_calls`）、已知截断、断开、失败及空回答不提交半轮历史；单独的 EOF 或 LangChain 最后块标记不足以确认正常完成。同会话同时请求返回 409 `session_busy`。应用不查询订单或执行退款，只给建议，不公开推理内容。GLM 的 JSON 模式与 512 上限是否足够等待实测；文档存在 `response_format` 差异，不能静默改变格式、模型或默认预算。
+SSE status 的 phase 为 selecting/tool_running/tool_completed/answering，工具阶段含名称及调用 ID；delta 为回复增量。成功最后恰好一个 done，携带同一字符串 conversation_id；失败为 error 后关闭。网络块不等同于 tokenizer token。
 
-`.env.example` 包含 GPT、Claude、DeepSeek、Ollama 的端点示例。调用统一使用 OpenAI 兼容 Chat Completions、LangChain `PromptTemplate` 及 `with_structured_output(method="json_mode")`。Claude 官方兼容层忽略 `response_format`，JSON 依赖提示与应用校验，能力不等同原生 JSON 模式；切换端点不保证提取成功。配置声明也不是上游自行返回的身份证明。
+最终回复必须非空、流正常结束、明确 finish_reason=stop，并在数据库提交成功后才发送 done。截断、错误、取消、不完整轮次保留审计流水，但不回放给下一轮模型。提交后发送失败时数据库可能已有完整回答，不能据此证明客户端收到 done。
 
-## Windows curl 验收
+## curl 演示
 
-在另一个 PowerShell 终端进入本项目根目录。用 UTF-8 无 BOM 文件传送 JSON，避免 shell 内引号损坏：
+PowerShell 使用 UTF-8 无 BOM 文件避免引号损坏。先创建会话，再发三个原问题；聊天最长等待 150 秒，提取 75 秒。下面是演示命令，不是当前真实验收已通过的声明。
 
 ```powershell
 $utf8 = [System.Text.UTF8Encoding]::new($false)
-$session = 'manual-' + [guid]::NewGuid().ToString('N')
-$first = @{session_id=$session; message='我的订单号是 20261005001，杯子收到就碎了，请给我售后建议。'} | ConvertTo-Json -Compress
-[System.IO.File]::WriteAllText((Join-Path (Get-Location) 'chat-first.json'), $first, $utf8)
-curl.exe -N --max-time 75 -H "Content-Type: application/json" --data-binary "@chat-first.json" http://127.0.0.1:8000/api/chat
-
-$second = @{session_id=$session; message='我刚才提供的订单号是什么？请复述并说明下一步。'} | ConvertTo-Json -Compress
-[System.IO.File]::WriteAllText((Join-Path (Get-Location) 'chat-second.json'), $second, $utf8)
-curl.exe -N --max-time 75 -H "Content-Type: application/json" --data-binary "@chat-second.json" http://127.0.0.1:8000/api/chat
-
-$extract = @{text='订单 20261005001 的杯子收到就碎了，我想退货退款。'} | ConvertTo-Json -Compress
-[System.IO.File]::WriteAllText((Join-Path (Get-Location) 'extract.json'), $extract, $utf8)
-curl.exe --max-time 75 -H "Content-Type: application/json" --data-binary "@extract.json" http://127.0.0.1:8000/api/extract
+New-Item -ItemType Directory -Force .cache | Out-Null
+[System.IO.File]::WriteAllText((Join-Path (Get-Location) '.cache/create.json'), '{"user_id":"demo-user"}', $utf8)
+$created = curl.exe --max-time 75 -sS -H 'Content-Type: application/json' --data-binary '@.cache/create.json' http://127.0.0.1:8000/api/conversations | ConvertFrom-Json
+$conversationId = $created.conversation_id
+$questions = @('订单 1001 的物流到哪了', '退货政策是什么', '邮费是多少')
+foreach ($question in $questions) {
+  $payload = @{conversation_id=$conversationId; message=$question} | ConvertTo-Json -Compress
+  [System.IO.File]::WriteAllText((Join-Path (Get-Location) '.cache/chat.json'), $payload, $utf8)
+  curl.exe -N --max-time 150 -H 'Content-Type: application/json' --data-binary '@.cache/chat.json' http://127.0.0.1:8000/api/chat
+}
+$ticket = @{conversation_id=$conversationId; message='请转人工处理我的问题'} | ConvertTo-Json -Compress
+[System.IO.File]::WriteAllText((Join-Path (Get-Location) '.cache/ticket.json'), $ticket, $utf8)
+curl.exe -N --max-time 150 -H 'Content-Type: application/json' --data-binary '@.cache/ticket.json' http://127.0.0.1:8000/api/chat
+[System.IO.File]::WriteAllText((Join-Path (Get-Location) '.cache/extract.json'), '{"text":"订单 20261005001 的杯子收到就碎了，我想退货退款。"}', $utf8)
+curl.exe --max-time 75 -H 'Content-Type: application/json' --data-binary '@.cache/extract.json' http://127.0.0.1:8000/api/extract
 ```
 
-未填写有效配置时，以上真实输出待验收。成功流须有多个 `event: delta` / `data: {"delta":"..."}`，最后恰好一次 `event: done` / `data: {"session_id":"..."}`。失败为 `event: error` 后关闭；不能把一个网络块当作一个 tokenizer token。第二轮应复述第一轮订单。提取预期精确为：
+提取预期为 `{"order_id":"20261005001","request_type":"return_refund","expected_solution":"退货退款"}`。保留 conversationId 后可在应用重启后用同一 ID 追问前轮内容。
 
-```json
-{"order_id":"20261005001","request_type":"return_refund","expected_solution":"退货退款"}
-```
+FAQ 关键词必须是当前问题的连续原文片段，只查问题列，最多三条，不扩展同义词。“邮费是多少”查不到是预期结果；不能换成“运费”掩盖漏召回。订单/商品/物流是模拟演示，不能声称真实订单状态或已执行退款。工单编号由会话、当前 user 消息主键和调用 ID 的 SHA256 生成，同次重试复用，不同用户消息独立编号。
 
-一般 Unix shell 的等价示例（两轮使用同一个新 session ID）：
+## 配置和预算
 
-```sh
-session="manual-$(date +%s)-$$"
-curl -N --max-time 75 -H 'Content-Type: application/json' --data-binary "{\"session_id\":\"$session\",\"message\":\"我的订单号是 20261005001，杯子收到就碎了，请给我售后建议。\"}" http://127.0.0.1:8000/api/chat
-curl -N --max-time 75 -H 'Content-Type: application/json' --data-binary "{\"session_id\":\"$session\",\"message\":\"我刚才提供的订单号是什么？请复述并说明下一步。\"}" http://127.0.0.1:8000/api/chat
-curl --max-time 75 -H 'Content-Type: application/json' --data-binary '{"text":"订单 20261005001 的杯子收到就碎了，我想退货退款。"}' http://127.0.0.1:8000/api/extract
-```
+| 配置 | 当前/默认值 | 用途 |
+| --- | --- | --- |
+| LLM_MODEL | glm-5.3-flash | 既定上游模型 |
+| LLM_BASE_URL | GLM 标准端点 | Chat Completions |
+| LLM_TOKEN_LIMIT_FIELD | max_tokens | 既有输出字段 |
+| MAX_OUTPUT_TOKENS | 512 | 既有输出上限 |
+| LLM_TIMEOUT_SECONDS | 60 | 单次上游请求期限 |
+| TOOL_INPUT_TOKEN_BUDGET | 8000 | 聊天 system/历史/工具定义/申请/结果的估算预算 |
+| INPUT_TOKEN_BUDGET | 2000 | 原售后提取估算预算 |
+| TOOL_TIMEOUT_SECONDS | 5 | 单次工具执行期限 |
+| TOOL_MAX_RETRIES | 1 | 仅超时/暂时连接错误允许一次工具重试 |
 
-## 标注评测与 smoke
+保留完整历史轮次和当前工具申请/结果组合。必需输入超预算返回 422 input_too_long；取消后不重试。模型 SDK 和评估 HTTP 客户端均无自动重试。密钥只在后端读取，不发送给浏览器或写入报告；改 .env 后重启服务。
 
-待密钥填写并启动应用后执行，脚本调用本地应用接口，不直连模型。20 条数据的**第一条本身**检查 JSON 兼容性，结果计入该轮，不增加重复探测。客户端每个请求有 75 秒墙钟 deadline；应用和脚本均无自动模型重试。使用独立报告名保留每轮失败：
+## 评估与回归
+
+先以当前配置执行一个物流能力闸门。兼容、认证、预算或协议失败时停止所有后续真实请求，保存脱敏证据并确认下一步，不自动改模型、协议或参数。八条 [样例](evals/tool_cases.jsonl) 属于 Prompt/数据评估；模型替身测试不能代表真实上游质量。
 
 ```powershell
-uv run --locked python -m evals.evaluate --base-url http://127.0.0.1:8000 --cases evals/ch01_cases.jsonl --output docs/validation/round-1-evaluation.json --configured-upstream https://open.bigmodel.cn/api/paas/v4/ --configured-model glm-5.3-flash
+uv run --locked python -m evals.evaluate_tools --base-url http://127.0.0.1:8000 --cases evals/tool_cases.jsonl --output .cache/tool-evaluation.json
+uv run --locked python -m evals.smoke --base-url http://127.0.0.1:8000 --output .cache/tool-smoke.json --configured-upstream https://open.bigmodel.cn/api/paas/v4/ --configured-model glm-5.3-flash
 ```
 
-先检查退出码、`first_case_json_compatible` 和 `records[0]`。首条 HTTP、JSON/schema 或传输失败会停止后续评估请求：只尝试 1 次，剩余样例保留原文和 gold，以 `error_code: "not_attempted"`、null 状态/响应明确记录，仍计入全部样例分母。`request_count` / `attempted_count` 表示实际请求尝试数，`not_attempted_count` 表示未尝试数；首条有效 JSON 的标签差异不会触发此门槛，仍继续 Prompt 效果评测。首条兼容检查失败时先诊断，不运行下面的 smoke。不能仅由安全的 `upstream_error` 推断上游拒绝 `response_format`，需确认实证。固定技术选型不兼容时请用户决定，不能自动换协议或模型。有任意失败/未尝试/标签不一致返回退出码 1，这用于提醒检查，不代表新增一个准确率验收阈值。
+评估通过应用 API 创建新会话、聊天，再从当前配置建立只读审计仓储读取流水，核对实际工具、参数、FAQ found/matches、稳定工单号及已提交回答。剩余未尝试样例明确标记 not_attempted。工具/参数差异可继续采样，流/接口失败停止剩余调用。完整正常流及审计匹配才能结构通过；answer_contains 只产生 answer_phrase_match 观察，回答质量始终 human_answer_review=pending，同义措辞不会直接判为工具失败。
 
-```powershell
-uv run --locked python -m evals.smoke --base-url http://127.0.0.1:8000 --output docs/validation/round-1-smoke.json --configured-upstream https://open.bigmodel.cn/api/paas/v4/ --configured-model glm-5.3-flash
-```
-
-smoke 共三次请求：同一新会话的两轮聊天、一次精确提取。每轮至少两个非空增量、最后一次 done、无 error；第二轮包含前轮订单号。报告保存增量、首增量耗时、终止事件和提取结果。`human_role_review` 始终是 `pending`，须人工检查客服角色、政策/订单状态/已执行操作是否编造。报告中的上游/模型只来自显式 CLI 配置声明，缺省为 unknown，包含本地库版本，不存密钥、不自动读取 `.env`，不宣称提供方身份已验证。`--base-url` 是运行中的应用地址，不能传模型端点；身份参数只填公开端点和模型名。
-
-首条兼容检查成功时，默认完整一轮为 **20 次提取 + 3 次 smoke = 23 次上游调用**；首条失败时只尝试 1 次评估请求，剩余 19 条未尝试，先诊断且不运行 smoke。请求尝试次数不证明上游实际收到多少次，HTTP/传输失败应按报告记录实际证据。上面的三个手动 curl 会另增加 3 次，勿计入自动轮次。真实失败或角色违规时先诊断，必要时改 Prompt 并定向复测失败样例，再完整评估+smoke（首条成功时再 23 次），记录返工和实际次数；完整复测仍失败则报告问题，不无限重试。512 截断时记录实证并请用户决定 `.env` 输出预算。
-
-指标分母始终包含失败：三字段准确率分别计数；有效率要求 HTTP 200、无错误、完整三键 schema；missing 指标以 gold 的订单 null、方案 null、类型 unknown 的**字段位置**计数；source 指标以样例计数，要求有效输出和所有非 null 订单/方案为原文片段。分母为零时率为 null，无自行设定的准确率阈值。
-
-## 离线验证
+smoke 正常有创建会话、两轮聊天、一次精确提取，共 4 次应用 HTTP；聊天 deadline150秒、提取75秒，失败后停止。正常聊天通常每轮一次选择、一次最终模型请求，提取一次；不能将理论次数冒充实测。普通 API 客户端无法观察后端上游调用，model_request_count 为 null；真实验收以原请求的脱敏上游观察记录计数，见验证记录。身份参数只声明公开配置，不能证明提供方身份。
 
 ```powershell
 $env:UV_CACHE_DIR = '.cache/uv'
 uv run --locked pytest -q
+uv run --locked pytest tests/integration --run-mysql -q
 git diff --check
 ```
 
-测试使用模型替身和可控 HTTP/分片流，不读取真实 `.env` 或请求真实上游。网络替身验证脚本能识别异常，不证明真实模型质量。真实验收需要配置有效凭据、运行上述验收命令并人工复核。
+未传 --run-mysql 跳过独立集成；显式请求但测试库未就绪会失败。离线测试使用受控模型、仓储、HTTP 分片，不调用真实上游。真实浏览器/curl、客服回答质量、真实工单和提取能力须按验证记录核对，不能由离线通过推断。

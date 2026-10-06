@@ -5,7 +5,8 @@ import anyio
 from starlette.responses import StreamingResponse
 from starlette.types import Receive, Scope, Send
 
-from app.core.chat import ChatService, PreparedChat, StreamEvent
+from app.core.chat import StreamEvent
+from app.core.tool_chat import ToolChatService, PreparedToolChat
 
 
 logger = logging.getLogger(__name__)
@@ -19,11 +20,10 @@ def encode_sse(event: StreamEvent) -> bytes:
 class ManagedChatResponse(StreamingResponse):
     """负责迭代器和会话占用凭证的生命周期，包括生成器暂停期间。
 
-    ASGI 终止帧发送成功是提交历史的边界，
-    但这不能保证远端客户端确实收到了这些字节。
+    服务先提交完整回答，响应层再发送 done；发送失败不回滚已提交结果。
     """
 
-    def __init__(self, service: ChatService, prepared: PreparedChat):
+    def __init__(self, service: ToolChatService, prepared: PreparedToolChat):
         self.service = service
         self.prepared = prepared
         self.events = service.stream(prepared)
@@ -36,11 +36,8 @@ class ManagedChatResponse(StreamingResponse):
     async def stream_response(self, send: Send) -> None:
         await send({"type": "http.response.start", "status": self.status_code, "headers": self.raw_headers})
         async for event in self.events:
-            terminal = event.event != "delta"
+            terminal = event.event in {"done", "error"}
             await send({"type": "http.response.body", "body": encode_sse(event), "more_body": not terminal})
-            if event.event == "done":
-                # 终止帧发送成功与历史提交之间不能插入 await。
-                self.service.commit(self.prepared)
             if terminal:
                 return
 
@@ -69,11 +66,9 @@ class ManagedChatResponse(StreamingResponse):
         finally:
             try:
                 with anyio.move_on_after(5, shield=True):
-                    for iterator in (self.events, self.prepared.upstream):
-                        if iterator is not None:
-                            try:
-                                await iterator.aclose()
-                            except Exception:
-                                logger.warning("Chat stream cleanup failed.")
+                    try:
+                        await self.events.aclose()
+                    except Exception:
+                        logger.warning("Chat stream cleanup failed.")
             finally:
                 self.service.release(self.prepared)

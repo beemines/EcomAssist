@@ -1,0 +1,8 @@
+{"id":"logistics","category":"物流","message":"订单 A-42 物流到哪了？","expected_tool":"query_logistics","expected_args":{"order_id":"A-42"},"expected_found":null,"answer_contains":["模拟"],"controlled_answer":"模拟物流数据仅供演示，实际进度请联系商家。"}
+{"id":"order","category":"订单","message":"查一下订单 A-42 的状态。","expected_tool":"query_order","expected_args":{"order_id":"A-42"},"expected_found":null,"answer_contains":["模拟"],"controlled_answer":"这次查询使用模拟订单数据，实际订单状态请联系商家核实。"}
+{"id":"product","category":"商品","message":"商品 P-7 还有库存吗？","expected_tool":"query_product","expected_args":{"product_id":"P-7"},"expected_found":null,"answer_contains":["模拟"],"controlled_answer":"商品查询结果是模拟数据，实际库存请联系商家确认。"}
+{"id":"faq_return","category":"退货 FAQ 命中","message":"如何退货？","expected_tool":"query_faq","expected_args":{"keyword":"退货"},"expected_found":true,"answer_contains":["联系商家确认"],"controlled_answer":"FAQ 建议请联系商家确认退货条件，尚未为您执行退货。"}
+{"id":"faq_shipping_miss","category":"邮费 FAQ 预期未命中","message":"邮费是多少？","expected_tool":"query_faq","expected_args":{"keyword":"邮费"},"expected_found":false,"answer_contains":["未查到"],"controlled_answer":"未查到相关 FAQ，无法确定邮费，请联系商家确认。"}
+{"id":"ticket","category":"人工工单","message":"需要人工帮助","expected_tool":"create_ticket","expected_args":{"description":"需要人工帮助","ticket_type":"咨询"},"expected_found":null,"answer_contains":["待处理"],"controlled_answer":"已建立人工咨询工单，状态为待处理，请等待人工客服联系。"}
+{"id":"greeting","category":"普通问候无工具","message":"你好","expected_tool":null,"expected_args":{},"expected_found":null,"answer_contains":["您好"],"controlled_answer":"您好，请问有什么电商咨询需要帮助？"}
+{"id":"missing_order","category":"缺订单号先澄清无工具","message":"我的订单到哪了？","expected_tool":null,"expected_args":{},"expected_found":null,"answer_contains":["订单号"],"controlled_answer":"请提供订单号，我才能协助查询物流演示信息。"}

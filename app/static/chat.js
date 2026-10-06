@@ -10,10 +10,17 @@ const welcome = document.querySelector("#welcome");
 const newButtons = [document.querySelector("#new-chat"), document.querySelector("#mobile-new-chat")];
 const hint = document.querySelector("#composer-hint");
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-let sessionId = crypto.randomUUID();
+let conversationId = null;
 let active = null;
 let followBottom = true;
 let composing = false;
+const toolLabels = {
+  query_order: "查询订单",
+  query_product: "查询商品",
+  query_logistics: "查询物流",
+  query_faq: "查询常见问题",
+  create_ticket: "创建人工工单",
+};
 
 function scrollBottom() {
   if (followBottom) scrollArea.scrollTop = scrollArea.scrollHeight;
@@ -60,14 +67,21 @@ function addMessage(role, text) {
   label.textContent = role === "user" ? "你" : "MewHelp · 智能客服";
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  bubble.textContent = text;
+  const tools = document.createElement("div");
+  tools.className = "tool-traces";
+  tools.hidden = true;
+  tools.setAttribute("aria-label", "本轮工具记录");
+  const answer = document.createElement("div");
+  answer.className = "answer-text";
+  answer.textContent = text;
+  bubble.append(tools, answer);
   const note = document.createElement("p");
   note.className = "message-note";
   content.append(label, bubble, note);
   row.append(content);
   messages.append(row);
   scrollBottom();
-  return { bubble, note };
+  return { bubble, text: answer, tools, note };
 }
 
 function busy(value) {
@@ -82,14 +96,20 @@ function busy(value) {
 function beginText(state) {
   if (state.startedText) return;
   state.startedText = true;
-  state.bubble.replaceChildren();
+  state.text.replaceChildren();
+  state.note.textContent = "";
   state.bubble.classList.remove("waiting");
   state.bubble.classList.add("typing");
 }
 
 function finishVisual(state) {
   state.bubble.classList.remove("typing", "waiting");
-  if (!state.visible && !state.queue.length) state.bubble.textContent = "这次没有收到完整回复。";
+  if (state.toolBadge?.dataset.status === "running") {
+    state.toolBadge.dataset.status = "interrupted";
+    state.toolBadge.textContent = toolLabels[state.toolName] + " · 结果未确认";
+  }
+  if (!state.visible && !state.queue.length) state.text.textContent = state.stopped ? "本轮已停止。" : "这次没有收到完整回复。";
+  if (!state.error && !state.stopped) state.note.textContent = "";
   if (state.error) {
     state.note.className = "message-note error";
     state.note.textContent = state.error;
@@ -110,7 +130,7 @@ function tick(state, now) {
   if (state.queue.length && count > 0) {
     beginText(state);
     state.visible += state.queue.splice(0, Math.max(1, count)).join("");
-    state.bubble.textContent = state.visible;
+    state.text.textContent = state.visible;
     state.lastPaint = now;
     scrollBottom();
   } else if (!state.queue.length) {
@@ -132,8 +152,47 @@ function stopReply() {
   if (state.queue.length) {
     beginText(state);
     state.visible += state.queue.splice(0).join("");
-    state.bubble.textContent = state.visible;
+    state.text.textContent = state.visible;
   }
+}
+
+function acceptStatus(payload, state) {
+  const phase = payload.phase;
+  if (phase === "selecting") {
+    state.note.textContent = "正在理解你的问题…";
+    return;
+  }
+  if (phase === "answering") {
+    state.note.textContent = "正在组织回复…";
+    return;
+  }
+  if (!["tool_running", "tool_completed"].includes(phase) ||
+      !Object.hasOwn(toolLabels, payload.tool_name) ||
+      typeof payload.tool_call_id !== "string" || !payload.tool_call_id ||
+      payload.tool_call_id.length > 64) {
+    throw new Error("工具状态格式异常，请重新尝试。");
+  }
+  if (phase === "tool_completed" && !["success", "error"].includes(payload.status)) {
+    throw new Error("工具结果状态异常，请重新尝试。");
+  }
+  if (!state.toolBadge) {
+    const badge = document.createElement("span");
+    badge.className = "tool-badge";
+    state.tools.append(badge);
+    state.tools.hidden = false;
+    state.toolBadge = badge;
+    state.toolCallId = payload.tool_call_id;
+    state.toolName = payload.tool_name;
+  }
+  if (state.toolCallId !== payload.tool_call_id || state.toolName !== payload.tool_name) {
+    throw new Error("这轮收到多个工具调用，请重新尝试。");
+  }
+  const status = phase === "tool_running" ? "running" : payload.status;
+  const suffix = status === "running" ? "执行中" : status === "success" ? "已完成" : "未完成";
+  state.toolBadge.dataset.status = status;
+  state.toolBadge.textContent = toolLabels[payload.tool_name] + " · " + suffix;
+  state.note.textContent = status === "running" ? "正在" + toolLabels[payload.tool_name].split(" · ")[0] + "…" : "";
+  scrollBottom();
 }
 
 function acceptFrame(frame, state) {
@@ -149,9 +208,11 @@ function acceptFrame(frame, state) {
   let payload;
   try { payload = JSON.parse(data.join("\n")); }
   catch { throw new Error("收到的回复格式异常，请重新尝试。"); }
-  if (event === "delta" && typeof payload?.delta === "string") {
+  if (event === "status" && payload && typeof payload === "object") {
+    acceptStatus(payload, state);
+  } else if (event === "delta" && typeof payload?.delta === "string") {
     state.queue.push(...Array.from(payload.delta));
-  } else if (event === "done" && payload?.session_id === sessionId) {
+  } else if (event === "done" && payload?.conversation_id === state.conversationId) {
     state.terminal = true;
     state.done = true;
   } else if (event === "error" && typeof payload?.message === "string") {
@@ -165,16 +226,38 @@ function acceptFrame(frame, state) {
 async function readReply(state, message) {
   let reader;
   try {
+    if (!conversationId) {
+      const created = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: "demo-user" }),
+        signal: state.controller.signal,
+      });
+      if (!created.ok) throw new Error("暂时无法开启对话，请稍后重试。");
+      const identity = await created.json();
+      const id = identity?.conversation_id;
+      // 始终保留字符串，避免 BIGINT 会话号在浏览器中丢失精度。
+      if (typeof id !== "string" || !/^[1-9]\d{0,19}$/.test(id) ||
+          BigInt(id) > 18446744073709551615n) {
+        throw new Error("会话创建结果异常，请稍后重试。");
+      }
+      conversationId = id;
+    }
+    state.conversationId = conversationId;
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
-      body: JSON.stringify({ session_id: sessionId, message }),
+      body: JSON.stringify({ conversation_id: state.conversationId, message }),
       signal: state.controller.signal,
     });
     if (!response.ok) {
       let payload;
       try { payload = await response.json(); } catch { /* 解析失败时使用安全的默认提示。 */ }
-      throw new Error(typeof payload?.message === "string" ? payload.message : response.status === 422 ? "问题为空或超过输入限制，请缩短后重试。" : "暂时无法获取回复，请稍后重试。");
+      throw new Error(typeof payload?.message === "string" ? payload.message :
+        response.status === 422 ? "问题为空或超过输入限制，请缩短后重试。" :
+        response.status === 404 ? "这段会话已不存在，请开启新对话。" :
+        response.status === 409 ? "这段会话暂时无法继续，请稍后重试或开启新对话。" :
+        "暂时无法获取回复，请稍后重试。");
     }
     if (!response.body || !response.headers.get("content-type")?.includes("text/event-stream")) {
       throw new Error("服务返回的回复格式异常，请稍后重试。");
@@ -223,7 +306,11 @@ form.addEventListener("submit", (event) => {
   addMessage("user", message);
   const assistant = addMessage("assistant", "");
   assistant.bubble.classList.add("waiting");
-  assistant.bubble.innerHTML = '<span class="thinking-dot"></span><span class="thinking-dot"></span><span class="thinking-dot"></span>';
+  for (let index = 0; index < 3; index += 1) {
+    const dot = document.createElement("span");
+    dot.className = "thinking-dot";
+    assistant.text.append(dot);
+  }
   const state = { ...assistant, controller: new AbortController(), queue: [], visible: "", lastPaint: performance.now(), networkFinished: false, terminal: false, done: false, stopped: false, error: "", startedText: false, animation: null };
   active = state;
   input.value = "";
@@ -234,7 +321,7 @@ form.addEventListener("submit", (event) => {
 
 newButtons.forEach((button) => button.addEventListener("click", () => {
   if (active) return;
-  sessionId = crypto.randomUUID();
+  conversationId = null;
   messages.replaceChildren();
   welcome.hidden = false;
   document.querySelector("#conversation-title").textContent = "新的客服对话";

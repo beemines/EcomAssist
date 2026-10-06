@@ -5,9 +5,8 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from app.core.llm import create_model
-from app.core.memory import SessionStore
 from app.main import create_app
-from tests.fakes import decode_sse, fake_settings
+from tests.fakes import ConversationStore, decode_sse, fake_settings
 
 
 @pytest.mark.parametrize("reasons, done_marker, terminal", [
@@ -28,16 +27,18 @@ async def test_factory_stream_requires_normal_completion_before_history_commit(
 ):
     """防止把流结束、合成的末尾块或异常结束原因误判为成功。"""
     settings = fake_settings()
-    memory = SessionStore()
-    lease = memory.acquire("same")
-    memory.commit(lease, [HumanMessage(content="old"), AIMessage(content="answer")])
-    memory.release(lease)
+    repository = ConversationStore()
+    await repository.seed("1", [HumanMessage(content="old"), AIMessage(content="answer")])
     requests = []
 
     def respond(request):
         requests.append(request)
         assert str(request.url) == "https://upstream.invalid/v1/chat/completions"
         payload = json.loads(request.content)
+        if not payload.get("stream"):
+            assert payload["parallel_tool_calls"] is False and payload["tool_choice"] == "auto"
+            return httpx.Response(200, json={"id": "selection", "object": "chat.completion", "created": 1, "model": settings.llm_model,
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": ""}, "finish_reason": "stop"}]})
         assert payload["stream"] is True
         assert payload["messages"][1:] == [
             {"role": "user", "content": "old"},
@@ -58,11 +59,11 @@ async def test_factory_stream_requires_normal_completion_before_history_commit(
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond), trust_env=False) as upstream:
         model = create_model(settings, http_async_client=upstream)
         try:
-            app = create_app(settings, model=model, memory=memory)
+            app = create_app(settings, model=model, repository=repository)
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app), base_url="http://test", trust_env=False,
             ) as client:
-                response = await client.post("/api/chat", json={"session_id": "same", "message": "new"})
+                response = await client.post("/api/chat", json={"conversation_id": "1", "message": "new"})
         finally:
             await model.root_async_client.close()
             model.root_client.close()
@@ -70,15 +71,11 @@ async def test_factory_stream_requires_normal_completion_before_history_commit(
     assert response.status_code == 200
     events = decode_sse(response.text)
     expected_terminal = (
-        ("done", {"session_id": "same"}) if terminal == "done" else
-        ("error", {"code": "upstream_error", "message": (
-            "模型回复被截断，请检查输出上限。" if terminal == "length" else
-            "模型回复未正常完成，请稍后重试。"
-        )})
+        ("done", {"conversation_id": "1"}) if terminal == "done" else
+        ("error", {"code": "upstream_error", "message": "模型回复未正常完成，请稍后重试。"})
     )
-    assert events == [("delta", {"delta": "partial answer"}), expected_terminal]
-    assert [item.content for item in memory.snapshot("same")] == (
+    assert events == [("status", {"phase": "selecting"}), ("status", {"phase": "answering"}), ("delta", {"delta": "partial answer"}), expected_terminal]
+    assert [item.content for item in repository.snapshot("1")] == (
         ["old", "answer", "new", "partial answer"] if terminal == "done" else ["old", "answer"]
     )
-    assert len(requests) == 1
-    memory.release(memory.acquire("same"))
+    assert len(requests) == 2

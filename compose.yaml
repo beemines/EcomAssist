@@ -1,0 +1,53 @@
+services:
+  mysql:
+    image: mysql:8.4
+    entrypoint: ["/bin/sh", "/config/mysql-entrypoint.sh"]
+    command: ["mysqld"]
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-customer_service}
+      MYSQL_USER: ${MYSQL_USER:-customer_service}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 设置 MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 设置 MYSQL_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - mysql-data-initialized:/var/lib/mysql
+      - ./sql/mysql.cnf:/config/mysql.cnf:ro
+      - ./sql/mysql-entrypoint.sh:/config/mysql-entrypoint.sh:ro
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./sql/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "--host=127.0.0.1", "--silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  mysql-test:
+    image: mysql:8.4
+    entrypoint: ["/bin/sh", "/config/mysql-entrypoint.sh"]
+    command: ["mysqld"]
+    profiles: [test]
+    environment:
+      MYSQL_DATABASE: customer_service_test
+      MYSQL_USER: customer_service
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 设置 MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 设置 MYSQL_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:3308:3306"
+    volumes:
+      - mysql-test-data-initialized:/var/lib/mysql
+      - ./sql/mysql.cnf:/config/mysql.cnf:ro
+      - ./sql/mysql-entrypoint.sh:/config/mysql-entrypoint.sh:ro
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./sql/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "--host=127.0.0.1", "--silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  mysql-data-initialized:
+  mysql-test-data-initialized:

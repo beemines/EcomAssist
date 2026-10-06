@@ -6,33 +6,33 @@ from app.schemas.extract import AfterSalesResult, ExtractRequest, RequestType
 
 
 def test_chat_request_accepts_exact_character_boundaries():
-    request = ChatRequest(session_id="会" * 128, message="问" * 20000)
-    assert len(request.session_id) == 128
+    request = ChatRequest(conversation_id="18446744073709551615", message="问" * 20000)
+    assert request.conversation_id == "18446744073709551615"
     assert len(request.message) == 20000
 
 
 @pytest.mark.parametrize("field,value", [
-    ("session_id", "s" * 129), ("session_id", ""), ("session_id", " \t\n"),
+    ("conversation_id", "1" * 21), ("conversation_id", ""), ("conversation_id", " \t\n"),
     ("message", "m" * 20001), ("message", ""), ("message", " \t\n"),
 ])
 def test_chat_request_rejects_blank_and_over_limit_fields(field, value):
-    payload = {"session_id": "s", "message": "help"}
+    payload = {"conversation_id": "1", "message": "help"}
     payload[field] = value
     with pytest.raises(ValidationError):
         ChatRequest(**payload)
 
 
-@pytest.mark.parametrize("missing", ["session_id", "message"])
+@pytest.mark.parametrize("missing", ["conversation_id", "message"])
 def test_chat_request_requires_both_fields(missing):
-    payload = {"session_id": "s", "message": "help"}
+    payload = {"conversation_id": "1", "message": "help"}
     payload.pop(missing)
     with pytest.raises(ValidationError):
         ChatRequest(**payload)
 
 
 def test_chat_request_preserves_valid_text():
-    assert ChatRequest(session_id=" s ", message=" help ").model_dump() == {
-        "session_id": " s ", "message": " help ",
+    assert ChatRequest(conversation_id="1", message=" help ").model_dump() == {
+        "conversation_id": "1", "message": " help ",
     }
 
 
@@ -94,7 +94,7 @@ def test_output_preserves_original_expected_solution_phrase():
 
 
 @pytest.mark.parametrize("model,payload", [
-    (ChatRequest, {"session_id": "s", "message": "help"}),
+    (ChatRequest, {"conversation_id": "1", "message": "help"}),
     (ExtractRequest, {"text": "help"}),
     (AfterSalesResult, {"order_id": None, "request_type": "unknown", "expected_solution": None}),
 ])

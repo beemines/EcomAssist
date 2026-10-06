@@ -6,8 +6,7 @@ import httpx
 import uvicorn
 from langchain_core.messages import AIMessageChunk
 
-from app.core.memory import SessionStore
-from tests.fakes import StreamingModel, fake_settings, implementations
+from tests.fakes import ConversationStore, StreamingModel, fake_settings, implementations
 
 
 @asynccontextmanager
@@ -45,11 +44,15 @@ async def test_real_network_first_event_arrives_before_last_chunk_allowed():
         AIMessageChunk(content="first"), AIMessageChunk(content="last"),
         AIMessageChunk(content="", response_metadata={"finish_reason": "stop"}),
     ], gate_at=1)
-    memory = SessionStore()
-    app = create_app(fake_settings(), model=model, memory=memory)
+    repository = ConversationStore()
+    app = create_app(fake_settings(), model=model, repository=repository)
     async with local_server(app) as url, httpx.AsyncClient(base_url=url, trust_env=False) as client:
-        async with client.stream("POST", "/api/chat", json={"session_id": "s", "message": "hello"}) as response:
+        async with client.stream("POST", "/api/chat", json={"conversation_id": "1", "message": "hello"}) as response:
             lines = response.aiter_lines()
+            for _ in range(2):
+                assert await asyncio.wait_for(anext(lines), 2) == "event: status"
+                await anext(lines)
+                await anext(lines)
             assert await asyncio.wait_for(anext(lines), 2) == "event: delta"
             assert await asyncio.wait_for(anext(lines), 2) == 'data: {"delta":"first"}'
             await asyncio.wait_for(model.waiting.wait(), 2)
@@ -59,7 +62,7 @@ async def test_real_network_first_event_arrives_before_last_chunk_allowed():
             remainder = [line async for line in lines]
             assert 'data: {"delta":"last"}' in remainder
             assert remainder.count("event: done") == 1
-    assert [item.content for item in memory.snapshot("s")] == ["hello", "firstlast"]
+    assert [item.content for item in repository.snapshot("1")] == ["hello", "firstlast"]
 
 
 async def test_real_network_disconnect_stops_upstream_and_session_is_reusable():
@@ -68,21 +71,25 @@ async def test_real_network_disconnect_stops_upstream_and_session_is_reusable():
         AIMessageChunk(content="first"), AIMessageChunk(content="last"),
         AIMessageChunk(content="", response_metadata={"finish_reason": "stop"}),
     ], gate_at=1)
-    memory = SessionStore()
-    app = create_app(fake_settings(), model=model, memory=memory)
+    repository = ConversationStore()
+    app = create_app(fake_settings(), model=model, repository=repository)
     async with local_server(app) as url, httpx.AsyncClient(base_url=url, trust_env=False) as client:
-        async with client.stream("POST", "/api/chat", json={"session_id": "s", "message": "aborted"}) as response:
+        async with client.stream("POST", "/api/chat", json={"conversation_id": "1", "message": "aborted"}) as response:
             lines = response.aiter_lines()
+            for _ in range(2):
+                assert await asyncio.wait_for(anext(lines), 2) == "event: status"
+                await anext(lines)
+                await anext(lines)
             assert await asyncio.wait_for(anext(lines), 2) == "event: delta"
             await asyncio.wait_for(model.waiting.wait(), 2)
         await asyncio.wait_for(model.closed.wait(), 2)
         assert model.eof.is_set() is False
-        assert memory.snapshot("s") == ()
+        assert repository.snapshot("1") == ()
         # 此事件门始终保持关闭；会话能成功复用，说明断连取消了原有生成，
         # 而非仅让它在后台继续完成。
         assert model.gate.is_set() is False
         model.gate_at = None
-        response = await client.post("/api/chat", json={"session_id": "s", "message": "retry"})
+        response = await client.post("/api/chat", json={"conversation_id": "1", "message": "retry"})
         assert response.status_code == 200
         assert "event: done" in response.text
-    assert [item.content for item in memory.snapshot("s")] == ["retry", "firstlast"]
+    assert [item.content for item in repository.snapshot("1")] == ["retry", "firstlast"]
