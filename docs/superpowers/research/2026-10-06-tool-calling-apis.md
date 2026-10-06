@@ -53,3 +53,10 @@
 - 当前模型配置沿用已选择的 `glm-5.3-flash`。若实测不支持所需工具调用参数或响应结构，按用户要求暂停确认，不自动换模型、上游或协议。
 - 用户随后回复“确认”批准所展示的设计；每条用户消息最多执行一个逻辑工具调用，执行重试不启动新的模型决策轮。
 - 输入预算需计入工具 Schema、参数、调用申请与返回结果；收敛阶段需重新核对预算，不能裁断必需的 tool_call/ToolMessage 组合。
+
+## 计划阶段补查与版本锁定
+
+- 为匹配已经核对的 SQLAlchemy 2.0 官方文档，选择维护版本 2.0.54；驱动为 aiomysql 0.3.2。核对来源为 [SQLAlchemy 2.0.54](https://pypi.org/project/SQLAlchemy/2.0.54/) 和 [aiomysql 0.3.2](https://pypi.org/project/aiomysql/0.3.2/)，不是盲目跟随 SQLAlchemy 2.1 的全局最新版本。现有 FastAPI/LangChain 依赖保持锁定。
+- Context7 补查 URL.create 与 Enum：密码以原始值传给 URL.create，避免字符串拼 URL 的转义错误；若映射使用 Python Enum，明确 values_callable，使数据库保存中文值而非成员名称。[连接 URL](https://docs.sqlalchemy.org/en/20/core/engines.html#creating-urls-programmatically)、[枚举类型](https://docs.sqlalchemy.org/en/20/core/type_basics.html#sqlalchemy.types.Enum)。
+- 工单工具需要运行时调用 id；Context7 查询 InjectedToolCallId，并读取现有 langchain-core 的 BaseTool.tool_call_schema/_parse_input 核对。该注解可排除模型 Schema 中的注入字段；完整 ToolCall 调用时 LangChain 把 id 注入 args_schema。执行器显式拒绝模型填写隐藏字段，并归一返回的 ToolMessage。仅用于手动工具调用，不引入 ToolNode 或 Agent Loop。[InjectedToolCallId](https://reference.langchain.com/python/langchain-core/tools/base/InjectedToolCallId)。
+- 本阶段只读本地源代码、查资料和编写计划，没有安装新依赖、执行 SQL 或调用真实模型。
