@@ -87,13 +87,13 @@ assert 'a@:/b' not in repr(settings)
 
 **Interfaces:** `ToolContext(conversation_id: str, user_message_id: int, user_question: str)`、`ToolCall(id: str, name: str, args: dict)`、`ToolOutcome(content: dict, status: Literal['success','error'], attempts: int)`。`FAQRepository(database).async search(keyword: str, limit: int = 3) -> list[dict]`；`TicketRepository(database).async create(*, conversation_id: str, user_message_id: int, tool_call_id: str, description: str, ticket_type: str) -> dict`。`build_registry(faq: FAQRepository, tickets: TicketRepository, context: ToolContext) -> dict[str, BaseTool]`。`ToolExecutor(timeout_seconds: float = 5, max_retries: int = 1).async execute(call: ToolCall, registry: Mapping[str, BaseTool]) -> ToolOutcome`。
 
-- [ ] **写失败测试：** `test_timeout_retries_once` 的受控工具第一次 TimeoutError、第二次成功，`assert outcome.attempts == 2`；`test_invalid_args_do_not_execute` 断言 `assert calls == 0`。`test_ticket_retry_is_same_but_next_user_message_is_new` 断言 `assert first['ticket_no'] == retry['ticket_no']`、`assert next_turn['ticket_no'] != first['ticket_no']`，两轮故意使用同一 tool_call_id。
+- [x] **写失败测试：** `test_timeout_retries_once` 的受控工具第一次 TimeoutError、第二次成功，`assert outcome.attempts == 2`；`test_invalid_args_do_not_execute` 断言 `assert calls == 0`。`test_ticket_retry_is_same_but_next_user_message_is_new` 断言 `assert first['ticket_no'] == retry['ticket_no']`、`assert next_turn['ticket_no'] != first['ticket_no']`，两轮故意使用同一 tool_call_id。
   `test_ticket_commit_then_timeout_keeps_one_row` 在实际仓储提交后注入一次超时，再执行重试，断言 `assert ticket_count == 1`、`assert conversation.status == '已转人工'`；取消时 `assert calls == 1`，不再发起尝试。
-- [ ] **确认红灯：** `uv run pytest tests/test_business_tools.py tests/test_tool_executor.py -q`，预期因缺少注册工具/执行器失败。
-- [ ] **实现业务及注册：** 五个名称固定；@tool + args_schema 禁止额外参数。订单/商品号 1..64 字符，keyword 1..128，description 1..2000，ticket_type 仅售后/投诉/咨询。三个 mock 返回原参数、随机数据与 `mock: true`。FAQ 使用 question.contains(keyword, autoescape=True) 与绑定参数，keyword 不在原问题中则拒绝；返回 `{'found': bool, 'matches': list[dict]}`，无命中不算异常。工单返回包含 ticket_no、status 的对象；错误结果为 `{'error': {'code': str, 'message': str}}`。上下文通过每请求注册表闭包注入，不暴露模型可填写的会话/消息 id。
-- [ ] **实现工单与执行器：** 按全局摘要算法生成工单号；插入工单与转人工同事务，重试先核对已有行，主键冲突后读取并校验业务字段，不能覆盖。create_ticket 用 `Annotated[str, InjectedToolCallId]` 接收隐藏的调用 id，加入其 args_schema；执行器拒绝模型提供该隐藏参数，先校验业务参数，再用完整 `{'type':'tool_call','name':call.name,'args':dict(call.args),'id':call.id}` 调用 BaseTool.ainvoke，使 LangChain 注入 id；每次尝试拷贝参数，避免注入修改重试输入。ToolMessage 的 JSON 内容和状态归一为 ToolOutcome，状态只表业务执行成功/失败。只重试临时超时/连接故障，取消向上传播；固定安全错误码/说明，不回灌堆栈、SQL、凭据。
-- [ ] **验证：** 上述单元测试及 `uv run pytest tests/integration/test_business_repositories.py --run-mysql -q`。实际 LIKE 验证退货命中、邮费不命中、`%`/`_` 按字面查找，工单仅写本会话。预期全通过。
-- [ ] **评审/留痕/提交：** `feat: add validated business tools and bounded execution`。
+- [x] **确认红灯：** `uv run pytest tests/test_business_tools.py tests/test_tool_executor.py -q`，预期因缺少注册工具/执行器失败。
+- [x] **实现业务及注册：** 五个名称固定；@tool + args_schema 禁止额外参数。订单/商品号 1..64 字符，keyword 1..128，description 1..2000，ticket_type 仅售后/投诉/咨询。三个 mock 返回原参数、随机数据与 `mock: true`。FAQ 使用 question.contains(keyword, autoescape=True) 与绑定参数，keyword 不在原问题中则拒绝；返回 `{'found': bool, 'matches': list[dict]}`，无命中不算异常。工单返回包含 ticket_no、status 的对象；错误结果为 `{'error': {'code': str, 'message': str}}`。上下文通过每请求注册表闭包注入，不暴露模型可填写的会话/消息 id。
+- [x] **实现工单与执行器：** 按全局摘要算法生成工单号；插入工单与转人工同事务，重试先核对已有行，主键冲突后读取并校验业务字段，不能覆盖。create_ticket 用 `Annotated[str, InjectedToolCallId]` 接收隐藏的调用 id，加入其 args_schema；执行器拒绝模型提供该隐藏参数，先校验业务参数，再用完整 `{'type':'tool_call','name':call.name,'args':dict(call.args),'id':call.id}` 调用 BaseTool.ainvoke，使 LangChain 注入 id；每次尝试拷贝参数，避免注入修改重试输入。ToolMessage 的 JSON 内容和状态归一为 ToolOutcome，状态只表业务执行成功/失败。只重试临时超时/连接故障，取消向上传播；固定安全错误码/说明，不回灌堆栈、SQL、凭据。
+- [x] **验证：** 上述单元测试及 `uv run pytest tests/integration/test_business_repositories.py --run-mysql -q`。实际 LIKE 验证退货命中、邮费不命中、`%`/`_` 按字面查找，工单仅写本会话。预期全通过。
+- [x] **评审/留痕/提交：** `feat: add validated business tools and bounded execution`。
 
 ### Task 4: 单次选工具与真实流式收敛
 
