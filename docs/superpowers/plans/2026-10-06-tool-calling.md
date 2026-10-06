@@ -101,7 +101,7 @@ assert 'a@:/b' not in repr(settings)
 
 **Interfaces:** 消费任务 2/3。`StreamEvent(event: Literal['status','delta','done','error'], data: dict[str, Any])`；`PreparedToolChat` 保存 conversation_id、lease、user_message_id、模型消息和当前迭代器。`ToolChatService(model, repository: ConversationRepository, registry_factory: Callable[[ToolContext], Mapping[str, BaseTool]], locks: ConversationLocks, settings: Settings, *, executor: ToolExecutor | None = None)` 提供 `async prepare(conversation_id: str, message: str) -> PreparedToolChat`、`stream(prepared: PreparedToolChat) -> AsyncIterator[StreamEvent]`、`release(prepared: PreparedToolChat) -> None`。受控 `ToolModel` 实现 bind_tools、ainvoke、astream 并记录调用；测试中注入受控执行器，仓储与事件采集将完成顺序记录到 trace。
 
-- [ ] **写失败测试：** `test_one_call_reinjects_matching_tool_and_streams`：
+- [x] **写失败测试：** `test_one_call_reinjects_matching_tool_and_streams`：
 
 ```python
 assert model.selection_requests == 1
@@ -113,11 +113,11 @@ assert trace.index('commit_final') < trace.index('done')
 ```
 
   `test_no_tool_still_uses_final_stream` 断言 executor.calls 为 0、final_stream_requests 为 1；`test_multiple_calls_execute_nothing` 断言 executor.calls 为 0、末帧 error。补无效/未知名称、长 id、invalid_tool_calls、选择被截断、最终再次申请、空回复、缺 stop、预算超限和数据库提交失败测试，均不得保存成功最终回答。
-- [ ] **确认红灯：** `uv run pytest tests/test_tool_chat_service.py tests/test_tool_llm_payload.py -q`，预期新服务缺失而失败。
-- [ ] **实现流程：** prepare 获取锁、读历史、存 user 得到 message.id；失败释放锁。stream 发 selecting，bind_tools 一次（tool_choice=auto、parallel_tool_calls=False），检查申请数量/结构；无申请只接受 stop，有申请只接受 tool_calls/stop，调用 id 非空且最长 64。合法单次申请落 assistant 行，执行并落 tool 行，发 tool_running/tool_completed。最终使用未绑定工具的原模型 astream，发 answering/delta，预算重新核对。参数错误可作为合法调用的错误结果回灌；畸形或多个申请直接 error，不选其中一个。完成校验通过后 await 保存最终回答，再 done。
-- [ ] **验证：** 上述测试使用受控模型/数据库替身；HTTP mock 检查第一次请求包含五个工具，第二次无 tools 且申请/结果匹配，原模型工厂仍 max_retries=0、Chat Completions。预期全部通过，不发送真实请求。
-- [ ] **Prompt/数据样例验证：** 此部分按用户要求用标注评估替代 TDD。客服 Prompt 依据结果作答并标明 mock，禁止伪造政策/执行退款。JSONL 固定八类：物流、订单、商品、退货 FAQ 命中、邮费 FAQ 预期未命中、人工工单、普通问候无工具、缺订单号先澄清无工具；标注预期工具/关键参数/命中状态。先校验样例结构和受控回灌回答，真实模型质量留任务 7。
-- [ ] **评审/留痕/提交：** `feat: add single-call tool chat orchestration`；此时旧入口未切换，现有服务仍可运行。
+- [x] **确认红灯：** `uv run pytest tests/test_tool_chat_service.py tests/test_tool_llm_payload.py -q`，预期新服务缺失而失败。
+- [x] **实现流程：** prepare 获取锁、读历史、存 user 得到 message.id；失败释放锁。stream 发 selecting，bind_tools 一次（tool_choice=auto、parallel_tool_calls=False），检查申请数量/结构；无申请只接受 stop，有申请只接受 tool_calls/stop，调用 id 非空且最长 64。合法单次申请落 assistant 行，执行并落 tool 行，发 tool_running/tool_completed。最终使用未绑定工具的原模型 astream，发 answering/delta，预算重新核对。参数错误可作为合法调用的错误结果回灌；畸形或多个申请直接 error，不选其中一个。完成校验通过后 await 保存最终回答，再 done。
+- [x] **验证：** 上述测试使用受控模型/数据库替身；HTTP mock 检查第一次请求包含五个工具，第二次无 tools 且申请/结果匹配，原模型工厂仍 max_retries=0、Chat Completions。预期全部通过，不发送真实请求。
+- [x] **Prompt/数据样例验证：** 此部分按用户要求用标注评估替代 TDD。客服 Prompt 依据结果作答并标明 mock，禁止伪造政策/执行退款。JSONL 固定八类：物流、订单、商品、退货 FAQ 命中、邮费 FAQ 预期未命中、人工工单、普通问候无工具、缺订单号先澄清无工具；标注预期工具/关键参数/命中状态。先校验样例结构和受控回灌回答，真实模型质量留任务 7。
+- [x] **评审/留痕/提交：** `feat: add single-call tool chat orchestration`；此时旧入口未切换，现有服务仍可运行。
 
 ### Task 5: 会话 API 与 SSE 生命周期接入
 
