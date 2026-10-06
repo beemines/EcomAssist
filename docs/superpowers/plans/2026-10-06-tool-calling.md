@@ -75,11 +75,11 @@ assert 'a@:/b' not in repr(settings)
 
 **Interfaces:** 消费任务 1 的 Database/models。`MessageRecord(id: int, role: str, content: str | None, tool_calls: list[dict] | None, tool_call_id: str | None)`；`ConversationRepository(database: Database)` 的异步方法 `create(user_id: str) -> str`、`require_open(conversation_id: str) -> None`、`append_message(conversation_id: str, message: BaseMessage) -> int`、`load_messages(conversation_id: str) -> list[MessageRecord]`。`completed_turns(rows: Sequence[MessageRecord]) -> list[list[BaseMessage]]`；`build_tool_messages(system: SystemMessage, turns: Sequence[Sequence[BaseMessage]], current: HumanMessage, budget: int, *, tool_schema: list[dict], current_tool_messages: Sequence[BaseMessage] = ()) -> list[BaseMessage]`。`ConversationLocks.acquire(conversation_id: str) -> Lease`，`Lease.release() -> None` 同步且可重复调用。
 
-- [ ] **写失败测试：** `test_complete_turns_skip_partial_and_orphan` 的固定输入为完整工具轮次、孤立结果、半轮次及之后完整文本轮次；断言 `assert len(completed_turns(rows)) == 2`，工具组的 `assert turn[2].tool_call_id == turn[1].tool_calls[0]['id']`。`test_budget_drops_whole_tool_turn` 断言旧申请/结果一起移除，当前用户、system 保留；`test_schema_and_result_count_toward_budget` 断言必需输入超过 8000 时抛预算异常。补坏 JSON/错 id/多结果/越界历史测试。
-- [ ] **确认红灯：** `uv run pytest tests/test_tool_history.py -q`，预期缺少完整工具历史功能而失败。
-- [ ] **实现仓储与回放：** 消息按 id 排序，assistant 调用持久化为 Chat Completions tool_calls JSON，tool 结果必须匹配。遇新 user 划分轮次，完整且合法才回放；跳过坏组，继续下一组。一次数据库操作一个短事务，保存 user 返回 message.id 供工单使用。预算延用现有保守计数策略，加入序列化 schema/申请/结果，只裁剪旧完整组；不存在/已结束及重复占用分别抛明确错误。
-- [ ] **验证：** `uv run pytest tests/test_tool_history.py -q`；`uv run pytest tests/integration/test_conversation_repository.py --run-mysql -q`。测试新仓储实例仍读到完整消息；插入 `9007199254740993` 会话后断言 `assert returned_id == '9007199254740993'`；已转人工仍可继续，已结束被拒绝。预期全通过。
-- [ ] **评审/留痕/提交：** `feat: persist conversations and replay complete tool turns`。
+- [x] **写失败测试：** `test_complete_turns_skip_partial_and_orphan` 的固定输入为完整工具轮次、孤立结果、半轮次及之后完整文本轮次；断言 `assert len(completed_turns(rows)) == 2`，工具组的 `assert turn[2].tool_call_id == turn[1].tool_calls[0]['id']`。`test_budget_drops_whole_tool_turn` 断言旧申请/结果一起移除，当前用户、system 保留；`test_schema_and_result_count_toward_budget` 断言必需输入超过 8000 时抛预算异常。补坏 JSON/错 id/多结果/越界历史测试。
+- [x] **确认红灯：** `uv run pytest tests/test_tool_history.py -q`，预期缺少完整工具历史功能而失败。
+- [x] **实现仓储与回放：** 消息按 id 排序，assistant 调用持久化为 Chat Completions tool_calls JSON，tool 结果必须匹配。遇新 user 划分轮次，完整且合法才回放；跳过坏组，继续下一组。一次数据库操作一个短事务，保存 user 返回 message.id 供工单使用。预算延用现有保守计数策略，加入序列化 schema/申请/结果，只裁剪旧完整组；不存在/已结束及重复占用分别抛明确错误。
+- [x] **验证：** `uv run pytest tests/test_tool_history.py -q`；`uv run pytest tests/integration/test_conversation_repository.py --run-mysql -q`。测试新仓储实例仍读到完整消息；插入 `9007199254740993` 会话后断言 `assert returned_id == '9007199254740993'`；已转人工仍可继续，已结束被拒绝。预期全通过。
+- [x] **评审/留痕/提交：** `feat: persist conversations and replay complete tool turns`。
 
 ### Task 3: 五个业务工具、参数校验和有限重试
 
