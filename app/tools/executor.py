@@ -76,6 +76,9 @@ class ToolExecutor:
                 full_call = {"type": "tool_call", "name": call.name, "args": deepcopy(call.args), "id": call.id}
                 async with asyncio.timeout(self.timeout_seconds):
                     result = await tool.ainvoke(full_call)
+                # 下层可能吞掉调用方取消并返回；不能将其归一为成功。
+                if task is not None and task.cancelling():
+                    raise asyncio.CancelledError()
                 if not isinstance(result, ToolMessage) or not isinstance(result.content, str):
                     return _error("tool_execution_error", attempt)
                 content = json.loads(result.content)
@@ -86,6 +89,9 @@ class ToolExecutor:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                # 最后一次尝试也必须传播取消，不能落入终止错误结果。
+                if task is not None and task.cancelling():
+                    raise asyncio.CancelledError() from None
                 if isinstance(exc, TimeoutError):
                     code, retry = "tool_timeout", True
                 elif _temporary_connection_error(exc):

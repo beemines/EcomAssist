@@ -144,28 +144,37 @@ def test_configuration_cannot_remove_execution_bounds(kwargs):
 
 
 @pytest.mark.asyncio
-async def test_pending_cancellation_cannot_turn_into_timeout_retry():
+@pytest.mark.parametrize("max_retries,cancel_attempt,return_after_cancel", [
+    (1, 1, False), (0, 1, False), (1, 2, False),
+    (1, 1, True), (0, 1, True), (1, 2, True),
+])
+async def test_pending_cancellation_cannot_be_normalized_as_outcome(max_retries, cancel_attempt, return_after_cancel):
     calls = 0
     entered = asyncio.Event()
 
     @tool(args_schema=Args)
     async def controlled(value: str) -> dict:
-        """模拟下层将取消误转换为超时。"""
+        """模拟下层将取消误转换为超时或正常返回。"""
         nonlocal calls
         calls += 1
+        if calls < cancel_attempt:
+            raise TimeoutError()
         entered.set()
         try:
             await asyncio.Event().wait()
         except asyncio.CancelledError:
+            if return_after_cancel:
+                return {"value": value}
             raise TimeoutError() from None
         return {}
 
-    task = asyncio.create_task(ToolExecutor().execute(ToolCall("call", "controlled", {"value": "ok"}), {"controlled": controlled}))
+    task = asyncio.create_task(ToolExecutor(max_retries=max_retries).execute(ToolCall("call", "controlled", {"value": "ok"}), {"controlled": controlled}))
     await entered.wait()
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
-    assert calls == 1
+    assert calls == cancel_attempt
+    assert task.cancelled()
 
 
 @pytest.mark.asyncio
