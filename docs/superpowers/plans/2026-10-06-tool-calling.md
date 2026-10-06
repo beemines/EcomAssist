@@ -48,7 +48,7 @@
 
 **Interfaces:** `Settings.database_url -> sqlalchemy.engine.URL`；`Database(url: URL)` 提供 `session() -> AsyncSession`、`async dispose() -> None`；模型 `Conversation`、`Message`、`FAQ`、`Ticket`。测试注册 `--run-mysql` 与 `mysql_database` fixture：只接独立 customer_service_test 库，明确请求集成测试却未就绪时失败，不能跳过后宣称通过。
 
-- [ ] **写失败测试：** 在 `test_db_defaults_and_secret_url` 中核对：
+- [x] **写失败测试：** 在 `test_db_defaults_and_secret_url` 中核对：
 
 ```python
 settings = fake_settings(mysql_password='a@:/b', mysql_root_password='root-test')
@@ -63,11 +63,11 @@ assert 'a@:/b' not in repr(settings)
 ```
 
   上例消费已有 `tests.fakes.fake_settings`，保留模型测试配置。`test_mysql_schema_matches_supplied_ddl` 从 information_schema 核对四表集合、UNSIGNED 主键、两个外键、中文 ENUM、JSON、索引、默认/更新时间、InnoDB/utf8mb4；`test_seed_is_complete_and_postage_misses` 检查四表种子和 FAQ 问题不含“邮费”。缺失实现的导入放在测试函数内，失败来自缺少功能，不能依赖收集错误。
-- [ ] **确认红灯：** `uv run pytest tests/test_db_config.py tests/test_db_mapping.py -q`，预期因缺少数据库配置/映射断言失败。
-- [ ] **实现配置与映射：** 新字段 MYSQL_HOST/PORT/DATABASE/USER/PASSWORD/ROOT_PASSWORD，默认库与用户 customer_service；密码 SecretStr，可在纯单元测试中缺省，获取数据库 URL 时必须提供。用 URL.create，枚举持久化中文值，映射全部用户字段。工具重试只允许 0/1，超时和预算为正。
-- [ ] **实现 Docker/种子：** mysql 服务本机 3307，mysql-test 在 test profile 使用本机 3308、独立库/卷。两者以 01-schema.sql、02-seed.sql 挂载用户 DDL/种子；增加健康检查。种子包含完整普通对话、关联工单、退货及“运费” FAQ，不能干扰新 demo-user 会话。
-- [ ] **验证：** `uv run pytest tests/test_db_config.py tests/test_db_mapping.py -q`；`docker compose --profile test up -d --wait --wait-timeout 120`；`uv run pytest tests/integration/test_mysql_schema.py --run-mysql -q`。预期全部通过，SQL 实际执行并核对；再次 up 不重置数据。Docker Engine 若未运行，先尝试启动本机 Docker Desktop，仍不能运行则保留证据并报告，不替换数据库。
-- [ ] **评审/留痕/提交：** 记录真实建表结果及结构评审，提交上述任务文件，`feat: add MySQL runtime and schema mappings`。
+- [x] **确认红灯：** `uv run pytest tests/test_db_config.py tests/test_db_mapping.py -q`，预期因缺少数据库配置/映射断言失败。
+- [x] **实现配置与映射：** 新字段 MYSQL_HOST/PORT/DATABASE/USER/PASSWORD/ROOT_PASSWORD，默认库与用户 customer_service；密码 SecretStr，可在纯单元测试中缺省，获取数据库 URL 时必须提供。用 URL.create，枚举持久化中文值，映射全部用户字段。工具重试只允许 0/1，超时和预算为正。
+- [x] **实现 Docker/种子：** mysql 服务本机 3307，mysql-test 在 test profile 使用本机 3308、独立库/卷。两者以 01-schema.sql、02-seed.sql 挂载用户 DDL/种子；增加健康检查。种子包含完整普通对话、关联工单、退货及“运费” FAQ，不能干扰新 demo-user 会话。
+- [x] **验证：** `uv run pytest tests/test_db_config.py tests/test_db_mapping.py -q`；`docker compose --profile test up -d --wait --wait-timeout 120`；`uv run pytest tests/integration/test_mysql_schema.py --run-mysql -q`。预期全部通过，SQL 实际执行并核对；再次 up 不重置数据。Docker Engine 若未运行，先尝试启动本机 Docker Desktop，仍不能运行则保留证据并报告，不替换数据库。
+- [x] **评审/留痕/提交：** 记录真实建表结果及结构评审，提交上述任务文件，`feat: add MySQL runtime and schema mappings`。
 
 ### Task 2: 持久化会话并恢复完整工具轮次
 
