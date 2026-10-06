@@ -138,9 +138,9 @@ assert trace.index('commit_final') < trace.index('done')
 
 **Interfaces:** 消费任务 5 的会话创建、conversation_id 和 status/delta/done/error；tool_running/tool_completed 含 tool_name、tool_call_id、status。
 
-- [ ] **直接实现页面：** 首次发送前创建 demo-user 会话，保留服务返回的字符串身份；新对话清空身份，禁止重复发送。气泡内分开工具徽章容器与回答文本容器，delta 不覆盖徽章；状态更新徽章但不显示模型推理。所有用户/结果文本用 textContent，保留停止、错误恢复、多轮与自动滚动。
-- [ ] **浏览器验证：** 在独立测试端口用真实 ASGI 和受控 ToolModel 演示物流徽章/逐字流式、FAQ 命中/邮费未命中、多轮及新会话；检查执行中停止、错误后重发、文本含 HTML 时按字面显示、默认窗口及窄屏。不改变现有端口服务。真实上游浏览器验收在任务 7。
-- [ ] **即时留痕/提交：** 按用户例外不做 brainstorm/TDD/code review，记录观察与返工，`feat: show tool traces in customer chat bubbles`。
+- [x] **直接实现页面：** 首次发送前创建 demo-user 会话，保留服务返回的字符串身份；新对话清空身份，禁止重复发送。气泡内分开工具徽章容器与回答文本容器，delta 不覆盖徽章；状态更新徽章但不显示模型推理。所有用户/结果文本用 textContent，保留停止、错误恢复、多轮与自动滚动。
+- [x] **浏览器验证：** 在独立测试端口用真实 ASGI 和受控 ToolModel 演示物流徽章/逐字流式、FAQ 命中/邮费未命中、多轮及新会话；检查执行中停止、错误后重发、文本含 HTML 时按字面显示、默认窗口及窄屏。不改变现有端口服务。真实上游浏览器验收在任务 7。
+- [x] **即时留痕/提交：** 按用户例外不做 brainstorm/TDD/code review，记录观察与返工，`feat: show tool traces in customer chat bubbles`。
 
 ### Task 7: 实测评估、回归与交付
 
