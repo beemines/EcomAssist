@@ -35,10 +35,10 @@
 
 ## 执行准备与文件边界
 
-- [ ] 用户审阅本计划后，按 using-git-worktrees 创建隔离工作区：先检查附着工作树，再优先使用原生工具以 master 为起点；必要时回退到 `.worktrees/tool-calling`，分支 `feat/tool-calling`。不改动旧运行服务。
-- [ ] 核对隔离区 HEAD 与工作状态，运行已有 `uv sync --locked`、`uv run pytest -q`，记录基线；失败先诊断，不把旧失败归入新功能。
-- [ ] 主代理将现有本地 .env 复制到隔离区的忽略路径，仅补缺失的 MySQL 配置；不打印密钥，不把真实配置放入提交。
-- [ ] 每个后端任务由新实现子代理执行，规格与代码评审通过后主代理即时追加四项过程记录，再提交该任务的明确文件。页面任务不派代码评审，不套 TDD。
+- [x] 用户审阅本计划后，按 using-git-worktrees 创建隔离工作区：先检查附着工作树，再优先使用原生工具以 master 为起点；必要时回退到 `.worktrees/tool-calling`，分支 `feat/tool-calling`。不改动旧运行服务。
+- [x] 核对隔离区 HEAD 与工作状态，运行已有 `uv sync --locked`、`uv run pytest -q`，记录基线；失败先诊断，不把旧失败归入新功能。
+- [x] 主代理将现有本地 .env 复制到隔离区的忽略路径，仅补缺失的 MySQL 配置；不打印密钥，不把真实配置放入提交。
+- [x] 每个后端任务由新实现子代理执行，规格与代码评审通过后主代理即时追加四项过程记录，再提交该任务的明确文件。页面任务不派代码评审，不套 TDD。
 
 文件职责：`app/db/` 管连接及 ORM；`app/repositories/` 管短事务；`app/tools/` 管工具与执行；`app/core/tool_history.py` 管完整轮次和预算；`app/core/tool_chat.py` 管单轮流程；`app/api/streaming.py` 管 SSE/取消生命周期。保留旧文本预算与提取功能，避免无关重构。
 
@@ -148,11 +148,11 @@ assert trace.index('commit_final') < trace.index('done')
 
 **Interfaces:** `ToolEvaluationReport(attempted: int, not_attempted: int, cases: list[dict])`；`async evaluate_tools(client: httpx.AsyncClient, base_url: str, cases: Sequence[dict], *, repository: ConversationRepository) -> ToolEvaluationReport`；`python -m evals.evaluate_tools --base-url http://127.0.0.1:8000 --cases evals/tool_cases.jsonl --output .cache/tool-evaluation.json`。评估通过应用 API 而非绕过工具链；本地 CLI 从当前配置建立只读审计仓储，每个新会话结束后读取消息流水，确认实际参数、ToolMessage 的 found/matches 和工单号，不添加调试接口。报告记录预期/实际工具、参数、命中、最终回答与 SSE 完成状态，不输出凭据；保留需要人工判断的回答质量。更新原 smoke 先创建会话再两轮聊天和一次提取；分别记录 HTTP 请求与模型请求，聊天总期限 150 秒、提取保留 75 秒，不新增客户端自动重试。
 
-- [ ] **评估代码 TDD：** `test_compatibility_failure_stops_remaining_cases` 断言 `assert report.attempted == 1`、`assert report.not_attempted == 7`；`test_expected_faq_miss_is_success` 断言 `assert case['passed'] is True`；`test_incomplete_stream_is_not_pass` 断言 `assert case['passed'] is False`。另覆盖坏 JSON、错身份、多个工具、乱码、error 与正常 done 的识别。先运行 `uv run pytest tests/test_tool_evaluation.py tests/test_smoke.py -q` 确认红灯，再实现并跑绿灯。
-- [ ] **最终离线/MySQL 验证：** `uv run pytest -q`、`uv run pytest tests/integration --run-mysql -q`。仅重启独立 mysql-test 服务及新应用实例，确认数据库历史仍接续、工单事实保留；不触及其他数据库/旧服务。记录命令、版本、通过数量与未执行部分。
+- [x] **评估代码 TDD：** `test_compatibility_failure_stops_remaining_cases` 断言 `assert report.attempted == 1`、`assert report.not_attempted == 7`；`test_expected_faq_miss_is_success` 断言 `assert case['passed'] is True`；`test_incomplete_stream_is_not_pass` 断言 `assert case['passed'] is False`。另覆盖坏 JSON、错身份、多个工具、乱码、error 与正常 done 的识别。先运行 `uv run pytest tests/test_tool_evaluation.py tests/test_smoke.py -q` 确认红灯，再实现并跑绿灯。
+- [x] **最终离线/MySQL 验证：** `uv run pytest -q`、`uv run pytest tests/integration --run-mysql -q`。仅重启独立 mysql-test 服务及新应用实例，确认数据库历史仍接续、工单事实保留；不触及其他数据库/旧服务。记录命令、版本、通过数量与未执行部分。
 - [ ] **真实上游能力闸门：** 启动本步 MySQL/后端，沿用当前 glm-5.3-flash 与标准端点，先跑一个物流样例。模型/协议/预算不兼容时停止后续真实请求、保存脱敏证据并询问用户，不自动换模型。通过后跑八类样例；Prompt/种子作为数据评估，不伪称单元测试，改动后做一次完整复验，记录实际请求而不是理论数量。
 - [ ] **真实浏览器/curl 验收：** 用户三个原问题逐一演示；再验人工工单、重启接续和第一步 extract。回答需与实际工具结果一致，邮费漏召回作为预期结果写入报告；没有完成的人工项写待验收，不能虚构通过。
-- [ ] **交付文档：** README 使用“第二步”，给出 Docker 初始化/既有卷维护、启动、创建会话、curl -N 聊天、提取及评估命令，解释 mock、单 worker、最终提交边界及 FAQ 漏召回；SQL 原生执行证据与真实模型结果进入验证报告。
+- [x] **交付文档：** README 使用“第二步”，给出 Docker 初始化/既有卷维护、启动、创建会话、curl -N 聊天、提取及评估命令，解释 mock、单 worker、最终提交边界及 FAQ 漏召回；SQL 原生执行证据与真实模型结果进入验证报告。
 - [ ] **评审/留痕/提交：** 评估代码任务评审后执行整个后端分支评审，页面按用户例外排除该代码评审。解决有效意见后重新运行对应检查，记录 review/finish，`test: validate tool calling and document delivery`。全部证据通过再使用 finishing-a-development-branch 让用户选择集成；不擅自推送或重写历史。
 
 ## 计划自审
@@ -164,4 +164,4 @@ assert trace.index('commit_final') < trace.index('done')
 - 原建表文件不修改；不把 ORM 映射测试当实际 SQL 执行，不把模型替身通过当真实上游验收。
 - 自审发现并修正：工单摘要加入已存在的 user 消息主键，修复跨轮 tool_call_id 复用；最终数据库提交放在服务中，避免旧同步响应提交契约冲突；工具调用 id 明确由 LangChain 注入，重试复制输入；验收通过 API 运行再读取数据库流水核对真实参数和命中。
 
-状态：用户已回复“确认啊，赶紧开始实现”，计划审阅通过；进入 Subagent-Driven 实施阶段。
+状态：任务1–6完成；任务7实现及离线/MySQL验证通过，独立任务评审Approved。真实工单诊断待用户答复，未完成的真实验收仍待执行；整个后端分支评审继续。
