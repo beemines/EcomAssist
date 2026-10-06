@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+import anyio
 import httpx
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
@@ -160,12 +161,14 @@ class ToolChatService:
             yield StreamEvent("error", {"code": "upstream_error", "message": "本次回答未能完成，请稍后重试。"})
         finally:
             # 校验失败可能提前退出 async for，主动关闭当前迭代器以归还上游连接。
-            close = getattr(prepared.upstream, "aclose", None)
+            upstream, prepared.upstream = prepared.upstream, None
+            close = getattr(upstream, "aclose", None)
             if close is not None:
-                try:
-                    await close()
-                except Exception:
-                    pass
+                with anyio.move_on_after(5, shield=True):
+                    try:
+                        await close()
+                    except Exception:
+                        pass
 
     def release(self, prepared: PreparedToolChat) -> None:
         prepared.lease.release()

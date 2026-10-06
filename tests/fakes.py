@@ -32,6 +32,15 @@ class StreamingModel:
         self.closed = asyncio.Event()
         self.eof = asyncio.Event()
         self.calls = []
+        self.requests = 0
+        self.selected = AIMessage("", response_metadata={"finish_reason": "stop"})
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    async def ainvoke(self, messages):
+        self.requests += 1
+        return self.selected
 
     def with_structured_output(self, schema, *, method, include_raw):
         return StructuredModel()
@@ -102,9 +111,57 @@ def implementations():
     import pytest
 
     try:
-        from app.core.chat import ChatService
+        from app.core.tool_chat import ToolChatService
         from app.api.streaming import ManagedChatResponse
         from app.main import create_app
     except ImportError:
         pytest.fail("HTTP/SSE chat and managed response are not implemented")
-    return ChatService, ManagedChatResponse, create_app
+    return ToolChatService, ManagedChatResponse, create_app
+
+
+class ConversationStore:
+    """离线持久仓储替身；保留失败审计，但仅完成轮次可回放。"""
+
+    def __init__(self, identifier="1"):
+        self.identifier = identifier
+        self.users = {identifier: "test"}
+        self.ended = set()
+        self.rows = {}
+        self.commits = 0
+        self.fail_final = False
+
+    async def create(self, user_id):
+        self.users[self.identifier] = user_id
+        return self.identifier
+
+    async def require_open(self, conversation_id):
+        from app.core.errors import ServiceError
+        from app.repositories.conversations import _conversation_id
+        _conversation_id(conversation_id)
+        if conversation_id not in self.users:
+            raise ServiceError("conversation_not_found", "Conversation does not exist.", 404)
+        if conversation_id in self.ended:
+            raise ServiceError("conversation_ended", "Conversation has ended.", 409)
+
+    async def load_messages(self, conversation_id):
+        return list(self.rows.get(conversation_id, []))
+
+    async def append_message(self, conversation_id, message):
+        from app.repositories.records import record_from_message
+        rows = self.rows.setdefault(conversation_id, [])
+        row = record_from_message(message, identifier=len(rows) + 1)
+        if row.role == "assistant" and row.tool_calls is None:
+            if self.fail_final:
+                raise RuntimeError("SECRET database failure")
+            self.commits += 1
+        rows.append(row)
+        return row.id
+
+    def snapshot(self, conversation_id):
+        from app.core.tool_history import completed_turns
+        return tuple(message for turn in completed_turns(self.rows.get(conversation_id, [])) for message in turn)
+
+    async def seed(self, conversation_id, messages):
+        for message in messages:
+            await self.append_message(conversation_id, message)
+        self.commits = 0

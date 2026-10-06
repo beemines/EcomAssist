@@ -5,10 +5,9 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from openai import APITimeoutError
 
-from app.core.memory import SessionStore
 from app.main import create_app
 from app.schemas.extract import AfterSalesResult
-from tests.fakes import StructuredModel, fake_settings, structured_result
+from tests.fakes import ConversationStore, StructuredModel, fake_settings, structured_result
 
 
 TEXT = "订单 20261005001 的杯子收到就碎了，我想退货退款。"
@@ -17,8 +16,8 @@ UNKNOWN = {"order_id": None, "request_type": "unknown", "expected_solution": Non
 INVALID = {"code": "invalid_structured_output", "message": "模型返回的结构化结果无效，请稍后重试。"}
 
 
-def client_for(model, memory=None, **settings):
-    app = create_app(fake_settings(**settings), model=model, memory=memory)
+def client_for(model, repository=None, **settings):
+    app = create_app(fake_settings(**settings), model=model, repository=repository if repository is not None else ConversationStore())
     return httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test")
 
 
@@ -115,19 +114,15 @@ async def test_invalid_request_rejects_before_invocation(payload):
 
 
 @pytest.mark.parametrize("failure", [None, RuntimeError("failure")])
-async def test_extract_preserves_source_and_independent_chat_memory(failure):
+async def test_extract_preserves_source_and_independent_chat_repository(failure):
     text = '订单 {ABC-01}\n我想换货，附注 {"keep": true}'
     data = {"order_id": "{ABC-01}", "request_type": "exchange", "expected_solution": "换货"}
     model = StructuredModel(structured_result(data), failure=failure)
-    memory = SessionStore()
-    lease = memory.acquire("s")
-    memory.commit(lease, [HumanMessage(content="old"), AIMessage(content="answer")])
-    before = memory.snapshot("s")
-    try:
-        async with client_for(model, memory) as client:
-            response = await client.post("/api/extract", json={"text": text})
-        assert response.status_code == (200 if failure is None else 502)
-        assert model.calls[0][-1].content == text
-        assert memory.snapshot("s") == before
-    finally:
-        memory.release(lease)
+    repository = ConversationStore()
+    await repository.seed("1", [HumanMessage(content="old"), AIMessage(content="answer")])
+    before = repository.snapshot("1")
+    async with client_for(model, repository) as client:
+        response = await client.post("/api/extract", json={"text": text})
+    assert response.status_code == (200 if failure is None else 502)
+    assert model.calls[0][-1].content == text
+    assert repository.snapshot("1") == before
