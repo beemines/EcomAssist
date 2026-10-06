@@ -125,12 +125,12 @@ assert trace.index('commit_final') < trace.index('done')
 
 **Interfaces:** `create_app(settings: Settings | None = None, *, model=None, database: Database | None = None, repository: ConversationRepository | None = None) -> FastAPI`；注入资源由调用者管理，应用自建资源在 lifespan 关闭。`POST /api/conversations` 请求 user_id 1..64 字符，响应 conversation_id 字符串；`POST /api/chat` 请求 conversation_id/message。ManagedChatResponse 消费任务 4 服务，只有 done/error 终止。
 
-- [ ] **写失败测试：** `test_status_frames_do_not_end_chat` 断言 `assert names == ['status', 'status', 'status', 'status', 'delta', 'done']`，done 的 `assert data['conversation_id'] == '9007199254740993'`。`test_invalid_identity_before_model` 参数化 UUID、数字 JSON、布尔、`'0'`、`'01'`、`'18446744073709551616'`：`assert response.status_code == 422`、`assert model.requests == 0`。不存在会话 404，已结束/同会话并发 409。
+- [x] **写失败测试：** `test_status_frames_do_not_end_chat` 断言 `assert names == ['status', 'status', 'status', 'status', 'delta', 'done']`，done 的 `assert data['conversation_id'] == '9007199254740993'`。`test_invalid_identity_before_model` 参数化 UUID、数字 JSON、布尔、`'0'`、`'01'`、`'18446744073709551616'`：`assert response.status_code == 422`、`assert model.requests == 0`。不存在会话 404，已结束/同会话并发 409。
   生命周期测试覆盖 ASGI 2.3/2.4：状态帧后断开释放锁、取消不重试；提交异常只有 error、没有 done；done 发送失败时完整回答已提交且不回滚；迭代器与资源关闭一次。提取接口仍返回既有结构。
-- [ ] **确认红灯：** `uv run pytest tests/test_conversation_api.py tests/test_chat_api.py tests/test_stream_lifecycle.py -q`，预期因旧身份/终止/提交契约而失败。
-- [ ] **实现入口：** await prepare 后返回 SSE；绑定会话/领域异常到明确 HTTP 错误，不泄露配置。删除响应层旧同步 commit 调用，提交归服务负责；保留既有取消/迭代器关闭保护，status 非终止，编码数据允许工具状态字段。factory 支持模型和仓储测试注入，不要求单元测试连接真实 MySQL；health 不探测模型/数据库，extract 不改变。
-- [ ] **验证：** 运行上述目标测试及 `uv run pytest -q`，预期离线全通过。旧测试按照新契约改写而保留原验证意图，不能整批删除流式异常测试；旧 UUID 与“发 done 再内存 commit”的断言明确替换。
-- [ ] **评审/留痕/提交：** `feat: integrate persistent tool chat with FastAPI SSE`。
+- [x] **确认红灯：** `uv run pytest tests/test_conversation_api.py tests/test_chat_api.py tests/test_stream_lifecycle.py -q`，预期因旧身份/终止/提交契约而失败。
+- [x] **实现入口：** await prepare 后返回 SSE；绑定会话/领域异常到明确 HTTP 错误，不泄露配置。删除响应层旧同步 commit 调用，提交归服务负责；保留既有取消/迭代器关闭保护，status 非终止，编码数据允许工具状态字段。factory 支持模型和仓储测试注入，不要求单元测试连接真实 MySQL；health 不探测模型/数据库，extract 不改变。
+- [x] **验证：** 运行上述目标测试及 `uv run pytest -q`，预期离线全通过。旧测试按照新契约改写而保留原验证意图，不能整批删除流式异常测试；旧 UUID 与“发 done 再内存 commit”的断言明确替换。
+- [x] **评审/留痕/提交：** `feat: integrate persistent tool chat with FastAPI SSE`。
 
 ### Task 6: Vibe Coding 改造聊天页
 
