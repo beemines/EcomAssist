@@ -35,7 +35,7 @@ CONSTRAINT `fk_tickets_conversation` FOREIGN KEY (`conversation_id`) REFERENCES 
 | 以上修正 GREEN | 26 passed in 3.87s |
 | 自审：失败最终回答保留工具审计 RED | 1 failed，缺最终 assistant 时 actual_tool 错为 null |
 | 最后定向 GREEN | 27 passed in 4.11s |
-| 最后 uv run pytest -q | 424 passed, 16 skipped in 22.61s；跳过项全部为未显式请求的 MySQL 集成 |
+| 任务7原最终 uv run pytest -q | 424 passed, 16 skipped in 22.61s；跳过项全部为未显式请求的 MySQL 集成 |
 | uv run pytest tests/integration --run-mysql -q，首次 | 15 passed, 1 failed，旧种子测试假定 demo-user 无任何会话 |
 | 授权修改后单项种子检查 | 1 passed in 0.77s |
 | 授权修改后全部集成 | 16 passed in 2.71s |
@@ -77,6 +77,15 @@ CONSTRAINT `fk_tickets_conversation` FOREIGN KEY (`conversation_id`) REFERENCES 
 
 SDK max_retries=0，客户端未添加重试。计数与脱敏 status/errorcode/选择 finish_reason 在 .cache/task7-upstream.jsonl。普通 API 评估/ smoke 客户端看不到服务端实际上游调用，所以报告 model_request_count 为 null；本表明确给出原始 observer 实测。配置声明不等同于提供方身份验证。安全记录不包含 key、密码、请求头或原始推理内容。
 
+## 整个后端评审与最终修复
+
+整个后端分支评审发现空白业务参数校验不足和活跃聊天未使用PromptTemplate两项问题，已通过一轮修复及一次范围复审解决，复审Approved。页面按用户Vibe Coding例外排除代码评审。
+
+- 空白 order_id/product_id/keyword/description 在工具执行前返回 invalid_arguments、attempts=0；直接工单仓储在打开Session前拒绝空描述。保留合法原字符串，不裁切FAQ原文。
+- TOOL_CHAT_SYSTEM_TEMPLATE 使用 PromptTemplate；实际渲染266字符及UTF-8 SHA256 1c28ea60def4667d18cb78d72bf494146a1996af3b8b8e13f0c51cf848384b8d 与修复前相同，四种参数JSON Schema、提取与既有Prompt保持相同。
+- 新回归RED24失败，相关GREEN111 passed；实际工具仓储MySQL12 passed（原10+新增2）。修复后完整离线453 passed、18 MySQL gated skips；Controller在最终版本显式执行全部独立MySQL集成18 passed in2.48s，exit0、无pytest警告。
+- 新版8001重新载入修复代码，浏览器页面可打开，GET /health返回ok；仅存活检查，未发送聊天或模型请求，原始模型计数仍14。
+- 代码和数据库验证已通过；真实GLM工单错误根因、订单额外真实查询承诺、剩余真实场景仍未验收。不能把这两项代码修复称为未知GLM错误的已证明根因。
 ## 重启、页面与待验收部分
 
 先以短生命周期只读仓储快照，再 docker compose -p ecs-tool-calling --profile test restart mysql-test，确认 healthy；仅关闭监听8001且命令行精确匹配本步 runtime 的自有进程，再以相同配置重启。随后新连接重新读取：
@@ -87,4 +96,4 @@ SDK max_retries=0，客户端未添加重试。计数与脱敏 status/errorcode/
 
 Task6 受控模型+真实 MySQL 浏览器证明徽章、流式显示、上下文、工单、停止/失败、新会话、窄屏及字面 HTML；它的真实模型请求为0，不能替代本步真实上游浏览器验收。
 
-因工单项失败而停止，三个原问题的真实 curl 演示、另一次真实工单、重启后的真实模型接续、真实 smoke、第一步 extract 回归、问候/缺号样例、真实上游浏览器尚未执行。没有用替身结果补写通过。客服质量人工复核仍有订单真实查询承诺这一问题；未进行 Prompt/种子修改或完整真实复验。任务代码评审、整个后端分支评审和最终集成选择由控制任务继续处理，当前记录不宣称它们已完成。
+因工单项失败而停止，三个原问题的真实 curl 演示、另一次真实工单、重启后的真实模型接续、真实 smoke、第一步 extract 回归、问候/缺号样例、真实上游浏览器尚未执行。没有用替身结果补写通过。客服质量人工复核仍有订单真实查询承诺这一问题；没有修改Prompt渲染文案、种子或执行完整真实复验。任务代码评审和整个后端分支修复复审已通过；最终finish/集成仍等待真实验收完成。
