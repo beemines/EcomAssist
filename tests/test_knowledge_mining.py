@@ -92,6 +92,19 @@ async def test_promotion_failure_keeps_staging_available_for_retry():
     assert (await job.run(START, END))['kept'] == 2
 
 
+async def test_existing_multiline_questions_dedup_each_normalized_variant_but_keep_conflict():
+    repo = Repository()
+    repo.pairs = [('　邮费是多少？\n \n快递费用  怎么收？\n', '标准配送  8元。')]
+    await repo.stage('synthetic', [
+        ExtractedQA('conversation:1:message:11', '邮费是多少?', '标准配送 8元。'),
+        ExtractedQA('conversation:2:message:21', '快递费用 怎么收?', '标准配送 8元。'),
+        ExtractedQA('conversation:3:message:31', '快递费用 怎么收?', '标准配送12元。'),
+    ])
+    assert await mining().deduplicate_staging(repo) == {'kept': 1, 'discarded': 2}
+    assert [row.status for row in repo.rows] == ['discarded', 'discarded', 'kept']
+    assert repo.pairs[-1] == ('快递费用 怎么收?', '标准配送12元。')
+
+
 @pytest.mark.parametrize('batch', [0, -1, 21, True])
 async def test_invalid_batch_size_fails_before_history_reads(batch):
     with pytest.raises(ValueError):

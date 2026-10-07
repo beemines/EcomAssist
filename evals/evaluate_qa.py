@@ -21,13 +21,18 @@ def transcripts(case):
 
 def score(case, qas):
     # Evaluate unique QA, as global exact dedup does. Annotations allow natural
-    # question paraphrases, but require every answer term and reject extra QA.
+    # question paraphrases, except explicit exact-source labels. Require every
+    # answer term and reject extra QA; exact labels also retain paired sources.
     unique = list(dict.fromkeys(normalize_qa(q.question, q.answer) for q in qas))
     unmatched = unique.copy()
     for expected in case['expected']:
         match = next((pair for pair in unmatched if
             all(term in pair[0] for term in expected['question_terms']) and
             all(term in pair[1] for term in expected['answer_terms']) and
+            ('question_exact' not in expected or (
+                pair[0] == normalize_qa(expected['question_exact'], '')[0] and
+                any(q.source_ref == expected['source_ref'] and
+                    normalize_qa(q.question, q.answer) == pair for q in qas))) and
             not any(term in pair[0] + pair[1] for term in case.get('forbidden_terms', []))), None)
         if match is None:
             return False

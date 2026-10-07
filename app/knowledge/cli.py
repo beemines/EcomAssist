@@ -12,7 +12,7 @@ from app.db.session import Database
 from app.core.llm import create_model
 from app.knowledge.extraction import QAExtractor
 from app.knowledge.history import BEIJING, KnowledgeHistory, window
-from app.knowledge.mining import ConversationMiningJob, deduplicate_staging
+from app.knowledge.mining import ConversationMiningJob, MiningBatchError, deduplicate_staging
 from app.knowledge.chunking import ChunkingError
 from app.knowledge.ingestion import import_document
 from app.knowledge.embeddings import SiliconFlowEmbedder
@@ -91,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
         asyncio.run(run(args))
-    except ChunkingError as exc:
+    except (ChunkingError, MiningBatchError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
     except Exception as exc:

@@ -30,6 +30,43 @@ def test_job_failure_is_nonzero_and_hides_upstream_details(monkeypatch, capsys):
     assert 'SECRET' not in capsys.readouterr().err
 
 
+@pytest.mark.parametrize('failure', ['oversized', 'provider'])
+def test_actual_cli_failed_batch_has_safe_window_and_source_identity(monkeypatch, capsys, failure):
+    from tests.fakes import fake_settings
+    from tests.test_knowledge_extraction import Model
+    from tests.test_knowledge_mining import Repository
+    from app.knowledge.types import ConversationTranscript
+    from app.repositories.records import MessageRecord
+    class Database:
+        def __init__(self, url): pass
+        async def dispose(self): pass
+    @asynccontextmanager
+    async def lock(database): yield
+    class History:
+        def __init__(self, db): pass
+        async def completed(self, *args):
+            return [ConversationTranscript(4321, 9876, [
+                MessageRecord(9876, 'user', 'PRIVATE synthetic body SECRET', None, None)])]
+    class SyncClient:
+        def close(self): pass
+    class AsyncClient:
+        async def close(self): pass
+    model = Model(fault=RuntimeError('PRIVATE provider operands SECRET'))
+    model.root_client, model.root_async_client = SyncClient(), AsyncClient()
+    monkeypatch.setattr(cli, 'load_settings', lambda: fake_settings(mysql_password='fake-only',
+        input_token_budget=1 if failure == 'oversized' else 10000))
+    for name, value in [('Database', Database), ('job_lock', lock), ('KnowledgeHistory', History),
+        ('KnowledgeRepository', lambda db: Repository()), ('create_model', lambda settings: model)]:
+        monkeypatch.setattr(cli, name, value)
+    assert cli.main(['mine-conversations', '--start', '2026-10-06', '--end', '2026-10-07']) == 1
+    captured = capsys.readouterr()
+    assert 'batch_no=a19c1306f00a3e5398f9bbd2a49fae7c27bf261cf1134f1adb758f069da22284' in captured.err
+    assert 'conversation:4321:message:9876' in captured.err
+    assert '2026-10-06T00:00:00' in captured.err and '2026-10-07T00:00:00' in captured.err
+    assert ('InputTooLong' if failure == 'oversized' else 'ServiceError') in captured.err
+    assert not any(word in captured.out + captured.err for word in ['PRIVATE', 'SECRET', 'synthetic body', 'provider operands'])
+
+
 @pytest.mark.parametrize('failure', [None, 'extract', 'vector', 'model_close'])
 async def test_daily_holds_one_lock_and_closes_owned_resources(monkeypatch, failure, capsys):
     from tests.fakes import fake_settings
@@ -118,3 +155,27 @@ def test_powershell_launcher_fixes_directory_and_preserves_child_exit_code():
     invocation = json.loads(result.stdout)
     assert invocation['cwd'] == 'D:\\shixi\\ecommerce-customer-service'
     assert invocation['argv'] == ['--directory', 'D:\\shixi\\ecommerce-customer-service', 'run', 'python', '-m', 'app.knowledge.cli', 'run-daily']
+
+
+def test_actual_launcher_captures_native_stdout_stderr_in_ignored_log_and_retains_exit():
+    from pathlib import Path
+    import shutil
+    import subprocess
+    import sys
+    from uuid import uuid4
+    shell = shutil.which('pwsh') or shutil.which('powershell')
+    if shell is None: pytest.skip('PowerShell launcher requires a Windows shell')
+    script = Path(__file__).resolve().parents[1] / 'scripts/run-knowledge-daily.ps1'
+    token = 'synthetic_' + uuid4().hex
+    child = f"import sys; print('{token} batch_no=abc conversation:4321:message:9876'); sys.stderr.write('{token} InputTooLong\\n'); sys.exit(23)"
+    code = ("function uv { & '" + sys.executable.replace("'", "''") + "' -c '" + child.replace("'", "''") +
+        "'; $global:LASTEXITCODE=$LASTEXITCODE }; & '" + str(script).replace("'", "''") + "'; exit $LASTEXITCODE")
+    result = subprocess.run([shell, '-NoProfile', '-Command', code], capture_output=True, text=True)
+    assert result.returncode == 23
+    log = Path('D:/shixi/ecommerce-customer-service/.cache/knowledge-daily.log')
+    assert log.exists()
+    # Tee-Object uses UTF-16LE on Windows PowerShell 5.1 and UTF-8 on pwsh.
+    data = log.read_bytes()
+    captured = data.decode('utf-16') if data.startswith(b'\xff\xfe') else data.decode('utf-8-sig')
+    assert f'{token} batch_no=abc conversation:4321:message:9876' in captured
+    assert f'{token} InputTooLong' in captured
