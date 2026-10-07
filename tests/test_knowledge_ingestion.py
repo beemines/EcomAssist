@@ -31,6 +31,16 @@ async def test_invalid_document_never_reaches_repository(tmp_path):
         await importer()(path, "manual", NoWrites())
 
 
+async def test_empty_earlier_faq_answer_rejects_document_before_storage(tmp_path):
+    class NoWrites:
+        async def add_chunks(self, *args, **kwargs):
+            pytest.fail("incomplete FAQ document reached storage")
+    path = tmp_path / "invalid-faq.md"
+    path.write_text("# 配送\nQ: supplied first question?\nA:\nQ: supplied second question?\nA: valid answer.", encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid-faq.*章节.*配送"):
+        await importer()(path, "faq", NoWrites())
+
+
 async def test_read_error_never_reaches_repository(tmp_path):
     with pytest.raises(FileNotFoundError):
         await importer()(tmp_path / "absent.md", "policy", None)
