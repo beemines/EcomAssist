@@ -152,9 +152,9 @@
 - [x] 实际应用端创建独立演示会话，发送“邮费是多少”，审计实际 query_faq、原文参数、正确知识、正常 SSE done 与持久回答；回答需包含 8 元/满99包邮及适用范围，人工检查事实而非仅关键词匹配。超时/配置问题如实失败，不随意换模型。
 - [x] 恢复 harness 启动自己创建的子进程：一次在提交 pending 后、一次在真实 upsert 返回但 mark_done 前，包装 I/O 客户端写检查点并阻塞；父进程只终止它拥有的 PID，然后启动正常 worker 重跑。断言所有预期 done、唯一向量 id 无重复、正文未丢；记录重启检查，不能用抛异常替代真实进程中断。
 - [x] 执行 `uv run --locked pytest -q`、`uv run --locked pytest tests/integration --run-mysql --run-milvus -q`、真实标注提取及在线评估、`git diff --check`。显式要求的集成环境不就绪应失败，普通 gating skips 单列说明，不冒称全部运行。
-- [ ] 使用 requesting-code-review 完成整分支独立审查；按 receiving-code-review 核实建议，修复后重跑受影响验证。及时记录每条结论与返工。
+- [x] 使用 requesting-code-review 完成整分支独立审查；按 receiving-code-review 核实建议，修复后重跑受影响验证。及时记录每条结论与返工。
 - [x] README 给出保留既有 MySQL 项目的迁移、Milvus 启动、import-document→vectorize-pending、mine-conversations、run-daily、每日定时部署和原问法聊天命令。记录完整测试结果与未解决限制。
-- [ ] 使用 verification-before-completion 和 finishing-a-development-branch；只有要求的真实验收及审查通过才报告完成。此次只授权功能开发，Git 合并/推送方式按本章 finish 决策，前章发布授权不自动扩展；保留 prompt.md 的原有改动。
+- [x] 使用 verification-before-completion 和 finishing-a-development-branch；只有要求的真实验收及审查通过才报告完成。此次只授权功能开发，Git 合并/推送方式按本章 finish 决策，前章发布授权不自动扩展；保留 prompt.md 的原有改动。最终总回归729通过/0失败/0跳过；集成方式待用户决定。
 
 ## 计划自查
 
@@ -168,6 +168,6 @@
 
 - Tasks1–5已实施并独立审查通过；Task6实现/证据详见docs/validation/ch03-results.md。实际检索域内5/5，域外误召回观察为false，全标注5/6；原问法app/SSE/持久回答通过且控制器代理事实复核。两个自建OS进程kill/restart真实边界通过。
 - 所有实际建库及聊天仅在3308/test和UUID集合；未部署主checkout/正式知识/宿主调度。Task5 原 prompt 真实QA8/8证据已移出scratch安全保留；最终修复修改 prompt 后，当前九类完整单次实际评估另存 ch03-qa-live-final9.json，不合并历史轮次。该报告保留计数与严格原问题/来源 scorer 结论，未保存实际抽取字面串，不宣称人为逐字审核。
-- 未勾选的Task6独立整分支审查和finish由控制器负责；本实施代理不派生reviewer、不合并/推送。
+- Task6实施者提交时，整分支审查和finish尚待控制器；现六项任务及整分支修复复核已通过，最终总回归729通过/0失败/0跳过。功能交付完成，Git集成待用户选择；未推送/合并。
 
 - Task6最终完整离线652 passed/62 gated skips；显式MySQL/Milvus目录60 passed及目录外真实ingestion2 passed（全部62实际执行），真实app结构/控制器代理事实复核与两恢复边界通过。首次完整离线旧夹具两失败已据实保留并修正，依据修复复跑；无域外6/6承诺。
