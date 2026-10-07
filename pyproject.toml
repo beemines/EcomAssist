@@ -15,6 +15,7 @@ dependencies = [
     "sqlalchemy==2.0.54",
     "aiomysql==0.3.2",
     "pymysql[rsa]==1.2.3",
+    "pymilvus==3.0.2",
 ]
 
 [dependency-groups]

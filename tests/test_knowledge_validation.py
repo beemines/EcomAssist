@@ -41,6 +41,7 @@ def test_optional_embedding_secret_loads_without_exposing_value(tmp_path):
     path = tmp_path / ".env"
     path.write_text("LLM_BASE_URL=https://example.com/v1/\nLLM_MODEL=test\nLLM_API_KEY=test\nSILICONFLOW_API_KEY=embedding-test-secret\n", encoding="utf-8")
     settings = load_settings(path)
-    assert settings.siliconflow_api_key.get_secret_value() == "embedding-test-secret"
+    from pydantic import SecretStr
+    assert settings.siliconflow_api_key == SecretStr("embedding-test-secret")
     assert "embedding-test-secret" not in repr(settings)
     assert "embedding-test-secret" not in settings.model_dump_json()

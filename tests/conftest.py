@@ -1,11 +1,43 @@
 import pytest
 import pytest_asyncio
+import os
 from uuid import uuid4
 from types import SimpleNamespace
+
+# PyMilvus 3.0.2 imports load_dotenv() and otherwise injects real credentials into
+# every offline test during collection. Pydantic still reads explicit env files.
+os.environ['PYTHON_DOTENV_DISABLED'] = '1'
 
 
 def pytest_addoption(parser):
     parser.addoption("--run-mysql", action="store_true", default=False, help="运行独立 MySQL 测试库集成测试")
+    parser.addoption('--run-milvus', action='store_true', default=False, help='运行本机 Milvus knowledge_test_* 集成测试')
+
+
+@pytest_asyncio.fixture
+async def milvus_collection(request):
+    if not request.config.getoption('--run-milvus'):
+        pytest.skip('需要显式传入 --run-milvus')
+    from pymilvus import AsyncMilvusClient
+    client = AsyncMilvusClient(uri='http://127.0.0.1:19530', timeout=5)
+    name = 'knowledge_test_' + uuid4().hex
+    connected = False
+    try:
+        unavailable = None
+        try:
+            await client.list_collections(timeout=5)
+            connected = True
+        except Exception as exc:
+            unavailable = type(exc).__name__
+        if unavailable:
+            pytest.fail(f'Milvus 测试服务未就绪（{unavailable}），请启动 ecs-knowledge Compose', pytrace=False)
+        yield SimpleNamespace(client=client, name=name, uri='http://127.0.0.1:19530')
+    finally:
+        try:
+            if connected and await client.has_collection(name, timeout=5):
+                await client.drop_collection(name, timeout=5)
+        finally:
+            await client.close()
 
 
 @pytest_asyncio.fixture
