@@ -1,8 +1,8 @@
 # 电商智能客服
 
-第二步加入 MySQL 持久会话与单轮工具调用，沿用 FastAPI、LangChain 和 OpenAI 兼容 Chat Completions。每条用户消息一次工具选择、最多一个逻辑工具、一次最终流式回答，没有 Agent Loop。订单、商品和物流返回随机模拟数据；FAQ 读取 MySQL 问题列；人工工单真实写库并将会话转人工。原售后信息提取接口继续保留。
+第三章在 MySQL 持久会话与单轮工具调用上加入 Dense 知识库，沿用 FastAPI、LangChain 和 OpenAI 兼容 Chat Completions。每条用户消息一次工具选择、最多一个逻辑工具、一次最终流式回答，没有 Agent Loop。订单、商品和物流返回随机模拟数据；FAQ 使用云端 BGE-M3 与本机 Milvus 检索、MySQL 读取权威正文；人工工单真实写库并将会话转人工。原售后信息提取接口继续保留。
 
-离线测试、真实 MySQL 集成和保留数据的重启检查已通过。真实物流闸门通过，八类评估在人工工单项发生错误后停止，剩余真实验收待完成，见 [验证记录](docs/validation/tool-calling-results.md)。开发过程见 [dev-notes/ch02.md](dev-notes/ch02.md)，原始建表文件为 [sql/schema.sql](sql/schema.sql)。
+本章实际域内召回5/5、原问法应用SSE及持久回答、两个自建进程中断恢复已验证；域外误召回观察仍失败。完整离线652 passed/62服务闸门skips，显式实库全部62 passed。详见[第三章验证记录](docs/validation/ch03-results.md)与[开发记录](dev-notes/ch03.md)；控制器整分支审核与集成完结仍待处理。第二章的历史工具验收及未完成项保留在[旧验证记录](docs/validation/tool-calling-results.md)，不能由本章单个邮费回答推断旧八类均已通过。原始业务建表为[sql/schema.sql](sql/schema.sql)，新增两表为用户原样[sql/ch03-ddl.sql](sql/ch03-ddl.sql)。
 
 ## 安装、数据库与启动
 
@@ -14,15 +14,18 @@ uv sync --locked
 if (-not (Test-Path -LiteralPath '.env')) { Copy-Item .env.example .env }
 ```
 
-在 `.env` 填写 `LLM_API_KEY`、`MYSQL_PASSWORD` 和 `MYSQL_ROOT_PASSWORD`。沿用 `glm-5.3-flash` 和标准端点 `https://open.bigmodel.cn/api/paas/v4/`。应用默认连接 `127.0.0.1:3307/customer_service`；独立测试库固定为 `127.0.0.1:3308/customer_service_test`。
+在 `.env` 填写 `LLM_API_KEY`、`SILICONFLOW_API_KEY`、`MYSQL_PASSWORD` 和 `MYSQL_ROOT_PASSWORD`。沿用 `glm-5.3-flash` 和标准端点 `https://open.bigmodel.cn/api/paas/v4/`。应用默认连接 `127.0.0.1:3307/customer_service`；独立测试库固定为 `127.0.0.1:3308/customer_service_test`。下面启动命令适用于已合并部署的 checkout；正式数据导入见第三章建库说明。
 
 ```powershell
 docker compose -p ecs-tool-calling --profile test up -d --wait --wait-timeout 120
 docker compose -p ecs-tool-calling --profile test ps
+docker compose -f compose.milvus.yaml -p ecs-knowledge up -d
+uv run --locked python -m app.knowledge.cli migrate
+uv run --locked python -m app.knowledge.cli init-vectors
 uv run --locked uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-首次空卷启动由官方入口原样执行挂载的 `sql/schema.sql`，再执行 `sql/seed.sql`。客户端明确使用 utf8mb4；仅有 faq/conversations/messages/tickets 四表。种子使用 seed-user，包含完整对话、人工售后工单、退货与运费 FAQ；不占用浏览器 demo-user 的会话。种子采用存在性检查，不清空数据。
+首次空卷启动由官方入口原样执行挂载的 `sql/schema.sql`，再执行 `sql/seed.sql`。客户端明确使用 utf8mb4；原业务四表为 faq/conversations/messages/tickets，本章 migrate 额外执行 knowledge_chunks/qa_extraction_staging 两表DDL。旧faq表保留但在线语义检索使用新知识表。种子使用 seed-user，包含完整对话、人工售后工单、退货与运费 FAQ；不占用浏览器 demo-user 的会话。种子采用存在性检查，不清空数据。
 
 既有卷再次 up 不重跑初始化 SQL。维护时保留 `ecs-tool-calling_mysql-data-initialized` 与 `ecs-tool-calling_mysql-test-data-initialized` 卷。可只重启独立测试库：
 
@@ -70,7 +73,7 @@ curl.exe --max-time 75 -H 'Content-Type: application/json' --data-binary '@.cach
 
 提取预期为 `{"order_id":"20261005001","request_type":"return_refund","expected_solution":"退货退款"}`。保留 conversationId 后可在应用重启后用同一 ID 追问前轮内容。
 
-FAQ 关键词必须是当前问题的连续原文片段，只查问题列，最多三条，不扩展同义词。“邮费是多少”查不到是预期结果；不能换成“运费”掩盖漏召回。订单/商品/物流是模拟演示，不能声称真实订单状态或已执行退款。工单编号由会话、当前 user 消息主键和调用 ID 的 SHA256 生成，同次重试复用，不同用户消息独立编号。
+FAQ 参数仍必须是当前问题的连续原文片段（1–128 字符）。该原文直接交给云端 BGE-M3，Milvus Dense 检索最多三条，随后仅从 MySQL 的 done 行取权威正文；不做查询改写、LIKE 回退、混合检索或重排。导入并向量化演示文档后，“邮费是多少”应命中标准配送费用，不需要换成“运费”。无相似度阈值的 Top3 会返回域外不相关知识，found=true 只表示有已完成的检索结果；不能据此证明问题属于知识范围。订单/商品/物流是模拟演示，不能声称真实订单状态或已执行退款。工单编号由会话、当前 user 消息主键和调用 ID 的 SHA256 生成，同次重试复用，不同用户消息独立编号。
 
 ## 配置和预算
 
@@ -85,6 +88,12 @@ FAQ 关键词必须是当前问题的连续原文片段，只查问题列，最�
 | INPUT_TOKEN_BUDGET | 2000 | 原售后提取估算预算 |
 | TOOL_TIMEOUT_SECONDS | 5 | 单次工具执行期限 |
 | TOOL_MAX_RETRIES | 1 | 仅超时/暂时连接错误允许一次工具重试 |
+| SILICONFLOW_API_KEY | 后端密钥 | 云端 BGE-M3 embeddings |
+| EMBEDDING_MODEL | BAAI/bge-m3 | 1024 维 Dense 向量 |
+| EMBEDDING_TIMEOUT_SECONDS | 20 | 单次嵌入请求期限；在线仍受工具总期限约束 |
+| MILVUS_URI | http://127.0.0.1:19530 | 本机 Milvus |
+| MILVUS_TIMEOUT_SECONDS | 5 | Milvus 请求期限 |
+| QA_MAX_OUTPUT_TOKENS | 2048 | 仅离线历史 QA 抽取，在线聊天/售后仍为 512 |
 
 保留完整历史轮次和当前工具申请/结果组合。必需输入超预算返回 422 input_too_long；取消后不重试。模型 SDK 和评估 HTTP 客户端均无自动重试。密钥只在后端读取，不发送给浏览器或写入报告；改 .env 后重启服务。
 
@@ -104,8 +113,62 @@ smoke 正常有创建会话、两轮聊天、一次精确提取，共 4 次应�
 ```powershell
 $env:UV_CACHE_DIR = '.cache/uv'
 uv run --locked pytest -q
-uv run --locked pytest tests/integration --run-mysql -q
+uv run --locked pytest tests/integration --run-mysql --run-milvus -q
 git diff --check
 ```
 
-未传 --run-mysql 跳过独立集成；显式请求但测试库未就绪会失败。离线测试使用受控模型、仓储、HTTP 分片，不调用真实上游。真实浏览器/curl、客服回答质量、真实工单和提取能力须按验证记录核对，不能由离线通过推断。
+未传 --run-mysql / --run-milvus 跳过对应集成；显式请求但服务未就绪会失败。离线测试使用受控模型、仓储、HTTP 分片，不调用真实上游。真实回答质量、实际检索和恢复证据见 [第三章验证记录](docs/validation/ch03-results.md)，不能由离线通过推断。
+
+## 第三章建库与每日任务
+
+以下正式建库命令需要在本章合并、部署到主 checkout 后运行。此次实测仅使用 `127.0.0.1:3308/customer_service_test` 的自建行和 `knowledge_test_<UUID>` 集合，结束即清理；未填充主库或正式 `knowledge` 集合，未部署主 checkout，未读取生产个人历史，未注册宿主机定时任务。原卷、四张业务表和原 UI 保留。
+
+保留已初始化的 `ecs-tool-calling` 项目及其卷，额外迁移用户原样两表 DDL；迁移发现已有表结构不符即失败，不改列或删表。Milvus 使用独立 `ecs-knowledge` 项目及卷；不要执行 `down -v`。
+
+```powershell
+$projectRoot = 'D:\shixi\ecommerce-customer-service'
+$env:UV_CACHE_DIR = 'D:\shixi\ecommerce-customer-service\.cache\uv'
+docker compose -p ecs-tool-calling --profile test up -d
+docker compose -f compose.milvus.yaml -p ecs-knowledge up -d
+uv --directory $projectRoot run --locked python -m app.knowledge.cli migrate
+uv --directory $projectRoot run --locked python -m app.knowledge.cli init-vectors
+uv --directory $projectRoot run --locked python -m app.knowledge.cli import-document --path knowledge-docs/demo-policy.md --type policy
+uv --directory $projectRoot run --locked python -m app.knowledge.cli import-document --path knowledge-docs/demo-faq.md --type faq
+uv --directory $projectRoot run --locked python -m app.knowledge.cli import-document --path knowledge-docs/demo-manual.md --type manual
+uv --directory $projectRoot run --locked python -m app.knowledge.cli vectorize-pending --batch-size 20
+uv --directory $projectRoot run --locked uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --workers 1
+```
+
+先在 `.env` 配置已有 MySQL 凭据、LLM 凭据及 `SILICONFLOW_API_KEY`，不要提交密钥。`init-vectors` 校验 INT64 id、1024 维、auto_id=False、Strong、FLAT/COSINE；不匹配即拒绝。导入会新增 pending 行，重复 import 不等于文档去重；续跑应只执行 vectorize-pending。MySQL id 为 Milvus 主键，同一行 upsert 可重放；中断后的 pending 在再次启动命令时补齐，不宣称服务启动会自动调度补齐。向量文本固定只含 category/questions/answer，其余章节、指针及关键条款元数据保存在 MySQL。
+
+部署后历史处理命令如下；时间为北京时间半开区间，只采集已结束会话，按 id 分页，每批最多 20 条。全局精确去重规范化 NFKC 与空白，保留同问题不同答案；它不能去掉所有语义近似问题。暂存推广事务完成后再补向量。脚本内容是部署说明；运行这些历史命令会调用真实模型并处理配置库的数据，应由维护者选择已授权的时间窗口。
+
+```powershell
+uv --directory $projectRoot run --locked python -m app.knowledge.cli mine-conversations --start 2026-10-06T00:00:00 --end 2026-10-07T00:00:00 --batch-size 20
+uv --directory $projectRoot run --locked python -m app.knowledge.cli deduplicate-staging
+uv --directory $projectRoot run --locked python -m app.knowledge.cli vectorize-pending
+uv --directory $projectRoot run --locked python -m app.knowledge.cli run-daily
+```
+
+run-daily 处理北京时间前一天，持同一 MySQL GET_LOCK 完成挖掘→暂存去重→pending 向量化；已有任务占锁时退出失败，取消/释放失败作废锁连接。已验证当前 MySQL SYSTEM/UTC 时钟转换；历史混合时区与 DST 迁移需另行核对。
+
+仅在主 checkout 合并部署且宿主机时区为 `China Standard Time` 后，维护者可注册每日 02:00 的外部计划。`scripts/run-knowledge-daily.ps1` 固定主 checkout 路径，保留 uv 的退出码；本次没有执行注册命令，也没有常驻调度器。
+
+```powershell
+schtasks /Create /TN "ECS Knowledge Daily" /SC DAILY /ST 02:00 /TR 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\shixi\ecommerce-customer-service\scripts\run-knowledge-daily.ps1"' /F
+```
+
+原问法聊天沿用上面的 curl 演示：创建独立会话后发送 `邮费是多少`。演示政策明确为合成教学数据：大陆普通配送区域的普通小件配送 8 元，单笔商品实付满 99 元包邮；港澳台、偏远地区和大件另确认，不能推广到真实商家。
+
+在尚未部署的 worktree 可独立复现本次验收。先明确向测试库执行相同迁移（临时设置 MYSQL_PORT=3308、MYSQL_DATABASE=customer_service_test 后 migrate，完成后恢复原环境值）；不要从初始化卷假定新 DDL 已执行。两个 harness 固定测试库、使用自建行与 UUID 集合、真实云端模型，结束清理自有资源。离线测试和普通 Milvus 集成的确定性替身向量不能证明云端语义质量。
+
+```powershell
+$worktreeRoot = 'D:\shixi\ecommerce-customer-service\.worktrees\ch03-dense-knowledge'
+uv --directory $worktreeRoot run --locked python -m evals.evaluate_knowledge --output .cache/knowledge-live.json
+uv --directory $worktreeRoot run --locked python -m evals.knowledge_recovery --output .cache/knowledge-recovery.json
+uv --directory $worktreeRoot run --locked python -m evals.evaluate_qa --controlled --output .cache/qa-controlled.json
+# 需要新模型质量采样时运行真实 QA；既有 8/8 证据保存在 docs/validation/ch03-qa-live.json。
+uv --directory $worktreeRoot run --locked python -m evals.evaluate_qa --output .cache/qa-live.json
+```
+
+knowledge 评估先验证实际 1024 维/集合 schema，再导入三份合成文档及 scoped pending 向量化；六条标注分别记录预期章节、实际主键/工具结果及耗时。域外观测标注 required=false，误召回仍保留 passed=false，退出码只代表五条必需域内及应用结构验收；事实质量必须另读原回答核对。实际应用使用 lifespan 和缓冲 HTTPX ASGITransport 验证 SSE 事件及持久消息，因此不声称网络逐帧延时/真实浏览器验收。恢复 harness 真正创建并终止它的 worker OS 进程，两个边界均记录匹配 PID、pending/done、唯一向量数及正文哈希。

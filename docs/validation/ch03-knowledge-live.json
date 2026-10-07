@@ -1,0 +1,674 @@
+{
+  "kind": "actual_dense_knowledge_acceptance",
+  "started_at": "2026-10-07T14:20:53.003422+00:00",
+  "database": "127.0.0.1:3308/customer_service_test",
+  "collection": "knowledge_test_5aa96bb0427f4887900fc5271370b592",
+  "embedding_model": "BAAI/bge-m3",
+  "online_model": "glm-5.3-flash",
+  "online_output_budget": 512,
+  "cleanup": "owned_demo_rows_conversation_and_collection_removed",
+  "app": {
+    "attempted": 1,
+    "not_attempted": 0,
+    "passed": true,
+    "query": "邮费是多少",
+    "expected_hit_ids": [
+      80
+    ],
+    "actual_hit_ids": [
+      82,
+      80,
+      81
+    ],
+    "tool_result": {
+      "found": true,
+      "matches": [
+        {
+          "id": 82,
+          "question": "邮费是多少？\n快递费用怎么收？",
+          "answer": "本回答仅适用于人工合成演示店铺、中国大陆普通配送区域的普通小件商品。标准配送费为 8 元，单笔订单商品实付金额满 99 元包邮；港澳台、偏远地区和大件商品需另行确认。本文件不代表真实商家政策。",
+          "category": "合成演示 FAQ"
+        },
+        {
+          "id": 80,
+          "question": "标准配送费用",
+          "answer": "本文件是人工合成的教学演示知识，不代表真实商家政策。\n以下规则仅适用于本演示店铺、中国大陆普通配送区域的普通小件商品，不适用于港澳台、偏远地区或大件商品。\n在上述演示范围内，标准配送费为 8 元；单笔订单商品实付金额满 99 元包邮。\n未写明范围的运费应由客服另行确认，不得将本演示金额推广到真实商家。",
+          "category": "合成演示政策"
+        },
+        {
+          "id": 81,
+          "question": "退货申请",
+          "answer": "> [!IMPORTANT]\n> 仅在本合成演示中，普通商品签收后七天内可以申请退货；退货原因和实际运费承担需另行确认。",
+          "category": "合成演示政策"
+        }
+      ]
+    },
+    "final_answer": "您好！根据查询到的**模拟演示数据**（仅供参考，非真实商家政策）：\n\n- 标准配送费：**8 元**（仅限中国大陆普通配送区域的普通小件商品）\n- 包邮门槛：单笔订单商品实付金额**满 99 元包邮**\n\n⚠️ 请注意：港澳台、偏远地区及大件商品的运费需另行确认。以上为演示店铺数据，实际运费请以真实店铺政策为准。\n\n请问还有什么可以帮您的吗？",
+    "answer_review": {
+      "status": "controller_fact_review_passed",
+      "reviewer": "controller agent (not user sign-off)",
+      "review_recorded_at": "2026-10-07T14:28:58.215020+00:00",
+      "facts_checked": [
+        "标准配送8元",
+        "单笔商品实付满99元包邮",
+        "大陆普通配送区域普通小件",
+        "港澳台/偏远地区/大件另确认",
+        "合成演示非真实商家政策",
+        "无退款等执行承诺"
+      ]
+    },
+    "transport": "HTTPX ASGITransport (buffered SSE); actual app lifespan/model/MySQL/Milvus",
+    "latency_seconds": 12.67713090009056,
+    "http_request_count": 2,
+    "model_request_count": null,
+    "conversation_id": "9007199254741164",
+    "error_code": null,
+    "stream": {
+      "status_code": 200,
+      "events": [
+        "status",
+        "status",
+        "status",
+        "status",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "delta",
+        "done"
+      ],
+      "deltas": [
+        "您好",
+        "！",
+        "根据",
+        "查询",
+        "到的",
+        "**",
+        "模拟",
+        "演示",
+        "数据",
+        "**",
+        "（",
+        "仅供参考",
+        "，",
+        "非",
+        "真实",
+        "商家",
+        "政策",
+        "）",
+        "：\n\n",
+        "-",
+        " ",
+        "标",
+        "准",
+        "配送",
+        "费",
+        "：",
+        "**",
+        "8",
+        " 元",
+        "**",
+        "（",
+        "仅",
+        "限",
+        "中国大陆",
+        "普通",
+        "配送",
+        "区域的",
+        "普通",
+        "小",
+        "件",
+        "商品",
+        "）\n",
+        "-",
+        " 包",
+        "邮",
+        "门槛",
+        "：",
+        "单",
+        "笔",
+        "订单",
+        "商品",
+        "实",
+        "付",
+        "金额",
+        "**",
+        "满",
+        " ",
+        "99",
+        " 元",
+        "包邮",
+        "**\n\n",
+        "⚠",
+        "️",
+        " 请",
+        "注意",
+        "：",
+        "港澳",
+        "台",
+        "、",
+        "偏远",
+        "地区",
+        "及",
+        "大",
+        "件",
+        "商品的",
+        "运",
+        "费",
+        "需",
+        "另行",
+        "确认",
+        "。",
+        "以上",
+        "为",
+        "演示",
+        "店铺",
+        "数据",
+        "，",
+        "实际",
+        "运",
+        "费",
+        "请",
+        "以",
+        "真实",
+        "店铺",
+        "政策",
+        "为准",
+        "。\n\n",
+        "请问",
+        "还有什么",
+        "可以",
+        "帮",
+        "您的",
+        "吗？"
+      ],
+      "text": "您好！根据查询到的**模拟演示数据**（仅供参考，非真实商家政策）：\n\n- 标准配送费：**8 元**（仅限中国大陆普通配送区域的普通小件商品）\n- 包邮门槛：单笔订单商品实付金额**满 99 元包邮**\n\n⚠️ 请注意：港澳台、偏远地区及大件商品的运费需另行确认。以上为演示店铺数据，实际运费请以真实店铺政策为准。\n\n请问还有什么可以帮您的吗？",
+      "nonempty_delta_count": 101,
+      "done_count": 1,
+      "first_delta_seconds": 11.811630599899217,
+      "error_code": null
+    },
+    "actual_tool": "query_faq",
+    "actual_args": {
+      "keyword": "邮费是多少"
+    },
+    "actual_found": true,
+    "matches": [
+      {
+        "id": 82,
+        "question": "邮费是多少？\n快递费用怎么收？",
+        "answer": "本回答仅适用于人工合成演示店铺、中国大陆普通配送区域的普通小件商品。标准配送费为 8 元，单笔订单商品实付金额满 99 元包邮；港澳台、偏远地区和大件商品需另行确认。本文件不代表真实商家政策。",
+        "category": "合成演示 FAQ"
+      },
+      {
+        "id": 80,
+        "question": "标准配送费用",
+        "answer": "本文件是人工合成的教学演示知识，不代表真实商家政策。\n以下规则仅适用于本演示店铺、中国大陆普通配送区域的普通小件商品，不适用于港澳台、偏远地区或大件商品。\n在上述演示范围内，标准配送费为 8 元；单笔订单商品实付金额满 99 元包邮。\n未写明范围的运费应由客服另行确认，不得将本演示金额推广到真实商家。",
+        "category": "合成演示政策"
+      },
+      {
+        "id": 81,
+        "question": "退货申请",
+        "answer": "> [!IMPORTANT]\n> 仅在本合成演示中，普通商品签收后七天内可以申请退货；退货原因和实际运费承担需另行确认。",
+        "category": "合成演示政策"
+      }
+    ],
+    "ticket_no": null,
+    "audit_error": null,
+    "answer_phrase_match": true,
+    "original_argument": true,
+    "persisted_final_answer": true
+  },
+  "acceptance_passed": true,
+  "actual_embedding_dimensions": 1024,
+  "schema_verified": true,
+  "collection_schema": {
+    "auto_id": false,
+    "consistency_level": 0,
+    "fields": [
+      {
+        "name": "id",
+        "type": 5,
+        "params": {}
+      },
+      {
+        "name": "embedding",
+        "type": 101,
+        "params": {
+          "dim": 1024
+        }
+      }
+    ]
+  },
+  "imported_ids": [
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86
+  ],
+  "vectorized_count": 7,
+  "sections_by_id": {
+    "80": "合成演示政策/标准配送费用",
+    "81": "合成演示政策/退货申请",
+    "82": "合成演示 FAQ/配送问答",
+    "83": "合成演示 FAQ/配送问答",
+    "84": "合成演示操作手册/文档说明",
+    "85": "合成演示操作手册/演示申请步骤",
+    "86": "合成演示操作手册/演示申请步骤/状态表"
+  },
+  "retrieval": {
+    "attempted": 6,
+    "not_attempted": 0,
+    "passed": 5,
+    "cases": [
+      {
+        "id": "shipping_original",
+        "query": "邮费是多少",
+        "expected_sections": [
+          "合成演示政策/标准配送费用"
+        ],
+        "required": true,
+        "gold": "演示店铺大陆普通配送区域普通小件：8元，实付满99元包邮，港澳台/偏远/大件另行确认。",
+        "expected_hit_ids": [
+          80
+        ],
+        "actual_hit_ids": [
+          82,
+          80,
+          81
+        ],
+        "tool_result": {
+          "found": true,
+          "matches": [
+            {
+              "id": 82,
+              "question": "邮费是多少？\n快递费用怎么收？",
+              "answer": "本回答仅适用于人工合成演示店铺、中国大陆普通配送区域的普通小件商品。标准配送费为 8 元，单笔订单商品实付金额满 99 元包邮；港澳台、偏远地区和大件商品需另行确认。本文件不代表真实商家政策。",
+              "category": "合成演示 FAQ"
+            },
+            {
+              "id": 80,
+              "question": "标准配送费用",
+              "answer": "本文件是人工合成的教学演示知识，不代表真实商家政策。\n以下规则仅适用于本演示店铺、中国大陆普通配送区域的普通小件商品，不适用于港澳台、偏远地区或大件商品。\n在上述演示范围内，标准配送费为 8 元；单笔订单商品实付金额满 99 元包邮。\n未写明范围的运费应由客服另行确认，不得将本演示金额推广到真实商家。",
+              "category": "合成演示政策"
+            },
+            {
+              "id": 81,
+              "question": "退货申请",
+              "answer": "> [!IMPORTANT]\n> 仅在本合成演示中，普通商品签收后七天内可以申请退货；退货原因和实际运费承担需另行确认。",
+              "category": "合成演示政策"
+            }
+          ]
+        },
+        "final_answer": null,
+        "answer_review": "not_applicable_retrieval_only",
+        "latency_seconds": 0.3230461000930518,
+        "passed": true,
+        "error_code": null,
+        "actual_sections": [
+          "合成演示 FAQ/配送问答",
+          "合成演示政策/标准配送费用",
+          "合成演示政策/退货申请"
+        ]
+      },
+      {
+        "id": "shipping_courier",
+        "query": "快递费用怎么收",
+        "expected_sections": [
+          "合成演示政策/标准配送费用"
+        ],
+        "required": true,
+        "expected_hit_ids": [
+          80
+        ],
+        "actual_hit_ids": [
+          82,
+          80,
+          81
+        ],
+        "tool_result": {
+          "found": true,
+          "matches": [
+            {
+              "id": 82,
+              "question": "邮费是多少？\n快递费用怎么收？",
+              "answer": "本回答仅适用于人工合成演示店铺、中国大陆普通配送区域的普通小件商品。标准配送费为 8 元，单笔订单商品实付金额满 99 元包邮；港澳台、偏远地区和大件商品需另行确认。本文件不代表真实商家政策。",
+              "category": "合成演示 FAQ"
+            },
+            {
+              "id": 80,
+              "question": "标准配送费用",
+              "answer": "本文件是人工合成的教学演示知识，不代表真实商家政策。\n以下规则仅适用于本演示店铺、中国大陆普通配送区域的普通小件商品，不适用于港澳台、偏远地区或大件商品。\n在上述演示范围内，标准配送费为 8 元；单笔订单商品实付金额满 99 元包邮。\n未写明范围的运费应由客服另行确认，不得将本演示金额推广到真实商家。",
+              "category": "合成演示政策"
+            },
+            {
+              "id": 81,
+              "question": "退货申请",
+              "answer": "> [!IMPORTANT]\n> 仅在本合成演示中，普通商品签收后七天内可以申请退货；退货原因和实际运费承担需另行确认。",
+              "category": "合成演示政策"
+            }
+          ]
+        },
+        "final_answer": null,
+        "answer_review": "not_applicable_retrieval_only",
+        "latency_seconds": 0.1877323999069631,
+        "passed": true,
+        "error_code": null,
+        "actual_sections": [
+          "合成演示 FAQ/配送问答",
+          "合成演示政策/标准配送费用",
+          "合成演示政策/退货申请"
+        ]
+      },
+      {
+        "id": "shipping_dispatch",
+        "query": "发货运费标准",
+        "expected_sections": [
+          "合成演示政策/标准配送费用"
+        ],
+        "required": true,
+        "expected_hit_ids": [
+          80
+        ],
+        "actual_hit_ids": [
+          80,
+          82,
+          81
+        ],
+        "tool_result": {
+          "found": true,
+          "matches": [
+            {
+              "id": 80,
+              "question": "标准配送费用",
+              "answer": "本文件是人工合成的教学演示知识，不代表真实商家政策。\n以下规则仅适用于本演示店铺、中国大陆普通配送区域的普通小件商品，不适用于港澳台、偏远地区或大件商品。\n在上述演示范围内，标准配送费为 8 元；单笔订单商品实付金额满 99 元包邮。\n未写明范围的运费应由客服另行确认，不得将本演示金额推广到真实商家。",
+              "category": "合成演示政策"
+            },
+            {
+              "id": 82,
+              "question": "邮费是多少？\n快递费用怎么收？",
+              "answer": "本回答仅适用于人工合成演示店铺、中国大陆普通配送区域的普通小件商品。标准配送费为 8 元，单笔订单商品实付金额满 99 元包邮；港澳台、偏远地区和大件商品需另行确认。本文件不代表真实商家政策。",
+              "category": "合成演示 FAQ"
+            },
+            {
+              "id": 81,
+              "question": "退货申请",
+              "answer": "> [!IMPORTANT]\n> 仅在本合成演示中，普通商品签收后七天内可以申请退货；退货原因和实际运费承担需另行确认。",
+              "category": "合成演示政策"
+            }
+          ]
+        },
+        "final_answer": null,
+        "answer_review": "not_applicable_retrieval_only",
+        "latency_seconds": 0.14802210009656847,
+        "passed": true,
+        "error_code": null,
+        "actual_sections": [
+          "合成演示政策/标准配送费用",
+          "合成演示 FAQ/配送问答",
+          "合成演示政策/退货申请"
+        ]
+      },
+      {
+        "id": "return_shipping",
+        "query": "退货运费谁付",
+        "expected_sections": [
+          "合成演示政策/退货申请"
+        ],
+        "required": true,
+        "gold": "退货原因、责任和实际运费承担需另行确认，不能自动承诺商家承担。",
+        "expected_hit_ids": [
+          81
+        ],
+        "actual_hit_ids": [
+          80,
+          81,
+          82
+        ],
+        "tool_result": {
+          "found": true,
+          "matches": [
+            {
+              "id": 80,
+              "question": "标准配送费用",
+              "answer": "本文件是人工合成的教学演示知识，不代表真实商家政策。\n以下规则仅适用于本演示店铺、中国大陆普通配送区域的普通小件商品，不适用于港澳台、偏远地区或大件商品。\n在上述演示范围内，标准配送费为 8 元；单笔订单商品实付金额满 99 元包邮。\n未写明范围的运费应由客服另行确认，不得将本演示金额推广到真实商家。",
+              "category": "合成演示政策"
+            },
+            {
+              "id": 81,
+              "question": "退货申请",
+              "answer": "> [!IMPORTANT]\n> 仅在本合成演示中，普通商品签收后七天内可以申请退货；退货原因和实际运费承担需另行确认。",
+              "category": "合成演示政策"
+            },
+            {
+              "id": 82,
+              "question": "邮费是多少？\n快递费用怎么收？",
+              "answer": "本回答仅适用于人工合成演示店铺、中国大陆普通配送区域的普通小件商品。标准配送费为 8 元，单笔订单商品实付金额满 99 元包邮；港澳台、偏远地区和大件商品需另行确认。本文件不代表真实商家政策。",
+              "category": "合成演示 FAQ"
+            }
+          ]
+        },
+        "final_answer": null,
+        "answer_review": "not_applicable_retrieval_only",
+        "latency_seconds": 0.1515616998076439,
+        "passed": true,
+        "error_code": null,
+        "actual_sections": [
+          "合成演示政策/标准配送费用",
+          "合成演示政策/退货申请",
+          "合成演示 FAQ/配送问答"
+        ]
+      },
+      {
+        "id": "after_sales",
+        "query": "售后申请如何提交",
+        "expected_sections": [
+          "合成演示操作手册/演示申请步骤"
+        ],
+        "required": true,
+        "expected_hit_ids": [
+          85
+        ],
+        "actual_hit_ids": [
+          85,
+          83,
+          81
+        ],
+        "tool_result": {
+          "found": true,
+          "matches": [
+            {
+              "id": 85,
+              "question": "演示申请步骤",
+              "answer": "先打开演示订单页面。再选择售后申请。提交问题描述后等待演示客服确认。",
+              "category": "合成演示操作手册"
+            },
+            {
+              "id": 83,
+              "question": "退货怎么申请？",
+              "answer": "本合成演示中的普通商品，可在签收后七天内联系演示客服申请退货，具体责任另行确认。",
+              "category": "合成演示 FAQ"
+            },
+            {
+              "id": 81,
+              "question": "退货申请",
+              "answer": "> [!IMPORTANT]\n> 仅在本合成演示中，普通商品签收后七天内可以申请退货；退货原因和实际运费承担需另行确认。",
+              "category": "合成演示政策"
+            }
+          ]
+        },
+        "final_answer": null,
+        "answer_review": "not_applicable_retrieval_only",
+        "latency_seconds": 0.20284000015817583,
+        "passed": true,
+        "error_code": null,
+        "actual_sections": [
+          "合成演示操作手册/演示申请步骤",
+          "合成演示 FAQ/配送问答",
+          "合成演示政策/退货申请"
+        ]
+      },
+      {
+        "id": "out_of_domain",
+        "query": "火星今天的天气如何",
+        "expected_sections": [],
+        "required": false,
+        "gold": "没有相关章节；观察Dense无阈值Top3的域外误召回，不伪造空结果。",
+        "expected_hit_ids": [],
+        "actual_hit_ids": [
+          86,
+          82,
+          81
+        ],
+        "tool_result": {
+          "found": true,
+          "matches": [
+            {
+              "id": 86,
+              "question": "状态表",
+              "answer": "| 状态 | 演示说明 |\n| --- | --- |\n| 待确认 | 演示客服检查资料 |\n| 已受理 | 演示申请进入处理 |\n| 已完成 | 演示记录已关闭 |",
+              "category": "合成演示操作手册/演示申请步骤"
+            },
+            {
+              "id": 82,
+              "question": "邮费是多少？\n快递费用怎么收？",
+              "answer": "本回答仅适用于人工合成演示店铺、中国大陆普通配送区域的普通小件商品。标准配送费为 8 元，单笔订单商品实付金额满 99 元包邮；港澳台、偏远地区和大件商品需另行确认。本文件不代表真实商家政策。",
+              "category": "合成演示 FAQ"
+            },
+            {
+              "id": 81,
+              "question": "退货申请",
+              "answer": "> [!IMPORTANT]\n> 仅在本合成演示中，普通商品签收后七天内可以申请退货；退货原因和实际运费承担需另行确认。",
+              "category": "合成演示政策"
+            }
+          ]
+        },
+        "final_answer": null,
+        "answer_review": "not_applicable_retrieval_only",
+        "latency_seconds": 0.22313680010847747,
+        "passed": false,
+        "error_code": null,
+        "actual_sections": [
+          "合成演示操作手册/演示申请步骤/状态表",
+          "合成演示 FAQ/配送问答",
+          "合成演示政策/退货申请"
+        ]
+      }
+    ]
+  },
+  "answer_review": {
+    "status": "controller_fact_review_passed",
+    "reviewer": "controller agent (not user sign-off)",
+    "review_recorded_at": "2026-10-07T14:28:58.215020+00:00",
+    "facts_checked": [
+      "标准配送8元",
+      "单笔商品实付满99元包邮",
+      "大陆普通配送区域普通小件",
+      "港澳台/偏远地区/大件另确认",
+      "合成演示非真实商家政策",
+      "无退款等执行承诺"
+    ]
+  },
+  "finished_at": "2026-10-07T14:21:11.100468+00:00"
+}

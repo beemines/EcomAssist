@@ -78,7 +78,9 @@ class ControlledExecutor:
 
 class FAQ:
     async def search(self, keyword, limit):
-        return [{"question": "如何退货", "answer": "请联系商家确认。"}] if keyword == "退货" else []
+        if keyword == '邮费':
+            return [{'id': 7, 'question': '标准配送费用', 'answer': '合成演示8元，商品实付满99元包邮。', 'category': '合成演示'}]
+        return [{"id": 8, "question": "如何退货", "answer": "请联系商家确认。", "category": "合成演示"}] if keyword == "退货" else []
 
 
 class Tickets:

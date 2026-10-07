@@ -18,6 +18,7 @@ def implementation():
 
 
 CASES = [json.loads(line) for line in Path('evals/tool_cases.jsonl').read_text(encoding='utf-8').splitlines()]
+SHIPPING_MATCH = {'id': 7, 'question': '标准配送费用', 'answer': '合成演示8元，满99元包邮。', 'category': '合成演示'}
 
 
 async def run_case(case, *, mode='good', args=None, result=None, answer=None):
@@ -26,8 +27,9 @@ async def run_case(case, *, mode='good', args=None, result=None, answer=None):
     identifier = repo.identifier
     call = {'id': 'call-1', 'name': case['expected_tool'], 'args': args or case['expected_args']}
     answer = answer if answer is not None else case['controlled_answer']
+    default_result = {'found': True, 'matches': [SHIPPING_MATCH]} if case['expected_found'] else {'found': False, 'matches': []}
     await repo.seed(identifier, [HumanMessage(case['message']), AIMessage('', tool_calls=[call]),
-        ToolMessage(json.dumps(result if result is not None else {'found': False, 'matches': []}), tool_call_id='call-1'), AIMessage(answer)])
+        ToolMessage(json.dumps(result if result is not None else default_result), tool_call_id='call-1'), AIMessage(answer)])
     requests = []
 
     def handler(request):
@@ -70,18 +72,18 @@ async def test_compatibility_failure_stops_remaining_cases():
     assert all(c['error_code'] == 'not_attempted' for c in report.cases[1:])
 
 
-async def test_expected_faq_miss_is_success():
+async def test_expected_faq_hit_is_success():
     report, _, _ = await run_case(CASES[4])
     case = report.cases[0]
     assert case['passed'] is True
-    assert case['actual_found'] is False
-    assert case['matches'] == []
+    assert case['actual_found'] is True
+    assert case['matches'] == [SHIPPING_MATCH]
     assert case['actual_args'] == {'keyword': '邮费'}
     assert case['human_answer_review'] == 'pending'
 
 
-async def test_faq_miss_synonym_is_not_a_tool_failure():
-    report, _, _ = await run_case(CASES[4], answer='没有查到关于邮费的说明，请人工客服确认。')
+async def test_faq_hit_synonym_is_not_a_tool_failure():
+    report, _, _ = await run_case(CASES[4], answer='演示配送需八元，商品实付达到九十九元可免邮。')
     assert report.cases[0]['passed'] is True
     assert report.cases[0]['answer_phrase_match'] is False
     assert report.cases[0]['human_answer_review'] == 'pending'
@@ -119,8 +121,8 @@ async def test_failed_final_answer_retains_actual_tool_audit():
     assert audit['passed'] is False
     assert audit['actual_tool'] == 'query_faq'
     assert audit['actual_args'] == {'keyword': '邮费'}
-    assert audit['actual_found'] is False
-    assert audit['matches'] == []
+    assert audit['actual_found'] is True
+    assert audit['matches'] == [SHIPPING_MATCH]
 
 
 async def test_evaluation_uses_application_chain_and_committed_audit():
