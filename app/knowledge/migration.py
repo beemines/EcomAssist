@@ -13,7 +13,9 @@ _DDL = Path(__file__).resolve().parents[2] / "sql" / "ch03-ddl.sql"
 
 
 def _normalize(value: str) -> str:
-    return " ".join(value.lower().replace("()", "").split())
+    """Normalize SQL syntax while preserving quoted ENUM literals verbatim."""
+    parts = re.split(r"('(?:[^'\\]|\\.|'')*')", value)
+    return "".join(part if index % 2 else re.sub(r"\s+", " ", part.lower().replace("()", "")) for index, part in enumerate(parts)).strip()
 
 
 async def _check(connection) -> None:
@@ -33,12 +35,15 @@ async def _check(connection) -> None:
                 on_update = True
             if default and default.startswith("'"):
                 default = default[1:-1]
-            normalized_default = _normalize(default) if default is not None else None
-            actual_default = _normalize(str(actual.COLUMN_DEFAULT)) if actual.COLUMN_DEFAULT is not None else None
+            actual_default = str(actual.COLUMN_DEFAULT) if actual.COLUMN_DEFAULT is not None else None
+            normalized_default = default
+            if isinstance(expected.type, mysql.DATETIME):
+                normalized_default = _normalize(default) if default is not None else None
+                actual_default = _normalize(actual_default) if actual_default is not None else None
             extra = _normalize(actual.EXTRA).replace("default_generated", "").strip()
             expected_extra = "auto_increment" if expected.primary_key else "on update current_timestamp" if on_update else ""
-            expected_type = expected.type.compile(dialect=mysql.dialect()).lower()
-            if (actual.COLUMN_TYPE.lower() != expected_type
+            expected_type = _normalize(expected.type.compile(dialect=mysql.dialect()))
+            if (_normalize(actual.COLUMN_TYPE) != expected_type
                     or actual.IS_NULLABLE != ("YES" if expected.nullable else "NO")
                     or actual_default != normalized_default or extra != expected_extra
                     or actual.COLUMN_COMMENT != expected.comment

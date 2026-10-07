@@ -90,3 +90,15 @@ async def test_changed_current_database_is_refused_before_any_ddl(migration_data
         await connection.execute(text("USE mysql"))
     with pytest.raises(RuntimeError, match="target database"):
         await migrate(migration_database)
+
+
+@pytest.mark.parametrize("enum_sql,default", [("ENUM('Extracted','kept','discarded')", "Extracted"), ("ENUM('extracted','Kept','discarded')", "extracted")], ids=["member-and-default-case", "member-case-only"])
+async def test_enum_literal_case_drift_is_rejected_with_other_properties_preserved(migration_database, enum_sql, default):
+    migrate = migrator()
+    await migrate(migration_database)
+    async with migration_database.engine.begin() as connection:
+        await connection.execute(text(f"ALTER TABLE qa_extraction_staging MODIFY status {enum_sql} NOT NULL DEFAULT '{default}' COMMENT '已抽出待去重 / 去重保留 / 去重丢弃'"))
+        column = (await connection.execute(text("SELECT COLUMN_TYPE,COLUMN_DEFAULT,IS_NULLABLE,COLUMN_COMMENT FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='qa_extraction_staging' AND COLUMN_NAME='status'"))).one()
+        assert tuple(column) == ("enum" + enum_sql[4:], default, "NO", "已抽出待去重 / 去重保留 / 去重丢弃")
+    with pytest.raises(RuntimeError, match="qa_extraction_staging.status"):
+        await migrate(migration_database)
