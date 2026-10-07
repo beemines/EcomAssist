@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     )
     input_token_budget: int = Field(default=2000, gt=0, validation_alias="INPUT_TOKEN_BUDGET")
     max_output_tokens: int = Field(default=512, gt=0, validation_alias="MAX_OUTPUT_TOKENS")
+    qa_max_output_tokens: int = Field(default=2048, gt=0, validation_alias="QA_MAX_OUTPUT_TOKENS")
     llm_timeout_seconds: float = Field(default=60.0, gt=0, validation_alias="LLM_TIMEOUT_SECONDS")
     mysql_host: str = Field(default="127.0.0.1", validation_alias="MYSQL_HOST")
     mysql_port: int = Field(default=3307, gt=0, le=65535, validation_alias="MYSQL_PORT")
@@ -60,6 +61,13 @@ class Settings(BaseSettings):
     def model_must_not_be_blank(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("model must not be blank")
+        return value
+
+    @field_validator('qa_max_output_tokens', mode='before')
+    @classmethod
+    def qa_output_budget_must_not_be_bool(cls, value):
+        if isinstance(value, bool):
+            raise ValueError('QA output budget must be a positive integer')
         return value
 
     @field_validator("llm_api_key")

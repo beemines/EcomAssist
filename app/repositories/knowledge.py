@@ -75,10 +75,22 @@ class KnowledgeRepository:
             by_id = {row.id: row for row in rows}
             return [_record(by_id[identifier]) for identifier in ids if identifier in by_id]
 
-    async def stage(self, batch_no: str, items: list[ExtractedQA]) -> None:
+    async def stage(self, batch_no: str, items: list[ExtractedQA]) -> int:
         validate_text("batch_no", batch_no, 64)
         async with self.database.session() as session, session.begin():
-            session.add_all([QAExtractionStaging(batch_no=batch_no, **asdict(item)) for item in items])
+            # Include decided rows: a replay must not restage kept/discarded QA.
+            rows = (await session.execute(select(QAExtractionStaging.source_ref,
+                QAExtractionStaging.question, QAExtractionStaging.answer)
+                .where(QAExtractionStaging.batch_no == batch_no))).all()
+            seen = {tuple(row) for row in rows}
+            added = []
+            for item in items:
+                key = (item.source_ref, item.question, item.answer)
+                if key not in seen:
+                    added.append(QAExtractionStaging(batch_no=batch_no, **asdict(item)))
+                    seen.add(key)
+            session.add_all(added)
+            return len(added)
 
     async def extracted(self) -> list[StagedQA]:
         async with self.database.session() as session, session.begin():

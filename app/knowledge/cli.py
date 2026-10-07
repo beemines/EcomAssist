@@ -3,11 +3,16 @@
 import argparse
 import asyncio
 from contextlib import AsyncExitStack
+from datetime import datetime, timedelta
 from pathlib import Path
 import sys
 
 from app.config import load_settings
 from app.db.session import Database
+from app.core.llm import create_model
+from app.knowledge.extraction import QAExtractor
+from app.knowledge.history import BEIJING, KnowledgeHistory, window
+from app.knowledge.mining import ConversationMiningJob, deduplicate_staging
 from app.knowledge.chunking import ChunkingError
 from app.knowledge.ingestion import import_document
 from app.knowledge.embeddings import SiliconFlowEmbedder
@@ -28,32 +33,56 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser('init-vectors', help='Create or verify the explicit dense Milvus collection')
     vectorizer = commands.add_parser('vectorize-pending', help='Resume pending chunks with idempotent primary keys')
     vectorizer.add_argument('--batch-size', type=int, default=20)
+    miner = commands.add_parser('mine-conversations', help='Extract QA from completed conversations in a Beijing half-open window')
+    miner.add_argument('--start', type=datetime.fromisoformat, required=True)
+    miner.add_argument('--end', type=datetime.fromisoformat, required=True)
+    miner.add_argument('--batch-size', type=int, default=20)
+    commands.add_parser('deduplicate-staging', help='Promote globally unique staged QA as pending knowledge')
+    commands.add_parser('run-daily', help='Mine the previous Beijing day, deduplicate and vectorize under one lock')
     return result
+
+
+def previous_day(now: datetime | None = None) -> tuple[datetime, datetime]:
+    now = now if now is not None else datetime.now(BEIJING)
+    end = now.astimezone(BEIJING).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+    return end - timedelta(days=1), end
 
 
 async def run(args: argparse.Namespace) -> None:
     settings = load_settings()
     database = Database(settings.database_url)
     try:
-        async with job_lock(database):
+        async with job_lock(database), AsyncExitStack() as resources:
+            repository = KnowledgeRepository(database)
             if args.command == "migrate":
                 await migrate(database)
                 print("Knowledge schema ready")
             elif args.command == "import-document":
                 ids = await import_document(args.path, args.content_type, KnowledgeRepository(database))
                 print(f"Imported {len(ids)} pending chunks")
-            elif args.command in ('init-vectors', 'vectorize-pending'):
-                async with AsyncExitStack() as resources:
-                    index = MilvusIndex(str(settings.milvus_uri), timeout=settings.milvus_timeout_seconds)
-                    resources.push_async_callback(index.aclose)
-                    if args.command == 'init-vectors':
-                        await index.ensure_collection()
-                        print('Dense vector collection ready')
-                    else:
-                        embedder = SiliconFlowEmbedder(settings)
-                        resources.push_async_callback(embedder.aclose)
-                        count = await PendingVectorizer(KnowledgeRepository(database), embedder, index).run(args.batch_size)
-                        print(f'Vectorized {count} pending chunks')
+            elif args.command == 'deduplicate-staging':
+                print(await deduplicate_staging(repository))
+            if args.command in ('mine-conversations', 'run-daily'):
+                model = create_model(settings.model_copy(update={'max_output_tokens': settings.qa_max_output_tokens}))
+                resources.callback(model.root_client.close)
+                resources.push_async_callback(model.root_async_client.close)
+                start, end = previous_day() if args.command == 'run-daily' else (args.start, args.end)
+                start, end = window(start, end)
+                print(f'Mining Beijing window [{start.isoformat()}, {end.isoformat()})')
+                counts = await ConversationMiningJob(KnowledgeHistory(database), repository,
+                    QAExtractor(model, settings.input_token_budget)).run(start, end, getattr(args, 'batch_size', 20))
+                print(counts)
+            if args.command in ('init-vectors', 'vectorize-pending', 'run-daily'):
+                index = MilvusIndex(str(settings.milvus_uri), timeout=settings.milvus_timeout_seconds)
+                resources.push_async_callback(index.aclose)
+                if args.command == 'init-vectors':
+                    await index.ensure_collection()
+                    print('Dense vector collection ready')
+                else:
+                    embedder = SiliconFlowEmbedder(settings)
+                    resources.push_async_callback(embedder.aclose)
+                    count = await PendingVectorizer(repository, embedder, index).run(getattr(args, 'batch_size', 20))
+                    print(f'Vectorized {count} pending chunks')
     finally:
         await database.dispose()
 
