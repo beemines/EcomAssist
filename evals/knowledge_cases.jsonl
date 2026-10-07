@@ -1,0 +1,6 @@
+{"id":"shipping_original","query":"邮费是多少","expected_sections":["合成演示政策/标准配送费用"],"required":true,"gold":"演示店铺大陆普通配送区域普通小件：8元，实付满99元包邮，港澳台/偏远/大件另行确认。"}
+{"id":"shipping_courier","query":"快递费用怎么收","expected_sections":["合成演示政策/标准配送费用"],"required":true}
+{"id":"shipping_dispatch","query":"发货运费标准","expected_sections":["合成演示政策/标准配送费用"],"required":true}
+{"id":"return_shipping","query":"退货运费谁付","expected_sections":["合成演示政策/退货申请"],"required":true,"gold":"退货原因、责任和实际运费承担需另行确认，不能自动承诺商家承担。"}
+{"id":"after_sales","query":"售后申请如何提交","expected_sections":["合成演示操作手册/演示申请步骤"],"required":true}
+{"id":"out_of_domain","query":"火星今天的天气如何","expected_sections":[],"required":false,"gold":"没有相关章节；观察Dense无阈值Top3的域外误召回，不伪造空结果。"}

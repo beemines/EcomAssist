@@ -232,7 +232,7 @@ async def test_annotated_cases_structure_and_controlled_reinjection(case):
 def test_annotated_cases_cover_exactly_eight_required_categories():
     cases = [json.loads(line) for line in (Path(__file__).parents[1] / "evals/tool_cases.jsonl").read_text(encoding="utf-8").splitlines()]
     assert len(cases) == len({case["id"] for case in cases}) == 8
-    assert {case["category"] for case in cases} == {"物流", "订单", "商品", "退货 FAQ 命中", "邮费 FAQ 预期未命中", "人工工单", "普通问候无工具", "缺订单号先澄清无工具"}
+    assert {case["category"] for case in cases} == {"物流", "订单", "商品", "退货 FAQ 命中", "邮费 FAQ Dense 命中", "人工工单", "普通问候无工具", "缺订单号先澄清无工具"}
 
 
 async def test_model_swallowing_cancel_cannot_commit_success():
