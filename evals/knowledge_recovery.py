@@ -35,6 +35,14 @@ def timestamp():
     return datetime.now(timezone.utc).isoformat()
 
 
+async def attempt_cleanup(errors, action, callback):
+    """One failed owned cleanup must not prevent the remaining attempts/report."""
+    try:
+        await callback()
+    except Exception as exc:
+        errors.append({'action': action, 'error_type': type(exc).__name__})
+
+
 def test_settings():
     return load_settings().model_copy(update={'mysql_host': '127.0.0.1', 'mysql_port': 3308,
         'mysql_database': 'customer_service_test', 'mysql_user': 'customer_service'})
@@ -164,23 +172,26 @@ async def terminate_owned(process):
 
 
 async def evaluate_recovery():
-    settings = test_settings()
-    database = Database(settings.database_url)
+    database = None
     report = {'kind': 'actual_owned_process_recovery', 'started_at': timestamp(),
         'database': '127.0.0.1:3308/customer_service_test', 'attempted': 0, 'not_attempted': 2,
-        'cases': [], 'passed': False, 'cleanup': 'pending'}
+        'cases': [], 'passed': False, 'cleanup': 'pending', 'cleanup_errors': []}
     try:
+        settings = test_settings()
+        database = Database(settings.database_url)
         for phase in ('after_pending', 'after_upsert'):
             marker = 'recovery_' + uuid4().hex
             collection = 'knowledge_test_' + uuid4().hex
-            index = MilvusIndex(str(settings.milvus_uri), collection=collection,
-                                timeout=settings.milvus_timeout_seconds)
+            index = None
             processes, ids = [], []
-            case = {'phase': phase, 'collection': collection, 'passed': False, 'owned_children': []}
+            case = {'phase': phase, 'collection': collection, 'passed': False,
+                    'owned_children': [], 'cleanup_errors': []}
             report['cases'].append(case)
             report['attempted'] += 1
             report['not_attempted'] -= 1
             try:
+                index = MilvusIndex(str(settings.milvus_uri), collection=collection,
+                                    timeout=settings.milvus_timeout_seconds)
                 await index.ensure_collection()
                 with TemporaryDirectory(prefix='knowledge-recovery-') as directory:
                     checkpoint = Path(directory) / 'interrupted.json'
@@ -217,20 +228,34 @@ async def evaluate_recovery():
                 case.update(error_type=type(exc).__name__)
             finally:
                 for process in processes:
-                    await terminate_owned(process)
+                    await attempt_cleanup(case['cleanup_errors'], f'owned_process:{process.pid}',
+                        lambda process=process: terminate_owned(process))
                 # Recovery rows carry an unguessable marker even if checkpoint writing failed.
-                async with database.session() as session, session.begin():
-                    await session.execute(delete(KnowledgeChunk).where(KnowledgeChunk.category == marker))
-                if await index._client.has_collection(collection, timeout=index.timeout):
-                    await index._client.drop_collection(collection, timeout=index.timeout)
-                await index.aclose()
-                case['cleanup'] = 'owned_rows_and_collection_removed'
+                async def clean_rows():
+                    async with database.session() as session, session.begin():
+                        await session.execute(delete(KnowledgeChunk).where(KnowledgeChunk.category == marker))
+                await attempt_cleanup(case['cleanup_errors'], 'mysql_rows', clean_rows)
+                if index is not None:
+                    async def clean_collection():
+                        if await index._client.has_collection(collection, timeout=index.timeout):
+                            await index._client.drop_collection(collection, timeout=index.timeout)
+                    await attempt_cleanup(case['cleanup_errors'], 'milvus_collection', clean_collection)
+                    await attempt_cleanup(case['cleanup_errors'], 'index_close', index.aclose)
+                case['cleanup'] = 'failed' if case['cleanup_errors'] else 'owned_rows_and_collection_removed'
+                if case['cleanup_errors']:
+                    case['passed'] = False
+                report['cleanup_errors'].extend(case['cleanup_errors'])
             if not case['passed']:
                 break
         report['passed'] = len(report['cases']) == 2 and all(c['passed'] for c in report['cases'])
-        report['cleanup'] = 'owned_rows_and_collections_removed'
+    except Exception as exc:
+        report.update(error_type=type(exc).__name__, passed=False)
     finally:
-        await database.dispose()
+        if database is not None:
+            await attempt_cleanup(report['cleanup_errors'], 'database_dispose', database.dispose)
+        report['cleanup'] = 'failed' if report['cleanup_errors'] else 'owned_rows_and_collections_removed'
+        if report['cleanup_errors']:
+            report['passed'] = False
         report['finished_at'] = timestamp()
     return report
 

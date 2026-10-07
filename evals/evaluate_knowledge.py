@@ -27,7 +27,7 @@ from app.repositories.faq import FAQRepository
 from app.repositories.knowledge import KnowledgeRepository
 from app.repositories.records import decode_tool_calls
 from evals.evaluate_tools import audit_messages
-from evals.knowledge_recovery import OwnedRepository, test_settings, timestamp, write_checkpoint
+from evals.knowledge_recovery import OwnedRepository, attempt_cleanup, test_settings, timestamp, write_checkpoint
 from evals.smoke import chat_round, create_conversation
 
 
@@ -70,54 +70,78 @@ async def evaluate_app(settings, database, faq, expected_ids, user_id):
         'transport': 'HTTPX ASGITransport (buffered SSE); actual app lifespan/model/MySQL/Milvus',
         'latency_seconds': None, 'http_request_count': 0, 'model_request_count': None}
     started = monotonic()
+    lifespan_entered = False
     try:
         async with app.router.lifespan_context(app):
-            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://acceptance') as client:
-                result.update(attempted=1, not_attempted=0, http_request_count=1)
-                created = await create_conversation(client, 'http://acceptance', user_id)
-                result.update(conversation_id=created['conversation_id'], error_code=created['error_code'])
-                if created['error_code']:
-                    return result
-                result['http_request_count'] += 1
-                stream = await chat_round(client, 'http://acceptance', created['conversation_id'], result['query'], min_deltas=1)
-                result.update(stream=stream, final_answer=stream['text'], error_code=stream['error_code'])
-                rows = await repository.load_messages(created['conversation_id'])
-                calls = [decode_tool_calls(row.tool_calls)[0] for row in rows if row.tool_calls is not None]
-                keyword = calls[0]['args'].get('keyword') if len(calls) == 1 else None
-                original_argument = isinstance(keyword, str) and bool(keyword) and keyword in result['query']
-                audit = audit_messages(rows, {'message': result['query'], 'expected_tool': 'query_faq',
-                    'expected_args': {'keyword': keyword}, 'expected_found': True}, stream)
-                result.update(audit)
-                matches = audit['matches'] or []
-                result.update(actual_hit_ids=[m['id'] for m in matches], original_argument=original_argument,
-                    persisted_final_answer=bool(rows and rows[-1].role == 'assistant'
-                        and rows[-1].tool_calls is None and rows[-1].content == stream['text']))
-                result['passed'] = bool(audit['passed'] and original_argument
-                    and set(expected_ids) & set(result['actual_hit_ids']) and result['persisted_final_answer'])
+            lifespan_entered = True
+            client_entered = False
+            try:
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://acceptance') as client:
+                    client_entered = True
+                    try:
+                        result.update(attempted=1, not_attempted=0, http_request_count=1)
+                        created = await create_conversation(client, 'http://acceptance', user_id)
+                        result.update(conversation_id=created['conversation_id'], error_code=created['error_code'])
+                        if created['error_code']:
+                            return result
+                        result['http_request_count'] += 1
+                        stream = await chat_round(client, 'http://acceptance', created['conversation_id'], result['query'], min_deltas=1)
+                        result.update(stream=stream, final_answer=stream['text'], error_code=stream['error_code'])
+                        rows = await repository.load_messages(created['conversation_id'])
+                        calls = [decode_tool_calls(row.tool_calls)[0] for row in rows if row.tool_calls is not None]
+                        keyword = calls[0]['args'].get('keyword') if len(calls) == 1 else None
+                        original_argument = isinstance(keyword, str) and bool(keyword) and keyword in result['query']
+                        audit = audit_messages(rows, {'message': result['query'], 'expected_tool': 'query_faq',
+                            'expected_args': {'keyword': keyword}, 'expected_found': True}, stream)
+                        result.update(audit)
+                        matches = audit['matches'] or []
+                        result.update(actual_hit_ids=[m['id'] for m in matches], original_argument=original_argument,
+                            persisted_final_answer=bool(rows and rows[-1].role == 'assistant'
+                                and rows[-1].tool_calls is None and rows[-1].content == stream['text']))
+                        result['passed'] = bool(audit['passed'] and original_argument
+                            and set(expected_ids) & set(result['actual_hit_ids']) and result['persisted_final_answer'])
+                    except Exception as exc:
+                        result.update(error_code='app_acceptance_failed', error_type=type(exc).__name__, passed=False)
+            except Exception as exc:
+                if client_entered:
+                    result.setdefault('cleanup_errors', []).append({'action': 'http_client_exit',
+                                                                   'error_type': type(exc).__name__})
+                    result['passed'] = False
+                else:
+                    result.update(error_code='app_acceptance_failed', error_type=type(exc).__name__, passed=False)
     except Exception as exc:
-        result.update(error_code='app_acceptance_failed', error_type=type(exc).__name__, passed=False)
+        if lifespan_entered:
+            result.setdefault('cleanup_errors', []).append({'action': 'app_context_exit',
+                                                           'error_type': type(exc).__name__})
+            result['passed'] = False
+        else:
+            result.update(error_code='app_acceptance_failed', error_type=type(exc).__name__, passed=False)
     finally:
         result['latency_seconds'] = monotonic() - started
     return result
 
 
 async def evaluate(cases):
-    settings = test_settings()
-    database = Database(settings.database_url)
+    database = None
     collection = 'knowledge_test_' + uuid4().hex
     user_id = 'dense-acceptance-' + uuid4().hex
     ids = []
     report = {'kind': 'actual_dense_knowledge_acceptance', 'started_at': timestamp(),
         'database': '127.0.0.1:3308/customer_service_test', 'collection': collection,
-        'embedding_model': settings.embedding_model, 'online_model': settings.llm_model,
-        'online_output_budget': settings.max_output_tokens, 'cleanup': 'pending',
+        'cleanup': 'pending', 'cleanup_errors': [],
+        'retrieval': {'attempted': 0, 'not_attempted': len(cases), 'passed': 0,
+            'cases': [{**case, 'error_code': 'not_attempted'} for case in cases]},
         'app': {'attempted': 0, 'not_attempted': 1, 'passed': False}, 'acceptance_passed': False}
     try:
+        settings = test_settings()
+        database = Database(settings.database_url)
+        report.update(embedding_model=settings.embedding_model, online_model=settings.llm_model,
+                      online_output_budget=settings.max_output_tokens)
         async with AsyncExitStack() as resources:
             embedder = SiliconFlowEmbedder(settings)
-            resources.push_async_callback(embedder.aclose)
+            resources.push_async_callback(attempt_cleanup, report['cleanup_errors'], 'embedder_close', embedder.aclose)
             index = MilvusIndex(str(settings.milvus_uri), collection=collection, timeout=settings.milvus_timeout_seconds)
-            resources.push_async_callback(index.aclose)
+            resources.push_async_callback(attempt_cleanup, report['cleanup_errors'], 'index_close', index.aclose)
             try:
                 # Actual cloud shape and full schema/index validation precede imports.
                 probe = await embedder.embed(['邮费是多少'])
@@ -151,18 +175,27 @@ async def evaluate(cases):
                 report.update(error_code='acceptance_failed', error_type=type(exc).__name__)
             finally:
                 # Only ids returned from this import and this unguessable demo user are owned.
-                async with database.session() as session, session.begin():
-                    conversation_ids = list((await session.scalars(select(Conversation.id)
-                        .where(Conversation.user_id == user_id))).all())
-                    for model in (Message, Ticket):
-                        await session.execute(delete(model).where(model.conversation_id.in_(conversation_ids)))
-                    await session.execute(delete(Conversation).where(Conversation.id.in_(conversation_ids)))
-                    await session.execute(delete(KnowledgeChunk).where(KnowledgeChunk.id.in_(ids)))
-                if await index._client.has_collection(collection, timeout=index.timeout):
-                    await index._client.drop_collection(collection, timeout=index.timeout)
-                report['cleanup'] = 'owned_demo_rows_conversation_and_collection_removed'
+                async def clean_rows():
+                    async with database.session() as session, session.begin():
+                        conversation_ids = list((await session.scalars(select(Conversation.id)
+                            .where(Conversation.user_id == user_id))).all())
+                        for model in (Message, Ticket):
+                            await session.execute(delete(model).where(model.conversation_id.in_(conversation_ids)))
+                        await session.execute(delete(Conversation).where(Conversation.id.in_(conversation_ids)))
+                        await session.execute(delete(KnowledgeChunk).where(KnowledgeChunk.id.in_(ids)))
+                await attempt_cleanup(report['cleanup_errors'], 'mysql_rows_and_conversation', clean_rows)
+                async def clean_collection():
+                    if await index._client.has_collection(collection, timeout=index.timeout):
+                        await index._client.drop_collection(collection, timeout=index.timeout)
+                await attempt_cleanup(report['cleanup_errors'], 'milvus_collection', clean_collection)
+    except Exception as exc:
+        report.update(error_code='acceptance_failed', error_type=type(exc).__name__, acceptance_passed=False)
     finally:
-        await database.dispose()
+        if database is not None:
+            await attempt_cleanup(report['cleanup_errors'], 'database_dispose', database.dispose)
+        report['cleanup'] = 'failed' if report['cleanup_errors'] else 'owned_demo_rows_conversation_and_collection_removed'
+        if report['cleanup_errors']:
+            report['acceptance_passed'] = False
         report['finished_at'] = timestamp()
     return report
 
