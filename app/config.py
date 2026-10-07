@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     llm_model: str = Field(validation_alias="LLM_MODEL")
     llm_api_key: SecretStr = Field(validation_alias="LLM_API_KEY")
     siliconflow_api_key: SecretStr | None = Field(default=None, validation_alias="SILICONFLOW_API_KEY")
+    embedding_model: Literal['BAAI/bge-m3'] = Field(default='BAAI/bge-m3', validation_alias='EMBEDDING_MODEL')
+    embedding_timeout_seconds: float = Field(default=20, gt=0, validation_alias='EMBEDDING_TIMEOUT_SECONDS')
+    milvus_uri: HttpUrl = Field(default='http://127.0.0.1:19530', validation_alias='MILVUS_URI')
+    milvus_timeout_seconds: float = Field(default=5, gt=0, validation_alias='MILVUS_TIMEOUT_SECONDS')
     llm_token_limit_field: Literal["max_tokens", "max_completion_tokens"] = Field(
         default="max_tokens", validation_alias="LLM_TOKEN_LIMIT_FIELD"
     )
