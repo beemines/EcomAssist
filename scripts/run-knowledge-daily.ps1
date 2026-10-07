@@ -8,8 +8,20 @@ $env:UV_CACHE_DIR = 'D:\shixi\ecommerce-customer-service\.cache\uv'
 try {
     Push-Location -LiteralPath $projectRoot
     try {
-        & uv --directory $projectRoot run python -m app.knowledge.cli run-daily
-        $jobExitCode = $LASTEXITCODE
+        $logDirectory = Join-Path $projectRoot '.cache'
+        New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
+        $logPath = Join-Path $logDirectory 'knowledge-daily.log'
+        # Windows PowerShell 5.1 treats native stderr as ErrorRecord. Continue
+        # during capture so stderr cannot stop the pipeline before exit capture.
+        $ErrorActionPreference = 'Continue'
+        try {
+            & uv --directory $projectRoot run python -m app.knowledge.cli run-daily 2>&1 |
+                Tee-Object -FilePath $logPath -Append -ErrorAction Stop
+            $jobExitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = 'Stop'
+        }
     }
     finally {
         Pop-Location

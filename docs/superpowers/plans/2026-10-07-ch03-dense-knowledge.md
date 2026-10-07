@@ -138,7 +138,7 @@
 - [x] 明确测试辅助函数在本任务测试中包裹 job.run 并返回 kept，不新增产品接口。运行新增提取/挖掘/CLI 测试，确认红。
 - [x] 实现由稳定时间窗口/会话 id/末条消息 id 派生 SHA256 batch_no，分批抽取后 stage；已有同 batch/source/question/answer 不重复暂存。整体 normalize_qa 后将 promotion 与状态转换置于 Task 1 事务，kept 不再次推广。
 - [x] 所有命令使用 job_lock；完整 daily 只持一个锁，内部步骤不再次 GET_LOCK。取消及释放失败作废锁连接；模型/HTTP/SDK 资源释放复用生命周期管理。CLI 增加 `mine-conversations --start ISO --end ISO --batch-size 20`、`deduplicate-staging`、`run-daily`（北京时间前一日）、`vectorize-pending`。
-- [x] Prompt/标注样例覆盖 8 类：通用问法、重复 QA、答案冲突、无客服答案、个案标识、虚构退款承诺、mock 工具数据、提示注入；运行受控结构校验，再用真实 LLM 跑标注评估。误抽取返工 Prompt，不加自动纠错链。
+- [x] 原八类标签保持：通用问法、重复 QA、答案冲突、无客服答案、个案标识、虚构退款承诺、mock 工具数据、提示注入；最终修复补充第九类同答案不同真实问法，要求两个规范化原问题和配对来源均保留。当前 prompt 的受控九类和完整实际九类各 9/9，原八类证据独立保留；误抽取返工 Prompt，不加自动纠错链。
 - [x] PowerShell 启动脚本固定项目绝对路径与 uv 工作目录、返回原退出码；提供 Windows 任务计划程序每日 02:00 执行的注册命令，重复运行失败非零退出。评估报告明确哪些实际运行、哪些未尝试。验证记录、审核后提交。
 
 ### Task 6: 真实召回、中断恢复、审查与交付
@@ -167,7 +167,7 @@
 ## Task 6 实际验收说明（2026-10-07）
 
 - Tasks1–5已实施并独立审查通过；Task6实现/证据详见docs/validation/ch03-results.md。实际检索域内5/5，域外误召回观察为false，全标注5/6；原问法app/SSE/持久回答通过且控制器代理事实复核。两个自建OS进程kill/restart真实边界通过。
-- 所有实际建库及聊天仅在3308/test和UUID集合；未部署主checkout/正式知识/宿主调度。Task5 unchanged真实QA8/8证据已移出scratch安全保留，不重复云端八次。
+- 所有实际建库及聊天仅在3308/test和UUID集合；未部署主checkout/正式知识/宿主调度。Task5 原 prompt 真实QA8/8证据已移出scratch安全保留；最终修复修改 prompt 后，当前九类完整单次实际评估另存 ch03-qa-live-final9.json，不合并历史轮次。该报告保留计数与严格原问题/来源 scorer 结论，未保存实际抽取字面串，不宣称人为逐字审核。
 - 未勾选的Task6独立整分支审查和finish由控制器负责；本实施代理不派生reviewer、不合并/推送。
 
 - Task6最终完整离线652 passed/62 gated skips；显式MySQL/Milvus目录60 passed及目录外真实ingestion2 passed（全部62实际执行），真实app结构/控制器代理事实复核与两恢复边界通过。首次完整离线旧夹具两失败已据实保留并修正，依据修复复跑；无域外6/6承诺。

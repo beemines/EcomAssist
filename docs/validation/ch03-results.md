@@ -42,6 +42,10 @@ checkpoint PID 与自建 Popen 句柄一致；Windows kill returncode=1，正常
 
 ## QA 提取证据与范围
 
+最终整分支审查 R2 修正了 prompt 的同义合并指令：不同真实问题及配对答案/来源保留原文，只有必要隐私删除允许改变通用措辞。原八类标签保持，新增第九 `distinct_phrasings`：规范化“邮费是多少？”和“快递费用怎么收？”都必须出现，并分别保留 conversation:11:message:111 / conversation:12:message:121。该标签 scorer 的原问题相等和配对来源比较有定向反例测试，改写、缺失、错误/错配来源或不同答案均失败。
+
+[当前 prompt 实际九类结果](ch03-qa-live-final9.json) 来自唯一一次完整运行，UTC 2026-10-07 15:32:13.6780720 至 15:32:57.8228298，glm-5.3-flash / QA2048，attempted9/not_attempted0/pass9/fail0，CLI exit0，无错误与 pooled retries；[当前受控九类结果](ch03-qa-controlled-final9.json) 为9/9。新双问法实际提取2条并通过严格规范化原问题/配对来源 scorer。报告仅保存计数和 scorer 判定，未保存实际抽取字面字符串，不宣称人为逐字审核或广泛模型质量保证。下列旧八类原证据独立保留，不能用旧8/8替代新9/9。
+
 [Task 5 原始真实八类结果](ch03-qa-live.json) 原样复制出临时计划目录。原报告无内嵌运行时刻；源文件写入时刻为 **2026-10-07 14:04:06 UTC**，该时间是证据文件时间，不冒充请求起止时间。模型为既有 glm-5.3-flash，离线 QA 专用预算 2048，attempted8/pass8/fail0；gold/source/raw 严格校验保持。八类仅为提交的合成会话：通用1QA、重复1QA、冲突2QA；无答案、个案标识、虚构退款、mock工具、注入均0QA并通过。Task 6 没有修改抽取 Prompt/模型/代码，因此直接保留该真实验收，未再花费八次调用。此前 512 长度截断及多轮失败见 dev-notes/ch03.md，不把重试结果拼成原始8/8。
 
 ## 命令和限制

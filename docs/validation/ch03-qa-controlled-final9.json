@@ -1,0 +1,65 @@
+{
+  "mode": "controlled",
+  "qa_output_budget": null,
+  "passed": 9,
+  "total": 9,
+  "cases": [
+    {
+      "case": "generic",
+      "class": "通用问法",
+      "passed": true,
+      "extracted": 1
+    },
+    {
+      "case": "duplicate",
+      "class": "重复QA",
+      "passed": true,
+      "extracted": 1
+    },
+    {
+      "case": "conflict",
+      "class": "答案冲突",
+      "passed": true,
+      "extracted": 2
+    },
+    {
+      "case": "unanswered",
+      "class": "无客服答案",
+      "passed": true,
+      "extracted": 0
+    },
+    {
+      "case": "case_identifiers",
+      "class": "个案标识",
+      "passed": true,
+      "extracted": 0
+    },
+    {
+      "case": "refund_promise",
+      "class": "虚构退款承诺",
+      "passed": true,
+      "extracted": 0
+    },
+    {
+      "case": "mock_tool",
+      "class": "mock工具数据",
+      "passed": true,
+      "extracted": 0
+    },
+    {
+      "case": "injection",
+      "class": "提示注入",
+      "passed": true,
+      "extracted": 0
+    },
+    {
+      "case": "distinct_phrasings",
+      "class": "同答案不同真实问法",
+      "passed": true,
+      "extracted": 2
+    }
+  ],
+  "attempted": 9,
+  "not_attempted": 0,
+  "input_kind": "committed_synthetic_conversations_only"
+}

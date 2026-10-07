@@ -152,7 +152,9 @@ uv --directory $projectRoot run --locked python -m app.knowledge.cli run-daily
 
 run-daily 处理北京时间前一天，持同一 MySQL GET_LOCK 完成挖掘→暂存去重→pending 向量化；已有任务占锁时退出失败，取消/释放失败作废锁连接。已验证当前 MySQL SYSTEM/UTC 时钟转换；历史混合时区与 DST 迁移需另行核对。
 
-仅在主 checkout 合并部署且宿主机时区为 `China Standard Time` 后，维护者可注册每日 02:00 的外部计划。`scripts/run-knowledge-daily.ps1` 固定主 checkout 路径，保留 uv 的退出码；本次没有执行注册命令，也没有常驻调度器。
+仅在主 checkout 合并部署且宿主机时区为 `China Standard Time` 后，维护者可注册每日 02:00 的外部计划。`scripts/run-knowledge-daily.ps1` 固定主 checkout 路径，将实际 stdout/stderr 追加至已忽略的 `D:\shixi\ecommerce-customer-service\.cache\knowledge-daily.log`，同时保留控制台输出和 uv 退出码；本次没有执行注册命令，也没有常驻调度器。
+
+挖掘失败时日志包含失败类型、batch_no、北京时间半开窗口及 conversation/message ID，不含消息正文或提供方错误详情。维护者可用这些 ID 定位源会话、检查超长输入或来源问题后，再使用上方 `mine-conversations --start ... --end ...` 手动重放该窗口；不会自动纠错或重试。日志在 Windows PowerShell 5.1 使用 UTF-16LE，pwsh 使用 UTF-8，维护者按本地保留要求清理 `.cache` 中的旧日志。
 
 ```powershell
 schtasks /Create /TN "ECS Knowledge Daily" /SC DAILY /ST 02:00 /TR 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\shixi\ecommerce-customer-service\scripts\run-knowledge-daily.ps1"' /F
@@ -167,7 +169,8 @@ $worktreeRoot = 'D:\shixi\ecommerce-customer-service\.worktrees\ch03-dense-knowl
 uv --directory $worktreeRoot run --locked python -m evals.evaluate_knowledge --output .cache/knowledge-live.json
 uv --directory $worktreeRoot run --locked python -m evals.knowledge_recovery --output .cache/knowledge-recovery.json
 uv --directory $worktreeRoot run --locked python -m evals.evaluate_qa --controlled --output .cache/qa-controlled.json
-# 需要新模型质量采样时运行真实 QA；既有 8/8 证据保存在 docs/validation/ch03-qa-live.json。
+# 当前九类包括两种同答案真实问法，均须保留原问题及配对来源。
+# 旧 prompt 的 8/8 原证据保存在 docs/validation/ch03-qa-live.json，当前九类另存。
 uv --directory $worktreeRoot run --locked python -m evals.evaluate_qa --output .cache/qa-live.json
 ```
 
