@@ -143,11 +143,11 @@ async def test_evaluate_wall_clock_deadline_and_owned_client_close(tmp_path, mon
 
 async def test_evaluation_uses_real_application_schema_with_model_free_http(tmp_path):
     from app.main import create_app
-    from tests.fakes import ConversationStore, StructuredModel, structured_result
+    from tests.fakes import FAQStub, ConversationStore, StructuredModel, structured_result
 
     settings = Settings(_env_file=None, llm_base_url="https://fake.invalid/v1/", llm_model="fake-test",
                         llm_api_key="fake-test-key")
-    app = create_app(settings, model=StructuredModel(structured_result(GOOD)), repository=ConversationStore())
+    app = create_app(settings, faq_repository=FAQStub(), model=StructuredModel(structured_result(GOOD)), repository=ConversationStore())
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app)) as client:
         report = await implementation().evaluate("http://app.invalid", cases_file(tmp_path, 1), tmp_path / "r.json", http_client=client)
     assert report["metrics"]["valid_count"] == 1

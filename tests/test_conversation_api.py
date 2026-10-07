@@ -5,11 +5,11 @@ import pytest
 from langchain_core.messages import AIMessage
 
 from app.main import create_app
-from tests.fakes import ConversationStore, StreamingModel, decode_sse, fake_settings
+from tests.fakes import FAQStub, ConversationStore, StreamingModel, decode_sse, fake_settings
 
 
 def client_for(model, repository):
-    app = create_app(fake_settings(), model=model, repository=repository)
+    app = create_app(fake_settings(), faq_repository=FAQStub(), model=model, repository=repository)
     return httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test")
 
 
@@ -94,7 +94,7 @@ async def test_injected_database_is_caller_owned_without_startup_probe(monkeypat
     monkeypatch.setattr(app.main, "Database", forbidden)
     if source == "repository":
         repository.database = database
-    app = create_app(fake_settings(), model=StreamingModel(), repository=repository if source != "explicit_only" else None,
+    app = create_app(fake_settings(), faq_repository=FAQStub(), model=StreamingModel(), repository=repository if source != "explicit_only" else None,
         database=database if source != "repository" else None)
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test") as client:
@@ -123,7 +123,7 @@ async def test_owned_database_and_model_close_once_even_if_model_close_fails(mon
     model.root_async_client, model.root_client = AsyncClient(), SyncClient()
     monkeypatch.setattr(app.main, "Database", Database)
     monkeypatch.setattr(app.main, "create_model", lambda settings: model)
-    app = create_app(fake_settings(mysql_password="fake-only"))
+    app = create_app(fake_settings(mysql_password="fake-only"), faq_repository=FAQStub())
     async def run():
         async with app.router.lifespan_context(app):
             assert closed == []
@@ -135,10 +135,12 @@ async def test_owned_database_and_model_close_once_even_if_model_close_fails(mon
     assert closed == ["async_model", "sync_model", "database"]
 
 
-async def test_repository_only_injection_has_safe_database_tool_failure():
+async def test_injected_faq_failure_has_safe_tool_error():
     model = StreamingModel()
     model.selected = AIMessage("", tool_calls=[{"name": "query_faq", "args": {"keyword": "退货"}, "id": "faq_call"}], response_metadata={"finish_reason": "tool_calls"})
-    async with client_for(model, ConversationStore()) as client:
+    app = create_app(fake_settings(), model=model, repository=ConversationStore(),
+        faq_repository=FAQStub(failure=RuntimeError("synthetic FAQ failure")))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test") as client:
         response = await client.post("/api/chat", json={"conversation_id": "1", "message": "如何退货"})
     events = decode_sse(response.text)
     assert events[2][1]["status"] == "error"

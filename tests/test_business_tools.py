@@ -4,16 +4,7 @@ from app.tools.executor import ToolExecutor
 from app.repositories.tickets import TicketRepository
 from app.tools.registry import build_registry
 from app.tools.types import ToolCall, ToolContext
-
-
-class FAQStub:
-    def __init__(self, matches=None):
-        self.matches = matches or []
-        self.keywords = []
-
-    async def search(self, keyword, limit=3):
-        self.keywords.append(keyword)
-        return self.matches
+from tests.fakes import FAQStub
 
 
 class TicketStub:
@@ -77,6 +68,8 @@ async def test_faq_matches_return_question_answer_category():
 @pytest.mark.parametrize("name,args", [
     ("query_order", {"order_id": ""}), ("query_order", {"order_id": "a" * 65}),
     ("query_product", {"product_id": 1}), ("query_logistics", {"order_id": "x", "extra": 1}),
+    ("query_faq", {"keyword": 1}), ("query_faq", {"keyword": True}),
+    ("query_faq", {"keyword": "x", "limit": 10}),
     ("query_faq", {"keyword": "x" * 129}), ("create_ticket", {"description": "", "ticket_type": "售后"}),
     ("create_ticket", {"description": "x" * 2001, "ticket_type": "咨询"}),
     ("create_ticket", {"description": "x", "ticket_type": "退款"}),
