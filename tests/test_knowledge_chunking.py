@@ -68,6 +68,26 @@ def test_overlap_never_cuts_an_overlong_sentence():
     assert [r.answer for r in chunk("很长很长很长的完整一句。下一句。", target_chars=6, overlap_chars=3)] == ["很长很长很长的完整一句。", "下一句。"]
 
 
+def test_default_overlap_repeats_only_prose_after_fenced_code():
+    code = "```\n" + "x" * 130 + "!\n```"
+    long_sentence = "B" * 1100 + "."
+    rows = chunk(code + "\n\nA.\n\n" + long_sentence)
+    assert [r.answer for r in rows] == [code + "\n\nA.", "A.\n\n" + long_sentence]
+    assert rows[1].answer.count("```") == 0
+
+
+@pytest.mark.parametrize("following", ["", "\nQ: supplied second question?\nA: valid answer."])
+def test_faq_rejects_empty_answer_regardless_of_group_position(following):
+    with pytest.raises(ValueError, match="政策.*章节.*配送"):
+        chunk("# 配送\nQ: supplied first question?\nA:   " + following, content_type="faq")
+
+
+@pytest.mark.parametrize("following", ["", "\nQ: supplied second question?\nA: valid answer."])
+def test_faq_rejects_empty_explicit_question_regardless_of_group_position(following):
+    with pytest.raises(ValueError, match="政策.*章节.*配送"):
+        chunk("# 配送\nQ:   \nA: supplied answer." + following, content_type="faq")
+
+
 def test_paragraphs_are_packed_before_sentence_recursion():
     assert [r.answer for r in chunk("第一段。\n\n第二段。\n\n第三段。", target_chars=10, overlap_chars=0)] == ["第一段。\n\n第二段。", "第三段。"]
 

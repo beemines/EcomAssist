@@ -49,6 +49,12 @@ def _sections(text: str):
         yield [title for _, title in stack], "\n".join(body)
 
 
+def _qa_group(questions: list[str], answer: list[str], title: str) -> tuple[str, str]:
+    if questions and (not all(question.strip() for question in questions) or not any(line.strip() for line in answer)):
+        raise ValueError("FAQ group requires nonempty questions and answer")
+    return "\n".join(questions) or title, "\n".join(answer)
+
+
 def _qa_groups(body: str, title: str):
     questions: list[str] = []
     answer: list[str] = []
@@ -58,7 +64,7 @@ def _qa_groups(body: str, title: str):
         match = _QA.match(line) if fence is None else None
         if match and match[1].upper() in ("Q", "问"):
             if answering or (not questions and any(s.strip() for s in answer)):
-                yield "\n".join(questions) or title, "\n".join(answer)
+                yield _qa_group(questions, answer, title)
                 questions, answer = [], []
                 answering = False
             questions.append(match[2].strip())
@@ -68,10 +74,8 @@ def _qa_groups(body: str, title: str):
         else:
             answer.append(line)
             fence = _fence_state(line, fence)
-    if any(line.strip() for line in answer):
-        yield "\n".join(questions) or title, "\n".join(answer)
-    elif questions:
-        raise ValueError("FAQ question has no answer")
+    if questions or any(line.strip() for line in answer):
+        yield _qa_group(questions, answer, title)
 
 
 def _sentences(text: str) -> list[tuple[str, bool]]:
@@ -197,7 +201,7 @@ def _blocks(body: str):
 
 def _answers(body: str, target: int, overlap: int):
     current = ""
-    can_overlap = True
+    prose = ""
     for kind, value, rows in _blocks(body):
         if kind == "table":
             if current:
@@ -213,17 +217,18 @@ def _answers(body: str, target: int, overlap: int):
                 has_row = True
             if has_row:
                 yield table
-            can_overlap = False
+            prose = ""
             continue
         units = [(value, False)] if kind == "code" or len(value) <= target else _sentences(value)
         for unit_index, (unit, _) in enumerate(units):
             separator = "\n\n" if unit_index == 0 else ""
             if current and len(current + separator + unit) > target:
                 yield current.strip()
-                suffix = _suffix(current, overlap) if can_overlap and kind != "code" else ""
+                suffix = _suffix(prose, overlap) if kind != "code" else ""
                 current = suffix if len(suffix + separator + unit) <= target else ""
+                prose = current
             current = current + (separator if current else "") + unit
-            can_overlap = kind != "code"
+            prose = prose + (separator if prose else "") + unit if kind != "code" else ""
     if current.strip():
         yield current.strip()
 
