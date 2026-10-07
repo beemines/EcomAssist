@@ -1,0 +1,22 @@
+# Final review boundary adjudication
+
+User: “确认啊，完成”“不要太复杂”. Source: final-review.md Declined to judge, sixteen entries in original order. Each was checked against approved design, implementation/evidence and accepted local scope. These are explicit limits, not silent dismissal of R1/R2/R3, which remain required fixes. Group ruling is in ledger; this table must persist before plan scratch deletion.
+
+| # | Behavior | Controller decision / evidence | Cost if scope is wrong |
+|---|---|---|---|
+| 1 | Domain Top3 / universal threshold | Retain observed failed domain-out case and design§6 Dense-only/no unchecked threshold; never call total6/6. | Domain rejection/quality work remains, unrelated recall possible. |
+| 2 | Semantic dedup / conflict resolution | Excluded by design§4 exact-only; distinct phrases/conflicts preserved. R1/R2 fixed, not excused. | Additional vector slots/storage; later approved semantic policy needed. |
+| 3 | Whole-document reimport / done edits | Per-PK replay is explicit; README warns repeated import adds rows, done editing/versioning unsupported. | Duplicate import/storage and later document-version workflow. |
+| 4 | Original DDL/private prompt bytes | Controller compares committed SQL to preserved user DDL, no subsequent SQL diff; primary prompt SHA256 remains original. Reviewer need not read private prompt. | DDL/source mismatch would require migration rework; user changes must remain intact. |
+| 5 | Model migration / multiDB collection sharing | One fixed model and one authoritative local MySQL deployment; tests own UUID collections. No crossDB shared production namespace promised. | Future namespace/model migration; crossDB ID collision if deployed beyond boundary. |
+| 6 | Legacy mixed timezones / DST | Current MySQL SYSTEM/UTC clock verified and actual boundary tests passed. Historical timezone repair not promised. | Re-evaluate historic window selection on different/DST stores. |
+| 7 | Deterministic repeated generative windows | Exact batch/source/Q/A replay and global normalized pairs, not a completed-batch manifest or deterministic LLM output guarantee. | Additional generated variants/calls on replay; manifest or stronger source policy if required later. |
+| 8 | Full CommonMark | Approved bounded ATX/fence/paragraph/sentence/table/Q&A chunker; review named conventions/length/failure cases. | Add/test a broader parser when actual unsupported documents appear. |
+| 9 | Reenter same closed app lifespan | Normal deployment creates a new app per process; owned one-lifespan and injected resource paths covered. | Reentrant test-host support may need rebuilding clients; use fresh app objects now. |
+| 10 | Arbitrary private QA/injection/PII guarantee | Synthetic labels are sample quality evidence, not universal correctness. New R2 phrase label/current actual validation required. No private history used. | Further domain/privacy samples and production review needed. |
+| 11 | Browser/network streaming/ch02 full quality | UI unchanged; buffered ASGI SSE/persistence explicitly disclosed; no previous tool-quality failures relabeled fixed. | Browser/real-network/other-tool acceptance remains when scope expands. |
+| 12 | Main build/history/schedule/deployment security | Approved delivery is runnable external job; registration/main deployment gated after integration. R3 logging still delivered and tested. | Feature not active on main until deployment; real history requires chosen authorized window. |
+| 13 | Every OS/Python/package supply chain | Local Windows/Python3.13 + Docker3.0.2/locked SDK actually tested; no universal platform/audit claim. | Matrix/registry validation and portability work for other environments. |
+| 14 | Physical vector versions/compaction | User recovery goal is unique effective PKs and preserved MySQL text; Strong logical count proves that. | Physical storage/compaction tuning later, not zero physical versions. |
+| 15 | Credential rotation/private-output eradication | Real incident disclosed; no public push/committed secret, fixed isolation; recommend user rotate Key. Never claim past private output erased. | Unrotated exposed credential can remain usable; provider/user rotation required. |
+| 16 | Reviewer reruns cloud/kill/suite | Existing actual artifacts read; reviewers use focused probes, controller final all-flags suite after fixes. New prompt requires current real9 run. | Evidence covers named samples/environment; re-run live Dense/recovery if those product paths change. |

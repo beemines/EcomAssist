@@ -1,0 +1,15 @@
+{
+  "command": "uv run --locked pytest -q --run-mysql --run-milvus",
+  "code_head": "86df0d1435a6f9d1ecd9e770b5538ae21c3b78c0",
+  "started_at": "2026-10-07T15:48:22.5474825Z",
+  "finished_at": "2026-10-07T15:49:30.6766084Z",
+  "exit_code": 0,
+  "passed": 729,
+  "failed": 0,
+  "skipped": 0,
+  "pytest_seconds": 64.55,
+  "summary": "729 passed in 64.55s (0:01:04)",
+  "services": "owned MySQL test3308 and UUID Milvus collections",
+  "scope": "all collected offline and explicitly enabled service tests; not a remote CI status",
+  "subsequent_changes": "delivery documentation only"
+}

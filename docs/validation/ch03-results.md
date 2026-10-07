@@ -1,6 +1,6 @@
 # 第三章 Dense 知识库验证记录
 
-执行分支：`feat/ch03-dense-knowledge`，实施 worktree：`D:/shixi/ecommerce-customer-service/.worktrees/ch03-dense-knowledge`。Tasks 1–5 已由控制器独立审查通过。Task 6 实施与实证已落盘，整分支审查及集成/完结由控制器继续处理。
+执行分支：`feat/ch03-dense-knowledge`，实施 worktree：`D:/shixi/ecommerce-customer-service/.worktrees/ch03-dense-knowledge`。Tasks 1–6 独立审查及整分支修复复核通过。最终当前代码总回归为 **729 passed、0 failed、0 skipped**（显式 MySQL/Milvus）；合并/推送尚待用户选择，主库建库与宿主计划任务未部署。下文保留各阶段原始测试、失败与实证，不将旧树结果冒充最终结果。
 
 ## 实际云端检索与应用回答
 
@@ -73,7 +73,7 @@ API 核对：Context7 FastAPI lifespan、HTTPX0.28.1 ASGITransport 不自带 lif
 | --- | --- | --- |
 | uv run --locked pytest -q 首跑 | 14:34:01–14:34:36 | 2 failed,650 passed,62 skipped / 31.03s |
 | 旧夹具修正后受影响三个测试文件 | 14:35–14:36 | 68 passed / 4.46s |
-| uv run --locked pytest -q 最终树 | 14:36:16–14:36:47 | **652 passed,62 skipped / 26.89s** |
+| uv run --locked pytest -q Task6 初次完整树 | 14:36:16–14:36:47 | **652 passed,62 skipped / 26.89s** |
 | uv run --locked pytest tests/integration --run-mysql --run-milvus -q | 14:34:30–14:35:14 | **60 passed,0 skips / 39.77s** |
 | tests/test_knowledge_ingestion.py 中两个实库 node，--run-mysql --run-milvus | 14:37:09–14:37:13 | **2 passed,0 skips / 1.09s** |
 
@@ -85,6 +85,14 @@ API 核对：Context7 FastAPI lifespan、HTTPX0.28.1 ASGITransport 不自带 lif
 uv run --locked pytest tests/test_knowledge_ingestion.py::test_import_commits_pending_neighbors_isolated_per_document tests/test_knowledge_ingestion.py::test_import_pointer_write_failure_rolls_back_all_chunks --run-mysql --run-milvus -q
 ```
 
-范围限制：尚未主库建库/部署/注册计划任务；没有读取生产私人会话，没有生产 mine/run-daily；无阈值 Dense 有域外误召回；精确去重不等同语义去重；时间窗口只验证当前固定 UTC MySQL。所有报告只含合成内容、公共配置、主键及错误类型；`.env` 与原始用户个人历史不入报告。原 DDL、产品 UI、在线模型配置和主 checkout prompt.md 保持。控制器独立 Task 6 审查、整分支审查、最终验证及 finish 决策仍待执行。
+范围限制：尚未主库建库/部署/注册计划任务；没有读取生产私人会话，没有生产 mine/run-daily；无阈值 Dense 有域外误召回；精确去重不等同语义去重；时间窗口只验证当前固定 UTC MySQL。所有报告只含合成内容、公共配置、主键及错误类型；`.env` 与原始用户个人历史不入报告。原 DDL、产品 UI、在线模型配置和主 checkout prompt.md 保持。独立审查与最终总回归已完成，Git 集成方式待用户选择。
 
 交付检查：候选17文件按配置SecretStr逐字安全扫描 secret_hits=false / matched_files=[]；QA证据副本与Task5原文件逐字相等；git diff --check通过。Task6没有DDL/UI/config差异。本地提交与独立审核结果由控制器的后续记录补充。
+
+## 最终代码审查与总回归
+
+六项任务的独立审查完成；整分支审查发现的三项 Important（多问法已有知识去重、禁止同义问法合并、失败批次标识与日志）经一次统一修复，86df0d1 的独立定向复核均 ADDRESSED，无新增/遗留项。[完整审查及修复复核](ch03-code-review.md)，[明确边界逐项裁定](ch03-review-boundaries.md)。
+
+控制器实际运行 `uv run --locked pytest -q --run-mysql --run-milvus`，代码 HEAD86df0d1435a6f9d1ecd9e770b5538ae21c3b78c0，UTC2026-10-07T15:48:22.5474825Z至15:49:30.6766084Z：**729 passed in64.55s，0failed，0skipped，exit0**。两个服务标志显式开启，全部实库用例均执行；输出无测试 warning。这是当前本地总回归，不冒充远端 CI。[机器可读测试结果](ch03-final-tests.json)。随后只整理交付文档，没有产品代码变动。
+
+用户原DDL与保存的原始SQL逐字相等，SHA256B3FC58B85DBA181720ACB5BD03DD6396AF2C2F89E22102CF3D68F1D32FC38296。主checkout prompt.md保持原始未提交修改（SHA256007BF81806DB16093D2A1D262499644464D26013575E762BD31842916FDAFC33），没有进入此次提交。功能开发/验证已完成；feature worktree保留，合并/推送待用户选择。正式库建库和宿主定时任务仍未执行。
