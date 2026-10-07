@@ -1,5 +1,7 @@
 import pytest
 import pytest_asyncio
+from uuid import uuid4
+from types import SimpleNamespace
 
 
 def pytest_addoption(parser):
@@ -31,3 +33,39 @@ async def mysql_database(request):
         yield database
     finally:
         await database.dispose()
+
+
+@pytest_asyncio.fixture
+async def knowledge_rows(mysql_database):
+    """Only clean rows identified by this fixture's unguessable marker."""
+    from sqlalchemy import text
+    token = "test_knowledge_" + uuid4().hex
+    async with mysql_database.session() as session:
+        tables = set((await session.scalars(text("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()"))).all())
+        if not {"knowledge_chunks", "qa_extraction_staging"} <= tables:
+            pytest.fail("Knowledge schema prerequisite missing: explicitly migrate customer_service_test before repository tests", pytrace=False)
+    yield SimpleNamespace(database=mysql_database, token=token)
+    async with mysql_database.session() as session, session.begin():
+        await session.execute(text("DELETE FROM knowledge_chunks WHERE category=:token OR LEFT(questions,:length)=:token"), {"token": token, "length": len(token)})
+        await session.execute(text("DELETE FROM qa_extraction_staging WHERE batch_no=:token"), {"token": token})
+
+
+@pytest_asyncio.fixture
+async def migration_database(mysql_database):
+    """Own a fresh schema; never drop the configured or shared database."""
+    from sqlalchemy import text
+    from app.config import load_settings
+    from app.db.session import Database
+    settings = load_settings()
+    name = "ch03_migration_" + uuid4().hex
+    root = Database(settings.database_url.set(host="127.0.0.1", port=3308, database="mysql", username="root", password=settings.mysql_root_password.get_secret_value()))
+    database = Database(root.engine.url.set(database=name))
+    try:
+        async with root.engine.begin() as connection:
+            await connection.execute(text(f"CREATE DATABASE `{name}` CHARACTER SET utf8mb4"))
+        yield database
+    finally:
+        await database.dispose()
+        async with root.engine.begin() as connection:
+            await connection.execute(text(f"DROP DATABASE `{name}`"))
+        await root.dispose()

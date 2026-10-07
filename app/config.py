@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     llm_base_url: HttpUrl = Field(validation_alias="LLM_BASE_URL")
     llm_model: str = Field(validation_alias="LLM_MODEL")
     llm_api_key: SecretStr = Field(validation_alias="LLM_API_KEY")
+    siliconflow_api_key: SecretStr | None = Field(default=None, validation_alias="SILICONFLOW_API_KEY")
     llm_token_limit_field: Literal["max_tokens", "max_completion_tokens"] = Field(
         default="max_tokens", validation_alias="LLM_TOKEN_LIMIT_FIELD"
     )
