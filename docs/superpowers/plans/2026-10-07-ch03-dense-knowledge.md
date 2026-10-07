@@ -8,7 +8,7 @@
 
 **Tech Stack:** 保留 Python 3.11–3.13、现有 FastAPI/LangChain/SQLAlchemy/httpx；新增 PyMilvus 3.0.2、Docker Milvus Standalone 3.0.2；MySQL 8.4；硅基流动 BAAI/bge-m3。
 
-**Spec:** [已批准设计](../specs/2026-10-07-ch03-dense-knowledge-design.md)。用户回复“确认”批准设计；本计划已自查，待用户审阅后执行。执行方式沿用前章已选择的 Subagent-Driven，每次只实现一项，前一项审核后再推进。
+**Spec:** [已批准设计](../specs/2026-10-07-ch03-dense-knowledge-design.md)。用户回复“确认”批准设计，并以“确认啊，完成”批准本计划执行。执行方式沿用前章已选择的 Subagent-Driven，每次只实现一项，前一项审核后再推进。
 
 ## Global Constraints
 
@@ -162,4 +162,4 @@
 - Review Focus 的五类输入全部有归属测试。命名锁归属 1，命令复用归属 5；没有跨任务重复持锁。
 - Task 1 定义共享类型和所有仓储接口，后续任务只消费这些名称；所有替身/辅助函数在所属任务中创建，不依赖未定义的产品方法。
 - 保留 TDD 红→绿→记录/审核/提交；Prompt/数据走标注评估例外。没有 TODO/TBD 或以“适当测试”代替命令。
-- 此为实施要求，尚未安装产品依赖、执行测试或完成产品功能；用户计划审阅与执行确认仍待完成。
+- 用户计划审阅与执行确认已完成；以下勾选及开发记录反映实际验证进度，未勾选项不代表完成。
