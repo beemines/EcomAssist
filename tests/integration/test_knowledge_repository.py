@@ -224,3 +224,92 @@ async def test_second_cancellation_during_release_waits_for_cleanup(mysql_databa
         await task
     async with job_lock(mysql_database):
         pass
+
+
+async def test_stage_replay_including_decided_rows_does_not_insert_duplicates(knowledge_rows):
+    from app.db.models import QAExtractionStaging
+    from app.knowledge.types import ExtractedQA
+    repo = repository(knowledge_rows.database)
+    token = knowledge_rows.token
+    qa = ExtractedQA('synthetic', token + '问一', '答一')
+    other = ExtractedQA('synthetic', token + '问二', '答二')
+    async with lock()(knowledge_rows.database):
+        assert await repo.stage(token, [qa, qa, other]) == 2
+        rows = [r for r in await repo.extracted() if r.batch_no == token]
+        await repo.promote([rows[0].id], [rows[1].id])
+        assert await repo.stage(token, [qa, other]) == 0
+    async with knowledge_rows.database.session() as session:
+        states = (await session.scalars(select(QAExtractionStaging.status).where(QAExtractionStaging.batch_no == token).order_by(QAExtractionStaging.id))).all()
+    assert states == ['kept', 'discarded']
+
+
+async def test_history_beijing_window_converts_utc_storage_and_pages_completed(mysql_database):
+    from datetime import datetime, timezone
+    from uuid import uuid4
+    from app.db.models import Conversation, Message
+    try:
+        from app.knowledge.history import KnowledgeHistory
+    except ImportError:
+        pytest.fail('knowledge history missing')
+    token = 'history_test_' + uuid4().hex
+    owned = []
+    try:
+        async with mysql_database.session() as session, session.begin():
+            # Real deployment uses UTC MySQL CURRENT_TIMESTAMP, not Beijing DATETIME.
+            offset = await session.scalar(text('SELECT TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), NOW())'))
+            assert offset == 0, 'test fixture expects verified UTC storage'
+            for when, status in [
+                (datetime(2026, 10, 5, 15, 59, 59), '已结束'),
+                (datetime(2026, 10, 5, 16), '已结束'),
+                (datetime(2026, 10, 6, 15, 59, 59), '已结束'),
+                (datetime(2026, 10, 6, 16), '已结束'),
+                (datetime(2026, 10, 5, 17), '进行中'),
+            ]:
+                row = Conversation(user_id=token, status=status, updated_at=when)
+                session.add(row)
+                await session.flush()
+                owned.append(row.id)
+                session.add_all([Message(conversation_id=row.id, role='user', content='合成问题'), Message(conversation_id=row.id, role='assistant', content='合成答案')])
+        h = KnowledgeHistory(mysql_database)
+        start, end = datetime(2026, 10, 6), datetime(2026, 10, 7)
+        # Restrict pagination to the fixture's own new IDs.
+        first = await h.completed(start, end, owned[0], 1)
+        assert [r.id for r in first] == [owned[1]]
+        second = await h.completed(start, end, first[-1].id, 1)
+        assert [r.id for r in second] == [owned[2]]
+        assert [m.role for m in first[0].messages] == ['user', 'assistant']
+        assert first[0].last_message_id == first[0].messages[-1].id
+        assert await h.completed(start, end, owned[-1]) == []
+        # Aware UTC boundaries refer to the same Beijing half-open day.
+        same = await h.completed(datetime(2026, 10, 5, 16, tzinfo=timezone.utc), datetime(2026, 10, 6, 16, tzinfo=timezone.utc), owned[0], 2)
+        assert [r.id for r in same] == [owned[1], owned[2]]
+    finally:
+        async with mysql_database.session() as session, session.begin():
+            await session.execute(text('DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id=:token)'), {'token': token})
+            await session.execute(text('DELETE FROM conversations WHERE user_id=:token'), {'token': token})
+
+
+async def test_real_mining_normalized_global_dedup_conflicts_and_window_replay(migration_database):
+    from app.knowledge.migration import migrate
+    from app.knowledge.mining import ConversationMiningJob
+    from app.knowledge.types import ChunkDraft, ExtractedQA
+    from tests.test_knowledge_mining import History, START, END
+    await migrate(migration_database)
+    repo = repository(migration_database)
+    await repo.add_chunks([ChunkDraft('synthetic', '已经入库?', '答案')])
+    class Extractor:
+        async def extract(self, conversations):
+            choices = {1: [('　邮费多少？\n', '标准配送  8元。'), ('邮费多少?', '标准配送 8元。')],
+                2: [('邮费多少？', '标准配送 8元。'), ('邮费多少？', '标准配送12元。')],
+                3: [('已经入库？', '答案')]}
+            return [ExtractedQA(f'conversation:{r.id}:message:{r.last_message_id}', q, a) for r in conversations for q, a in choices[r.id]]
+    async with lock()(migration_database):
+        job = ConversationMiningJob(History(), repo, Extractor())
+        assert await job.run(START, END, 1) == {'conversations': 3, 'staged': 5, 'kept': 2, 'discarded': 3}
+        async def rerun_same_window():
+            return (await job.run(START, END, 1))['kept']
+        assert await rerun_same_window() == 0
+        assert await repo.extracted() == []
+    async with migration_database.session() as session:
+        assert await session.scalar(text('SELECT COUNT(*) FROM qa_extraction_staging')) == 5
+        assert await session.scalar(text("SELECT COUNT(*) FROM knowledge_chunks WHERE vectorize_status='pending'")) == 3
