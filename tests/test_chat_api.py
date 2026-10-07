@@ -6,12 +6,12 @@ import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from openai import APITimeoutError
 
-from tests.fakes import ConversationStore, StreamingModel, decode_sse, fake_settings, implementations
+from tests.fakes import FAQStub, ConversationStore, StreamingModel, decode_sse, fake_settings, implementations
 
 
 def client_for(model=None, repository=None, **settings):
     _, _, create_app = implementations()
-    app = create_app(fake_settings(**settings), model=model or StreamingModel(), repository=repository if repository is not None else ConversationStore())
+    app = create_app(fake_settings(**settings), faq_repository=FAQStub(), model=model or StreamingModel(), repository=repository if repository is not None else ConversationStore())
     return httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test")
 
 
@@ -161,7 +161,7 @@ def test_import_and_injected_lifespan_do_not_load_settings_or_own_injected_model
         model = StreamingModel()
         model.root_async_client = type("Client", (), {"close": forbidden})()
         model.root_client = type("Client", (), {"close": forbidden})()
-        with TestClient(main.create_app(fake_settings(), model=model, repository=ConversationStore())) as client:
+        with TestClient(main.create_app(fake_settings(), faq_repository=FAQStub(), model=model, repository=ConversationStore())) as client:
             assert client.get("/health").json() == {"status": "ok"}
     finally:
         # 恢复模块与包属性，防止集合期导入的工厂和后续补丁指向不同模块。
@@ -192,7 +192,7 @@ async def test_owned_factory_resource_closes_on_lifespan_exit(monkeypatch):
     model.root_async_client = resource
     model.root_client = sync_resource
     monkeypatch.setattr(app.main, "create_model", lambda settings: model)
-    app = create_app(fake_settings(), repository=ConversationStore())
+    app = create_app(fake_settings(), faq_repository=FAQStub(), repository=ConversationStore())
     async with app.router.lifespan_context(app):
         assert resource.closed is False
     assert resource.closed is True

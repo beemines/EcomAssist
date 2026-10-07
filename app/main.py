@@ -1,4 +1,4 @@
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +15,8 @@ from app.core.conversation_locks import ConversationLocks
 from app.db.session import Database
 from app.repositories.conversations import ConversationRepository
 from app.repositories.faq import FAQRepository
+from app.knowledge.embeddings import SiliconFlowEmbedder
+from app.knowledge.vectors import MilvusIndex
 from app.repositories.tickets import TicketRepository
 from app.tools.registry import build_registry
 from app.core.errors import ServiceError
@@ -33,41 +35,54 @@ def create_app(
     settings: Settings | None = None, *, model: Any | None = None,
     database: Database | None = None,
     repository: ConversationRepository | None = None,
+    faq_repository: FAQRepository | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
     owns_database = database is None and repository is None
-    if owns_database:
-        database = Database(settings.database_url)
-    elif database is None:
+    if not owns_database and database is None:
         database = getattr(repository, "database", None)
         if database is None:
             database = _UnavailableDatabase()
-    repository = repository if repository is not None else ConversationRepository(database)
     owns_model = model is None
-    model = create_model(settings) if owns_model else model
+
+    def configure(app: FastAPI):
+        app.state.repository = repository
+        app.state.database = database
+        tickets = TicketRepository(database)
+        app.state.chat_service = ToolChatService(model, repository,
+            lambda context: build_registry(faq_repository, tickets, context), ConversationLocks(), settings)
+        app.state.extraction_service = ExtractionService(model, settings.input_token_budget)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        try:
+        nonlocal database, repository, model, faq_repository
+        async with AsyncExitStack() as resources:
+            if owns_database:
+                database = Database(settings.database_url)
+                resources.push_async_callback(database.dispose)
+            if repository is None:
+                repository = ConversationRepository(database)
+            if owns_model:
+                model = create_model(settings)
+                # LIFO: async model then sync model, and database last.
+                resources.callback(model.root_client.close)
+                resources.push_async_callback(model.root_async_client.close)
+            if faq_repository is None:
+                embedder = SiliconFlowEmbedder(settings)
+                resources.push_async_callback(embedder.aclose)
+                index = MilvusIndex(str(settings.milvus_uri), timeout=settings.milvus_timeout_seconds)
+                resources.push_async_callback(index.aclose)
+                await index.ensure_collection()
+                faq_repository = FAQRepository(database, embedder, index)
+            configure(app)
             yield
-        finally:
-            try:
-                if owns_model:
-                    try:
-                        await model.root_async_client.close()
-                    finally:
-                        model.root_client.close()
-            finally:
-                if owns_database:
-                    await database.dispose()
 
     app = FastAPI(lifespan=lifespan)
-    app.state.repository = repository
-    app.state.database = database
-    faq, tickets = FAQRepository(database), TicketRepository(database)
-    app.state.chat_service = ToolChatService(model, repository,
-        lambda context: build_registry(faq, tickets, context), ConversationLocks(), settings)
-    app.state.extraction_service = ExtractionService(model, settings.input_token_budget)
+    # Preserve injected HTTPX callers that intentionally do not run lifespan.
+    if repository is None and database is not None:
+        repository = ConversationRepository(database)
+    if model is not None and repository is not None and faq_repository is not None:
+        configure(app)
     app.include_router(conversations_router)
     app.include_router(chat_router)
     app.include_router(extract_router)

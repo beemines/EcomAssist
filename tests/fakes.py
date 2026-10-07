@@ -6,6 +6,19 @@ from langchain_core.messages import AIMessage, AIMessageChunk
 from app.config import Settings
 
 
+class FAQStub:
+    def __init__(self, matches=None, *, failure=None):
+        self.matches = matches if matches is not None else []
+        self.keywords = []
+        self.failure = failure
+
+    async def search(self, keyword, limit=3):
+        self.keywords.append(keyword)
+        if self.failure is not None:
+            raise self.failure
+        return self.matches[:limit]
+
+
 def fake_settings(**overrides):
     return Settings(
         _env_file=None,

@@ -31,7 +31,7 @@ def contextual_tools(faq: FAQRepository, tickets: TicketRepository, context: Too
     # 每个请求独立闭包，模型无法指定会话或消息主键。
     @tool(args_schema=FAQArgs)
     async def query_faq(keyword: str) -> dict:
-        """按当前问题原文关键词查询 FAQ，最多三条；无命中时不扩展同义词。"""
+        """使用当前问题的连续原文片段语义检索 FAQ，最多三条。"""
         if keyword not in context.user_question:
             return {"error": {"code": "invalid_keyword", "message": "关键词必须是当前用户问题中的连续原文片段。"}}
         matches = await faq.search(keyword, limit=3)

@@ -6,7 +6,7 @@ import httpx
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
 
-from tests.fakes import ConversationStore, StreamingModel, fake_settings
+from tests.fakes import FAQStub, ConversationStore, StreamingModel, fake_settings
 from tests.test_smoke import frame
 
 
@@ -129,7 +129,7 @@ async def test_evaluation_uses_application_chain_and_committed_audit():
     model = StreamingModel([AIMessageChunk(content='模拟物流'), AIMessageChunk(content='仅供演示'), AIMessageChunk(content='', response_metadata={'finish_reason': 'stop'})])
     model.selected = AIMessage('', tool_calls=[{'id': 'logistics-1', 'name': 'query_logistics', 'args': {'order_id': 'A-42'}}], response_metadata={'finish_reason': 'tool_calls'})
     repo = ConversationStore()
-    app = create_app(fake_settings(), model=model, repository=repo)
+    app = create_app(fake_settings(), faq_repository=FAQStub(), model=model, repository=repo)
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app)) as client:
         report = await implementation().evaluate_tools(client, 'http://test', [case], repository=repo)
     assert report.cases[0]['passed'] is True
