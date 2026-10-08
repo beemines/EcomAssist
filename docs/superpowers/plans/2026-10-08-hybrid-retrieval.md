@@ -57,7 +57,7 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
 - Produces async migrate_quality(database: Database) -> None；async QualityRepository.commit_refusal(conversation_id: str, answer: AIMessage, *, raw_question: str, source: Literal['retrieval_low_conf','self_check'], reason: str) -> int。
 - Produces async record_fabrication(case: FaithCaseInput) -> None、async resolve_case(eval_id: str, status: Literal['未解决','已解决','无需解决'], resolution: str | None) -> None、async list_cases(status: str | None = None) -> list[dict]。
 
-- [ ] **1. 编写 RED 测试。** 原样中文 DDL/ENUM/默认值一致；不存在 useful 列；重复迁移只核验，部分表存在拒绝；拒答两项写入同事务、故障全部回滚；同 eval_id 两次编造只一行/count=2，已处置复发清空说明并保留 resolved_at；并发 upsert 不丢次数，空说明拒绝。
+- [x] **1. 编写 RED 测试。** 原样中文 DDL/ENUM/默认值一致；不存在 useful 列；重复迁移只核验，部分表存在拒绝；拒答两项写入同事务、故障全部回滚；同 eval_id 两次编造只一行/count=2，已处置复发清空说明并保留 resolved_at；并发 upsert 不丢次数，空说明拒绝。
   ```python
   def test_pool_mapping_has_no_useful_column():
       assert 'useful' not in LowConfidenceQuestion.__table__.c
@@ -68,10 +68,10 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
   def test_refusal_transaction_rolls_back_both_writes(failed_refusal):
       assert (failed_refusal.assistant_count, failed_refusal.pool_count) == (0, 0)
   ```
-- [ ] **2. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_quality_mapping.py tests/integration/test_quality_repository.py tests/integration/test_quality_migration.py --run-mysql -q`；在独立 owned schema 准备原 conversations/messages 前提，失败应来自缺失的新映射/行为，不能来自未启动数据库。
-- [ ] **3. 实现原 DDL 迁移和仓储接口。** 模型对应原字段及 COMMENT；MySQL dialect insert().on_duplicate_key_update 原子加计数，显式更新 last_seen_at；不用 INSERT RETURNING，flush 得到最终消息 ID。最终拒答事务不自动重试。CLI 支持 migrate、cases、resolve，限制状态/说明并安全打印错误类型。
-- [ ] **4. 运行 GREEN。** 同一命令全部通过，SQL 结构与用户原文对照通过；检查参数绑定、并发和只清理 owned 数据。
-- [ ] **5. 审查、留痕、提交。** 审查后提交 `feat: add quality pool and faithfulness case ledger`，追加本任务四项记录。
+- [x] **2. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_quality_mapping.py tests/integration/test_quality_repository.py tests/integration/test_quality_migration.py --run-mysql -q`；在独立 owned schema 准备原 conversations/messages 前提，失败应来自缺失的新映射/行为，不能来自未启动数据库。
+- [x] **3. 实现原 DDL 迁移和仓储接口。** 模型对应原字段及 COMMENT；MySQL dialect insert().on_duplicate_key_update 原子加计数，显式更新 last_seen_at；不用 INSERT RETURNING，flush 得到最终消息 ID。最终拒答事务不自动重试。CLI 支持 migrate、cases、resolve，限制状态/说明并安全打印错误类型。
+- [x] **4. 运行 GREEN。** 同一命令全部通过，SQL 结构与用户原文对照通过；检查参数绑定、并发和只清理 owned 数据。
+- [x] **5. 审查、留痕、提交。** 审查后提交 `feat: add quality pool and faithfulness case ledger`，追加本任务四项记录。
 
 ## Task 2：原生中文 BM25 混合索引
 
