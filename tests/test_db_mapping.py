@@ -12,6 +12,7 @@ def mappings():
 
 
 # 验证 ORM 字段、类型、可空性、主外键与索引符合业务 DDL。
+# 验证业务映射保持原约束，并纳入本章新增的两张权威质量表。
 def test_mapping_matches_all_supplied_columns_and_constraints():
     Conversation, FAQ, Message, Ticket = mappings()
     expected = {
@@ -20,7 +21,7 @@ def test_mapping_matches_all_supplied_columns_and_constraints():
         FAQ: ["id", "question", "answer", "category", "created_at", "updated_at"],
         Ticket: ["ticket_no", "conversation_id", "description", "ticket_type", "status", "created_at"],
     }
-    assert set(Conversation.metadata.tables) == {"conversations", "messages", "faq", "tickets", "knowledge_chunks", "qa_extraction_staging"}
+    assert set(Conversation.metadata.tables) == {"conversations", "messages", "faq", "tickets", "knowledge_chunks", "qa_extraction_staging", "low_confidence_questions", "faith_cases"}
     for model, columns in expected.items():
         table = model.__table__
         assert list(table.columns.keys()) == columns
