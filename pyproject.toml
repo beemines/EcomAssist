@@ -1,8 +1,10 @@
+# 项目元信息与受支持的 Python 版本，依赖解析的实际版本另由 uv.lock 锁定。
 [project]
 name = "ecommerce-customer-service"
 version = "0.1.0"
 description = "Pure chat and after-sales extraction backend"
 requires-python = ">=3.11,<3.14"
+# 运行时依赖覆盖 HTTP、模型协议、数据校验和 MySQL/Milvus 访问。
 dependencies = [
     "fastapi==0.142.2",
     "langchain-core==1.6.6",
@@ -18,12 +20,14 @@ dependencies = [
     "pymilvus==3.0.2",
 ]
 
+# 测试依赖只放在开发组中，避免混入业务依赖清单。
 [dependency-groups]
 dev = [
     "pytest==9.1.1",
     "pytest-asyncio==1.4.0",
 ]
 
+# 默认收集 tests 并自动支持异步测试，真实数据库集成仍需显式命令行开关。
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

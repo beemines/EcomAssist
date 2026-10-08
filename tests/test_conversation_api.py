@@ -1,3 +1,4 @@
+# 会话 API 测试，覆盖创建、查询、身份和状态校验及安全数据库错误响应。
 import asyncio
 
 import httpx

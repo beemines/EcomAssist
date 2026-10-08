@@ -1,3 +1,4 @@
+# 模型请求协议测试，用 HTTP 替身核验 Chat Completions 的流式、抽取及输出预算参数。
 import json
 
 import httpx

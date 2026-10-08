@@ -1,3 +1,4 @@
+# 业务仓储集成测试，验证真实检索、工单幂等、并发与事务失败的行为。
 import asyncio
 from hashlib import sha256
 from uuid import uuid4
@@ -104,7 +105,7 @@ async def test_faq_real_milvus_search_projects_only_real_mysql_done_rows(knowled
         {'id': ids[1], 'question': '运费规则', 'answer': '八元', 'category': token},
         {'id': ids[0], 'question': '退货规则', 'answer': '七天', 'category': token},
     ]
-    # A missing SQL row can still have a dense hit; never return vector text.
+    # 原文记录已不存在时仍可能命中向量，不能把索引文本当作权威答案返回。
     async with database.session() as session, session.begin():
         await session.execute(delete(KnowledgeChunk).where(KnowledgeChunk.id == ids[3]))
     await index.upsert([(ids[3], [.99, .01] + [0.0] * 1022)])

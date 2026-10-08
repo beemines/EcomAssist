@@ -1,15 +1,19 @@
 <!doctype html>
+<!-- 客服聊天页：HTML 提供布局和交互节点，chat.js 负责会话请求、SSE 消费及逐字渲染。 -->
 <html lang="zh-CN">
 <head>
+  <!-- 页面与接口正文统一使用 UTF-8，viewport 让移动端按设备宽度布局。 -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>MewHelp · 智能客服</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='14' fill='%23286659'/%3E%3Cpath d='M14 17h20v19H14zM19 17v-3a5 5 0 0 1 10 0v3' fill='none' stroke='white' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <!-- 先加载样式，defer 脚本等 DOM 解析完成后再绑定输入与按钮事件。 -->
   <link rel="stylesheet" href="/static/chat.css">
   <script src="/static/chat.js" defer></script>
 </head>
 <body>
+  <!-- 复用同一组内联 SVG 图标，其他区域通过 use 引用，避免依赖外部图标请求。 -->
   <svg class="svg-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <symbol id="icon-bag" viewBox="0 0 24 24"><path d="M5 7h14l1 13H4L5 7Z"/><path d="M8 7V5a4 4 0 0 1 8 0v2M8 12c1 3 7 3 8 0"/></symbol>
     <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
@@ -21,6 +25,7 @@
     <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
   </svg>
   <div class="app-shell">
+    <!-- 桌面侧边栏只展示当前会话，新对话动作由脚本清空身份后重新创建会话。 -->
     <aside class="sidebar" aria-label="会话导航">
       <a class="brand" href="/" aria-label="MewHelp 首页"><span class="brand-mark"><svg><use href="#icon-bag"/></svg></span><span>MewHelp<small>每一个问题，都认真回应</small></span></a>
       <button class="new-chat" id="new-chat"><svg><use href="#icon-plus"/></svg>开启新对话</button>
@@ -30,26 +35,33 @@
       <div class="sidebar-signoff">MEWHELP <span>·</span> ALWAYS HERE</div>
     </aside>
     <main class="main-panel">
+      <!-- 顶部连接状态由健康接口更新，窄屏使用右侧按钮替代侧边栏的新对话入口。 -->
       <header class="topbar"><div><h1>客服对话</h1><p>订单、售后与商品咨询</p></div><div class="header-actions"><span class="connection" id="connection"><i></i><span id="connection-text">连接中</span></span><button class="mobile-new" id="mobile-new-chat" aria-label="开启新对话"><svg><use href="#icon-plus"/></svg></button></div></header>
+      <!-- 只有消息区域滚动，输入区固定保留在主面板底部。 -->
       <div class="chat-scroll" id="chat-scroll">
         <section class="welcome" id="welcome">
           <div class="welcome-mark"><svg><use href="#icon-bag"/></svg><span class="welcome-spark">✦</span></div>
           <div class="eyebrow">你的专属购物小助手</div>
           <h2>有问题，放心问。</h2>
           <p class="welcome-copy">订单、退换货或商品使用上的疑问，<br>都可以从这里开始。</p>
+          <!-- data-prompt 保存示例原文，点击只填入输入框，不会自动调用模型。 -->
           <div class="suggestions" aria-label="常见问题">
             <button class="suggestion" data-prompt="订单 1001 的物流到哪了"><span class="suggestion-icon"><svg><use href="#icon-truck"/></svg></span><strong>查询配送</strong><span>查看订单 1001 的物流进度</span><b>↗</b></button>
             <button class="suggestion" data-prompt="退货政策是什么"><span class="suggestion-icon peach"><svg><use href="#icon-return"/></svg></span><strong>退换货咨询</strong><span>了解常见退货政策</span><b>↗</b></button>
             <button class="suggestion" data-prompt="新买的商品不太会用，能帮我看看吗？"><span class="suggestion-icon lavender"><svg><use href="#icon-spark"/></svg></span><strong>商品使用</strong><span>一起解决使用上的疑问</span><b>↗</b></button>
           </div>
         </section>
+        <!-- 消息气泡与工具徽章由脚本创建；无障碍日志以 polite 提示新增消息。 -->
         <div class="message-list" id="messages" role="log" aria-label="对话消息" aria-live="polite" aria-relevant="additions"></div>
       </div>
       <footer class="composer-area">
+        <!-- 用户向上翻看历史时提供返回底部入口，不强制跳到最新消息。 -->
         <button class="scroll-to-bottom" id="scroll-to-bottom" hidden>↓ 查看最新消息</button>
         <form class="composer" id="chat-form">
+          <!-- 可见提示与隐藏 label 分别服务视觉阅读和读屏；字符上限与聊天请求一致。 -->
           <label class="visually-hidden" for="message-input">输入你的问题</label>
           <textarea id="message-input" placeholder="把你的问题告诉我…" rows="1" maxlength="20000"></textarea>
+          <!-- 同一个按钮在回复期间切换为停止，键盘发送兼容中文输入法选词。 -->
           <div class="composer-bottom"><span id="composer-hint">Enter 发送 · Shift + Enter 换行</span><button type="submit" id="send-button" class="send-button" aria-label="发送消息" disabled><svg><use href="#icon-send"/></svg></button></div>
         </form>
         <p class="fine-print">订单、商品与物流查询使用演示数据，具体业务信息请以商家确认为准。</p>

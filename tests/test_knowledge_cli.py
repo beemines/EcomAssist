@@ -1,3 +1,4 @@
+# 知识库命令行与每日任务测试，检查时间窗、共享锁、失败退出及启动器日志。
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
@@ -178,7 +179,7 @@ def test_powershell_launcher_fixes_directory_and_preserves_child_exit_code():
     if shell is None:
         pytest.skip('PowerShell launcher requires a Windows shell')
     script = Path(__file__).resolve().parents[1] / 'scripts/run-knowledge-daily.ps1'
-    # Shadow only the external uv boundary; execute the actual launcher.
+    # 只替换外部 uv 命令，仍执行项目中的真实启动脚本。
     code = "function uv { @{cwd=(Get-Location).Path; argv=$args} | ConvertTo-Json -Compress; $global:LASTEXITCODE=23 }; & '" + str(script).replace("'", "''") + "'; exit $LASTEXITCODE"
     result = subprocess.run([shell, '-NoProfile', '-Command', code], capture_output=True, text=True)
     assert result.returncode == 23
@@ -205,7 +206,7 @@ def test_actual_launcher_captures_native_stdout_stderr_in_ignored_log_and_retain
     assert result.returncode == 23
     log = Path('D:/shixi/ecommerce-customer-service/.cache/knowledge-daily.log')
     assert log.exists()
-    # Tee-Object uses UTF-16LE on Windows PowerShell 5.1 and UTF-8 on pwsh.
+    # Tee-Object 在 Windows PowerShell 5.1 中使用 UTF-16LE，在 pwsh 中使用 UTF-8。
     data = log.read_bytes()
     captured = data.decode('utf-16') if data.startswith(b'\xff\xfe') else data.decode('utf-8-sig')
     assert f'{token} batch_no=abc conversation:4321:message:9876' in captured

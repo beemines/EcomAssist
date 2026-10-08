@@ -1,3 +1,4 @@
+# FastAPI 应用工厂：组装模型、仓储与工具服务，挂载接口和静态聊天页。
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Any

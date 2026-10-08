@@ -1,11 +1,12 @@
+# 公共测试配置与夹具，默认隔离真实密钥，显式开关才启用独立 MySQL/Milvus 测试资源。
 import pytest
 import pytest_asyncio
 import os
 from uuid import uuid4
 from types import SimpleNamespace
 
-# PyMilvus 3.0.2 imports load_dotenv() and otherwise injects real credentials into
-# every offline test during collection. Pydantic still reads explicit env files.
+# PyMilvus 3.0.2 导入时会调用 load_dotenv，先关闭它以免收集测试时注入真实凭据。
+# Pydantic 仍可按测试指定的环境文件读取配置。
 os.environ['PYTHON_DOTENV_DISABLED'] = '1'
 
 

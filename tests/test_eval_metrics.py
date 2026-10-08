@@ -1,3 +1,4 @@
+# 评估指标单元测试，检查结构与字段准确率，避免把错误输出计为成功。
 import importlib
 
 import pytest

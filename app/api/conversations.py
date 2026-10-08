@@ -1,3 +1,4 @@
+# 会话创建与消息查询接口，将数据库中的会话身份和流水提供给调用方。
 from fastapi import APIRouter, Request
 
 from app.schemas.conversation import ConversationRequest, ConversationResponse

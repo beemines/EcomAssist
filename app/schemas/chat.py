@@ -1,3 +1,4 @@
+# 聊天请求契约，校验会话编号和用户消息，拒绝额外字段及空白输入。
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.repositories.conversations import _conversation_id

@@ -1,3 +1,4 @@
+# 会话创建与返回契约，限制用户标识并使用字符串传递会话编号。
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.repositories.conversations import _conversation_id

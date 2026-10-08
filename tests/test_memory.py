@@ -1,3 +1,4 @@
+# 内存会话测试，检查并发占用、不可变快照、完整轮次提交及过期凭证的隔离。
 from dataclasses import FrozenInstanceError
 
 import pytest

@@ -1,7 +1,10 @@
+# 本地开发工作树和 IDE 设置不属于项目源码。
 .worktrees/
 .idea/
+# 真实配置不提交，保留仅含占位值的配置样例。
 .env
 !.env.example
+# 依赖环境、生成缓存、测试产物和临时流程文件可在本机重新生成。
 .venv/
 .cache/
 .pytest_cache/

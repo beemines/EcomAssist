@@ -1,3 +1,4 @@
+# 受控工具执行器，处理参数校验、超时、有限重试、取消及安全错误结果。
 import asyncio
 from copy import deepcopy
 import json

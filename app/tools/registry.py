@@ -1,3 +1,4 @@
+# 按本轮可信上下文组装五个工具，形成供模型绑定和执行器查找的注册表。
 from langchain_core.tools import BaseTool
 
 from app.repositories.faq import FAQRepository

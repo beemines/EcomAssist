@@ -1,3 +1,4 @@
+# SQLAlchemy 映射六张业务与知识表，实际建表以 sql 目录中的 DDL 为准。
 from datetime import datetime
 from typing import Any
 

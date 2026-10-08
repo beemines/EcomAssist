@@ -1,6 +1,7 @@
 "use strict";
 
 // 页面只保存当前会话身份和渲染状态；多轮历史由后端从数据库读取。
+// 缓存 HTML 中的交互节点，后续状态更新复用引用，避免反复查询 DOM。
 const form = document.querySelector("#chat-form");
 const input = document.querySelector("#message-input");
 const sendButton = document.querySelector("#send-button");
@@ -15,6 +16,7 @@ let conversationId = null;
 let active = null;
 let followBottom = true;
 let composing = false;
+// 后端工具名保持协议原值，页面仅把已注册工具映射为中文展示名称。
 const toolLabels = {
   query_order: "查询订单",
   query_product: "查询商品",

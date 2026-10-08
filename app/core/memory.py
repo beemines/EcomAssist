@@ -1,3 +1,4 @@
+# 最简会话记忆与输入预算：保留完整历史轮次，控制当前请求的上下文长度。
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 

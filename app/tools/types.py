@@ -1,3 +1,4 @@
+# 工具调用数据契约，区分可信请求上下文、模型申请和执行结果。
 from dataclasses import dataclass
 from typing import Literal
 

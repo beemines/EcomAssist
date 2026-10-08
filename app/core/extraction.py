@@ -1,3 +1,4 @@
+# 售后结构化抽取服务，校验输入预算、模型结束状态和输出 Schema。
 from typing import Any
 
 import httpx

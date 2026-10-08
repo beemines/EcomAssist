@@ -1,3 +1,4 @@
+# 知识仓储集成测试，检查原文与邻块事务、暂存问答去重提升及锁的释放。
 import asyncio
 import hashlib
 
@@ -277,7 +278,7 @@ async def test_history_beijing_window_converts_utc_storage_and_pages_completed(m
     owned = []
     try:
         async with mysql_database.session() as session, session.begin():
-            # Real deployment uses UTC MySQL CURRENT_TIMESTAMP, not Beijing DATETIME.
+            # 真实部署的 MySQL CURRENT_TIMESTAMP 使用 UTC，测试时间需与其对齐。
             offset = await session.scalar(text('SELECT TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), NOW())'))
             assert offset == 0, 'test fixture expects verified UTC storage'
             for when, status in [
@@ -294,7 +295,7 @@ async def test_history_beijing_window_converts_utc_storage_and_pages_completed(m
                 session.add_all([Message(conversation_id=row.id, role='user', content='合成问题'), Message(conversation_id=row.id, role='assistant', content='合成答案')])
         h = KnowledgeHistory(mysql_database)
         start, end = datetime(2026, 10, 6), datetime(2026, 10, 7)
-        # Restrict pagination to the fixture's own new IDs.
+        # 分页只读取本夹具刚创建的主键，不混入其他会话。
         first = await h.completed(start, end, owned[0], 1)
         assert [r.id for r in first] == [owned[1]]
         second = await h.completed(start, end, first[-1].id, 1)
@@ -302,7 +303,7 @@ async def test_history_beijing_window_converts_utc_storage_and_pages_completed(m
         assert [m.role for m in first[0].messages] == ['user', 'assistant']
         assert first[0].last_message_id == first[0].messages[-1].id
         assert await h.completed(start, end, owned[-1]) == []
-        # Aware UTC boundaries refer to the same Beijing half-open day.
+        # 带时区的 UTC 边界与对应北京时间的左闭右开自然日应指向同一批数据。
         same = await h.completed(datetime(2026, 10, 5, 16, tzinfo=timezone.utc), datetime(2026, 10, 6, 16, tzinfo=timezone.utc), owned[0], 2)
         assert [r.id for r in same] == [owned[1], owned[2]]
     finally:

@@ -1,3 +1,4 @@
+# 工具历史回放与预算测试，覆盖孤立流水、完整工具轮次、参数格式及会话凭证。
 import json
 
 import pytest

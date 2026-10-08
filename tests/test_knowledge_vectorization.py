@@ -1,3 +1,4 @@
+# 双写向量化测试，覆盖 pending 批处理、主键确认、失败重跑和客户端清理。
 import asyncio
 
 import pytest

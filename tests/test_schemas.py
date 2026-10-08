@@ -1,3 +1,4 @@
+# 接口 Schema 测试，覆盖长度、空白、未知字段、枚举和可空输出的边界。
 import pytest
 from pydantic import ValidationError
 

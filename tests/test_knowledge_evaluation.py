@@ -1,3 +1,4 @@
+# 知识评估与恢复报告测试，防止部分恢复、错误来源或清理故障被误报为成功。
 """Report correctness, fail-closed gates and recovery assertions; no cloud quality claims."""
 
 import importlib
@@ -142,7 +143,7 @@ async def test_spawned_process_handle_is_the_python_process_writing_checkpoint(m
     checkpoint = tmp_path / 'pid.json'
     # 保留真实系统子进程但替换远端工作，写实际 PID 检查点以核对进程所有权。
     def launch_probe(command, **kwargs):
-        # Replace only slow DB/cloud workload with a harmless real OS child.
+        # 只替换耗时的数据库和云端工作，仍用无业务副作用的真实子进程验证进程身份。
         source = ('import os,json,time; from pathlib import Path; '
             f'Path({str(checkpoint)!r}).write_text(json.dumps({{"owned_pid":os.getpid()}})); time.sleep(.4)')
         return original_popen([command[0], '-c', source], **kwargs)

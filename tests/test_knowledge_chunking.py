@@ -1,3 +1,4 @@
+# Markdown 分块测试，覆盖标题、FAQ、整句重叠、代码围栏和复制表头的表格分块。
 from collections import Counter
 
 import pytest

@@ -1,3 +1,4 @@
+# 管理异步 MySQL 引擎与数据库会话，集中负责连接资源的释放。
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 

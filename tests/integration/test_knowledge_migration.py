@@ -1,3 +1,4 @@
+# 独立测试库中的知识 DDL 迁移测试，覆盖已有结构核验及字段、索引、外键漂移。
 from pathlib import Path
 import re
 

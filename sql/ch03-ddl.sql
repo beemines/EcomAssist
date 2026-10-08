@@ -22,13 +22,16 @@ CREATE TABLE knowledge_chunks (
   vectorize_status ENUM('pending','done') NOT NULL DEFAULT 'pending' COMMENT '待向量化 / 已向量化,双写幂等靠它',
   created_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  -- 分类索引服务原文查询，状态索引用于重跑时挑出尚未向量化的块。
   PRIMARY KEY (id),
   KEY idx_category (category),
   KEY idx_vectorize_status (vectorize_status),
+  -- 邻块只用于上下文溯源，删除邻块时解除指针，不级联删除其他原文。
   CONSTRAINT fk_chunks_prev FOREIGN KEY (prev_chunk_id) REFERENCES knowledge_chunks (id) ON DELETE SET NULL,
   CONSTRAINT fk_chunks_next FOREIGN KEY (next_chunk_id) REFERENCES knowledge_chunks (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库 chunk 原文权威源';
 
+-- 分批抽取先落暂存表，整体去重后由应用提升保留项，原批次与来源继续可追踪。
 CREATE TABLE qa_extraction_staging (
   id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '暂存行主键',
   batch_no         VARCHAR(64)     NOT NULL                COMMENT '抽取批次号,一批几十个会话跑一次,分批防串味、按批追溯',
@@ -38,6 +41,7 @@ CREATE TABLE qa_extraction_staging (
   status           ENUM('extracted','kept','discarded') NOT NULL DEFAULT 'extracted' COMMENT '已抽出待去重 / 去重保留 / 去重丢弃',
   created_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (id),
+  -- 按批次追踪来源，按状态筛选待去重或已有决策的记录。
   KEY idx_batch_no (batch_no),
   KEY idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='历史对话抽 QA 的离线中转暂存表:分批抽取、整体去重,保留项入 knowledge_chunks,建库完成可清空';

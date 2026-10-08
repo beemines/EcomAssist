@@ -1,5 +1,7 @@
+# 本地 MySQL 部署：业务库与测试库分别使用端口和数据卷，密码由 .env 提供。
 services:
   mysql:
+    # 自定义入口先修正字符集配置的权限，再交给官方入口启动 MySQL。
     image: mysql:8.4
     entrypoint: ["/bin/sh", "/config/mysql-entrypoint.sh"]
     command: ["mysqld"]
@@ -8,8 +10,10 @@ services:
       MYSQL_USER: ${MYSQL_USER:-customer_service}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 设置 MYSQL_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 设置 MYSQL_ROOT_PASSWORD}
+    # 只向本机开放 3307，应用连接此端口，容器内部仍使用 3306。
     ports:
       - "127.0.0.1:3307:3306"
+    # 具名卷保留数据，三份 SQL 仅在空数据目录首次初始化时按文件名顺序执行。
     volumes:
       - mysql-data-initialized:/var/lib/mysql
       - ./sql/mysql.cnf:/config/mysql.cnf:ro
@@ -17,6 +21,7 @@ services:
       - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./sql/ch03-ddl.sql:/docker-entrypoint-initdb.d/02-ch03-ddl.sql:ro
       - ./sql/seed.sql:/docker-entrypoint-initdb.d/03-seed.sql:ro
+    # 探测 MySQL 是否已响应，首次初始化另留二十秒启动宽限。
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "--host=127.0.0.1", "--silent"]
       interval: 3s
@@ -24,6 +29,7 @@ services:
       retries: 30
       start_period: 20s
 
+  # test profile 显式开启独立测试实例，避免回归测试写入业务库。
   mysql-test:
     image: mysql:8.4
     entrypoint: ["/bin/sh", "/config/mysql-entrypoint.sh"]
@@ -34,6 +40,7 @@ services:
       MYSQL_USER: customer_service
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 设置 MYSQL_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 设置 MYSQL_ROOT_PASSWORD}
+    # 3308 对应测试夹具的固定入口，与业务库 3307 分开。
     ports:
       - "127.0.0.1:3308:3306"
     volumes:
@@ -50,6 +57,7 @@ services:
       retries: 30
       start_period: 20s
 
+# 两个具名卷分别持久化数据，重建容器不会自动删除已有数据库。
 volumes:
   mysql-data-initialized:
   mysql-test-data-initialized:

@@ -1,3 +1,4 @@
+# 语义 FAQ 工具测试，覆盖向量命中投影、空结果、超时重试和取消传播。
 import asyncio
 import pytest
 
@@ -36,7 +37,7 @@ class NoSQL:
 
 # 确认 FAQ 支持稠密检索依赖注入，并构造禁止无命中 SQL 访问的仓储。
 def make_faq(embedder, index):
-    # Give the original implementation a deliberate assertion RED, not TypeError.
+    # 旧实现应在业务断言处失败，避免因为测试替身参数不兼容而报 TypeError。
     import inspect
     assert 'embedder' in inspect.signature(FAQRepository).parameters, 'FAQ has no dense dependencies'
     return FAQRepository(NoSQL(), embedder, index)
@@ -51,7 +52,7 @@ async def test_dense_hits_project_old_fields_in_similarity_order(monkeypatch):
     # 返回与命中顺序不同的完成记录并省略第三条，模拟 SQL 排序与完成状态过滤。
     async def get_done(repo, ids):
         requested.append(ids)
-        # SQL ordering differs; third hit is pending or absent and is filtered.
+        # SQL 返回顺序与相似度顺序不同，第三个命中尚待向量化或原文缺失，需过滤。
         return [ChunkRecord('售后', '退货规则', '七天', id=14, vectorize_status='done'),
                 ChunkRecord('配送', '运费规则', '八元', id=92, vectorize_status='done')]
 

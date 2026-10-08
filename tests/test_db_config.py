@@ -1,3 +1,4 @@
+# MySQL 配置测试，检查默认连接信息、秘密值包装及特殊字符密码的 URL 构造。
 import pytest
 from pydantic import ValidationError
 

@@ -1,3 +1,4 @@
+# 会话仓储：创建会话、校验身份和状态、保存并读取消息流水。
 import re
 
 from langchain_core.messages import BaseMessage

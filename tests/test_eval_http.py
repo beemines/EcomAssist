@@ -1,3 +1,4 @@
+# 抽取评估脚本的 HTTP 测试，使用受控响应核验请求、评分和失败报告。
 import importlib
 import json
 

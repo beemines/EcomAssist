@@ -13,6 +13,7 @@ CREATE TABLE conversations (
   status      ENUM('进行中','已转人工','已结束') NOT NULL DEFAULT '进行中' COMMENT '处理状态',
   created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '开启时间',
   updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  -- 主键供消息和工单引用，用户索引用于查找同一用户的会话。
   PRIMARY KEY (id),
   KEY idx_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客服会话';
@@ -26,6 +27,7 @@ CREATE TABLE messages (
   tool_calls      JSON            NULL                     COMMENT 'assistant 消息带的工具调用申请单',
   tool_call_id    VARCHAR(64)     NULL                     COMMENT 'tool 消息对应的申请单 id,回灌时对号入座',
   created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '产生时间',
+  -- 按会话查流水走索引，外键要求每条消息都关联已有会话。
   PRIMARY KEY (id),
   KEY idx_conversation_id (conversation_id),
   CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations (id)
@@ -40,6 +42,7 @@ CREATE TABLE faq (
   created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (id),
+  -- 分类索引用于分类筛选，FAQ 主键与向量知识块主键是两套独立身份。
   KEY idx_category (category)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='常见问答';
 
@@ -51,6 +54,7 @@ CREATE TABLE tickets (
   ticket_type     ENUM('售后','投诉','咨询') NOT NULL     COMMENT '工单类型',
   status          ENUM('待处理','已处理') NOT NULL DEFAULT '待处理' COMMENT '处理状态',
   created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  -- 业务工单号即主键，用会话外键回溯问题发生时的对话。
   PRIMARY KEY (ticket_no),
   KEY idx_conversation_id (conversation_id),
   CONSTRAINT fk_tickets_conversation FOREIGN KEY (conversation_id) REFERENCES conversations (id)

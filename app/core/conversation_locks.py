@@ -1,3 +1,4 @@
+# 限制同一会话同时进行一轮聊天，通过占用凭证避免旧请求释放新请求的锁。
 from dataclasses import dataclass, field
 
 from app.core.errors import SessionBusy

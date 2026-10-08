@@ -1,3 +1,4 @@
+# 工具评估脚本测试，检查 SSE、实际调用参数与持久化审计，并拒绝不完整协议。
 import importlib
 import json
 from pathlib import Path

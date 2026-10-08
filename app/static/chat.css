@@ -1,16 +1,913 @@
-:root{font-family:Inter,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:#243c35;background:#f6f8f5;font-synthesis:none;--green:#286659;--muted:#89958e;--border:#e8ede8}
-*{box-sizing:border-box}body{margin:0}button,textarea{font:inherit}button,a{-webkit-tap-highlight-color:transparent}button{cursor:pointer}button:disabled{cursor:default}button:focus-visible,a:focus-visible{outline:3px solid #6da997;outline-offset:4px}svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}.svg-definitions{position:absolute;width:0;height:0;overflow:hidden}.app-shell{display:flex;height:100vh;height:100dvh;min-height:420px;max-width:1800px;margin:auto}.sidebar{width:248px;flex-shrink:0;background:#f1f4ef;border-right:1px solid var(--border);padding:31px 22px 20px;display:flex;flex-direction:column}.brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:#203d34;font-size:22px;font-weight:750;letter-spacing:-.6px}.brand-mark{width:43px;height:43px;background:var(--green);color:#fff;border-radius:13px;display:grid;place-items:center}.brand-mark svg{width:26px;height:26px}.brand small{display:block;color:#98a399;font-weight:400;font-size:10px;letter-spacing:.4px;margin-top:4px}.new-chat{margin-top:38px;width:100%;border:0;border-radius:11px;background:var(--green);color:#fff;padding:13px 15px;display:flex;align-items:center;justify-content:center;gap:9px;font-size:13px;font-weight:600;box-shadow:0 4px 12px #28665913}.new-chat:hover{background:#1e554a}.new-chat:disabled{opacity:.5}.section-label{font-size:11px;color:#97a097;letter-spacing:1px;margin:33px 11px 13px}.conversation-card{display:flex;align-items:center;gap:9px;background:#e6ede3;border:1px solid #dfe7dc;border-radius:10px;padding:12px 11px;font-size:12px;color:#476254}.conversation-card svg{width:18px;height:18px}.conversation-card>span:first-of-type{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.conversation-dot{width:5px;height:5px;border-radius:50%;background:#62917a;margin-left:auto;flex-shrink:0}.sidebar-bottom{margin-top:auto;padding:18px 10px;display:flex;align-items:flex-start;gap:9px;border-bottom:1px solid #e0e7df}.care-icon{width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:#e3ebe0;color:#689077}.care-icon svg{width:14px;height:14px}.sidebar-bottom strong{font-size:12px;font-weight:500}.sidebar-bottom p{font-size:11px;line-height:1.8;color:#96a092;margin:6px 0}.sidebar-signoff{font-size:9px;letter-spacing:1.7px;color:#a4ada0;text-align:center;margin-top:19px}.sidebar-signoff span{padding:0 5px}.main-panel{min-width:0;flex:1;display:flex;flex-direction:column;background:#fcfdfb;position:relative}.topbar{height:90px;flex-shrink:0;padding:0 42px;border-bottom:1px solid #edf0ea;display:flex;align-items:center;justify-content:space-between;background:#ffffffbd}.topbar h1{font-size:16px;font-weight:600;margin:0 0 6px}.topbar p{font-size:11px;color:#9aa299;margin:0}.header-actions{display:flex;align-items:center;gap:12px}.connection{display:flex;align-items:center;gap:7px;font-size:11px;color:#82937f;padding:7px 11px;border:1px solid #e4ebe1;border-radius:20px;background:#f6f9f3}.connection i{width:5px;height:5px;border-radius:50%;background:#8fbb85}.connection.offline{color:#a57860;background:#fcf4ec;border-color:#efe2d7}.connection.offline i{background:#d09b73}.mobile-new{display:none}.chat-scroll{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#d9e1d8 transparent;overscroll-behavior:contain;padding:20px 36px}.welcome{max-width:780px;margin:clamp(24px,7vh,75px) auto 22px;text-align:center}.welcome-mark{position:relative;width:78px;height:78px;background:#edf2e8;border:1px solid #e1eadc;border-radius:25px;display:grid;place-items:center;margin:0 auto 24px;transform:rotate(-5deg)}.welcome-mark svg{width:43px;height:43px;stroke-width:1.25;color:#52846b;transform:rotate(5deg)}.welcome-spark{position:absolute;right:-8px;top:-9px;font-size:26px;color:#a7b996;transform:rotate(5deg)}.eyebrow{font-size:11px;letter-spacing:2px;color:#9ca98f;margin-bottom:14px}.welcome h2{font-size:36px;font-weight:600;letter-spacing:1px;margin:0;color:#2c4338}.welcome-copy{font-size:13px;line-height:1.95;color:#95a08e;margin:17px 0 34px}.suggestions{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;text-align:left}.suggestion{position:relative;background:#fff;border:1px solid #e7ece2;border-radius:15px;padding:19px 18px 21px;color:#344a3e;transition:border-color .18s,transform .18s,box-shadow .18s;text-align:left}.suggestion:hover{transform:translateY(-3px);border-color:#b4c4aa;box-shadow:0 8px 20px #36543a07}.suggestion-icon{display:grid;place-items:center;width:33px;height:33px;border-radius:9px;color:#769378;background:#eff4eb;margin-bottom:15px}.suggestion-icon svg{width:20px;height:20px}.peach{background:#f9f0e6;color:#b79875}.lavender{background:#f1f0f7;color:#a39cbd}.suggestion strong{display:block;font-size:13px;font-weight:500;margin-bottom:8px}.suggestion>span:last-of-type{display:block;font-size:11px;color:#a1a99a}.suggestion b{position:absolute;right:18px;top:20px;font-weight:400;color:#bbc5b3;font-size:15px}.message-list{max-width:820px;margin:0 auto;padding:10px 0 20px}.message-list:empty{display:none}.message{display:flex;gap:12px;align-items:flex-start;margin:24px 0;animation:message-in .2s ease-out}.avatar{width:33px;height:33px;display:grid;place-items:center;border-radius:11px;flex-shrink:0;background:#e9f0e4;color:#5a8567}.avatar svg{width:21px;height:21px}.message-content{min-width:0;max-width:calc(100% - 45px)}.message-label{font-size:10px;color:#97a193;margin:0 0 8px 2px}.bubble{background:#f2f5ed;border:1px solid #e6ecdf;border-radius:3px 16px 16px 16px;padding:15px 18px;color:#425440;font-size:14px;line-height:1.95;white-space:pre-wrap;overflow-wrap:anywhere}.message.user{justify-content:flex-end}.user .message-content{max-width:78%}.user .message-label{text-align:right;margin-right:2px}.user .bubble{background:var(--green);border-color:var(--green);color:#f8fbf4;border-radius:16px 3px 16px 16px}.message-note{font-size:11px;color:#a38263;line-height:1.7;margin:7px 2px 0}.message-note:empty{display:none}.message-note.error{color:#b06e5f}.message-note.complete{color:#a2ad99}.bubble.typing:after{content:"";display:inline-block;width:2px;height:15px;background:#70965f;margin-left:4px;vertical-align:-2px;animation:blink 1s step-end infinite}.bubble.waiting{min-width:82px;min-height:50px;display:flex;align-items:center;gap:5px}.thinking-dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:#b5c3aa;animation:pulse 1.2s infinite}.thinking-dot:nth-child(2){animation-delay:.15s}.thinking-dot:nth-child(3){animation-delay:.3s}.composer-area{position:relative;flex-shrink:0;padding:12px 40px 22px;background:linear-gradient(#fcfdfbf0,#fcfdfb 25%)}.composer{max-width:820px;margin:auto;border:1px solid #dee6d8;border-radius:17px;background:#fff;padding:17px 18px 11px;box-shadow:0 5px 22px #46603204;transition:border-color .2s,box-shadow .2s}.composer:focus-within{border-color:#9db99a;box-shadow:0 0 0 3px #98b9950d}textarea{display:block;resize:none;outline:0;border:0;width:100%;min-height:27px;max-height:142px;background:transparent;font-size:14px;line-height:1.75;color:#314b3b;padding:0 2px;overflow-y:auto}textarea::placeholder{color:#a8b09f}textarea:disabled{opacity:.7}.composer-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:8px;gap:10px}.composer-bottom>span{font-size:10px;color:#b2b9ac}.send-button{border:0;background:var(--green);color:#fff;display:grid;place-items:center;width:34px;height:34px;border-radius:10px;transition:background .15s}.send-button svg{width:18px;height:18px}.send-button:disabled{background:#e9eee4;color:#b7c3ae}.send-button:not(:disabled):hover{background:#1d5548}.stop-symbol{height:10px;width:10px;border:1.5px solid currentColor;border-radius:2px}.fine-print{font-size:10px;color:#adb5a5;text-align:center;margin:12px 0 0;line-height:1.6}.scroll-to-bottom{position:absolute;bottom:calc(100% + 7px);left:50%;transform:translateX(-50%);border:1px solid #dce7d4;background:#fff;color:#6a8b60;box-shadow:0 3px 14px #3c4c3310;border-radius:20px;padding:9px 15px;font-size:11px}.scroll-to-bottom[hidden]{display:none}.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@keyframes blink{50%{opacity:0}}@keyframes pulse{50%{opacity:.25;transform:translateY(-2px)}}@keyframes message-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
-@media(min-width:1450px){.topbar{padding:0 60px}.welcome{margin-top:12vh}.chat-scroll{padding:25px 60px}.composer-area{padding-right:60px;padding-left:60px}}@media(max-width:1020px){.sidebar{width:220px;padding-right:16px;padding-left:16px}.topbar{padding:0 28px}.chat-scroll{padding:15px 25px}.composer-area{padding:10px 27px 18px}.welcome h2{font-size:31px}.suggestion{padding:16px 13px}.suggestion>span:last-of-type{font-size:10px}}@media(max-width:740px){.sidebar{display:none}.topbar{height:73px;padding:0 21px}.topbar h1{font-size:15px}.connection{padding:6px 9px;font-size:10px}.mobile-new{display:grid;place-items:center;width:31px;height:31px;border-radius:9px;background:#f0f4e9;border:1px solid #e0e8d9;color:#648859}.mobile-new svg{width:18px;height:18px}.chat-scroll{padding:14px 18px}.welcome{margin-top:5vh}.welcome-mark{width:65px;height:65px;border-radius:22px;margin-bottom:21px}.welcome-mark svg{width:36px;height:36px}.welcome h2{font-size:29px}.welcome-copy{font-size:12px;margin-bottom:24px}.suggestions{grid-template-columns:1fr;gap:9px;max-width:410px;margin:auto}.suggestion{display:grid;grid-template-columns:36px 1fr;column-gap:12px;padding:13px 16px}.suggestion-icon{grid-row:span 2;margin:0;align-self:center}.suggestion strong{font-size:12px;margin:2px 0 5px}.suggestion>span:last-of-type{font-size:11px}.suggestion b{top:24px;right:17px}.composer-area{padding:8px 16px 13px}.composer{padding:13px 14px 10px;border-radius:15px}.composer-bottom>span{font-size:9px}.fine-print{font-size:9px;margin-top:9px}.bubble{padding:13px 15px;font-size:13px}.message{gap:9px}.avatar{width:29px;height:29px;border-radius:9px}.user .message-content{max-width:88%}.welcome-copy br{display:none}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+/* 客服聊天页面样式：按基础、布局、消息、输入、响应式与工具状态分区。 */
+
+/* 全局字体、页面底色和主题变量，后续组件复用同一套绿色与边框。 */
+:root {
+  font-family:Inter,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  color:#243c35;
+  background:#f6f8f5;
+  font-synthesis:none;
+  --green:#286659;
+  --muted:#89958e;
+  --border:#e8ede8
+}
+
+/* 基础盒模型与交互默认值，键盘焦点保留可见轮廓。 */
+* {
+  box-sizing:border-box
+}
+body {
+  margin:0
+}
+button,textarea {
+  font:inherit
+}
+button,a {
+  -webkit-tap-highlight-color:transparent
+}
+button {
+  cursor:pointer
+}
+button:disabled {
+  cursor:default
+}
+button:focus-visible,a:focus-visible {
+  outline:3px solid #6da997;
+  outline-offset:4px
+}
+
+/* 图标统一使用 currentColor，随所在按钮或头像继承颜色。 */
+svg {
+  width:22px;
+  height:22px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.6;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  flex-shrink:0
+}
+.svg-definitions {
+  position:absolute;
+  width:0;
+  height:0;
+  overflow:hidden
+}
+
+/* 整页采用左右分栏和视口高度，主区域内部滚动而不是整个页面滚动。 */
+.app-shell {
+  display:flex;
+  height:100vh;
+  height:100dvh;
+  min-height:420px;
+  max-width:1800px;
+  margin:auto
+}
+
+/* 桌面侧边栏：固定宽度，底部说明通过自动外边距贴近底部。 */
+.sidebar {
+  width:248px;
+  flex-shrink:0;
+  background:#f1f4ef;
+  border-right:1px solid var(--border);
+  padding:31px 22px 20px;
+  display:flex;
+  flex-direction:column
+}
+
+/* 品牌标识与文字样式，购物袋图标复用内联 SVG。 */
+.brand {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  text-decoration:none;
+  color:#203d34;
+  font-size:22px;
+  font-weight:750;
+  letter-spacing:-.6px
+}
+.brand-mark {
+  width:43px;
+  height:43px;
+  background:var(--green);
+  color:#fff;
+  border-radius:13px;
+  display:grid;
+  place-items:center
+}
+.brand-mark svg {
+  width:26px;
+  height:26px
+}
+.brand small {
+  display:block;
+  color:#98a399;
+  font-weight:400;
+  font-size:10px;
+  letter-spacing:.4px;
+  margin-top:4px
+}
+
+/* 新对话入口及当前会话卡片，禁用状态配合脚本阻止回复期间切换。 */
+.new-chat {
+  margin-top:38px;
+  width:100%;
+  border:0;
+  border-radius:11px;
+  background:var(--green);
+  color:#fff;
+  padding:13px 15px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  font-size:13px;
+  font-weight:600;
+  box-shadow:0 4px 12px #28665913
+}
+.new-chat:hover {
+  background:#1e554a
+}
+.new-chat:disabled {
+  opacity:.5
+}
+.section-label {
+  font-size:11px;
+  color:#97a097;
+  letter-spacing:1px;
+  margin:33px 11px 13px
+}
+.conversation-card {
+  display:flex;
+  align-items:center;
+  gap:9px;
+  background:#e6ede3;
+  border:1px solid #dfe7dc;
+  border-radius:10px;
+  padding:12px 11px;
+  font-size:12px;
+  color:#476254
+}
+.conversation-card svg {
+  width:18px;
+  height:18px
+}
+.conversation-card>span:first-of-type {
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap
+}
+.conversation-dot {
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:#62917a;
+  margin-left:auto;
+  flex-shrink:0
+}
+
+/* 侧栏底部说明与签名，与会话操作区域分开。 */
+.sidebar-bottom {
+  margin-top:auto;
+  padding:18px 10px;
+  display:flex;
+  align-items:flex-start;
+  gap:9px;
+  border-bottom:1px solid #e0e7df
+}
+.care-icon {
+  width:22px;
+  height:22px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:#e3ebe0;
+  color:#689077
+}
+.care-icon svg {
+  width:14px;
+  height:14px
+}
+.sidebar-bottom strong {
+  font-size:12px;
+  font-weight:500
+}
+.sidebar-bottom p {
+  font-size:11px;
+  line-height:1.8;
+  color:#96a092;
+  margin:6px 0
+}
+.sidebar-signoff {
+  font-size:9px;
+  letter-spacing:1.7px;
+  color:#a4ada0;
+  text-align:center;
+  margin-top:19px
+}
+.sidebar-signoff span {
+  padding:0 5px
+}
+
+/* 聊天主面板纵向排列顶部栏、消息区和输入区，并允许内容缩窄。 */
+.main-panel {
+  min-width:0;
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  background:#fcfdfb;
+  position:relative
+}
+.topbar {
+  height:90px;
+  flex-shrink:0;
+  padding:0 42px;
+  border-bottom:1px solid #edf0ea;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background:#ffffffbd
+}
+.topbar h1 {
+  font-size:16px;
+  font-weight:600;
+  margin:0 0 6px
+}
+.topbar p {
+  font-size:11px;
+  color:#9aa299;
+  margin:0
+}
+.header-actions {
+  display:flex;
+  align-items:center;
+  gap:12px
+}
+
+/* 连接状态由脚本切换 offline 类，颜色同时覆盖文字、边框与指示点。 */
+.connection {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  font-size:11px;
+  color:#82937f;
+  padding:7px 11px;
+  border:1px solid #e4ebe1;
+  border-radius:20px;
+  background:#f6f9f3
+}
+.connection i {
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:#8fbb85
+}
+.connection.offline {
+  color:#a57860;
+  background:#fcf4ec;
+  border-color:#efe2d7
+}
+.connection.offline i {
+  background:#d09b73
+}
+.mobile-new {
+  display:none
+}
+
+/* 仅消息区占用剩余高度并滚动，滚动跟随规则由 chat.js 决定。 */
+.chat-scroll {
+  flex:1;
+  overflow-y:auto;
+  scrollbar-width:thin;
+  scrollbar-color:#d9e1d8 transparent;
+  overscroll-behavior:contain;
+  padding:20px 36px
+}
+
+/* 空会话欢迎区域，使用受控最大宽度和随视口变化的上边距。 */
+.welcome {
+  max-width:780px;
+  margin:clamp(24px,7vh,75px) auto 22px;
+  text-align:center
+}
+.welcome-mark {
+  position:relative;
+  width:78px;
+  height:78px;
+  background:#edf2e8;
+  border:1px solid #e1eadc;
+  border-radius:25px;
+  display:grid;
+  place-items:center;
+  margin:0 auto 24px;
+  transform:rotate(-5deg)
+}
+.welcome-mark svg {
+  width:43px;
+  height:43px;
+  stroke-width:1.25;
+  color:#52846b;
+  transform:rotate(5deg)
+}
+.welcome-spark {
+  position:absolute;
+  right:-8px;
+  top:-9px;
+  font-size:26px;
+  color:#a7b996;
+  transform:rotate(5deg)
+}
+.eyebrow {
+  font-size:11px;
+  letter-spacing:2px;
+  color:#9ca98f;
+  margin-bottom:14px
+}
+.welcome h2 {
+  font-size:36px;
+  font-weight:600;
+  letter-spacing:1px;
+  margin:0;
+  color:#2c4338
+}
+.welcome-copy {
+  font-size:13px;
+  line-height:1.95;
+  color:#95a08e;
+  margin:17px 0 34px
+}
+
+/* 桌面示例问题按三列排列，卡片悬停提供轻微抬升反馈。 */
+.suggestions {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:13px;
+  text-align:left
+}
+.suggestion {
+  position:relative;
+  background:#fff;
+  border:1px solid #e7ece2;
+  border-radius:15px;
+  padding:19px 18px 21px;
+  color:#344a3e;
+  transition:border-color .18s,transform .18s,box-shadow .18s;
+  text-align:left
+}
+.suggestion:hover {
+  transform:translateY(-3px);
+  border-color:#b4c4aa;
+  box-shadow:0 8px 20px #36543a07
+}
+.suggestion-icon {
+  display:grid;
+  place-items:center;
+  width:33px;
+  height:33px;
+  border-radius:9px;
+  color:#769378;
+  background:#eff4eb;
+  margin-bottom:15px
+}
+.suggestion-icon svg {
+  width:20px;
+  height:20px
+}
+.peach {
+  background:#f9f0e6;
+  color:#b79875
+}
+.lavender {
+  background:#f1f0f7;
+  color:#a39cbd
+}
+.suggestion strong {
+  display:block;
+  font-size:13px;
+  font-weight:500;
+  margin-bottom:8px
+}
+.suggestion>span:last-of-type {
+  display:block;
+  font-size:11px;
+  color:#a1a99a
+}
+.suggestion b {
+  position:absolute;
+  right:18px;
+  top:20px;
+  font-weight:400;
+  color:#bbc5b3;
+  font-size:15px
+}
+
+/* 消息列表限制阅读宽度，空列表隐藏，避免与欢迎区域重复占位。 */
+.message-list {
+  max-width:820px;
+  margin:0 auto;
+  padding:10px 0 20px
+}
+.message-list:empty {
+  display:none
+}
+.message {
+  display:flex;
+  gap:12px;
+  align-items:flex-start;
+  margin:24px 0;
+  animation:message-in .2s ease-out
+}
+.avatar {
+  width:33px;
+  height:33px;
+  display:grid;
+  place-items:center;
+  border-radius:11px;
+  flex-shrink:0;
+  background:#e9f0e4;
+  color:#5a8567
+}
+.avatar svg {
+  width:21px;
+  height:21px
+}
+.message-content {
+  min-width:0;
+  max-width:calc(100% - 45px)
+}
+.message-label {
+  font-size:10px;
+  color:#97a193;
+  margin:0 0 8px 2px
+}
+
+/* 助手消息保留原文换行并允许长编号换行，用户消息在右侧使用深绿色。 */
+.bubble {
+  background:#f2f5ed;
+  border:1px solid #e6ecdf;
+  border-radius:3px 16px 16px 16px;
+  padding:15px 18px;
+  color:#425440;
+  font-size:14px;
+  line-height:1.95;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere
+}
+.message.user {
+  justify-content:flex-end
+}
+.user .message-content {
+  max-width:78%
+}
+.user .message-label {
+  text-align:right;
+  margin-right:2px
+}
+.user .bubble {
+  background:var(--green);
+  border-color:var(--green);
+  color:#f8fbf4;
+  border-radius:16px 3px 16px 16px
+}
+
+/* 错误、停止与完成提示独立于正文，空提示不占位置。 */
+.message-note {
+  font-size:11px;
+  color:#a38263;
+  line-height:1.7;
+  margin:7px 2px 0
+}
+.message-note:empty {
+  display:none
+}
+.message-note.error {
+  color:#b06e5f
+}
+.message-note.complete {
+  color:#a2ad99
+}
+
+/* 旧气泡光标与等待圆点的通用样式，工具版本在文件末尾调整光标位置。 */
+.bubble.typing:after {
+  content:"";
+  display:inline-block;
+  width:2px;
+  height:15px;
+  background:#70965f;
+  margin-left:4px;
+  vertical-align:-2px;
+  animation:blink 1s step-end infinite
+}
+.bubble.waiting {
+  min-width:82px;
+  min-height:50px;
+  display:flex;
+  align-items:center;
+  gap:5px
+}
+.thinking-dot {
+  display:inline-block;
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:#b5c3aa;
+  animation:pulse 1.2s infinite
+}
+.thinking-dot:nth-child(2) {
+  animation-delay:.15s
+}
+.thinking-dot:nth-child(3) {
+  animation-delay:.3s
+}
+
+/* 输入区固定在主面板底部，聚焦输入框时高亮边框。 */
+.composer-area {
+  position:relative;
+  flex-shrink:0;
+  padding:12px 40px 22px;
+  background:linear-gradient(#fcfdfbf0,#fcfdfb 25%)
+}
+.composer {
+  max-width:820px;
+  margin:auto;
+  border:1px solid #dee6d8;
+  border-radius:17px;
+  background:#fff;
+  padding:17px 18px 11px;
+  box-shadow:0 5px 22px #46603204;
+  transition:border-color .2s,box-shadow .2s
+}
+.composer:focus-within {
+  border-color:#9db99a;
+  box-shadow:0 0 0 3px #98b9950d
+}
+
+/* 输入框高度由脚本随内容调整，超过最大高度后只滚动输入框内部。 */
+textarea {
+  display:block;
+  resize:none;
+  outline:0;
+  border:0;
+  width:100%;
+  min-height:27px;
+  max-height:142px;
+  background:transparent;
+  font-size:14px;
+  line-height:1.75;
+  color:#314b3b;
+  padding:0 2px;
+  overflow-y:auto
+}
+textarea::placeholder {
+  color:#a8b09f
+}
+textarea:disabled {
+  opacity:.7
+}
+.composer-bottom {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-top:8px;
+  gap:10px
+}
+.composer-bottom>span {
+  font-size:10px;
+  color:#b2b9ac
+}
+
+/* 发送与停止共用按钮，禁用颜色和停止符号跟随当前回复状态。 */
+.send-button {
+  border:0;
+  background:var(--green);
+  color:#fff;
+  display:grid;
+  place-items:center;
+  width:34px;
+  height:34px;
+  border-radius:10px;
+  transition:background .15s
+}
+.send-button svg {
+  width:18px;
+  height:18px
+}
+.send-button:disabled {
+  background:#e9eee4;
+  color:#b7c3ae
+}
+.send-button:not(:disabled):hover {
+  background:#1d5548
+}
+.stop-symbol {
+  height:10px;
+  width:10px;
+  border:1.5px solid currentColor;
+  border-radius:2px
+}
+.fine-print {
+  font-size:10px;
+  color:#adb5a5;
+  text-align:center;
+  margin:12px 0 0;
+  line-height:1.6
+}
+
+/* 返回最新消息按钮浮在输入区上方，hidden 状态明确覆盖布局显示。 */
+.scroll-to-bottom {
+  position:absolute;
+  bottom:calc(100% + 7px);
+  left:50%;
+  transform:translateX(-50%);
+  border:1px solid #dce7d4;
+  background:#fff;
+  color:#6a8b60;
+  box-shadow:0 3px 14px #3c4c3310;
+  border-radius:20px;
+  padding:9px 15px;
+  font-size:11px
+}
+.scroll-to-bottom[hidden] {
+  display:none
+}
+
+/* 只供读屏读取的标签保持在 DOM 中，视觉上移出正常布局。 */
+.visually-hidden {
+  position:absolute;
+  width:1px;
+  height:1px;
+  padding:0;
+  margin:-1px;
+  overflow:hidden;
+  clip:rect(0,0,0,0);
+  white-space:nowrap;
+  border:0
+}
+
+/* 光标、等待圆点和新消息入场动画分别表达生成与到达状态。 */
+@keyframes blink {
+  50% {
+    opacity:0
+  }
+}
+@keyframes pulse {
+  50% {
+    opacity:.25;
+    transform:translateY(-2px)
+  }
+}
+@keyframes message-in {
+  from {
+    opacity:0;
+    transform:translateY(5px)
+  }
+  to {
+    opacity:1;
+    transform:translateY(0)
+  }
+}
+
+/* 大屏增大主区域留白，但继续保留消息和输入框的阅读宽度。 */
+@media(min-width:1450px) {
+  .topbar {
+    padding:0 60px
+  }
+  .welcome {
+    margin-top:12vh
+  }
+  .chat-scroll {
+    padding:25px 60px
+  }
+  .composer-area {
+    padding-right:60px;
+    padding-left:60px
+  }
+}
+
+/* 中等屏幕缩小侧栏和水平内边距，为消息保留更多空间。 */
+@media(max-width:1020px) {
+  .sidebar {
+    width:220px;
+    padding-right:16px;
+    padding-left:16px
+  }
+  .topbar {
+    padding:0 28px
+  }
+  .chat-scroll {
+    padding:15px 25px
+  }
+  .composer-area {
+    padding:10px 27px 18px
+  }
+  .welcome h2 {
+    font-size:31px
+  }
+  .suggestion {
+    padding:16px 13px
+  }
+  .suggestion>span:last-of-type {
+    font-size:10px
+  }
+}
+
+/* 移动端隐藏侧栏，显示顶部新会话按钮，并把示例问题改为单列。 */
+@media(max-width:740px) {
+  .sidebar {
+    display:none
+  }
+  .topbar {
+    height:73px;
+    padding:0 21px
+  }
+  .topbar h1 {
+    font-size:15px
+  }
+  .connection {
+    padding:6px 9px;
+    font-size:10px
+  }
+  .mobile-new {
+    display:grid;
+    place-items:center;
+    width:31px;
+    height:31px;
+    border-radius:9px;
+    background:#f0f4e9;
+    border:1px solid #e0e8d9;
+    color:#648859
+  }
+  .mobile-new svg {
+    width:18px;
+    height:18px
+  }
+  .chat-scroll {
+    padding:14px 18px
+  }
+  .welcome {
+    margin-top:5vh
+  }
+  .welcome-mark {
+    width:65px;
+    height:65px;
+    border-radius:22px;
+    margin-bottom:21px
+  }
+  .welcome-mark svg {
+    width:36px;
+    height:36px
+  }
+  .welcome h2 {
+    font-size:29px
+  }
+  .welcome-copy {
+    font-size:12px;
+    margin-bottom:24px
+  }
+  .suggestions {
+    grid-template-columns:1fr;
+    gap:9px;
+    max-width:410px;
+    margin:auto
+  }
+  .suggestion {
+    display:grid;
+    grid-template-columns:36px 1fr;
+    column-gap:12px;
+    padding:13px 16px
+  }
+  .suggestion-icon {
+    grid-row:span 2;
+    margin:0;
+    align-self:center
+  }
+  .suggestion strong {
+    font-size:12px;
+    margin:2px 0 5px
+  }
+  .suggestion>span:last-of-type {
+    font-size:11px
+  }
+  .suggestion b {
+    top:24px;
+    right:17px
+  }
+  .composer-area {
+    padding:8px 16px 13px
+  }
+  .composer {
+    padding:13px 14px 10px;
+    border-radius:15px
+  }
+  .composer-bottom>span {
+    font-size:9px
+  }
+  .fine-print {
+    font-size:9px;
+    margin-top:9px
+  }
+  .bubble {
+    padding:13px 15px;
+    font-size:13px
+  }
+  .message {
+    gap:9px
+  }
+  .avatar {
+    width:29px;
+    height:29px;
+    border-radius:9px
+  }
+  .user .message-content {
+    max-width:88%
+  }
+  .welcome-copy br {
+    display:none
+  }
+}
+
+/* 尊重减少动态效果设置，关闭动画与过渡，文字队列也由脚本同步调整。 */
+@media(prefers-reduced-motion:reduce) {
+  *,*:before,*:after {
+    animation:none!important;
+    transition:none!important
+  }
+}
 
 /* 工具记录独立于回复正文，流式更新文字时保留本轮徽章。 */
-.tool-traces{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px;white-space:normal}
-.tool-traces[hidden]{display:none}
-.tool-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border:1px solid #d9e6d5;border-radius:7px;background:#e8f0e1;color:#517244;font-size:10px;line-height:1.7;overflow-wrap:anywhere}
-.tool-badge:before{content:"✓";font-weight:600}
-.tool-badge[data-status="running"]:before{content:"◌"}
-.tool-badge[data-status="error"],.tool-badge[data-status="interrupted"]{background:#f8eee4;border-color:#ecdcc8;color:#9c7652}
-.tool-badge[data-status="error"]:before,.tool-badge[data-status="interrupted"]:before{content:"·"}
-.assistant .bubble.waiting{display:block}
-.assistant .bubble.typing:after{display:none}
-.bubble.typing .answer-text:after{content:"";display:inline-block;width:2px;height:15px;background:#70965f;margin-left:4px;vertical-align:-2px;animation:blink 1s step-end infinite}
-@media(max-width:740px){.tool-badge{font-size:10px;padding:4px 7px}.tool-traces{gap:5px}.message-note{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}}
+.tool-traces {
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  margin-bottom:10px;
+  white-space:normal
+}
+.tool-traces[hidden] {
+  display:none
+}
+
+/* 工具徽章的运行、成功、错误和中断状态通过 data-status 切换。 */
+.tool-badge {
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:4px 9px;
+  border:1px solid #d9e6d5;
+  border-radius:7px;
+  background:#e8f0e1;
+  color:#517244;
+  font-size:10px;
+  line-height:1.7;
+  overflow-wrap:anywhere
+}
+.tool-badge:before {
+  content:"✓";
+  font-weight:600
+}
+.tool-badge[data-status="running"]:before {
+  content:"◌"
+}
+.tool-badge[data-status="error"],.tool-badge[data-status="interrupted"] {
+  background:#f8eee4;
+  border-color:#ecdcc8;
+  color:#9c7652
+}
+.tool-badge[data-status="error"]:before,.tool-badge[data-status="interrupted"]:before {
+  content:"·"
+}
+
+/* 含工具记录的助手气泡保持块布局，等待提示和正文各占自己的位置。 */
+.assistant .bubble.waiting {
+  display:block
+}
+.assistant .bubble.typing:after {
+  display:none
+}
+
+/* 光标挂在实际正文末尾，避免跟在工具徽章或气泡的其他节点后面。 */
+.bubble.typing .answer-text:after {
+  content:"";
+  display:inline-block;
+  width:2px;
+  height:15px;
+  background:#70965f;
+  margin-left:4px;
+  vertical-align:-2px;
+  animation:blink 1s step-end infinite
+}
+
+/* 工具区的移动端补充：徽章缩小间距，状态提示保留完整换行。 */
+@media(max-width:740px) {
+  .tool-badge {
+    font-size:10px;
+    padding:4px 7px
+  }
+  .tool-traces {
+    gap:5px
+  }
+  .message-note {
+    white-space:normal;
+    overflow:visible;
+    text-overflow:clip;
+    overflow-wrap:anywhere
+  }
+}

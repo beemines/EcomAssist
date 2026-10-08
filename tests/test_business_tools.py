@@ -1,3 +1,4 @@
+# 业务工具离线测试，核验模拟查询、仓储调用及可信会话上下文的绑定。
 import pytest
 
 from app.tools.executor import ToolExecutor
