@@ -1,3 +1,4 @@
+# 单轮工具聊天服务：模型选工具、执行并回灌结果，最后流式输出回答。
 import asyncio
 import json
 from collections.abc import AsyncIterator, Callable, Mapping

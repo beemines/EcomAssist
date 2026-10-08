@@ -1,3 +1,4 @@
+# Milvus 适配器离线测试，使用 SDK 替身核验集合结构、写入确认和检索范围。
 from copy import deepcopy
 
 import pytest

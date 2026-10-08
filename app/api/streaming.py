@@ -1,3 +1,4 @@
+# 管理 SSE 的发送、断连与取消，确保生成器关闭和会话占用最终释放。
 import json
 import logging
 

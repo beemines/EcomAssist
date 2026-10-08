@@ -19,6 +19,7 @@ def validate_id(value: int) -> None:
         raise ValueError("knowledge id must fit positive INT64")
 
 
+# 入库前的知识草稿，三栏业务文本参与嵌入，章节等字段只作为元数据保存。
 @dataclass(frozen=True)
 class ChunkDraft:
     category: str
@@ -39,6 +40,7 @@ class ChunkDraft:
             raise ValueError("is_key_clause must be bool")
 
 
+# 持久化知识在草稿基础上增加主键、邻块指针和 pending/done 双写状态。
 @dataclass(frozen=True)
 class ChunkRecord(ChunkDraft):
     id: int = 0
@@ -48,12 +50,14 @@ class ChunkRecord(ChunkDraft):
     vectorize_status: str = "pending"
 
 
+# 向量命中只携带知识主键与分数，正文随后从 MySQL 权威源读取。
 @dataclass(frozen=True)
 class VectorHit:
     id: int
     score: float
 
 
+# LLM 抽取的一组问答，来源标识必须能追溯到当前输入会话批次。
 @dataclass(frozen=True)
 class ExtractedQA:
     source_ref: str
@@ -67,6 +71,7 @@ class ExtractedQA:
         validate_text("answer", self.answer, 65535, utf8=True)
 
 
+# 暂存记录保留抽取批次和去重决策，供提升入库与失败重跑使用。
 @dataclass(frozen=True)
 class StagedQA(ExtractedQA):
     id: int = 0
@@ -74,6 +79,7 @@ class StagedQA(ExtractedQA):
     status: str = "extracted"
 
 
+# 完整历史会话及其读取到的最后消息身份，用于分批抽取和来源定位。
 @dataclass(frozen=True)
 class ConversationTranscript:
     id: int

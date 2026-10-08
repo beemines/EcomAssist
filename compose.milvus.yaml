@@ -1,7 +1,9 @@
-# Based on the official v3.0.2 Standalone release asset.
+# 本地 Milvus 单机部署，基于官方 v3.0.2 的 Standalone 配置。
+# 镜像锚点供数据卷初始化和向量服务复用，保持运行用户与镜像版本一致。
 x-milvus-image: &milvus-image milvusdb/milvus:v3.0.2
 
 services:
+  # 一次性修正数据卷属主，用标记文件避免每次启动都递归修改整个卷。
   milvus-volume-init:
     image: *milvus-image
     user: '0:0'
@@ -23,6 +25,7 @@ services:
     volumes:
       - milvus-data:/var/lib/milvus
 
+  # etcd 保存 Milvus 元数据，压缩旧 revision 并通过健康检查确认节点可用。
   etcd:
     image: quay.io/coreos/etcd:v3.5.25
     environment:
@@ -39,6 +42,7 @@ services:
       timeout: 20s
       retries: 3
 
+  # MinIO 保存 Milvus 的对象数据，使用独立持久卷，不向宿主开放对象存储端口。
   minio:
     image: milvusdb/minio:RELEASE.2024-12-18T13-15-44Z
     environment:
@@ -53,6 +57,7 @@ services:
       timeout: 20s
       retries: 3
 
+  # 单机向量服务连接同一 Compose 网络内的 etcd 与 MinIO。
   standalone:
     image: *milvus-image
     command: ['milvus', 'run', 'standalone']
@@ -70,9 +75,11 @@ services:
       start_period: 90s
       timeout: 20s
       retries: 3
+    # 19530 提供 SDK 连接，9091 提供健康接口，均只绑定宿主回环地址。
     ports:
       - '127.0.0.1:19530:19530'
       - '127.0.0.1:9091:9091'
+    # 等待属主修正完成和存储容器启动，实际服务可用性再由 healthcheck 判断。
     depends_on:
       milvus-volume-init:
         condition: service_completed_successfully
@@ -81,6 +88,7 @@ services:
       minio:
         condition: service_started
 
+# 元数据、对象数据与向量服务工作数据分卷保存。
 volumes:
   etcd-data:
   minio-data:

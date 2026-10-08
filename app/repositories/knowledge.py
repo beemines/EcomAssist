@@ -1,3 +1,4 @@
+# 知识仓储：管理原文、邻块指针、待向量化状态及抽取问答的暂存与提升。
 from dataclasses import asdict
 
 from sqlalchemy import select

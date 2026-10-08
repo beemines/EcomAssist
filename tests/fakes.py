@@ -1,3 +1,4 @@
+# 基础聊天测试替身与 SSE 解析辅助，提供可控的模型、会话仓储和固定结果。
 import asyncio
 import json
 

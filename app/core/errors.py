@@ -1,3 +1,4 @@
+# 定义可安全返回给客户端的业务错误码、提示和 HTTP 状态。
 class ServiceError(Exception):
     """应用异常，包含可安全展示给用户的提示和 HTTP 状态码。"""
 

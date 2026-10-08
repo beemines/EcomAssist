@@ -1,3 +1,4 @@
+# 还原可回放的完整工具轮次，并把工具 Schema、申请与结果计入输入预算。
 import json
 from collections.abc import Sequence
 

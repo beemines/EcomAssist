@@ -1,3 +1,4 @@
+# 人工工单仓储：以调用上下文生成稳定编号，事务内创建工单并更新会话状态。
 from hashlib import sha256
 
 from sqlalchemy import select

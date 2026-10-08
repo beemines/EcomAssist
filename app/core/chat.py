@@ -1,3 +1,4 @@
+# 纯对话服务：准备预算内的历史消息，流式生成并保存正常结束的回答。
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any, Literal

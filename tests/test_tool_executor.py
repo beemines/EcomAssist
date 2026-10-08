@@ -1,3 +1,4 @@
+# 工具执行器测试，覆盖 Schema 校验、超时、有限重试、注入字段和取消传播。
 import asyncio
 import json
 from typing import Annotated

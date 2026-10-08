@@ -1,3 +1,4 @@
+# 问答抽取评分测试，对照标准问法与来源，检查不同表达的保留和九类标注样例。
 import json
 from pathlib import Path
 

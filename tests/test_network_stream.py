@@ -1,3 +1,4 @@
+# 本机回环网络 SSE 测试，核验首帧及时到达、客户端断连与会话释放。
 import asyncio
 import socket
 from contextlib import asynccontextmanager

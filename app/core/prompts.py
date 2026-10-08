@@ -1,3 +1,4 @@
+# 集中管理客服角色和售后抽取模板，避免各接口分别拼接业务提示词。
 import json
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage

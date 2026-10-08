@@ -1,3 +1,4 @@
+# 应用知识检索依赖的生命周期测试，检查依赖注入、初始化失败及关闭责任。
 import httpx
 import pytest
 from langchain_core.messages import AIMessage
@@ -93,7 +94,7 @@ def owned_resources(monkeypatch, failure=None):
 @pytest.mark.parametrize('failure', [None, 'model_close', 'embedder_close', 'index_close'])
 async def test_owned_resources_close_once_even_when_another_close_fails(monkeypatch, failure):
     created, closed = owned_resources(monkeypatch, failure)
-    # Model/database/FAQ setup belongs in lifespan so partial setup can unwind.
+    # 模型、数据库和 FAQ 依赖在 lifespan 内初始化，部分初始化失败也应能回收资源。
     app = main.create_app(fake_settings(mysql_password='fake-only'))
     # 执行真实应用生命周期，确认进入时依赖均已创建且尚未关闭。
     async def run():

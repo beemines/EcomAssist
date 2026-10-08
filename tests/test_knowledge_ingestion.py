@@ -1,3 +1,4 @@
+# 文档入库测试，检查输入错误、分块原文与邻块的事务保存，以及命令行资源释放。
 from argparse import Namespace
 from contextlib import asynccontextmanager
 

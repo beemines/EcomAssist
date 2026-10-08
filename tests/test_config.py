@@ -1,3 +1,4 @@
+# 模型与输入预算配置测试，覆盖环境文件读取、别名及无效配置的拒绝。
 import pytest
 from pydantic import SecretStr, ValidationError
 

@@ -1,3 +1,4 @@
+# 真实 Milvus 集成测试，覆盖集合契约、主键写入、检索及 MySQL 待向量化恢复。
 import asyncio
 
 import pytest
@@ -20,7 +21,7 @@ async def test_real_primary_key_upsert_strong_search_and_existing_schema(milvus_
     first, second = [1.0] + [0.0] * 1023, [0.0, 1.0] + [0.0] * 1022
     assert await index.upsert([(7, first), (9, second)]) == [7, 9]
     assert await index.upsert([(7, second)]) == [7]
-    # Fresh adapter verifies metadata returned by the actual installed SDK/service.
+    # 用新建适配器核验当前 SDK 和服务真实返回的集合元数据。
     fresh = MilvusIndex(service.uri, collection=service.name, client=service.client)
     hits = await fresh.search(second)
     assert {hit.id for hit in hits} == {7, 9}
@@ -48,7 +49,7 @@ async def test_real_schema_drift_is_rejected(milvus_collection, drift):
 # 验证嵌入失败、完成提交失败或向量写后取消后可恢复，且不会生成重复向量。
 @pytest.mark.parametrize('failure', ['embed', 'mark', 'cancel'])
 async def test_real_mysql_pending_resumes_after_failure_without_duplicate_vectors(knowledge_rows, milvus_collection, failure):
-    # Isolate reads to only the fixture-owned rows, preserving any other pending jobs.
+    # 读取范围只包含夹具自己的记录，保留其他任务尚待向量化的数据。
     class OwnedRepository(KnowledgeRepository):
         # 仅读取本 fixture 标记的待处理行，防止恢复测试消费其他待向量化任务。
         async def pending(self, limit=20):

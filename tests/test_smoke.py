@@ -1,3 +1,4 @@
+# 冒烟脚本离线测试，使用碎片化 UTF-8/SSE 响应核验终止帧、连续轮次和抽取结果。
 import importlib
 import json
 

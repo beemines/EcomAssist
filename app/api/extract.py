@@ -1,3 +1,4 @@
+# 售后信息抽取入口，将用户描述交给结构化抽取服务并返回固定字段。
 from fastapi import APIRouter, Request
 
 from app.schemas.extract import AfterSalesResult, ExtractRequest

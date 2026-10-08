@@ -1,3 +1,4 @@
+# 嵌入客户端离线协议测试，检查三栏输入、向量顺序和维度，以及安全失败与资源关闭。
 import json
 
 import httpx
@@ -57,7 +58,7 @@ async def test_posts_only_three_fields_and_restores_out_of_order_batch():
     *[[{'index': 0, 'embedding': [bad] + [0.0] * 1023}, {'index': 1, 'embedding': [1.0] * 1024}] for bad in (True, '1', float('nan'), float('inf'), -float('inf'))],
 ], ids=['duplicate', 'missing-index', 'wrong-count', 'bool-index', 'dimension', 'bool', 'text', 'nan', 'inf', 'neg-inf'])
 async def test_rejects_malformed_cloud_vectors(entries):
-    # Bytes allow deliberately invalid NaN/Infinity wire values through the decoder.
+    # 直接用字节响应构造非法 NaN/Infinity，确保解码后的校验分支会拒绝它们。
     async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(200, content=json.dumps(payload(entries))))) as client:
         with pytest.raises(ValueError):
             await embedder(settings(), client).embed(['first', 'second'])

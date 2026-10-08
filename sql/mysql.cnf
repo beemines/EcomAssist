@@ -2,6 +2,7 @@
 [client]
 default-character-set=utf8mb4
 
+# 新库和表未显式指定字符集时沿用此默认值，兼容中文与表情。
 [mysqld]
 character-set-server=utf8mb4
 collation-server=utf8mb4_0900_ai_ci

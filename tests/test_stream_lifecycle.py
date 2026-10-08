@@ -1,3 +1,4 @@
+# 流式响应生命周期测试，覆盖发送、断连、取消、入库时点和生成器关闭边界。
 import asyncio
 
 import pytest

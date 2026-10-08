@@ -1,3 +1,4 @@
+# 五个客服业务工具：订单、商品、物流使用模拟数据，FAQ 与工单访问仓储。
 import random
 from typing import Annotated
 

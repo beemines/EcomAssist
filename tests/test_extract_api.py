@@ -1,3 +1,4 @@
+# 售后抽取 API 测试，覆盖固定 JSON、字段校验、输入预算及上游失败响应。
 import json
 
 import httpx

@@ -1,3 +1,4 @@
+# 单轮工具聊天测试，核验选择、执行、回灌、最终流式回复及失败审计。
 import asyncio
 import json
 from pathlib import Path

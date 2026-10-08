@@ -1,3 +1,4 @@
+# 聊天 API 离线测试，检查 SSE 成功、错误、上下文保留和异常资源释放。
 import importlib
 import sys
 

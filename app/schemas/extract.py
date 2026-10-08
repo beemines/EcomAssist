@@ -1,8 +1,10 @@
+# 售后抽取契约：固定订单号、诉求类型和期望方案，缺失信息使用 null。
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+# 诉求类别限制为固定枚举，描述不足以分类时使用 unknown。
 class RequestType(StrEnum):
     REFUND = "refund"
     RETURN_REFUND = "return_refund"
@@ -27,6 +29,7 @@ class ExtractRequest(BaseModel):
         return value
 
 
+# 字段必须出现，未知订单号或未表达的期望方案使用 null，避免补造信息。
 class AfterSalesResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

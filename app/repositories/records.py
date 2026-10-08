@@ -1,3 +1,4 @@
+# 转换 LangChain 消息与持久化记录，校验工具申请 JSON 和结果关联标识。
 import json
 from dataclasses import dataclass
 from typing import Any

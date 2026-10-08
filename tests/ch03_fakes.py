@@ -1,3 +1,4 @@
+# 知识库测试替身，在内存中记录嵌入、向量与知识写入，便于注入故障。
 from dataclasses import replace
 
 

@@ -1,3 +1,4 @@
+# 工具聊天测试替身，提供可控模型选择、流水仓储、执行器及统一服务装配。
 from langchain_core.messages import AIMessage, AIMessageChunk
 
 from app.core.conversation_locks import ConversationLocks

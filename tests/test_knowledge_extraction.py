@@ -1,3 +1,4 @@
+# 历史对话抽问答测试，覆盖整会话批次预算、来源限定、结构校验及正常结束要求。
 import importlib
 import json
 

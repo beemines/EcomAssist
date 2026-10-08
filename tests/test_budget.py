@@ -1,3 +1,4 @@
+# 消息输入预算测试，覆盖必需消息、历史整轮裁剪及 UTF-8 字节估算的边界。
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 

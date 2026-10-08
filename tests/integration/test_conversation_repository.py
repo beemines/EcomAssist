@@ -1,3 +1,4 @@
+# 真实 MySQL 会话集成测试，验证消息回放、编号边界及工具申请与结果的关联。
 from uuid import uuid4
 
 import pytest

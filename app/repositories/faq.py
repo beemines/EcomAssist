@@ -1,3 +1,4 @@
+# 保持 FAQ 工具返回契约，通过 Dense 向量检索命中并从 MySQL 读取权威原文。
 from app.db.session import Database
 from app.knowledge.types import Embedder, VectorIndex
 from app.repositories.knowledge import KnowledgeRepository

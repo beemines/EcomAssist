@@ -1,3 +1,4 @@
+# 流式聊天入口：先校验会话和输入，再交给受控 SSE 响应发送事件。
 from fastapi import APIRouter, Request
 
 from app.api.streaming import ManagedChatResponse
