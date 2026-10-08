@@ -1,0 +1,193 @@
+{
+  "kind": "actual_owned_process_recovery",
+  "started_at": "2026-10-07T14:25:35.993885+00:00",
+  "database": "127.0.0.1:3308/customer_service_test",
+  "attempted": 2,
+  "not_attempted": 0,
+  "cases": [
+    {
+      "phase": "after_pending",
+      "collection": "knowledge_test_8fa27d1ee0e94230a114d025c27f6697",
+      "passed": true,
+      "owned_children": [
+        {
+          "pid": 67484,
+          "created_by_harness": true,
+          "action": "kill",
+          "returncode": 1,
+          "terminated_at": "2026-10-07T14:25:40.871194+00:00"
+        },
+        {
+          "pid": 96016,
+          "created_by_harness": true,
+          "action": "normal_restart",
+          "returncode": 0
+        }
+      ],
+      "checkpoint": {
+        "phase": "after_pending",
+        "owned_pid": 67484,
+        "ids": [
+          89,
+          90
+        ],
+        "pending_committed": true,
+        "checkpoint_at": "2026-10-07T14:25:40.776528+00:00"
+      },
+      "expected_ids": [
+        89,
+        90
+      ],
+      "before": {
+        "rows": [
+          {
+            "id": 89,
+            "status": "pending",
+            "vector_id": null,
+            "body_sha256": "12f325dea833b4397a44b1836bdc710f13f0c9edfaa021b79dff94cedbd62241"
+          },
+          {
+            "id": 90,
+            "status": "pending",
+            "vector_id": null,
+            "body_sha256": "51aa0c7b8cfbacacdb5c0aa5e45da218a7f5a4d232c63c7085b170fadd0662f4"
+          }
+        ],
+        "vector_ids": [],
+        "vector_row_count": 0,
+        "unique_vector_count": 0
+      },
+      "restart": {
+        "phase": "restarted",
+        "owned_pid": 96016,
+        "ids": [
+          89,
+          90
+        ],
+        "recovered": 2,
+        "replay_count": 0,
+        "completed_at": "2026-10-07T14:25:44.470214+00:00"
+      },
+      "after": {
+        "rows": [
+          {
+            "id": 89,
+            "status": "done",
+            "vector_id": "89",
+            "body_sha256": "12f325dea833b4397a44b1836bdc710f13f0c9edfaa021b79dff94cedbd62241"
+          },
+          {
+            "id": 90,
+            "status": "done",
+            "vector_id": "90",
+            "body_sha256": "51aa0c7b8cfbacacdb5c0aa5e45da218a7f5a4d232c63c7085b170fadd0662f4"
+          }
+        ],
+        "vector_ids": [
+          89,
+          90
+        ],
+        "vector_row_count": 2,
+        "unique_vector_count": 2
+      },
+      "cleanup": "owned_rows_and_collection_removed"
+    },
+    {
+      "phase": "after_upsert",
+      "collection": "knowledge_test_4a59ddedaa5a4769af2f52fbcdf004b4",
+      "passed": true,
+      "owned_children": [
+        {
+          "pid": 43912,
+          "created_by_harness": true,
+          "action": "kill",
+          "returncode": 1,
+          "terminated_at": "2026-10-07T14:25:51.657365+00:00"
+        },
+        {
+          "pid": 54440,
+          "created_by_harness": true,
+          "action": "normal_restart",
+          "returncode": 0
+        }
+      ],
+      "checkpoint": {
+        "phase": "after_upsert",
+        "owned_pid": 43912,
+        "ids": [
+          91,
+          92
+        ],
+        "acknowledged_ids": [
+          91,
+          92
+        ],
+        "upsert_returned": true,
+        "checkpoint_at": "2026-10-07T14:25:51.386849+00:00"
+      },
+      "expected_ids": [
+        91,
+        92
+      ],
+      "before": {
+        "rows": [
+          {
+            "id": 91,
+            "status": "pending",
+            "vector_id": null,
+            "body_sha256": "12f325dea833b4397a44b1836bdc710f13f0c9edfaa021b79dff94cedbd62241"
+          },
+          {
+            "id": 92,
+            "status": "pending",
+            "vector_id": null,
+            "body_sha256": "51aa0c7b8cfbacacdb5c0aa5e45da218a7f5a4d232c63c7085b170fadd0662f4"
+          }
+        ],
+        "vector_ids": [
+          91,
+          92
+        ],
+        "vector_row_count": 2,
+        "unique_vector_count": 2
+      },
+      "restart": {
+        "phase": "restarted",
+        "owned_pid": 54440,
+        "ids": [
+          91,
+          92
+        ],
+        "recovered": 2,
+        "replay_count": 0,
+        "completed_at": "2026-10-07T14:25:55.032782+00:00"
+      },
+      "after": {
+        "rows": [
+          {
+            "id": 91,
+            "status": "done",
+            "vector_id": "91",
+            "body_sha256": "12f325dea833b4397a44b1836bdc710f13f0c9edfaa021b79dff94cedbd62241"
+          },
+          {
+            "id": 92,
+            "status": "done",
+            "vector_id": "92",
+            "body_sha256": "51aa0c7b8cfbacacdb5c0aa5e45da218a7f5a4d232c63c7085b170fadd0662f4"
+          }
+        ],
+        "vector_ids": [
+          91,
+          92
+        ],
+        "vector_row_count": 2,
+        "unique_vector_count": 2
+      },
+      "cleanup": "owned_rows_and_collection_removed"
+    }
+  ],
+  "passed": true,
+  "cleanup": "owned_rows_and_collections_removed",
+  "finished_at": "2026-10-07T14:25:56.692360+00:00"
+}

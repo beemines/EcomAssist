@@ -7,7 +7,7 @@ from openai import APITimeoutError
 
 from app.main import create_app
 from app.schemas.extract import AfterSalesResult
-from tests.fakes import ConversationStore, StructuredModel, fake_settings, structured_result
+from tests.fakes import FAQStub, ConversationStore, StructuredModel, fake_settings, structured_result
 
 
 TEXT = "订单 20261005001 的杯子收到就碎了，我想退货退款。"
@@ -17,7 +17,7 @@ INVALID = {"code": "invalid_structured_output", "message": "模型返回的结�
 
 
 def client_for(model, repository=None, **settings):
-    app = create_app(fake_settings(**settings), model=model, repository=repository if repository is not None else ConversationStore())
+    app = create_app(fake_settings(**settings), faq_repository=FAQStub(), model=model, repository=repository if repository is not None else ConversationStore())
     return httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test")
 
 
