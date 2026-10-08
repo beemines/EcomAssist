@@ -13,7 +13,8 @@
 ## Global Constraints
 
 - 两路各 Top-50，RRFRanker(k=60) 融合 Top-50，bge-reranker-v2-m3 重排 Top-10；不能用客户端 BM25、拼关键词 LIKE 或其他重排模型替换。
-- 新集合 knowledge_hybrid：id/embedding/text/category/sparse；embedding=1024、FLAT/COSINE；TEXT/chinese/BM25，SPARSE_INVERTED_INDEX/DAAT_MAXSCORE，k1=1.2、b=0.75，Strong 一致性。
+- 新集合 knowledge_hybrid：id/embedding/text/category/sparse；embedding=1024、FLAT/COSINE；TEXT/chinese/BM25，SPARSE_INVERTED_INDEX/DAAT_MAXSCORE，k1=1.2、b=0.75，Strong 一致性；category 逻辑限 255 字符、VARCHAR 预留 1020 UTF-8 字节。
+- 用户“继续啊”批准启用 StorageV3（common.storage.useLoonFFI=true）并重启同版本 standalone；应用/模型/SDK RPC 关闭重试，仅接受 SDK 固有最多一次同主键 Schema 刷新重试，外层取消感知超时不续期。
 - knowledge_chunks 三栏原文保持一份；旧 done 重建不改状态，切换后 pending 仅在向量写入确认后标 done；保持原任务锁名，避免新旧任务锁相互失效。
 - 用户两表 DDL 保存 sql/ch04-ddl.sql，SET NAMES utf8mb4；不改列/ENUM/COMMENT，不新增 useful 列，不用 create_all/drop_all。
 - useful=false 才写问题池；外部故障、预算错误和非法自评输出不入池；拒答与问题池同一短事务。
@@ -75,7 +76,7 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
 
 ## Task 2：原生中文 BM25 混合索引
 
-**Files:** Create app/retrieval/{__init__,types,milvus}.py；Test tests/test_hybrid_milvus.py、tests/integration/test_hybrid_milvus.py；Modify app/config.py、.env.example；旧 app/knowledge/vectors.py 保留以支持既有评估。
+**Files:** Create app/retrieval/{__init__,types,milvus}.py、config/milvus-user.yaml；Modify compose.milvus.yaml；Test tests/test_hybrid_milvus.py、tests/integration/test_hybrid_milvus.py；Modify app/config.py、.env.example；旧 app/knowledge/vectors.py 保留以支持既有评估。
 
 **Interfaces:**
 - Produces IndexedChunk(id: int, embedding: list[float], text: str, category: str)，VectorHit 复用 app.knowledge.types。

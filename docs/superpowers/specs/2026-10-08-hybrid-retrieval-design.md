@@ -30,11 +30,13 @@
 
 ### 3.2 新混合集合
 
-创建 knowledge_hybrid，主键与 MySQL 正 INT64 chunk id 对齐，auto_id=false、动态字段关闭，使用 Strong 一致性。字段为 id、embedding（FLOAT_VECTOR，1024）、text（TEXT，启用 analyzer）、category（VARCHAR，255）和 sparse（SPARSE_FLOAT_VECTOR）。TEXT 选择基于当前服务/SDK 3.0.2，避免将 MySQL 合法长文本偷偷截成 VARCHAR 长度。
+创建 knowledge_hybrid，主键与 MySQL 正 INT64 chunk id 对齐，auto_id=false、动态字段关闭，使用 Strong 一致性。字段为 id、embedding（FLOAT_VECTOR，1024）、text（TEXT，启用 analyzer）、category（VARCHAR，1020 UTF-8 字节；逻辑限 255 字符）和 sparse（SPARSE_FLOAT_VECTOR）。TEXT 选择基于当前服务/SDK 3.0.2，避免将 MySQL 合法长文本偷偷截成 VARCHAR 长度。
 
 text 与 Dense 嵌入输入同源：category、questions、answer 按现有 embedding_text 格式拼接，不加入 section_path、content_type、is_key_clause 或邻块指针。category 同时作为独立过滤字段保存。text 使用 analyzer_params={type: chinese}；挂 FunctionType.BM25 生成 sparse；稀疏索引使用 SPARSE_INVERTED_INDEX/BM25、DAAT_MAXSCORE，k1=1.2、b=0.75。Dense 延续 FLAT/COSINE，避免把索引近似误差引入本次四策略比较。
 
 初始化与启动核验字段、维度、函数、analyzer、索引与一致性。结构不兼容时报错，不删除重建已有同名集合。对中文夹英文/数字及带连字符型号运行真实 analyzer 和检索验证；不能仅由分词器名称推断型号一定命中。
+
+用户 2026-10-08 回复“继续啊”批准运行配置调整：Docker 的 standalone 通过 /milvus/configs/user.yaml 只读覆盖 common.storage.useLoonFFI=true 后重启，沿用 3.0.2 镜像、现有卷和集合。真实探测确认 TEXT/BM25 与旧 Dense 可用后继续。StorageV3 会用于新写入和后台压缩输出；关闭开关不立即还原数据，不当作版本降级/回滚。分类 VARCHAR 的 max_length 按 UTF-8 字节计数，因此预留 1020 字节以保持 MySQL 255 字符原文契约。这两项来自真实 API 核对，不换 BM25 或模型。
 
 ### 3.3 重建、切换与增量写入
 
@@ -66,7 +68,7 @@ Dense 和 BM25 每路 limit=50，hybrid_search 使用 RRFRanker(k=60)，融合 l
 
 严格校验重排 index 对应本轮候选、无重复、在范围内且分数为有限数；按分数从高到低选 Top-10，同分保持服务返回顺序，再关联 MySQL 权威原文。不同指标的原始分数不互相比较，RRF 分数不当成概率。重排置信度下限由独立校准样例选择，作为显式 RERANK_MIN_SCORE 配置；判断低分使用本轮最高重排分数，小于下限为低分，等于下限可进入模型内容自评。校准结果及选择方法写入报告，不能凭空声称某个固定值具有通用置信度。线上混合重排启用前必须配置该有限数阈值；校准命令自身不依赖已选阈值。
 
-增加 FAQ 单独超时：整条查询理解/嵌入/检索/重排链路上限 90 秒，重试为 0；改写 15 秒、嵌入 20 秒、Milvus 沿用 5 秒、重排 20 秒。其余工具保持既有超时及有限重试策略。模型充分性判断单独上限 20 秒；每轮总处理上限 240 秒，取消传播到底层客户端。SDK 不额外暗中重试。
+增加 FAQ 单独超时：整条查询理解/嵌入/检索/重排链路上限 90 秒，重试为 0；改写 15 秒、嵌入 20 秒、Milvus 沿用 5 秒、重排 20 秒。其余工具保持既有超时及有限重试策略。模型充分性判断单独上限 20 秒；每轮总处理上限 240 秒，取消传播到底层客户端。应用、模型和 SDK RPC 不额外重试。用户 2026-10-08 回复“继续啊”批准一个明确例外：保留 PyMilvus 3.0.2 无公开禁用选项的 Schema 缓存刷新重试，最多一次，写入仍使用相同主键；不声称严格一次物理 upsert。所有逻辑操作受取消感知的总超时约束。
 
 ## 5. 证据、生成与问题池
 
