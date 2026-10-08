@@ -8,6 +8,7 @@ from app.core.errors import ServiceError
 router = APIRouter()
 
 
+# 预检会话和输入后创建 SSE 响应，将读取故障转换为统一服务错误。
 @router.post("/api/chat")
 async def chat(payload: ChatRequest, request: Request) -> ManagedChatResponse:
     service = request.app.state.chat_service

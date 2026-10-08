@@ -1,6 +1,7 @@
 import pytest
 
 
+# 加载四张业务表的 ORM 映射，缺失实现时报告明确测试失败。
 def mappings():
     try:
         from app.db.models import Conversation, FAQ, Message, Ticket
@@ -9,6 +10,7 @@ def mappings():
     return Conversation, FAQ, Message, Ticket
 
 
+# 验证 ORM 字段、类型、可空性、主外键与索引符合业务 DDL。
 def test_mapping_matches_all_supplied_columns_and_constraints():
     Conversation, FAQ, Message, Ticket = mappings()
     expected = {
@@ -45,6 +47,7 @@ def test_mapping_matches_all_supplied_columns_and_constraints():
         assert {idx.name for idx in model.__table__.indexes} == {"idx_conversation_id"}
 
 
+# 验证中文状态枚举与数据库默认时间、自动更新时间的映射。
 def test_mapping_persists_chinese_enums_and_server_timestamps():
     Conversation, FAQ, Message, Ticket = mappings()
     assert Conversation.__table__.c.status.type.enums == ["进行中", "已转人工", "已结束"]
@@ -58,6 +61,7 @@ def test_mapping_persists_chinese_enums_and_server_timestamps():
         assert model.__table__.c.updated_at.server_onupdate is not None
 
 
+# 验证数据库为每次上下文创建不同的未启事务异步会话，并可释放连接池。
 @pytest.mark.asyncio
 async def test_database_provides_distinct_short_lived_sessions():
     try:

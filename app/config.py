@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     tool_timeout_seconds: float = Field(default=5.0, gt=0, validation_alias="TOOL_TIMEOUT_SECONDS")
     tool_max_retries: int = Field(default=1, ge=0, le=1, validation_alias="TOOL_MAX_RETRIES")
 
+    # 校验数据库密码并构造保留特殊字符的异步 MySQL 连接地址。
     @property
     def database_url(self) -> URL:
         # 使用 URL.create 保留原始密码，避免特殊字符被当作 URL 分隔符。
@@ -56,6 +57,7 @@ class Settings(BaseSettings):
             query={"charset": "utf8mb4"},
         )
 
+    # 拒绝全空白的模型名称，同时保留合法配置的原始值。
     @field_validator("llm_model")
     @classmethod
     def model_must_not_be_blank(cls, value: str) -> str:
@@ -63,6 +65,7 @@ class Settings(BaseSettings):
             raise ValueError("model must not be blank")
         return value
 
+    # 在整数转换前排除布尔值，避免把开关误当作 QA 输出预算。
     @field_validator('qa_max_output_tokens', mode='before')
     @classmethod
     def qa_output_budget_must_not_be_bool(cls, value):
@@ -70,6 +73,7 @@ class Settings(BaseSettings):
             raise ValueError('QA output budget must be a positive integer')
         return value
 
+    # 拒绝全空白的模型密钥，保持密钥包装类型不变。
     @field_validator("llm_api_key")
     @classmethod
     def api_key_must_not_be_blank(cls, value: SecretStr) -> SecretStr:
@@ -78,5 +82,6 @@ class Settings(BaseSettings):
         return value
 
 
+# 从指定环境文件和环境变量加载经过校验的应用配置。
 def load_settings(env_file: Path | str = ".env") -> Settings:
     return Settings(_env_file=env_file)

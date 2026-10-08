@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import event, select, text
 
 
+# 加载真实知识仓储，缺失实现时以明确断言失败替代导入错误。
 def repository(database):
     try:
         from app.repositories.knowledge import KnowledgeRepository
@@ -13,6 +14,7 @@ def repository(database):
     return KnowledgeRepository(database)
 
 
+# 加载与数据库连接绑定的任务锁入口。
 def lock():
     try:
         from app.knowledge.locking import job_lock
@@ -21,6 +23,7 @@ def lock():
     return job_lock
 
 
+# 验证分块邻接关系提交、完成状态幂等更新，以及按请求顺序回填向量编号。
 async def test_committed_pending_neighbors_and_done_backfill(knowledge_rows):
     from app.knowledge.types import ChunkDraft
     repo = repository(knowledge_rows.database)
@@ -38,6 +41,7 @@ async def test_committed_pending_neighbors_and_done_backfill(knowledge_rows):
     assert not set(ids) & {r.id for r in await repo.pending(limit=10000)}
 
 
+# 验证完成批次含不存在编号时整批回滚，已有分块仍保持待处理。
 async def test_mark_done_missing_id_rolls_back_existing_chunk(knowledge_rows):
     from app.knowledge.types import ChunkDraft
     repo = repository(knowledge_rows.database)
@@ -47,6 +51,7 @@ async def test_mark_done_missing_id_rolls_back_existing_chunk(knowledge_rows):
     assert await repo.get_done(ids) == []
 
 
+# 验证零、负数、布尔值及超出 INT64 的编号在状态更新与读取前被拒绝。
 @pytest.mark.parametrize("identifier", [0, -1, 9223372036854775808, True])
 async def test_vector_boundary_rejects_unsigned_overflow_before_marking(knowledge_rows, identifier):
     repo = repository(knowledge_rows.database)
@@ -56,6 +61,7 @@ async def test_vector_boundary_rejects_unsigned_overflow_before_marking(knowledg
         await repo.get_done([identifier])
 
 
+# 验证问答暂存与晋级原子提交，保留和丢弃状态正确且重复晋级不重复入库。
 async def test_stage_promote_is_committed_atomic_and_idempotent(knowledge_rows):
     from app.db.models import QAExtractionStaging
     from app.knowledge.types import ExtractedQA
@@ -81,12 +87,14 @@ async def test_stage_promote_is_committed_atomic_and_idempotent(knowledge_rows):
         assert [r.status for r in states] == ["kept", "discarded"]
 
 
+# 验证知识插入后暂存状态更新失败时，两者一同回滚。
 async def test_promote_failure_after_insert_rolls_back_status_and_chunk(knowledge_rows):
     from app.knowledge.types import ExtractedQA
     repo = repository(knowledge_rows.database)
     token = knowledge_rows.token
     await repo.stage(token, [ExtractedQA("test", token + "回滚", "答")])
     row = next(r for r in await repo.extracted() if r.batch_no == token)
+    # 在暂存表更新前注入异常，精确模拟知识已插入但晋级尚未提交的故障。
     def fail_update(conn, cursor, statement, parameters, context, executemany):
         if statement.lstrip().upper().startswith("UPDATE QA_EXTRACTION_STAGING"):
             raise RuntimeError("injected staging update failure")
@@ -100,6 +108,7 @@ async def test_promote_failure_after_insert_rolls_back_status_and_chunk(knowledg
     assert next(r for r in await repo.extracted() if r.id == row.id).status == "extracted"
 
 
+# 验证超长批次号及同一行同时保留与丢弃的冲突请求被拒绝。
 async def test_invalid_staging_batch_and_conflicting_promotion_are_rejected(knowledge_rows):
     from app.knowledge.types import ExtractedQA
     repo = repository(knowledge_rows.database)
@@ -109,6 +118,7 @@ async def test_invalid_staging_batch_and_conflicting_promotion_are_rejected(know
         await repo.promote([1], [1])
 
 
+# 验证任务锁跨连接互斥，任务体抛错后锁仍可重新获取。
 async def test_job_lock_two_connections_are_exclusive_and_exception_releases(mysql_database):
     job_lock = lock()
     with pytest.raises(RuntimeError, match="body"):
@@ -124,9 +134,11 @@ async def test_job_lock_two_connections_are_exclusive_and_exception_releases(mys
         pass
 
 
+# 验证服务端已加锁但客户端确认失败时使连接失效，避免锁滞留在连接池。
 async def test_server_acquired_lock_then_client_failure_invalidates_connection(mysql_database):
     job_lock = lock()
     name = "ch03:" + hashlib.sha256(b"customer_service_test").hexdigest()[:48]
+    # 在 GET_LOCK 已执行后抛错，模拟成功加锁的确认响应丢失。
     def fail_after_acquisition(conn, cursor, statement, parameters, context, executemany):
         if "GET_LOCK" in statement:
             raise RuntimeError("acquisition acknowledgement lost")
@@ -142,6 +154,7 @@ async def test_server_acquired_lock_then_client_failure_invalidates_connection(m
         assert await session.scalar(text("SELECT IS_FREE_LOCK(:name)"), {"name": name}) == 1
 
 
+# 验证数据库自增编号越过 INT64 后新增分块回滚，已有知识保持完整。
 async def test_inserted_unsigned_id_overflow_rolls_back(migration_database):
     from app.knowledge.migration import migrate
     from app.knowledge.types import ChunkDraft
@@ -154,9 +167,11 @@ async def test_inserted_unsigned_id_overflow_rolls_back(migration_database):
     assert await repo.qa_pairs() == [("existing", "answer")]
 
 
+# 验证持锁任务被取消后释放连接锁，使后续任务仍能进入。
 async def test_cancelled_job_releases_connection_lock(mysql_database):
     job_lock = lock()
     entered = asyncio.Event()
+    # 取得真实任务锁后发出进入信号并等待取消，以核对取消清理路径。
     async def job():
         async with job_lock(mysql_database):
             entered.set()
@@ -170,10 +185,12 @@ async def test_cancelled_job_releases_connection_lock(mysql_database):
         pass
 
 
+# 验证释放返回零或抛错时丢弃仍持锁的连接，后续新连接能够加锁。
 @pytest.mark.parametrize("failure", ["zero", "exception"])
 async def test_failed_release_invalidates_still_locked_connection(mysql_database, failure):
     job_lock = lock()
     name = "ch03:" + hashlib.sha256(b"customer_service_test").hexdigest()[:48]
+    # 替换释放语句或注入异常，模拟锁未释放但连接即将回池的危险边界。
     def sabotage_release(conn, cursor, statement, parameters, context, executemany):
         if "RELEASE_LOCK" in statement:
             if failure == "exception":
@@ -197,6 +214,7 @@ async def test_failed_release_invalidates_still_locked_connection(mysql_database
         pass
 
 
+# 验证释放锁被阻塞时再次取消不会中断清理，最终仍能重新获取锁。
 async def test_second_cancellation_during_release_waits_for_cleanup(mysql_database, monkeypatch):
     from sqlalchemy.ext.asyncio import AsyncConnection
     job_lock = lock()
@@ -204,12 +222,14 @@ async def test_second_cancellation_during_release_waits_for_cleanup(mysql_databa
     releasing = asyncio.Event()
     allow_release = asyncio.Event()
     original = AsyncConnection.scalar
+    # 在 RELEASE_LOCK 执行前等待测试信号，为第二次取消制造可控的清理窗口。
     async def delayed_scalar(self, statement, *args, **kwargs):
         if "RELEASE_LOCK" in str(statement):
             releasing.set()
             await allow_release.wait()
         return await original(self, statement, *args, **kwargs)
     monkeypatch.setattr(AsyncConnection, "scalar", delayed_scalar)
+    # 持锁后发出同步信号并等待取消，确保测试在已加锁状态触发清理。
     async def job():
         async with job_lock(mysql_database):
             entered.set()
@@ -226,6 +246,7 @@ async def test_second_cancellation_during_release_waits_for_cleanup(mysql_databa
         pass
 
 
+# 验证暂存输入内部重复及已作保留或丢弃决定的重放均不重复插入。
 async def test_stage_replay_including_decided_rows_does_not_insert_duplicates(knowledge_rows):
     from app.db.models import QAExtractionStaging
     from app.knowledge.types import ExtractedQA
@@ -243,6 +264,7 @@ async def test_stage_replay_including_decided_rows_does_not_insert_duplicates(kn
     assert states == ['kept', 'discarded']
 
 
+# 验证北京时间半开日期窗口正确映射 UTC 存储，并只分页返回已结束会话。
 async def test_history_beijing_window_converts_utc_storage_and_pages_completed(mysql_database):
     from datetime import datetime, timezone
     from uuid import uuid4
@@ -289,6 +311,7 @@ async def test_history_beijing_window_converts_utc_storage_and_pages_completed(m
             await session.execute(text('DELETE FROM conversations WHERE user_id=:token'), {'token': token})
 
 
+# 验证真实数据库挖掘按规范化问答全局去重、保留不同答案，并保证同窗口重放幂等。
 async def test_real_mining_normalized_global_dedup_conflicts_and_window_replay(migration_database):
     from app.knowledge.migration import migrate
     from app.knowledge.mining import ConversationMiningJob
@@ -298,6 +321,7 @@ async def test_real_mining_normalized_global_dedup_conflicts_and_window_replay(m
     repo = repository(migration_database)
     await repo.add_chunks([ChunkDraft('synthetic', '已经入库?', '答案')])
     class Extractor:
+        # 为不同会话返回空白和标点变体、冲突答案及已入库问答，构造跨页去重场景。
         async def extract(self, conversations):
             choices = {1: [('　邮费多少？\n', '标准配送  8元。'), ('邮费多少?', '标准配送 8元。')],
                 2: [('邮费多少？', '标准配送 8元。'), ('邮费多少？', '标准配送12元。')],
@@ -306,6 +330,7 @@ async def test_real_mining_normalized_global_dedup_conflicts_and_window_replay(m
     async with lock()(migration_database):
         job = ConversationMiningJob(History(), repo, Extractor())
         assert await job.run(START, END, 1) == {'conversations': 3, 'staged': 5, 'kept': 2, 'discarded': 3}
+        # 重跑同一挖掘窗口并返回新增保留数，便于核对重放幂等性。
         async def rerun_same_window():
             return (await job.run(START, END, 1))['kept']
         assert await rerun_same_window() == 0

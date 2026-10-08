@@ -4,6 +4,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 
+# 验证不同会话的已完成轮次相互隔离，新会话历史为空。
 def test_sessions_keep_independent_completed_turns():
     from app.core.memory import SessionStore
 
@@ -16,6 +17,7 @@ def test_sessions_keep_independent_completed_turns():
     assert store.snapshot("second") == ()
 
 
+# 验证同一会话租约未释放时返回忙碌错误，释放后可重新取得。
 def test_same_session_is_busy_until_release():
     from app.core.errors import SessionBusy
     from app.core.memory import SessionStore
@@ -30,6 +32,7 @@ def test_same_session_is_busy_until_release():
     assert store.acquire("session").history == ()
 
 
+# 验证未提交就释放的新轮次不会覆盖之前的完整历史。
 def test_release_without_commit_preserves_previous_history():
     from app.core.memory import SessionStore
 
@@ -42,6 +45,7 @@ def test_release_without_commit_preserves_previous_history():
     assert [m.content for m in store.snapshot("session")] == ["one", "answer"]
 
 
+# 验证提交可以用裁剪后的完整轮次加新轮次替换历史。
 def test_commit_replaces_history_with_retained_completed_turns():
     from app.core.memory import SessionStore
 
@@ -54,6 +58,7 @@ def test_commit_replaces_history_with_retained_completed_turns():
     assert [m.content for m in store.snapshot("session")] == ["one", "1", "two", "2"]
 
 
+# 验证输入消息、租约历史与快照均隔离拷贝，租约身份也不可修改。
 def test_lease_and_snapshots_cannot_change_stored_history():
     from app.core.memory import SessionStore
 
@@ -73,6 +78,7 @@ def test_lease_and_snapshots_cannot_change_stored_history():
     assert [m.content for m in store.snapshot("session")] == ["question", "answer"]
 
 
+# 验证旧租约重复释放幂等，且不能误释放同会话的新租约。
 def test_old_release_is_idempotent_and_cannot_release_new_lease():
     from app.core.errors import SessionBusy
     from app.core.memory import SessionStore
@@ -89,6 +95,7 @@ def test_old_release_is_idempotent_and_cannot_release_new_lease():
     store.acquire("session")
 
 
+# 验证过期或其他存储实例的租约不能提交并改变历史。
 def test_stale_and_foreign_commits_cannot_change_history():
     from app.core.memory import SessionStore
 
@@ -103,6 +110,7 @@ def test_stale_and_foreign_commits_cannot_change_history():
     assert store.snapshot("session") == ()
 
 
+# 验证半轮、孤立回答、错误角色或顺序的消息批次整批拒绝，不部分提交。
 @pytest.mark.parametrize("messages", [
     [HumanMessage("half")],
     [AIMessage("orphan"), HumanMessage("wrong order")],

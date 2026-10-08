@@ -25,11 +25,13 @@ class PreparedChat:
 
 
 class ChatService:
+    # 保存纯文本聊天所需的模型、内存会话仓储和输入预算。
     def __init__(self, model: Any, memory: SessionStore, input_budget: int):
         self.model = model
         self.memory = memory
         self.input_budget = input_budget
 
+    # 取得会话凭证并裁剪历史；预处理失败时立即归还凭证。
     def prepare(self, session_id: str, message: str) -> PreparedChat:
         lease = self.memory.acquire(session_id)
         try:
@@ -41,6 +43,7 @@ class ChatService:
             self.memory.release(lease)
             raise
 
+    # 流式输出文本，仅在正常且非空的回复结束后准备可提交的历史。
     async def stream(self, prepared: PreparedChat) -> AsyncIterator[StreamEvent]:
         parts = []
         finish_reasons = set()
@@ -71,11 +74,14 @@ class ChatService:
         elif finish_reasons != {"stop"}:
             yield StreamEvent("error", {"code": "upstream_error", "message": "模型回复未正常完成，请稍后重试。"})
         else:
+            # 这里只准备完整历史，实际保存由调用方显式 commit 完成。
             prepared.pending_completed = [*prepared.messages[1:], AIMessage(content=answer)]
             yield StreamEvent("done", {"session_id": prepared.lease.session_id})
 
+    # 将已准备的完整对话历史提交到当前会话的内存仓储。
     def commit(self, prepared: PreparedChat) -> None:
         self.memory.commit(prepared.lease, prepared.pending_completed)
 
+    # 归还此次聊天持有的会话占用凭证。
     def release(self, prepared: PreparedChat) -> None:
         self.memory.release(prepared.lease)

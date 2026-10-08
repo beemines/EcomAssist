@@ -2,10 +2,12 @@ import pytest
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 
+# 按消息内容的 UTF-8 字节数计费，让预算边界测试可精确预测。
 def text_counter(messages: list[BaseMessage]) -> int:
     return sum(len(m.content.encode("utf-8")) for m in messages)
 
 
+# 验证估算包含中文和表情字节及每条消息的固定开销。
 def test_estimate_counts_utf8_bytes_and_per_message_overhead():
     from app.core.memory import estimate_tokens
 
@@ -14,6 +16,7 @@ def test_estimate_counts_utf8_bytes_and_per_message_overhead():
     assert estimate_tokens([HumanMessage("")]) == 12
 
 
+# 验证系统与当前用户消息恰好满足预算时通过，预算少一单位时返回输入超限。
 @pytest.mark.parametrize("system,current,budget", [("s", "q", 2), ("中", "🙂", 7)])
 def test_required_messages_fit_exact_budget_and_fail_one_below(system, current, budget):
     from app.core.errors import InputTooLong
@@ -27,6 +30,7 @@ def test_required_messages_fit_exact_budget_and_fail_one_below(system, current, 
     assert caught.value.code == "input_too_long"
 
 
+# 验证裁剪优先保留最近完整轮次与当前原文，并且不修改调用方历史。
 @pytest.mark.parametrize("budget,expected", [
     (19, ["s", "old", "reply", "new", "answer", "q"]),
     (11, ["s", "new", "answer", "q"]),
@@ -44,6 +48,7 @@ def test_trimming_keeps_recent_whole_turns_and_current_original(budget, expected
     assert [m.content for m in history] == ["old", "reply", "new", "answer"]
 
 
+# 验证默认估算裁剪历史时保留当前中文、表情与空白内容。
 def test_default_estimator_preserves_chinese_emoji_and_whitespace():
     from app.core.memory import estimate_tokens, prepare_messages
 
@@ -53,6 +58,7 @@ def test_default_estimator_preserves_chinese_emoji_and_whitespace():
     assert estimate_tokens(prepared) == 33
 
 
+# 验证孤立或不完整轮次及错误角色历史被拒绝，原历史仍保持不变。
 @pytest.mark.parametrize("history", [[AIMessage("orphan")], [HumanMessage("half")], [SystemMessage("bad"), AIMessage("bad")]])
 def test_budget_rejects_invalid_history_without_mutating_it(history):
     from app.core.memory import prepare_messages

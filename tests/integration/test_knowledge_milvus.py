@@ -12,6 +12,7 @@ from app.repositories.knowledge import KnowledgeRepository
 from tests.ch03_fakes import RecordingEmbedder
 
 
+# 验证真实 Milvus 按主键覆盖写入、强一致检索与既有结构复查，并保留外部客户端所有权。
 async def test_real_primary_key_upsert_strong_search_and_existing_schema(milvus_collection):
     service = milvus_collection
     index = MilvusIndex(service.uri, collection=service.name, client=service.client)
@@ -30,6 +31,7 @@ async def test_real_primary_key_upsert_strong_search_and_existing_schema(milvus_
     assert await service.client.has_collection(service.name, timeout=5)
 
 
+# 验证维度、度量、索引、自动主键、动态字段或一致性配置漂移被拒绝。
 @pytest.mark.parametrize('drift', ['dimension', 'metric', 'index', 'auto-id', 'dynamic', 'consistency'])
 async def test_real_schema_drift_is_rejected(milvus_collection, drift):
     service = milvus_collection
@@ -43,10 +45,12 @@ async def test_real_schema_drift_is_rejected(milvus_collection, drift):
         await MilvusIndex(service.uri, collection=service.name, client=service.client).ensure_collection()
 
 
+# 验证嵌入失败、完成提交失败或向量写后取消后可恢复，且不会生成重复向量。
 @pytest.mark.parametrize('failure', ['embed', 'mark', 'cancel'])
 async def test_real_mysql_pending_resumes_after_failure_without_duplicate_vectors(knowledge_rows, milvus_collection, failure):
     # Isolate reads to only the fixture-owned rows, preserving any other pending jobs.
     class OwnedRepository(KnowledgeRepository):
+        # 仅读取本 fixture 标记的待处理行，防止恢复测试消费其他待向量化任务。
         async def pending(self, limit=20):
             async with self.database.session() as session:
                 rows = (await session.scalars(select(KnowledgeChunk).where(KnowledgeChunk.category == knowledge_rows.token, KnowledgeChunk.vectorize_status == 'pending').order_by(KnowledgeChunk.id).limit(limit))).all()
@@ -58,12 +62,15 @@ async def test_real_mysql_pending_resumes_after_failure_without_duplicate_vector
     index = MilvusIndex(service.uri, collection=service.name, client=service.client)
     embedder = RecordingEmbedder()
     engine = knowledge_rows.database.engine.sync_engine
+    # 在更新知识完成状态前注入事务故障，以检验向量已写入但 SQL 未提交时的恢复。
     def fail_mark(conn, cursor, statement, parameters, context, executemany):
         if statement.lstrip().upper().startswith('UPDATE KNOWLEDGE_CHUNKS'):
             raise RuntimeError('synthetic transaction failure')
     class FailEmbedder:
+        # 直接抛出嵌入故障，模拟向量写入前被中断的处理批次。
         async def embed(self, texts): raise RuntimeError('synthetic embedding interruption')
     class CancelAfterWrite:
+        # 先写入真实向量再传播取消，模拟向量与 SQL 完成状态之间的中断边界。
         async def upsert(self, rows):
             await index.upsert(rows)
             raise asyncio.CancelledError()

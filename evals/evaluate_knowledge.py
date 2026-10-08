@@ -1,3 +1,4 @@
+# 使用已提交的合成文档和独立测试资源，分别验收 Dense 召回与应用聊天链路。
 """Actual BGE dense retrieval plus one real application/SSE/persistence acceptance.
 
 Only committed synthetic demo documents and a new demo conversation are used.
@@ -31,6 +32,8 @@ from evals.knowledge_recovery import OwnedRepository, attempt_cleanup, test_sett
 from evals.smoke import chat_round, create_conversation
 
 
+# 用标注问题执行真实 Dense 召回，按目标章节计算命中并记录耗时。
+# 域外问题预期为空；召回命中与最终回答质量在报告中分开统计。
 async def evaluate_retrieval(faq, cases, sections_by_id):
     records = [{**case, 'expected_hit_ids': sorted(i for i, section in sections_by_id.items()
         if section in case['expected_sections']), 'actual_hit_ids': [], 'tool_result': None,
@@ -45,7 +48,7 @@ async def evaluate_retrieval(faq, cases, sections_by_id):
         report['not_attempted'] -= 1
         started = monotonic()
         try:
-            # Send the literal annotated query; no rewrite, keyword branch or fallback.
+            # 原样发送标注问题，才能测到当前 Dense 单路的召回能力。
             matches = await faq.search(record['query'])
             actual = [match['id'] for match in matches]
             record.update(actual_hit_ids=actual, actual_sections=[sections_by_id.get(i) for i in actual],
@@ -61,6 +64,8 @@ async def evaluate_retrieval(faq, cases, sections_by_id):
     return report
 
 
+# 通过应用生命周期及聊天 API 验证 FAQ 召回、SSE 和最终消息持久化。
+# 这里的 ASGITransport 会缓冲 SSE；该结果不能代替浏览器逐帧检查。
 async def evaluate_app(settings, database, faq, expected_ids, user_id):
     repository = ConversationRepository(database)
     app = create_app(settings, database=database, repository=repository, faq_repository=faq)
@@ -121,6 +126,8 @@ async def evaluate_app(settings, database, faq, expected_ids, user_id):
     return result
 
 
+# 在隔离集合与测试库导入合成知识，先验向量维度，再验召回与聊天链路。
+# 本轮创建的知识、会话和集合均登记清理；清理失败也会使验收失败。
 async def evaluate(cases):
     database = None
     collection = 'knowledge_test_' + uuid4().hex
@@ -143,7 +150,7 @@ async def evaluate(cases):
             index = MilvusIndex(str(settings.milvus_uri), collection=collection, timeout=settings.milvus_timeout_seconds)
             resources.push_async_callback(attempt_cleanup, report['cleanup_errors'], 'index_close', index.aclose)
             try:
-                # Actual cloud shape and full schema/index validation precede imports.
+                # 导入前先验证真实嵌入维度以及集合、索引结构，尽早识别外部前提不满足。
                 probe = await embedder.embed(['邮费是多少'])
                 report['actual_embedding_dimensions'] = len(probe[0])
                 await index.ensure_collection()
@@ -174,7 +181,7 @@ async def evaluate(cases):
             except Exception as exc:
                 report.update(error_code='acceptance_failed', error_type=type(exc).__name__)
             finally:
-                # Only ids returned from this import and this unguessable demo user are owned.
+                # 只删除本次合成用户的会话流水、工单，以及本次导入返回的知识主键。
                 async def clean_rows():
                     async with database.session() as session, session.begin():
                         conversation_ids = list((await session.scalars(select(Conversation.id)
@@ -184,6 +191,7 @@ async def evaluate(cases):
                         await session.execute(delete(Conversation).where(Conversation.id.in_(conversation_ids)))
                         await session.execute(delete(KnowledgeChunk).where(KnowledgeChunk.id.in_(ids)))
                 await attempt_cleanup(report['cleanup_errors'], 'mysql_rows_and_conversation', clean_rows)
+                # 检查并删除本次随机命名的 Milvus 集合，保留其他任务的数据。
                 async def clean_collection():
                     if await index._client.has_collection(collection, timeout=index.timeout):
                         await index._client.drop_collection(collection, timeout=index.timeout)
@@ -200,6 +208,7 @@ async def evaluate(cases):
     return report
 
 
+# 解析知识评估参数，保存报告与摘要，用退出码表示必需场景是否通过。
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cases', type=Path, default=Path('evals/knowledge_cases.jsonl'))

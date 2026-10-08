@@ -7,11 +7,13 @@ from app.knowledge.extraction import QAResult
 from evals.evaluate_qa import evaluate, score
 
 
+# 从问答评测数据中读取不同原始问法的来源配对样本。
 def paraphrases_case():
     return next(json.loads(line) for line in Path('evals/qa_extraction_cases.jsonl').read_text(encoding='utf-8').splitlines()
         if json.loads(line)['id'] == 'distinct_phrasings')
 
 
+# 验证问法缺失、改写、来源错配或答案改变都会让精确规范化问答评分失败。
 @pytest.mark.parametrize('mutation', ['missing', 'rewritten', 'wrong_source', 'swapped_source', 'wrong_answer'])
 def test_distinct_source_phrasings_requires_both_exact_normalized_questions_and_paired_sources(mutation):
     case = paraphrases_case()
@@ -24,6 +26,7 @@ def test_distinct_source_phrasings_requires_both_exact_normalized_questions_and_
     assert score(case, QAResult.model_validate({'qas': output}).qas) is False
 
 
+# 验证规范化原问法可通过，受控评测保留原八类并完整通过新增第九类。
 async def test_controlled_nine_labels_preserves_original_eight_and_accepts_normalized_source_phrasings():
     case = paraphrases_case()
     output = [dict(item) for item in case['controlled_output']]

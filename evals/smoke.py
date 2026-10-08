@@ -21,6 +21,7 @@ EXTRACT_TEXT = "订单 20261005001 的杯子收到就碎了，我想退货退款
 EXTRACT_EXPECTED = {"order_id": ORDER, "request_type": "return_refund", "expected_solution": "退货退款"}
 
 
+# 调用会话创建接口并校验规范十进制字符串身份，返回安全错误分类。
 async def create_conversation(client, base_url, user_id) -> dict:
     from app.repositories.conversations import _conversation_id
     result = {"conversation_id": None, "status_code": None, "error_code": None}
@@ -45,6 +46,8 @@ async def create_conversation(client, base_url, user_id) -> dict:
     return result
 
 
+# 读取一轮聊天 SSE，统计非空片段、首字延迟及唯一且匹配的 done 帧。
+# 网络 EOF 本身不表示成功；帧格式、身份和结束顺序都要通过校验。
 async def chat_round(client, base_url, conversation_id, message, *, min_deltas=2) -> dict:
     result = {"status_code": None, "events": [], "deltas": [], "text": "", "nonempty_delta_count": 0,
               "done_count": 0, "first_delta_seconds": None, "error_code": None}
@@ -54,6 +57,7 @@ async def chat_round(client, base_url, conversation_id, message, *, min_deltas=2
     frame_lines = []
     protocol_errors = []
 
+    # 解析已收齐的一帧 SSE，累计状态与正文并记录终止后的协议异常。
     def consume_frame():
         event = None
         data_lines = []
@@ -139,6 +143,8 @@ async def chat_round(client, base_url, conversation_id, message, *, min_deltas=2
     return result
 
 
+# 创建独立会话，依次验证首轮回复、订单号上下文和售后结构化提取。
+# 前一环节失败就不再发后续验收请求，报告中保留未尝试状态。
 async def smoke(base_url: str, output_path: Path, *, http_client: httpx.AsyncClient | None = None) -> dict:
     user_id = "smoke-" + uuid4().hex
     owns_client = http_client is None
@@ -180,6 +186,7 @@ async def smoke(base_url: str, output_path: Path, *, http_client: httpx.AsyncCli
     return report
 
 
+# 解析服务地址与报告路径，运行冒烟验收并写入明确的配置身份信息。
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")

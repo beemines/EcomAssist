@@ -1,3 +1,4 @@
+# Milvus 仅保存知识 id 与 1024 维向量，正文及状态留在 MySQL。
 """PyMilvus 3.0.2 adapter with an explicit, verified dense collection."""
 
 import math
@@ -9,6 +10,7 @@ from app.knowledge.embeddings import validate_vector
 from app.knowledge.types import VectorHit, validate_id
 
 
+# 校验向量回包主键类型、数量和唯一性，要求与请求主键集合完全一致而不依赖回包顺序。
 def validate_acknowledged_ids(actual: list[int], expected: list[int]) -> None:
     if not isinstance(actual, list):
         raise ValueError('vector upsert did not return primary keys')
@@ -19,23 +21,27 @@ def validate_acknowledged_ids(actual: list[int], expected: list[int]) -> None:
 
 
 class MilvusIndex:
+    # 校验有限正超时并保存集合配置，记录客户端归属以及集合是否已完成校验。
     def __init__(self, uri: str, *, collection: str = 'knowledge', client=None, timeout: float = 5):
         if isinstance(timeout, bool) or not math.isfinite(timeout) or timeout <= 0:
             raise ValueError('Milvus timeout must be positive and finite')
         self.collection = collection
         self.timeout = timeout
         self._owns_client = client is None
-        # Installed 3.0.2 constructor is lazy; no synchronous network I/O here.
+        # 当前 3.0.2 客户端构造器延迟连接，此处不会同步访问网络。
         self._client = client if client is not None else AsyncMilvusClient(uri=uri, timeout=timeout)
         self._ready = False
 
+    # 创建或严格核验两字段、1024 维的集合及 FLAT/COSINE 索引，加载后才标记可用。
     async def ensure_collection(self) -> None:
         client = self._client
         if not await client.has_collection(self.collection, timeout=self.timeout):
+            # 固定为显式 INT64 主键和 1024 维向量，禁用自动 id 与动态字段。
             schema = AsyncMilvusClient.create_schema(auto_id=False, enable_dynamic_field=False)
             schema.add_field('id', DataType.INT64, is_primary=True, auto_id=False)
             schema.add_field('embedding', DataType.FLOAT_VECTOR, dim=1024)
             indexes = AsyncMilvusClient.prepare_index_params()
+            # FLAT 精确检索采用余弦相似度，集合和查询都使用 Strong 一致性。
             indexes.add_index(field_name='embedding', index_name='embedding', index_type='FLAT', metric_type='COSINE', params={})
             await client.create_collection(self.collection, schema=schema, index_params=indexes,
                                            consistency_level='Strong', timeout=self.timeout)
@@ -43,6 +49,7 @@ class MilvusIndex:
         fields = description.get('fields', [])
         by_name = {field.get('name'): field for field in fields}
         primary, vector = by_name.get('id', {}), by_name.get('embedding', {})
+        # Milvus 描述中的一致性枚举值 0 对应 Strong；现有集合不匹配时不自动修补。
         if (len(fields) != 2 or set(by_name) != {'id', 'embedding'}
                 or description.get('auto_id') is not False
                 or description.get('enable_dynamic_field') is not False
@@ -64,6 +71,7 @@ class MilvusIndex:
         await client.load_collection(self.collection, timeout=self.timeout)
         self._ready = True
 
+    # 校验主键与向量并幂等写入，只有服务端计数和主键回包都匹配才返回成功。
     async def upsert(self, rows: list[tuple[int, list[float]]]) -> list[int]:
         identifiers, data = [], []
         for identifier, vector in rows:
@@ -80,13 +88,14 @@ class MilvusIndex:
         if not isinstance(result, dict) or type(result.get('upsert_count')) is not int or result['upsert_count'] != len(rows):
             raise ValueError('vector upsert count differs from requested rows')
         actual = result.get('ids')
-        # 3.0.2 exposes protobuf RepeatedScalarContainer, which is a Sequence.
+        # 3.0.2 返回 protobuf 的序列容器，转成列表后统一核验确认主键。
         if not isinstance(actual, Sequence) or isinstance(actual, (str, bytes)):
             raise ValueError('vector upsert did not return primary keys')
         actual = list(actual)
         validate_acknowledged_ids(actual, identifiers)
         return actual
 
+    # 用 Strong 一致性做 COSINE 检索，限制最多三条并校验回包主键及有限分数。
     async def search(self, vector: list[float], limit: int = 3) -> list[VectorHit]:
         vector = validate_vector(vector)
         if type(limit) is not int or not 1 <= limit <= 3:
@@ -108,6 +117,7 @@ class MilvusIndex:
             hits.append(VectorHit(identifier, float(score)))
         return hits
 
+    # 只关闭内部创建的 Milvus 客户端，保留外部注入客户端的生命周期。
     async def aclose(self) -> None:
         if self._owns_client:
             await self._client.close()

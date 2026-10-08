@@ -27,10 +27,12 @@ _ERROR_MESSAGES = {
 }
 
 
+# 生成只含安全业务提示及尝试次数的工具失败结果。
 def _error(code: str, attempts: int) -> ToolOutcome:
     return ToolOutcome({"error": {"code": code, "message": _ERROR_MESSAGES[code]}}, "error", attempts)
 
 
+# 识别可重试的暂时连接故障，排除一般 SQL 和约束错误。
 def _temporary_connection_error(exc: Exception) -> bool:
     if isinstance(exc, ConnectionError):
         return True
@@ -44,6 +46,7 @@ def _temporary_connection_error(exc: Exception) -> bool:
 class ToolExecutor:
     """每次逻辑调用至多重试一次；取消直接传播，结果只含安全业务数据。"""
 
+    # 校验有限正超时和至多一次重试的配置。
     def __init__(self, timeout_seconds: float = 5, max_retries: int = 1):
         if isinstance(timeout_seconds, bool) or not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
             raise ValueError("Timeout must be finite and positive.")
@@ -52,6 +55,7 @@ class ToolExecutor:
         self.timeout_seconds = timeout_seconds
         self.max_retries = max_retries
 
+    # 校验完整工具参数、注入可信调用标识，并在有限重试内执行同一次逻辑调用。
     async def execute(self, call: ToolCall, registry: Mapping[str, BaseTool]) -> ToolOutcome:
         tool = registry.get(call.name)
         if tool is None:
@@ -61,6 +65,7 @@ class ToolExecutor:
         try:
             schema = tool.get_input_schema()
             hidden = {name for name, field in schema.model_fields.items() if any(marker is InjectedToolCallId or isinstance(marker, InjectedToolCallId) for marker in field.metadata)}
+            # 模型参数不得包含隐藏字段，调用标识只能取自本次已校验的申请。
             if hidden.intersection(call.args):
                 return _error("invalid_arguments", 0)
             # 全参数模型保留 strict/forbid；LangChain 的模型可见子模型不保留所有配置。
@@ -92,6 +97,7 @@ class ToolExecutor:
                 # 最后一次尝试也必须传播取消，不能落入终止错误结果。
                 if task is not None and task.cancelling():
                     raise asyncio.CancelledError() from None
+                # 仅超时或暂时失联可重试；参数、业务冲突和其他执行错误直接返回。
                 if isinstance(exc, TimeoutError):
                     code, retry = "tool_timeout", True
                 elif _temporary_connection_error(exc):

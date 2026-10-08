@@ -10,6 +10,7 @@ class Base(DeclarativeBase):
     """只映射已有表；建表始终由用户提供的 sql/schema.sql 执行。"""
 
 
+# 会话主表保存用户归属、生命周期状态及数据库生成的时间。
 class Conversation(Base):
     __tablename__ = "conversations"
     __table_args__ = (Index("idx_user_id", "user_id"), {"mysql_engine": "InnoDB", "mysql_charset": "utf8mb4", "comment": "客服会话"})
@@ -21,6 +22,7 @@ class Conversation(Base):
     updated_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"), server_onupdate=FetchedValue(), comment="更新时间")
 
 
+# 消息流水保留工具申请和结果关联标识，支撑审计与完整轮次回放。
 class Message(Base):
     __tablename__ = "messages"
     __table_args__ = (Index("idx_conversation_id", "conversation_id"), {"mysql_engine": "InnoDB", "mysql_charset": "utf8mb4", "comment": "会话消息流水"})
@@ -34,6 +36,7 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"), comment="产生时间")
 
 
+# 映射既有 FAQ 表的原始问答与分类字段。
 class FAQ(Base):
     __tablename__ = "faq"
     __table_args__ = (Index("idx_category", "category"), {"mysql_engine": "InnoDB", "mysql_charset": "utf8mb4", "comment": "常见问答"})
@@ -46,6 +49,7 @@ class FAQ(Base):
     updated_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"), server_onupdate=FetchedValue(), comment="更新时间")
 
 
+# 人工工单使用稳定业务编号作为主键，与会话关联供追溯。
 class Ticket(Base):
     __tablename__ = "tickets"
     __table_args__ = (Index("idx_conversation_id", "conversation_id"), {"mysql_engine": "InnoDB", "mysql_charset": "utf8mb4", "comment": "人工工单"})
@@ -58,6 +62,7 @@ class Ticket(Base):
     created_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"), comment="创建时间")
 
 
+# 知识分块原文及向量化状态由 MySQL 保存，主键与向量索引对应。
 class KnowledgeChunk(Base):
     __tablename__ = "knowledge_chunks"
     __table_args__ = (Index("idx_category", "category"), Index("idx_vectorize_status", "vectorize_status"), {"mysql_engine": "InnoDB", "mysql_charset": "utf8mb4", "comment": "知识库 chunk 原文权威源"})
@@ -77,6 +82,7 @@ class KnowledgeChunk(Base):
     updated_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"), server_onupdate=FetchedValue(), comment="更新时间")
 
 
+# 离线 QA 暂存表保留批次、来源和去重决策，便于重放及追溯。
 class QAExtractionStaging(Base):
     __tablename__ = "qa_extraction_staging"
     __table_args__ = (Index("idx_batch_no", "batch_no"), Index("idx_status", "status"), {"mysql_engine": "InnoDB", "mysql_charset": "utf8mb4", "comment": "历史对话抽 QA 的离线中转暂存表:分批抽取、整体去重,保留项入 knowledge_chunks,建库完成可清空"})

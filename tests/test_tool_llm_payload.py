@@ -7,9 +7,11 @@ from tests.tool_fakes import collect, setup_service
 from tests.fakes import fake_settings
 
 
+# 验证真实模型协议先绑定五个工具做单调用选择，再以匹配结果发起无工具最终流。
 async def test_real_model_wire_selects_five_tools_then_streams_without_tools():
     payloads = []
     settings = fake_settings()
+    # 核对选择与最终请求的协议字段和调用编号，并返回合成工具调用及正常流片段。
     def respond(request):
         assert str(request.url).endswith("/chat/completions")
         payload = json.loads(request.content)

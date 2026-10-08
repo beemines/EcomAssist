@@ -8,6 +8,7 @@ from app.core.memory import estimate_tokens
 from app.repositories.records import MessageRecord, message_from_record, record_from_message
 
 
+# 校验完整轮次或待回答轮次的角色顺序及单次工具申请与结果的对应关系。
 def _validate_turn(messages: Sequence[BaseMessage], *, pending: bool = False) -> None:
     if not messages or not isinstance(messages[0], HumanMessage):
         raise ValueError("A turn must start with a user message.")
@@ -29,6 +30,7 @@ def _validate_turn(messages: Sequence[BaseMessage], *, pending: bool = False) ->
     raise ValueError("History must contain a complete, matched single-tool turn.")
 
 
+# 按消息主键恢复完整轮次，跳过损坏、未完成和孤立的消息组合。
 def completed_turns(rows: Sequence[MessageRecord]) -> list[list[BaseMessage]]:
     """按主键回放；坏组停到下一 user，完整轮次后的孤立结果忽略。"""
     turns: list[list[BaseMessage]] = []
@@ -52,10 +54,12 @@ def completed_turns(rows: Sequence[MessageRecord]) -> list[list[BaseMessage]]:
     return turns
 
 
+# 用紧凑 UTF-8 JSON 的字节数估算工具结构的输入开销。
 def _serialized_size(value: object) -> int:
     return len(json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8"))
 
 
+# 合计正文与工具申请、结果关联标识的开销，避免只计算可见文本。
 def _message_size(messages: Sequence[BaseMessage]) -> int:
     total = estimate_tokens(list(messages))
     for message in messages:
@@ -67,6 +71,7 @@ def _message_size(messages: Sequence[BaseMessage]) -> int:
     return total
 
 
+# 检查必需输入预算，并按最旧优先移除完整历史轮次后组装模型消息。
 def build_tool_messages(
     system: SystemMessage,
     turns: Sequence[Sequence[BaseMessage]],
@@ -89,6 +94,7 @@ def build_tool_messages(
         _validate_turn(turn)
     # system 不属于数据库消息角色，单独沿用纯文本开销计数。
     schema_size = _serialized_size(tool_schema)
+    # 系统提示、当前问题、工具 Schema 和当前申请/结果是不可裁断的必需输入。
     required = estimate_tokens([system]) + _message_size([current, *pending]) + schema_size
     if required > budget:
         raise InputTooLong()
@@ -96,6 +102,7 @@ def build_tool_messages(
     costs = [_message_size(turn) for turn in kept]
     total = required + sum(costs)
     dropped = 0
+    # 以整轮为单位淘汰最旧历史，避免只保留工具申请或只保留工具结果。
     while total > budget and dropped < len(kept):
         total -= costs[dropped]
         dropped += 1

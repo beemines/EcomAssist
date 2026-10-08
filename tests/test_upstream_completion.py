@@ -9,6 +9,7 @@ from app.main import create_app
 from tests.fakes import FAQStub, ConversationStore, decode_sse, fake_settings
 
 
+# 验证只有明确正常 stop 才提交历史，EOF、DONE 或后续正常标记不能掩盖缺失与异常原因。
 @pytest.mark.parametrize("reasons, done_marker, terminal", [
     pytest.param([], False, "incomplete", id="missing-reason-eof-synthetic-last"),
     pytest.param([], True, "incomplete", id="done-marker-without-public-reason"),
@@ -31,6 +32,7 @@ async def test_factory_stream_requires_normal_completion_before_history_commit(
     await repository.seed("1", [HumanMessage(content="old"), AIMessage(content="answer")])
     requests = []
 
+    # 按参数返回指定结束原因与可选 DONE 标记的上游流，检查原历史和单工具选择配置。
     def respond(request):
         requests.append(request)
         assert str(request.url) == "https://upstream.invalid/v1/chat/completions"

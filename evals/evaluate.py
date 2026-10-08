@@ -19,6 +19,7 @@ REQUEST_DEADLINE_SECONDS = 75.0
 FIELDS = ("order_id", "request_type", "expected_solution")
 
 
+# 核对提取接口的 JSON 是否满足售后字段模型；结构错误返回 False。
 def valid_response(value) -> bool:
     if not isinstance(value, dict):
         return False
@@ -29,6 +30,8 @@ def valid_response(value) -> bool:
     return True
 
 
+# 逐样例对照人工标注，汇总字段准确率、缺失值处理和原文来源约束。
+# 接口失败与字段不匹配分别保留，便于区分服务兼容问题和模型质量问题。
 def score_cases(records: Sequence[dict]) -> dict:
     total = len(records)
     correct = dict.fromkeys(FIELDS, 0)
@@ -55,6 +58,7 @@ def score_cases(records: Sequence[dict]) -> dict:
                              ("invalid_response" if not valid else "label_or_source_mismatch"),
                              "mismatched_fields": mismatches, "source_constraint_ok": bool(source_ok)})
 
+    # 计算占比；没有可评估样本时返回 None，避免把无样本误报为零准确率。
     def rate(numerator, denominator):
         return numerator / denominator if denominator else None
 
@@ -66,6 +70,7 @@ def score_cases(records: Sequence[dict]) -> dict:
             "source_constraint_rate": rate(source_correct, total), "failures": failures}
 
 
+# 记录命令行声明的模型、上游和依赖版本，移除 URL 凭据及查询参数。
 def identity(*, configured_upstream=None, configured_model=None) -> dict:
     # 只使用命令行显式声明的信息，不读取 .env，也不将其称为供应方返回的身份。
     if configured_upstream:
@@ -80,11 +85,14 @@ def identity(*, configured_upstream=None, configured_model=None) -> dict:
             "versions": {name: version(name) for name in ("httpx", "langchain-openai", "openai")}}
 
 
+# 创建报告目录，以 UTF-8 保存完整 JSON 评估证据。
 def save_report(output_path: Path, report: dict) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+# 读取 JSONL 标注集，验证唯一 id、请求格式和标签对原文的引用。
+# 在发请求之前拒绝坏标注，避免把数据集错误算成模型失败。
 def read_cases(path: Path) -> list[dict]:
     cases = []
     seen = set()
@@ -110,6 +118,7 @@ def read_cases(path: Path) -> list[dict]:
     return cases
 
 
+# 在总超时内请求 /api/extract，将 HTTP、JSON、Schema 和网络错误归类。
 async def extract_request(client, base_url, text, *, deadline=REQUEST_DEADLINE_SECONDS) -> dict:
     record = {"status_code": None, "response": None, "error_code": None}
     try:
@@ -135,6 +144,8 @@ async def extract_request(client, base_url, text, *, deadline=REQUEST_DEADLINE_S
     return record
 
 
+# 逐条运行提取评估并保存报告；首条接口兼容性失败后停止真实请求。
+# 外部传入的客户端由调用方管理，仅关闭本函数创建的连接。
 async def evaluate(base_url: str, cases_path: Path, output_path: Path, *, http_client: httpx.AsyncClient | None = None) -> dict:
     cases = read_cases(cases_path)
     owns_client = http_client is None
@@ -163,6 +174,7 @@ async def evaluate(base_url: str, cases_path: Path, output_path: Path, *, http_c
     return report
 
 
+# 解析评估命令行参数，执行评估并用退出码反映验收结果。
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")

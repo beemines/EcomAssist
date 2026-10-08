@@ -8,6 +8,7 @@ from sqlalchemy import delete, select, update
 from app.db.models import Conversation, Message
 
 
+# 登记测试专属会话主键，并在结束后仅删除这些会话及其消息。
 @pytest_asyncio.fixture
 async def owned_conversations(mysql_database):
     # 只清理本用例创建的主键，不影响种子和其他测试数据。
@@ -19,6 +20,7 @@ async def owned_conversations(mysql_database):
             await session.execute(delete(Conversation).where(Conversation.id.in_(owned)))
 
 
+# 验证重新创建仓储后可按顺序读回完整工具轮次，包含调用参数与结果关联。
 @pytest.mark.asyncio
 async def test_new_repository_reads_persisted_complete_tool_turn(mysql_database, owned_conversations):
     from app.core.tool_history import completed_turns
@@ -44,6 +46,7 @@ async def test_new_repository_reads_persisted_complete_tool_turn(mysql_database,
     assert [m.type for m in turns[0]] == ["human", "ai", "tool", "ai"]
 
 
+# 验证超出 JavaScript 安全整数的主键无损往返，转人工可续聊而结束会话拒绝新消息。
 @pytest.mark.asyncio
 async def test_bigint_identifier_round_trip_and_status_checks(mysql_database, owned_conversations):
     from app.core.errors import ServiceError
@@ -76,6 +79,7 @@ async def test_bigint_identifier_round_trip_and_status_checks(mysql_database, ow
     assert len(await repository.load_messages(returned_id)) == 1
 
 
+# 验证不存在的会话在检查、读取和写入时均产生明确的服务错误。
 @pytest.mark.asyncio
 async def test_missing_conversation_has_explicit_error(mysql_database):
     from app.core.errors import ServiceError
@@ -90,6 +94,7 @@ async def test_missing_conversation_has_explicit_error(mysql_database):
         await repository.append_message("18446744073709551615", HumanMessage("q"))
 
 
+# 验证孤立、错配或重复工具结果被拒绝，仅匹配待处理调用的结果可以入库。
 @pytest.mark.asyncio
 async def test_tool_results_must_match_pending_call_and_not_duplicate(mysql_database, owned_conversations):
     from app.repositories.conversations import ConversationRepository

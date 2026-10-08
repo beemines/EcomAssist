@@ -14,22 +14,26 @@ class MessageRecord:
     tool_call_id: str | None
 
 
+# 校验消息文本类型和保存长度，并按需要拒绝全空白正文。
 def _text(value: Any, *, nonempty: bool = False) -> str:
     if not isinstance(value, str) or len(value) > 20000 or (nonempty and not value.strip()):
         raise ValueError("Message content must be text within 20000 characters.")
     return value
 
 
+# 校验工具调用标识为非空且不超过数据库字段长度的字符串。
 def _call_id(value: Any) -> str:
     if not isinstance(value, str) or not value.strip() or len(value) > 64:
         raise ValueError("Tool call id must be nonempty and within 64 characters.")
     return value
 
 
+# 拒绝 JSON 解析中的 NaN 和无穷大常量，保证参数为有限值。
 def _invalid_constant(value: str) -> None:
     raise ValueError("Tool arguments must use finite JSON values.")
 
 
+# 校验单个持久化工具申请，并还原 LangChain 使用的调用字典。
 def decode_tool_calls(value: Any) -> list[dict]:
     """持久化采用 Chat Completions 格式，回放时还原 LangChain 格式。"""
     if not isinstance(value, list) or len(value) != 1:
@@ -50,6 +54,7 @@ def decode_tool_calls(value: Any) -> list[dict]:
     return [{"id": identifier, "name": function["name"], "args": args, "type": "tool_call"}]
 
 
+# 把支持的文本消息转为记录，工具申请采用可审计的标准 JSON 格式。
 def record_from_message(message: BaseMessage, *, identifier: int = 0) -> MessageRecord:
     """只接收本应用的文本消息，工具申请保存为可审计的标准 JSON。"""
     if isinstance(message, HumanMessage):
@@ -74,6 +79,7 @@ def record_from_message(message: BaseMessage, *, identifier: int = 0) -> Message
     raise ValueError("Unsupported conversation message role.")
 
 
+# 校验记录角色与字段组合，再还原对应的用户、助手或工具消息。
 def message_from_record(row: MessageRecord) -> BaseMessage:
     if row.role == "user" and row.tool_calls is None and row.tool_call_id is None:
         return HumanMessage(_text(row.content, nonempty=True))

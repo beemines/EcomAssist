@@ -1,6 +1,7 @@
 import pytest
 
 
+# 加载知识分块与问答暂存的 ORM 模型。
 def models():
     try:
         from app.db.models import KnowledgeChunk, QAExtractionStaging
@@ -9,6 +10,7 @@ def models():
     return KnowledgeChunk, QAExtractionStaging
 
 
+# 验证知识表与暂存表的权威字段、容量、默认值、状态、邻接外键和索引映射。
 def test_knowledge_mapping_preserves_authoritative_columns_and_constraints():
     chunk, staging = models()
     assert list(chunk.__table__.c.keys()) == ["id", "category", "questions", "answer", "section_path", "content_type", "is_key_clause", "prev_chunk_id", "next_chunk_id", "vector_id", "vectorize_status", "created_at", "updated_at"]
