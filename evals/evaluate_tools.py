@@ -24,6 +24,8 @@ class ToolEvaluationReport:
     cases: list[dict]
 
 
+# 独立核对已提交的消息流水、工具申请、匹配结果和最终回答。
+# 校验工单号及 FAQ 结果结构，保留回答失败前已经完成的工具事实。
 def audit_messages(rows, case, stream) -> dict:
     result = {'actual_tool': None, 'actual_args': {}, 'actual_found': None,
               'matches': None, 'tool_result': None, 'ticket_no': None, 'audit_error': None, 'passed': False,
@@ -67,6 +69,8 @@ def audit_messages(rows, case, stream) -> dict:
     return result
 
 
+# 每个工具样例创建独立会话，比较 SSE 结果与数据库流水后汇总报告。
+# 网络或流协议失败后停止后续真实请求，标签质量差异仍可继续采样。
 async def evaluate_tools(client: httpx.AsyncClient, base_url: str, cases: Sequence[dict], *, repository: ConversationRepository) -> ToolEvaluationReport:
     records, attempted, stopped = [], 0, False
     for case in cases:
@@ -100,6 +104,7 @@ async def evaluate_tools(client: httpx.AsyncClient, base_url: str, cases: Sequen
     return ToolEvaluationReport(attempted, len(cases) - attempted, records)
 
 
+# 加载标注与数据库配置，运行工具评估并保存报告，最后归还数据库连接池。
 async def run_cli(args):
     from app.config import load_settings
     from app.db.session import Database
@@ -120,6 +125,7 @@ async def run_cli(args):
         await database.dispose()
 
 
+# 接收应用地址、样例文件和报告路径，启动异步工具评估。
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base-url', default='http://127.0.0.1:8000')

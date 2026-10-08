@@ -1,3 +1,4 @@
+# 迁移使用随项目提供的固定 DDL；已存在的两张知识表必须与约定结构完全一致。
 from pathlib import Path
 import re
 
@@ -12,12 +13,14 @@ _TABLES = (KnowledgeChunk.__table__, QAExtractionStaging.__table__)
 _DDL = Path(__file__).resolve().parents[2] / "sql" / "ch03-ddl.sql"
 
 
+# 归一化未引用的 SQL 大小写和空白，完整保留引号内的 ENUM 等字面量以便严格比较。
 def _normalize(value: str) -> str:
     """Normalize SQL syntax while preserving quoted ENUM literals verbatim."""
     parts = re.split(r"('(?:[^'\\]|\\.|'')*')", value)
     return "".join(part if index % 2 else re.sub(r"\s+", " ", part.lower().replace("()", "")) for index, part in enumerate(parts)).strip()
 
 
+# 逐项比对知识表的选项、列、默认值、索引和外键，发现与模型不一致即拒绝继续。
 async def _check(connection) -> None:
     for table in _TABLES:
         params = {"table": table.name}
@@ -37,6 +40,7 @@ async def _check(connection) -> None:
                 default = default[1:-1]
             actual_default = str(actual.COLUMN_DEFAULT) if actual.COLUMN_DEFAULT is not None else None
             normalized_default = default
+            # 数据库可能改写时间默认值的语法；时间表达式归一化比较，引用字面量保持原样。
             if isinstance(expected.type, mysql.DATETIME):
                 normalized_default = _normalize(default) if default is not None else None
                 actual_default = _normalize(actual_default) if actual_default is not None else None
@@ -50,6 +54,7 @@ async def _check(connection) -> None:
                     or (isinstance(expected.type, (mysql.VARCHAR, mysql.TEXT, mysql.ENUM)) and actual.CHARACTER_SET_NAME != "utf8mb4")):
                 raise RuntimeError(f"knowledge schema mismatch: {table.name}.{expected.name}")
         indexes = (await connection.execute(text("SELECT INDEX_NAME,COLUMN_NAME,SEQ_IN_INDEX,NON_UNIQUE,SUB_PART,INDEX_TYPE FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=:table"), params)).all()
+        # 索引和外键使用完整集合比较，多余项、缺失项或不同规则都视为结构不一致。
         expected_indexes = {("PRIMARY", "id", 1, 0, None, "BTREE")}
         expected_indexes.update((index.name, list(index.columns)[0].name, 1, 1, None, "BTREE") for index in table.indexes)
         expected_indexes.update((fk.name, fk.parent.name, 1, 1, None, "BTREE") for fk in table.foreign_keys)
@@ -61,6 +66,7 @@ async def _check(connection) -> None:
             raise RuntimeError(f"knowledge schema mismatch: {table.name} foreign keys")
 
 
+# 核验目标数据库及两表状态；仅在两表都缺失时执行固定 DDL，再严格检查实际结构。
 async def migrate(database: Database) -> None:
     """Execute the supplied client DDL once; refuse partial or divergent schemas."""
     async with database.engine.begin() as connection:
@@ -71,7 +77,7 @@ async def migrate(database: Database) -> None:
         if existing and existing != {table.name for table in _TABLES}:
             raise RuntimeError("partial knowledge schema; explicit repair required")
         if not existing:
-            # This fixed user script has no delimiters or semicolons inside literals.
+            # 固定 DDL 没有自定义分隔符或字面量内分号，去除整行注释后可按分号执行。
             ddl = re.sub(r"(?m)^--.*$", "", _DDL.read_text(encoding="utf-8"))
             for statement in ddl.split(";"):
                 if statement.strip():

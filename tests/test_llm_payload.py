@@ -9,6 +9,7 @@ from app.config import Settings
 from app.schemas.extract import AfterSalesResult
 
 
+# 分别配置两种输出上限字段，并提供固定虚假上游地址、模型与超时。
 @pytest.fixture(params=["max_tokens", "max_completion_tokens"])
 def settings(request):
     return Settings(
@@ -22,6 +23,7 @@ def settings(request):
     )
 
 
+# 加载统一模型工厂，缺失实现时明确报告测试失败。
 def factory():
     try:
         from app.core.llm import create_model
@@ -30,6 +32,7 @@ def factory():
     return create_model
 
 
+# 核对真实 HTTP 请求的上游地址、授权、超时、输出上限与禁止额外协议字段。
 def check_request(request, settings):
     assert str(request.url) == "https://upstream.invalid/custom/v1/chat/completions"
     payload = json.loads(request.content)
@@ -52,9 +55,11 @@ def check_request(request, settings):
     return payload
 
 
+# 验证流式请求采用配置的聊天协议参数，并正确还原模型文本。
 async def test_stream_uses_configured_chat_completions_payload(settings):
     requests = []
 
+    # 检查流式请求正文并返回合成 SSE 片段，覆盖文本与正常结束标记。
     def respond(request):
         requests.append(request)
         payload = check_request(request, settings)
@@ -81,6 +86,7 @@ async def test_stream_uses_configured_chat_completions_payload(settings):
     assert len(requests) == 1
 
 
+# 验证抽取采用 JSON 模式，原描述在独立用户消息中完整保留。
 async def test_extract_uses_json_mode_and_preserves_original_description(settings):
     try:
         from app.core.prompts import build_extract_messages
@@ -95,6 +101,7 @@ async def test_extract_uses_json_mode_and_preserves_original_description(setting
     assert text not in messages[0].content
     requests = []
 
+    # 核对非流式 JSON 模式与原文消息，并返回合法售后抽取响应。
     def respond(request):
         requests.append(request)
         payload = check_request(request, settings)
@@ -124,9 +131,11 @@ async def test_extract_uses_json_mode_and_preserves_original_description(setting
     assert len(requests) == 1
 
 
+# 验证统一模型工厂遇到上游限流错误时只请求一次。
 async def test_factory_does_not_retry_upstream_failure(settings):
     requests = []
 
+    # 记录请求并返回限流响应，检验 SDK 重试已关闭。
     def respond(request):
         requests.append(request)
         check_request(request, settings)

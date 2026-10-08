@@ -1,3 +1,4 @@
+# 离线知识任务统一持有外层任务锁，避免导入、挖掘和向量化同时修改知识状态。
 """Run with python -m app.knowledge.cli; every mutation uses the shared job lock."""
 
 import argparse
@@ -23,6 +24,7 @@ from app.knowledge.vectors import MilvusIndex
 from app.repositories.knowledge import KnowledgeRepository
 
 
+# 定义迁移、文档导入、会话挖掘、暂存去重与向量化等离线任务的命令参数。
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description="Offline dense knowledge jobs")
     commands = result.add_subparsers(dest="command", required=True)
@@ -42,16 +44,19 @@ def parser() -> argparse.ArgumentParser:
     return result
 
 
+# 以北京时间当日零点为终点，返回前一自然日的左闭右开时间窗口。
 def previous_day(now: datetime | None = None) -> tuple[datetime, datetime]:
     now = now if now is not None else datetime.now(BEIJING)
     end = now.astimezone(BEIJING).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
     return end - timedelta(days=1), end
 
 
+# 在同一任务锁内执行所选工作并管理外部客户端；每日任务串联挖掘、去重和向量化。
 async def run(args: argparse.Namespace) -> None:
     settings = load_settings()
     database = Database(settings.database_url)
     try:
+        # 一次命令共用同一把锁；退出栈按注册顺序的逆序回收模型、嵌入与向量客户端。
         async with job_lock(database), AsyncExitStack() as resources:
             repository = KnowledgeRepository(database)
             if args.command == "migrate":
@@ -87,6 +92,7 @@ async def run(args: argparse.Namespace) -> None:
         await database.dispose()
 
 
+# 解析参数并运行异步任务，将可公开诊断与通用失败映射为退出码，避免输出敏感异常内容。
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
@@ -95,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
         print(str(exc), file=sys.stderr)
         return 1
     except Exception as exc:
-        # Driver/config exceptions can embed credentials or document contents.
+        # 驱动或配置异常可能包含凭据及文档内容，通用失败只输出异常类型。
         print(f"Knowledge job failed ({type(exc).__name__}); check configuration and input", file=sys.stderr)
         return 1
     except KeyboardInterrupt:

@@ -21,6 +21,7 @@ from tests.ch03_fakes import RecordingEmbedder
 from tests.fakes import FAQStub
 
 
+# 记录本测试创建的会话和 FAQ 主键，并在结束后按依赖顺序清理这些行。
 @pytest_asyncio.fixture
 async def owned_rows(mysql_database):
     conversations, faqs = [], []
@@ -35,6 +36,7 @@ async def owned_rows(mysql_database):
             await session.execute(delete(FAQ).where(FAQ.id.in_(faqs)))
 
 
+# 创建独立用户会话及首条用户消息，并登记会话以便后续清理。
 async def new_turn(database, owned_rows, question="请求人工"):
     conversations = ConversationRepository(database)
     identifier = await conversations.create("test-task3-" + uuid4().hex)
@@ -43,6 +45,7 @@ async def new_turn(database, owned_rows, question="请求人工"):
     return identifier, message_id
 
 
+# 验证 FAQ 保留原始查询与向量排序，仅返回 MySQL 已完成记录且不回退旧 LIKE 查询。
 @pytest.mark.asyncio
 async def test_faq_real_mysql_done_filter_raw_query_order_and_no_legacy_like(knowledge_rows, owned_rows):
     database, token = knowledge_rows.database, knowledge_rows.token
@@ -61,6 +64,7 @@ async def test_faq_real_mysql_done_filter_raw_query_order_and_no_legacy_like(kno
 
     class Index:
         hits = [VectorHit(ids[1], .9), VectorHit(ids[0], .8), VectorHit(ids[2], .7)]
+        # 返回受数量上限约束的预设向量命中，供真实 SQL 过滤与排序断言使用。
         async def search(self, vector, limit=3):
             assert limit == 3
             return self.hits[:limit]
@@ -79,6 +83,7 @@ async def test_faq_real_mysql_done_filter_raw_query_order_and_no_legacy_like(kno
     assert await repository.search(token + '邮费是多少') == []
 
 
+# 验证真实 Milvus 命中只投影到 MySQL 中已完成且仍存在的知识原文。
 async def test_faq_real_milvus_search_projects_only_real_mysql_done_rows(knowledge_rows, milvus_collection):
     database, token = knowledge_rows.database, knowledge_rows.token
     knowledge = KnowledgeRepository(database)
@@ -107,6 +112,7 @@ async def test_faq_real_milvus_search_projects_only_real_mysql_done_rows(knowled
     assert embedder.texts == ['邮费是多少', '邮费是多少']
 
 
+# 验证同一轮工具调用重试复用工单，而新用户消息生成新工单且只转移所属会话状态。
 @pytest.mark.asyncio
 async def test_ticket_retry_is_same_but_next_user_message_is_new(mysql_database, owned_rows):
     identifier, message_id = await new_turn(mysql_database, owned_rows)
@@ -128,6 +134,7 @@ async def test_ticket_retry_is_same_but_next_user_message_is_new(mysql_database,
         assert (await session.get(Conversation, int(other))).status == "进行中"
 
 
+# 验证各种纯空白工单描述被拒绝，既不写工单也不转人工。
 @pytest.mark.asyncio
 async def test_blank_ticket_descriptions_cannot_write_or_transfer(mysql_database, owned_rows):
     identifier, message_id = await new_turn(mysql_database, owned_rows)
@@ -143,6 +150,7 @@ async def test_blank_ticket_descriptions_cannot_write_or_transfer(mysql_database
         assert (await session.get(Conversation, int(identifier))).status == "进行中"
 
 
+# 验证有效描述的前后空白原样入库，且成功创建工单后会话转人工。
 @pytest.mark.asyncio
 async def test_ticket_keeps_nonblank_description_whitespace_in_storage(mysql_database, owned_rows):
     identifier, message_id = await new_turn(mysql_database, owned_rows)
@@ -156,15 +164,18 @@ async def test_ticket_keeps_nonblank_description_whitespace_in_storage(mysql_dat
         assert (await session.get(Conversation, int(identifier))).status == "已转人工"
 
 
+# 验证首次提交成功后响应超时触发重试，最终仍只存在一条工单。
 @pytest.mark.asyncio
 async def test_ticket_commit_then_timeout_keeps_one_row(mysql_database, owned_rows):
     identifier, message_id = await new_turn(mysql_database, owned_rows)
     real = TicketRepository(mysql_database)
 
     class CommitThenTimeout:
+        # 初始化提交后超时替身的调用计数，以便仅让第一次请求失败。
         def __init__(self):
             self.calls = 0
 
+        # 先真实提交工单再在首次调用抛超时，模拟客户端未收到成功响应的重试场景。
         async def create(self, **kwargs):
             result = await real.create(**kwargs)
             self.calls += 1
@@ -183,6 +194,7 @@ async def test_ticket_commit_then_timeout_keeps_one_row(mysql_database, owned_ro
         assert conversation.status == "已转人工"
 
 
+# 验证同一幂等键的冲突描述或类型返回冲突错误，并保留原工单业务字段。
 @pytest.mark.asyncio
 async def test_ticket_conflicting_retry_cannot_overwrite_business_fields(mysql_database, owned_rows):
     from app.core.errors import ServiceError
@@ -199,6 +211,7 @@ async def test_ticket_conflicting_retry_cannot_overwrite_business_fields(mysql_d
         assert row.description == "原描述" and row.ticket_type == "咨询"
 
 
+# 验证同一消息与工具调用并发创建时返回相同结果且只落库一行。
 @pytest.mark.asyncio
 async def test_ticket_concurrent_same_call_and_message_produce_one_row(mysql_database, owned_rows):
     identifier, message_id = await new_turn(mysql_database, owned_rows)
@@ -210,6 +223,7 @@ async def test_ticket_concurrent_same_call_and_message_produce_one_row(mysql_dat
         assert await session.scalar(select(func.count()).select_from(Ticket).where(Ticket.conversation_id == int(identifier))) == 1
 
 
+# 验证不能借用其他会话的用户消息创建工单或改变会话状态。
 @pytest.mark.asyncio
 async def test_ticket_rejects_foreign_user_message_without_writes(mysql_database, owned_rows):
     from app.core.errors import ServiceError
@@ -224,6 +238,7 @@ async def test_ticket_rejects_foreign_user_message_without_writes(mysql_database
         assert await session.scalar(select(func.count()).select_from(Ticket).where(Ticket.conversation_id == int(identifier))) == 0
 
 
+# 验证首次读不到已有工单而插入冲突时重新读取，并核对幂等参数是否一致。
 @pytest.mark.asyncio
 async def test_ticket_primary_key_conflict_reads_and_checks_existing_row(mysql_database, owned_rows, monkeypatch):
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -236,6 +251,7 @@ async def test_ticket_primary_key_conflict_reads_and_checks_existing_row(mysql_d
     original_get = AsyncSession.get
     suppressed = False
 
+    # 仅隐藏第一次目标工单读取，迫使真实插入触发主键冲突以检验竞态恢复。
     async def stale_read(session, entity, key, **kwargs):
         nonlocal suppressed
         # 仅模拟首次读取不可见，真实 INSERT 会触发 MySQL 主键冲突。
@@ -255,6 +271,7 @@ async def test_ticket_primary_key_conflict_reads_and_checks_existing_row(mysql_d
         assert await session.scalar(select(func.count()).select_from(Ticket).where(Ticket.conversation_id == int(identifier))) == 1
 
 
+# 验证工单插入失败会同时回滚转人工状态，避免留下半完成业务操作。
 @pytest.mark.asyncio
 async def test_ticket_insert_failure_rolls_back_transfer(mysql_database, owned_rows, monkeypatch):
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -262,6 +279,7 @@ async def test_ticket_insert_failure_rolls_back_transfer(mysql_database, owned_r
     identifier, message_id = await new_turn(mysql_database, owned_rows)
     original_flush = AsyncSession.flush
 
+    # 仅在待插入数据含工单时让刷新失败，模拟工单写入故障而保留其他数据库操作。
     async def failed_flush(session, *args, **kwargs):
         if any(isinstance(row, Ticket) for row in session.new):
             raise RuntimeError("controlled insert failure")
@@ -275,6 +293,7 @@ async def test_ticket_insert_failure_rolls_back_transfer(mysql_database, owned_r
         assert await session.scalar(select(func.count()).select_from(Ticket).where(Ticket.conversation_id == int(identifier))) == 0
 
 
+# 验证外键完整性错误即使已有同编号工单也不能被当作幂等成功。
 @pytest.mark.asyncio
 async def test_ticket_non_duplicate_integrity_failure_is_not_reported_as_success(mysql_database, owned_rows, monkeypatch):
     from pymysql.err import IntegrityError as MySQLIntegrityError
@@ -288,6 +307,7 @@ async def test_ticket_non_duplicate_integrity_failure_is_not_reported_as_success
     original_get, original_flush = AsyncSession.get, AsyncSession.flush
     suppressed = False
 
+    # 隐藏首次已有工单读取，使后续插入进入完整性错误处理分支。
     async def stale_read(session, entity, key, **kwargs):
         nonlocal suppressed
         if entity is Ticket and key == first["ticket_no"] and not suppressed:
@@ -295,6 +315,7 @@ async def test_ticket_non_duplicate_integrity_failure_is_not_reported_as_success
             return None
         return await original_get(session, entity, key, **kwargs)
 
+    # 为工单刷新注入 MySQL 外键错误，验证它与重复主键错误严格区分。
     async def foreign_key_failure(session, *args, **kwargs):
         if any(isinstance(row, Ticket) for row in session.new):
             raise IntegrityError("controlled statement", {}, MySQLIntegrityError(1452, "controlled FK failure"))
@@ -306,6 +327,7 @@ async def test_ticket_non_duplicate_integrity_failure_is_not_reported_as_success
         await repository.create(**args)
 
 
+# 验证工单提交后取消等待会传播取消且不重试，已提交的工单与转人工状态仍存在。
 @pytest.mark.asyncio
 async def test_ticket_cancel_after_commit_does_not_retry(mysql_database, owned_rows):
     identifier, message_id = await new_turn(mysql_database, owned_rows)
@@ -314,6 +336,7 @@ async def test_ticket_cancel_after_commit_does_not_retry(mysql_database, owned_r
     calls = 0
 
     class CommitThenWait:
+        # 真实提交后发出同步信号并永久等待，允许测试在提交边界精确取消请求。
         async def create(self, **kwargs):
             nonlocal calls
             calls += 1

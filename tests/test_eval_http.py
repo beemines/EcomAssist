@@ -11,6 +11,7 @@ from app.config import Settings
 GOOD = {"order_id": None, "request_type": "unknown", "expected_solution": None}
 
 
+# 加载结构化抽取评测模块，缺失实现时报告明确失败。
 def implementation():
     try:
         return importlib.import_module("evals.evaluate")
@@ -18,6 +19,7 @@ def implementation():
         pytest.fail("evaluation implementation is missing")
 
 
+# 生成指定数量、带固定预期结果的临时 JSONL 样本文件。
 def cases_file(tmp_path, count):
     path = tmp_path / "cases.jsonl"
     path.write_text("\n".join(json.dumps({"id": str(i), "text": "你好", "expected": GOOD})
@@ -25,10 +27,12 @@ def cases_file(tmp_path, count):
     return path
 
 
+# 验证首次兼容性样本只请求一次，后续各类故障均保留在脱敏报告与分母中。
 async def test_evaluate_preserves_each_failure_and_calls_first_case_once(tmp_path):
     module = implementation()
     seen = []
 
+    # 依次模拟正常响应、HTTP 错误、非法 JSON、缺失字段和读取超时。
     def handler(request):
         assert request.url.path == "/api/extract"
         assert json.loads(request.content) == {"text": "你好"}
@@ -58,6 +62,7 @@ async def test_evaluate_preserves_each_failure_and_calls_first_case_once(tmp_pat
     assert report["identity"]["provider_verified"] is False
 
 
+# 验证首样本兼容性失败立即停止后续请求，但仍为全部样本保留记录与统计分母。
 @pytest.mark.parametrize("failure,code,status", [
     ("http", "http_error", 502),
     ("json", "invalid_json", 200),
@@ -69,6 +74,7 @@ async def test_first_compatibility_failure_stops_requests_preserving_all_case_de
     module = implementation()
     seen = []
 
+    # 按参数模拟首请求的 HTTP、JSON、结构、超时或连接故障，检验提前终止门槛。
     def handler(request):
         seen.append(request)
         if failure == "http":
@@ -106,10 +112,12 @@ async def test_first_compatibility_failure_stops_requests_preserving_all_case_de
     assert "SECRET" not in output.read_text(encoding="utf-8")
 
 
+# 验证首样本结构合法但答案不符时仍继续评测全部样本。
 async def test_first_valid_json_with_gold_mismatch_continues_prompt_evaluation(tmp_path):
     module = implementation()
     seen = []
 
+    # 仅让首次响应类别与标准答案不同，其余响应正常，以区分兼容性与准确率。
     def handler(request):
         seen.append(request)
         return httpx.Response(200, json={**GOOD, "request_type": "other"} if len(seen) == 1 else GOOD)
@@ -126,10 +134,12 @@ async def test_first_valid_json_with_gold_mismatch_continues_prompt_evaluation(t
     assert len(report["metrics"]["failures"]) == 1
 
 
+# 验证整体墙钟截止时间能终止慢请求，并关闭评测自行创建的 HTTP 客户端。
 async def test_evaluate_wall_clock_deadline_and_owned_client_close(tmp_path, monkeypatch):
     module = implementation()
     monkeypatch.setattr(module, "REQUEST_DEADLINE_SECONDS", .02)
 
+    # 延迟超过评测截止时间再返回响应，模拟底层未主动超时的慢服务。
     async def handler(request):
         await anyio.sleep(.2)
         return httpx.Response(200, json=GOOD)
@@ -141,6 +151,7 @@ async def test_evaluate_wall_clock_deadline_and_owned_client_close(tmp_path, mon
     assert owned.is_closed
 
 
+# 验证评测通过真实应用接口与结构约束运行，同时无需外部模型。
 async def test_evaluation_uses_real_application_schema_with_model_free_http(tmp_path):
     from app.main import create_app
     from tests.fakes import FAQStub, ConversationStore, StructuredModel, structured_result

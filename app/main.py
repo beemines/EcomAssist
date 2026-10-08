@@ -27,10 +27,12 @@ from app.core.llm import create_model
 class _UnavailableDatabase:
     """仅仓储注入时不创建连接池；误用数据库工具时安全失败。"""
 
+    # 在未注入数据库时明确拒绝工具访问，返回可展示的服务错误。
     def session(self):
         raise ServiceError("database_unavailable", "数据库工具暂时不可用。", 503)
 
 
+# 组装 HTTP 应用，按注入情况决定数据库与模型资源的创建和释放责任。
 def create_app(
     settings: Settings | None = None, *, model: Any | None = None,
     database: Database | None = None,
@@ -45,6 +47,7 @@ def create_app(
             database = _UnavailableDatabase()
     owns_model = model is None
 
+    # 将仓储、工具对话服务和结构化抽取服务注入应用状态。
     def configure(app: FastAPI):
         app.state.repository = repository
         app.state.database = database
@@ -53,6 +56,7 @@ def create_app(
             lambda context: build_registry(faq_repository, tickets, context), ConversationLocks(), settings)
         app.state.extraction_service = ExtractionService(model, settings.input_token_budget)
 
+    # 在应用启动时准备依赖，并在退出时按注册顺序的逆序释放资源。
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         nonlocal database, repository, model, faq_repository
@@ -64,7 +68,7 @@ def create_app(
                 repository = ConversationRepository(database)
             if owns_model:
                 model = create_model(settings)
-                # LIFO: async model then sync model, and database last.
+                # 资源按后进先出关闭：异步模型客户端、同步客户端，最后是数据库。
                 resources.callback(model.root_client.close)
                 resources.push_async_callback(model.root_async_client.close)
             if faq_repository is None:
@@ -78,7 +82,7 @@ def create_app(
             yield
 
     app = FastAPI(lifespan=lifespan)
-    # Preserve injected HTTPX callers that intentionally do not run lifespan.
+    # 支持已注入依赖但刻意不启动 lifespan 的 HTTPX 调用方。
     if repository is None and database is not None:
         repository = ConversationRepository(database)
     if model is not None and repository is not None and faq_repository is not None:
@@ -89,14 +93,17 @@ def create_app(
     static_dir = Path(__file__).resolve().parent / "static"
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+    # 返回静态聊天页面，作为应用首页。
     @app.get("/", response_class=FileResponse, include_in_schema=False)
     async def chat_page():
         return FileResponse(static_dir / "index.html")
 
+    # 将业务异常转换为统一的错误码、提示和 HTTP 状态。
     @app.exception_handler(ServiceError)
     async def service_error(request: Request, exc: ServiceError):
         return JSONResponse(status_code=exc.status_code, content={"code": exc.code, "message": exc.message})
 
+    # 返回进程存活状态，供健康检查使用。
     @app.get("/health")
     async def health():
         return {"status": "ok"}

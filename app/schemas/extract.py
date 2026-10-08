@@ -18,6 +18,7 @@ class ExtractRequest(BaseModel):
 
     text: str = Field(min_length=1, max_length=20000)
 
+    # 拒绝只有空白的待抽取文本。
     @field_validator("text")
     @classmethod
     def must_not_be_blank(cls, value: str) -> str:
@@ -33,6 +34,7 @@ class AfterSalesResult(BaseModel):
     request_type: RequestType
     expected_solution: str | None
 
+    # 允许缺失信息使用 null，拒绝用空白字符串替代有效字段。
     @field_validator("order_id", "expected_solution")
     @classmethod
     def nullable_string_must_not_be_blank(cls, value: str | None) -> str | None:

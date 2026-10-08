@@ -9,12 +9,14 @@ from openai import APITimeoutError
 from tests.fakes import FAQStub, ConversationStore, StreamingModel, decode_sse, fake_settings, implementations
 
 
+# 用离线依赖创建 ASGI 客户端，并允许覆盖聊天预算等设置。
 def client_for(model=None, repository=None, **settings):
     _, _, create_app = implementations()
     app = create_app(fake_settings(**settings), faq_repository=FAQStub(), model=model or StreamingModel(), repository=repository if repository is not None else ConversationStore())
     return httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test")
 
 
+# 验证健康检查返回存活状态且不发起任何模型请求。
 async def test_health_returns_liveness_without_model_work():
     model = StreamingModel(failure=AssertionError("health invoked provider"))
     async with client_for(model) as client:
@@ -25,6 +27,7 @@ async def test_health_returns_liveness_without_model_work():
     assert model.requests == 0
 
 
+# 验证缺失、空白、超长或额外字段请求在模型与 SSE 启动前返回 JSON 422。
 @pytest.mark.parametrize("payload", [
     {}, {"conversation_id": "1", "message": " "},
     {"conversation_id": " ", "message": "valid"},
@@ -42,6 +45,7 @@ async def test_invalid_request_is_rejected_before_model_or_sse(payload):
     assert model.requests == 0
 
 
+# 验证输入预算不足返回安全的 HTTP 422，释放会话锁且不写消息。
 async def test_budget_error_is_http_422_and_releases_acquired_session():
     model, repository = StreamingModel(), ConversationStore()
     client = client_for(model, repository, tool_input_token_budget=1)
@@ -55,6 +59,7 @@ async def test_budget_error_is_http_422_and_releases_acquired_session():
     assert repository.rows == {}
 
 
+# 验证已有会话锁时在响应开始前返回 HTTP 409，且不调用模型。
 async def test_session_busy_is_http_409_before_response_start():
     model, repository = StreamingModel(), ConversationStore()
     client = client_for(model, repository)
@@ -70,6 +75,7 @@ async def test_session_busy_is_http_409_before_response_start():
         lease.release()
 
 
+# 验证 SSE 头与原文增量、私有推理过滤，以及下一轮只携带完整已提交历史。
 async def test_raw_deltas_headers_and_complete_second_turn_history():
     model = StreamingModel([
         AIMessageChunk(content=""),
@@ -102,6 +108,7 @@ async def test_raw_deltas_headers_and_complete_second_turn_history():
     assert [item.content for item in repository.snapshot("1")] == ["first", '您好，\n"订单"可以咨询。', "second", "second answer"]
 
 
+# 验证各种上游故障仅发送一次脱敏错误，关闭流、释放锁且不回放半轮回答。
 @pytest.mark.parametrize("failure", [
     RuntimeError("SECRET upstream details"), TimeoutError("SECRET timeout"),
     httpx.ReadTimeout("SECRET timeout"),
@@ -124,6 +131,7 @@ async def test_upstream_failure_sends_safe_error_once_and_preserves_history(fail
     assert [row.role for row in repository.rows["1"]] == ["user", "assistant", "user"]
 
 
+# 验证空白或显式截断的回复只发错误，不发送完成事件或提交最终回答。
 @pytest.mark.parametrize("chunks", [
     [], [AIMessageChunk(content="")], [AIMessageChunk(content="   ")],
     [AIMessageChunk(content="partial"), AIMessageChunk(content="", response_metadata={"finish_reason": "length"})],
@@ -141,11 +149,13 @@ async def test_empty_or_explicitly_truncated_response_errors_without_commit(chun
     assert [row.role for row in repository.rows["1"]] == ["user"]
 
 
+# 验证导入与注入依赖的应用生命周期不读取凭据、创建模型或关闭调用方客户端。
 def test_import_and_injected_lifespan_do_not_load_settings_or_own_injected_model(monkeypatch):
     implementations()
     import app.config
     import app.core.llm
 
+    # 在读取设置、创建模型或关闭外部客户端时立即失败，检测错误的资源所有权。
     def forbidden(*args, **kwargs):
         raise AssertionError("import or injected app read credentials/created provider")
 
@@ -170,6 +180,7 @@ def test_import_and_injected_lifespan_do_not_load_settings_or_own_injected_model
 
 
 
+# 验证由应用工厂创建的异步与同步模型客户端在生命周期结束后均被关闭。
 async def test_owned_factory_resource_closes_on_lifespan_exit(monkeypatch):
     _, _, create_app = implementations()
     import app.main
@@ -177,6 +188,7 @@ async def test_owned_factory_resource_closes_on_lifespan_exit(monkeypatch):
     class Resource:
         closed = False
 
+        # 记录异步客户端关闭状态，供应用退出后的资源释放断言使用。
         async def close(self):
             self.closed = True
 
@@ -184,6 +196,7 @@ async def test_owned_factory_resource_closes_on_lifespan_exit(monkeypatch):
     class SyncResource:
         closed = False
 
+        # 记录同步客户端关闭状态，验证它与异步资源一起释放。
         def close(self):
             self.closed = True
 

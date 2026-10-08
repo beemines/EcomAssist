@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import text
 
 
+# 加载权威知识迁移入口，缺失实现时报告明确的测试失败。
 def migrator():
     try:
         from app.knowledge.migration import migrate
@@ -13,6 +14,7 @@ def migrator():
     return migrate
 
 
+# 验证迁移可重复执行且真实表、字段、默认值、注释与外键符合原始 DDL。
 async def test_migration_executes_original_ddl_and_checks_existing_schema(migration_database):
     migrate = migrator()
     await migrate(migration_database)
@@ -31,6 +33,7 @@ async def test_migration_executes_original_ddl_and_checks_existing_schema(migrat
         assert set(rules) == {("fk_chunks_prev", "SET NULL"), ("fk_chunks_next", "SET NULL")}
 
 
+# 验证只存在部分目标表时拒绝迁移，并且不会补建第二张表。
 async def test_partial_schema_refused_without_creating_second_table(migration_database):
     migrate = migrator()
     ddl = Path("sql/ch03-ddl.sql").read_text(encoding="utf-8")
@@ -45,6 +48,7 @@ async def test_partial_schema_refused_without_creating_second_table(migration_da
         assert set((await session.scalars(text("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()"))).all()) == {"knowledge_chunks"}
 
 
+# 验证字段长度、默认值、索引、外键、可空性或表注释漂移都会被拒绝。
 @pytest.mark.parametrize("alter", [
     "ALTER TABLE knowledge_chunks MODIFY category VARCHAR(254) NOT NULL",
     "ALTER TABLE knowledge_chunks ALTER vectorize_status SET DEFAULT 'done'",
@@ -62,6 +66,7 @@ async def test_existing_schema_drift_is_rejected(migration_database, alter):
         await migrate(migration_database)
 
 
+# 验证指向另一数据库同名表的外键不能通过现有结构校验。
 async def test_foreign_key_to_another_schema_is_rejected(migration_database):
     from app.db.session import Database
     migrate = migrator()
@@ -84,6 +89,7 @@ async def test_foreign_key_to_another_schema_is_rejected(migration_database):
             await connection.execute(text(f"DROP DATABASE `{name}`"))
 
 
+# 验证连接当前数据库被切换后，迁移在执行 DDL 前拒绝错误目标。
 async def test_changed_current_database_is_refused_before_any_ddl(migration_database):
     migrate = migrator()
     async with migration_database.engine.begin() as connection:
@@ -92,6 +98,7 @@ async def test_changed_current_database_is_refused_before_any_ddl(migration_data
         await migrate(migration_database)
 
 
+# 验证枚举成员或默认值的大小写漂移被识别，即使其他字段属性保持一致。
 @pytest.mark.parametrize("enum_sql,default", [("ENUM('Extracted','kept','discarded')", "Extracted"), ("ENUM('extracted','Kept','discarded')", "extracted")], ids=["member-and-default-case", "member-case-only"])
 async def test_enum_literal_case_drift_is_rejected_with_other_properties_preserved(migration_database, enum_sql, default):
     migrate = migrator()

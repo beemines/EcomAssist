@@ -1,6 +1,7 @@
 import pytest
 
 
+# 验证真实 MySQL 的表、字段、中文枚举、默认时间、外键与索引符合提供的 DDL。
 @pytest.mark.asyncio
 async def test_mysql_schema_matches_supplied_ddl(mysql_database):
     from sqlalchemy import text
@@ -71,6 +72,7 @@ async def test_mysql_schema_matches_supplied_ddl(mysql_database):
         }
 
 
+# 验证种子会话、消息、工单关联完整，且旧 FAQ 的字面查询不命中邮费关键词。
 @pytest.mark.asyncio
 async def test_seed_is_complete_and_postage_misses(mysql_database):
     from sqlalchemy import select

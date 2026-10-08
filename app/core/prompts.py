@@ -43,14 +43,17 @@ TOOL_CHAT_SYSTEM_TEMPLATE = PromptTemplate.from_template(
 )
 
 
+# 生成普通客服聊天使用的系统提示。
 def build_chat_system_prompt() -> str:
     return CHAT_SYSTEM_TEMPLATE.format(role="电商客服助手")
 
 
+# 生成限制工具选择与业务承诺范围的客服系统提示。
 def build_tool_chat_system_prompt() -> str:
     return TOOL_CHAT_SYSTEM_TEMPLATE.format()
 
 
+# 将售后枚举和结果 Schema 写入系统提示，再附上待抽取原文。
 def build_extract_messages(text: str) -> list[BaseMessage]:
     system_prompt = EXTRACT_SYSTEM_TEMPLATE.format(
         request_types=", ".join(item.value for item in RequestType),
@@ -59,6 +62,7 @@ def build_extract_messages(text: str) -> list[BaseMessage]:
     return [SystemMessage(content=system_prompt), HumanMessage(content=text)]
 
 
+# 组装历史 QA 抽取消息，将输入载荷作为待处理的用户数据。
 def build_qa_messages(payload: str) -> list[BaseMessage]:
     return [SystemMessage(content=(
         '直接提取客服历史的通用问答，不分析、不解释、不输出思考；用最短紧凑JSON：'

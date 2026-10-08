@@ -1,3 +1,4 @@
+# 在隔离测试资源中中断自建工作进程，验证双写恢复；故障暂停只存在于验收脚本。
 """Real owned-child interruption against test MySQL and a UUID Milvus collection.
 
 No fault controls are added to the application. Only these harness-created
@@ -31,10 +32,12 @@ from app.knowledge.vectors import MilvusIndex
 from app.repositories.knowledge import KnowledgeRepository, _record
 
 
+# 生成带 UTC 时区的 ISO 时间，供检查点和恢复报告统一记录事件时间。
 def timestamp():
     return datetime.now(timezone.utc).isoformat()
 
 
+# 执行一项归属明确的清理并收集错误，使其他清理项和报告仍能完成。
 async def attempt_cleanup(errors, action, callback):
     """One failed owned cleanup must not prevent the remaining attempts/report."""
     try:
@@ -43,6 +46,7 @@ async def attempt_cleanup(errors, action, callback):
         errors.append({'action': action, 'error_type': type(exc).__name__})
 
 
+# 复用上游配置，将 MySQL 连接限定到本机隔离测试库。
 def test_settings():
     return load_settings().model_copy(update={'mysql_host': '127.0.0.1', 'mysql_port': 3308,
         'mysql_database': 'customer_service_test', 'mysql_user': 'customer_service'})
@@ -51,10 +55,12 @@ def test_settings():
 class OwnedRepository(KnowledgeRepository):
     """Harness-only pending scope; never consume another job's pending rows."""
 
+    # 记录本次验收拥有的知识主键，约束后续 pending 查询范围。
     def __init__(self, database, ids):
         super().__init__(database)
         self.ids = ids
 
+    # 只读取本次主键集合中的待向量化行，按 id 分批返回。
     async def pending(self, limit=20):
         async with self.database.session() as session:
             rows = (await session.scalars(select(KnowledgeChunk).where(
@@ -63,17 +69,20 @@ class OwnedRepository(KnowledgeRepository):
             return [_record(row) for row in rows]
 
 
+# 先写临时 UTF-8 JSON 再替换检查点文件，避免父进程读到半份内容。
 def write_checkpoint(path, data):
     temporary = path.with_suffix('.tmp')
     temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     temporary.replace(path)
 
 
+# 写出带时间和进程身份的检查点后等待，让父进程在确定位置中断任务。
 async def pause_at(path, data):
     write_checkpoint(path, {**data, 'checkpoint_at': timestamp()})
     await asyncio.Event().wait()
 
 
+# 读取 MySQL 状态、正文哈希和 Milvus 主键，形成跨库恢复对照快照。
 async def snapshot(database, index, ids):
     async with database.session() as session:
         rows = (await session.scalars(select(KnowledgeChunk).where(KnowledgeChunk.id.in_(ids))
@@ -87,6 +96,7 @@ async def snapshot(database, index, ids):
             'unique_vector_count': len(set(vector_ids))}
 
 
+# 核对所有块已 done、正文未变、向量身份齐全且无重复有效记录。
 def recovery_passed(before, after, ids):
     original = {r['id']: r['body_sha256'] for r in before['rows']}
     return (set(original) == set(ids) and len(after['rows']) == len(ids)
@@ -97,6 +107,8 @@ def recovery_passed(before, after, ids):
         and after['vector_row_count'] == after['unique_vector_count'] == len(ids))
 
 
+# 作为自建工作进程运行，在 pending 提交后或 upsert 返回后暂停。
+# 正常重启分支连续跑两次向量化，用第二次返回零证明主键重跑的幂等性。
 async def child(args):
     settings = test_settings()
     database = Database(settings.database_url)
@@ -109,7 +121,7 @@ async def child(args):
             resources.push_async_callback(embedder.aclose)
             repository = KnowledgeRepository(database)
             if args.mode == 'after_pending':
-                # add_chunks returns only after its short MySQL transaction commits.
+                # add_chunks 返回时短事务已经提交，此检查点准确代表只写完 MySQL 的窗口。
                 ids = await repository.add_chunks([
                     ChunkDraft(args.marker, '配送费用', '合成演示标准配送8元，满99元包邮。'),
                     ChunkDraft(args.marker, '售后申请', '合成演示售后申请需等待客服确认。')])
@@ -120,6 +132,7 @@ async def child(args):
                 repository = OwnedRepository(database, ids)
                 if args.mode == 'after_upsert':
                     class PausingIndex:
+                        # 先完成真实向量写入，再暂停回填路径，模拟已写向量但 MySQL 仍 pending。
                         async def upsert(self, rows):
                             acknowledged = await index.upsert(rows)
                             await pause_at(args.checkpoint, {'phase': args.mode,
@@ -137,10 +150,10 @@ async def child(args):
         await database.dispose()
 
 
+# 启动本脚本专属的隐藏工作进程，并保留 Popen 句柄用于身份核对。
 def spawn_owned(mode, checkpoint, collection, marker, ids):
-    # Never use a shell, attach to an existing PID, or kill a process group.
-    # Windows venv python.exe redirects to a second PID. Run the actual interpreter
-    # with this venv's installed packages so Popen.pid is the executing worker.
+    # 直接用参数列表启动实际解释器，持有的句柄只对应本脚本创建的进程。
+    # Windows 虚拟环境入口可能转发到第二个 PID，结合本环境依赖使用实际解释器可保持身份一致。
     environment = os.environ.copy()
     environment['PYTHONPATH'] = os.pathsep.join(filter(None, [sysconfig.get_path('purelib'),
                                                             environment.get('PYTHONPATH')]))
@@ -151,6 +164,7 @@ def spawn_owned(mode, checkpoint, collection, marker, ids):
         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
 
 
+# 有界等待检查点，核对写入 PID 与自建进程一致；提前退出或超时即失败。
 async def wait_checkpoint(process, path, timeout=90):
     deadline = monotonic() + timeout
     while monotonic() < deadline:
@@ -165,12 +179,15 @@ async def wait_checkpoint(process, path, timeout=90):
     raise TimeoutError('owned child checkpoint timeout')
 
 
+# 仅终止持有句柄的验收子进程，并在线程中等待退出，避免阻塞事件循环。
 async def terminate_owned(process):
     if process.poll() is None:
         process.kill()
     return await asyncio.to_thread(process.wait, timeout=10)
 
 
+# 分别在两处双写窗口中断自建进程，重启正常任务并比较恢复快照。
+# 每轮使用独立标记和集合，最终只清理本轮拥有的资源。
 async def evaluate_recovery():
     database = None
     report = {'kind': 'actual_owned_process_recovery', 'started_at': timestamp(),
@@ -208,7 +225,7 @@ async def evaluate_recovery():
                     killed = await terminate_owned(process)
                     case['owned_children'].append({'pid': process.pid, 'created_by_harness': True,
                         'action': 'kill', 'returncode': killed, 'terminated_at': timestamp()})
-                    # A new OS process runs the unmodified PendingVectorizer normally.
+                    # 启动新进程运行正常向量化器，不把暂停逻辑加进应用实现。
                     restarted_path = Path(directory) / 'restarted.json'
                     restarted = spawn_owned('normal', restarted_path, collection, marker, ids)
                     processes.append(restarted)
@@ -230,12 +247,13 @@ async def evaluate_recovery():
                 for process in processes:
                     await attempt_cleanup(case['cleanup_errors'], f'owned_process:{process.pid}',
                         lambda process=process: terminate_owned(process))
-                # Recovery rows carry an unguessable marker even if checkpoint writing failed.
+                # 按本轮随机分类标记删除合成知识，即使检查点未写成功也能回收。
                 async def clean_rows():
                     async with database.session() as session, session.begin():
                         await session.execute(delete(KnowledgeChunk).where(KnowledgeChunk.category == marker))
                 await attempt_cleanup(case['cleanup_errors'], 'mysql_rows', clean_rows)
                 if index is not None:
+                    # 只检查并删除本轮恢复验收创建的向量集合。
                     async def clean_collection():
                         if await index._client.has_collection(collection, timeout=index.timeout):
                             await index._client.drop_collection(collection, timeout=index.timeout)
@@ -260,6 +278,7 @@ async def evaluate_recovery():
     return report
 
 
+# 区分父级恢复验收与隐藏子进程模式，校验子进程资源范围并保存报告。
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=Path('.cache/knowledge-recovery.json'))

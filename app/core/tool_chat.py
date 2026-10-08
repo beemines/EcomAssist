@@ -23,10 +23,12 @@ from app.tools.executor import ToolExecutor
 from app.tools.types import ToolCall, ToolContext
 
 
+# 将当前工具注册表转换为模型可见的 OpenAI 工具 Schema。
 def _schema(registry: Mapping[str, BaseTool]) -> list[dict]:
     return [convert_to_openai_tool(tool) for tool in registry.values()]
 
 
+# 为工具选择或最终回复违反协议的情况构造统一上游错误。
 def _protocol_error(message: str) -> ServiceError:
     return ServiceError("upstream_error", message, 502)
 
@@ -46,6 +48,7 @@ class PreparedToolChat:
 class ToolChatService:
     """一次选择、至多一次逻辑工具调用，再以原模型真实流式收敛。"""
 
+    # 保存工具聊天依赖，并按配置建立具有超时和有限重试的执行器。
     def __init__(self, model: Any, repository: ConversationRepository,
                  registry_factory: Callable[[ToolContext], Mapping[str, BaseTool]],
                  locks: ConversationLocks, settings: Settings, *, executor: ToolExecutor | None = None):
@@ -56,6 +59,7 @@ class ToolChatService:
         self.settings = settings
         self.executor = executor if executor is not None else ToolExecutor(settings.tool_timeout_seconds, settings.tool_max_retries)
 
+    # 占用会话、校验完整历史和必需输入预算，再保存用户消息并绑定工具上下文。
     async def prepare(self, conversation_id: str, message: str) -> PreparedToolChat:
         lease = self.locks.acquire(conversation_id)
         try:
@@ -75,6 +79,7 @@ class ToolChatService:
             lease.release()
             raise
 
+    # 检查模型正常结束且至多申请一个已注册工具，返回合法调用或空选择。
     def _validate_selection(self, selected: Any, registry: Mapping[str, BaseTool]) -> ToolCall | None:
         if not isinstance(selected, AIMessage) or selected.invalid_tool_calls or len(selected.tool_calls) > 1:
             raise _protocol_error("模型返回了无效或多个工具申请。")
@@ -101,9 +106,11 @@ class ToolChatService:
             raise _protocol_error("模型返回了无效工具申请。") from None
         return ToolCall(call["id"], call["name"], call["args"])
 
+    # 进行一次工具选择、至多一次逻辑调用，流式生成并保存正常完成的回答。
     async def stream(self, prepared: PreparedToolChat) -> AsyncIterator[StreamEvent]:
         try:
             yield StreamEvent("status", {"phase": "selecting"})
+            # 选择阶段只调用一次模型；最终回答阶段不会再绑定工具。
             bound = self.model.bind_tools(list(prepared.registry.values()), tool_choice="auto", parallel_tool_calls=False)
             selected = await bound.ainvoke(prepared.messages)
             call = self._validate_selection(selected, prepared.registry)
@@ -151,8 +158,10 @@ class ToolChatService:
             task = asyncio.current_task()
             if task is not None and task.cancelling():
                 raise asyncio.CancelledError()
+            # 只有正常结束且未取消的完整回答才入库，提交成功后才产生 done。
             await self.repository.append_message(prepared.conversation_id, AIMessage(answer))
             yield StreamEvent("done", {"conversation_id": prepared.conversation_id})
+        # 取消异常向外传播，由响应层关闭生成器并归还会话凭证。
         except ServiceError as exc:
             yield StreamEvent("error", {"code": exc.code, "message": exc.message})
         except (TimeoutError, httpx.TimeoutException, APITimeoutError):
@@ -170,5 +179,6 @@ class ToolChatService:
                     except Exception:
                         pass
 
+    # 归还本次工具聊天持有的会话占用凭证。
     def release(self, prepared: PreparedToolChat) -> None:
         prepared.lease.release()

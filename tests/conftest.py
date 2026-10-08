@@ -9,11 +9,13 @@ from types import SimpleNamespace
 os.environ['PYTHON_DOTENV_DISABLED'] = '1'
 
 
+# 注册显式启用 MySQL 与 Milvus 集成测试的命令行开关。
 def pytest_addoption(parser):
     parser.addoption("--run-mysql", action="store_true", default=False, help="运行独立 MySQL 测试库集成测试")
     parser.addoption('--run-milvus', action='store_true', default=False, help='运行本机 Milvus knowledge_test_* 集成测试')
 
 
+# 为显式启用的测试分配随机 Milvus 集合名，检查服务并在结束后清理集合和客户端。
 @pytest_asyncio.fixture
 async def milvus_collection(request):
     if not request.config.getoption('--run-milvus'):
@@ -40,6 +42,7 @@ async def milvus_collection(request):
             await client.close()
 
 
+# 仅连接固定的独立测试库，验证数据库身份后提供连接并负责释放。
 @pytest_asyncio.fixture
 async def mysql_database(request):
     if not request.config.getoption("--run-mysql"):
@@ -67,6 +70,7 @@ async def mysql_database(request):
         await database.dispose()
 
 
+# 用随机标记隔离知识测试数据，检查表结构并在测试结束后仅清理本次插入的行。
 @pytest_asyncio.fixture
 async def knowledge_rows(mysql_database):
     """Only clean rows identified by this fixture's unguessable marker."""
@@ -82,6 +86,7 @@ async def knowledge_rows(mysql_database):
         await session.execute(text("DELETE FROM qa_extraction_staging WHERE batch_no=:token"), {"token": token})
 
 
+# 创建迁移测试专用的随机数据库，并在测试结束后删除该库和释放连接。
 @pytest_asyncio.fixture
 async def migration_database(mysql_database):
     """Own a fresh schema; never drop the configured or shared database."""

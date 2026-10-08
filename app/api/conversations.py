@@ -7,6 +7,7 @@ from app.core.errors import ServiceError
 router = APIRouter()
 
 
+# 创建用户会话并返回字符串主键，将数据库故障转换为服务错误。
 @router.post("/api/conversations", response_model=ConversationResponse)
 async def create_conversation(payload: ConversationRequest, request: Request) -> ConversationResponse:
     try:

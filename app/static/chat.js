@@ -1,5 +1,6 @@
 "use strict";
 
+// 页面只保存当前会话身份和渲染状态；多轮历史由后端从数据库读取。
 const form = document.querySelector("#chat-form");
 const input = document.querySelector("#message-input");
 const sendButton = document.querySelector("#send-button");
@@ -22,28 +23,35 @@ const toolLabels = {
   create_ticket: "创建人工工单",
 };
 
+// 用户仍在底部跟随模式时滚到最新消息，避免打断向上翻阅历史。
 function scrollBottom() {
   if (followBottom) scrollArea.scrollTop = scrollArea.scrollHeight;
 }
 
+// 距底部不足 80 像素视为继续跟随，向上翻阅时显示“查看最新消息”。
 scrollArea.addEventListener("scroll", () => {
   followBottom = scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight < 80;
   bottomButton.hidden = followBottom;
 });
+// 点击回到底部后重新开启自动跟随。
 bottomButton.addEventListener("click", () => {
   followBottom = true;
   bottomButton.hidden = true;
   scrollBottom();
 });
 
+// 按输入内容调整高度（最大 142 像素），同时同步空消息的发送按钮状态。
 function resizeInput() {
   input.style.height = "auto";
   input.style.height = Math.min(input.scrollHeight, 142) + "px";
   sendButton.disabled = !active && !input.value.trim();
 }
 input.addEventListener("input", resizeInput);
+// 中文输入法选词期间标记组合输入，防止 Enter 被当作发送。
 input.addEventListener("compositionstart", () => { composing = true; });
+// 选词结束后恢复正常键盘发送规则。
 input.addEventListener("compositionend", () => { composing = false; });
+// Enter 发送、Shift+Enter 换行；兼容输入法的组合事件与旧版键码。
 input.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey && !event.isComposing && !composing && event.keyCode !== 229) {
     event.preventDefault();
@@ -51,6 +59,7 @@ input.addEventListener("keydown", (event) => {
   }
 });
 
+// 创建一条消息气泡，返回正文、工具徽章和提示节点，供后续流式更新。
 function addMessage(role, text) {
   const row = document.createElement("article");
   row.className = "message " + role;
@@ -73,6 +82,7 @@ function addMessage(role, text) {
   tools.setAttribute("aria-label", "本轮工具记录");
   const answer = document.createElement("div");
   answer.className = "answer-text";
+  // 模型正文按纯文本显示，既保留工具徽章，也不会把回答中的 HTML 执行掉。
   answer.textContent = text;
   bubble.append(tools, answer);
   const note = document.createElement("p");
@@ -84,8 +94,10 @@ function addMessage(role, text) {
   return { bubble, text: answer, tools, note };
 }
 
+// 切换输入禁用状态及发送/停止按钮，让同一时刻只进行一轮聊天。
 function busy(value) {
   input.disabled = value;
+  // 回复期间同步禁用桌面和移动端的新会话按钮。
   newButtons.forEach((button) => { button.disabled = value; });
   sendButton.setAttribute("aria-label", value ? "停止回复" : "发送消息");
   sendButton.innerHTML = value ? '<span class="stop-symbol" aria-hidden="true"></span>' : '<svg aria-hidden="true"><use href="#icon-send"/></svg>';
@@ -93,6 +105,7 @@ function busy(value) {
   resizeInput();
 }
 
+// 首批正文出现时仅清除一次等待动画，再进入逐字显示状态。
 function beginText(state) {
   if (state.startedText) return;
   state.startedText = true;
@@ -102,6 +115,7 @@ function beginText(state) {
   state.bubble.classList.add("typing");
 }
 
+// 网络已结束且文字队列已显示完时收尾，保留错误/停止提示并恢复输入。
 function finishVisual(state) {
   state.bubble.classList.remove("typing", "waiting");
   if (state.toolBadge?.dataset.status === "running") {
@@ -122,6 +136,7 @@ function finishVisual(state) {
   input.focus({ preventScroll: true });
 }
 
+// 每帧按时间预算消费文字队列；减少动态效果模式直接显示已收到的全部文字。
 function tick(state, now) {
   state.animation = null;
   const elapsed = Math.min(now - state.lastPaint, 100);
@@ -139,10 +154,12 @@ function tick(state, now) {
   if (state.networkFinished && !state.queue.length) {
     finishVisual(state);
   } else {
+    // 队列暂时为空也继续等下一帧，网络后续仍可能送来正文片段。
     state.animation = requestAnimationFrame((time) => tick(state, time));
   }
 }
 
+// 停止尚未完成的网络请求，并立即显示已经收到、尚未绘制的文字。
 function stopReply() {
   const state = active;
   if (!state) return;
@@ -156,6 +173,7 @@ function stopReply() {
   }
 }
 
+// 将后端阶段状态显示为提示和工具徽章，同一轮只接受同一个工具调用身份。
 function acceptStatus(payload, state) {
   const phase = payload.phase;
   if (phase === "selecting") {
@@ -195,6 +213,7 @@ function acceptStatus(payload, state) {
   scrollBottom();
 }
 
+// 解析完整 SSE 帧，把正文加入码点队列，校验 done 身份并记录安全错误提示。
 function acceptFrame(frame, state) {
   const lines = frame.split(/\r?\n/);
   let event = "message";
@@ -223,6 +242,8 @@ function acceptFrame(frame, state) {
   }
 }
 
+// 首轮创建会话，再 POST 聊天请求并持续读取 SSE；后续轮次复用会话身份。
+// 网络读取和逐字动画独立进行，EOF 必须有终止帧才算完整结束。
 async function readReply(state, message) {
   let reader;
   try {
@@ -263,8 +284,10 @@ async function readReply(state, message) {
       throw new Error("服务返回的回复格式异常，请稍后重试。");
     }
     reader = response.body.getReader();
+    // 流式解码保留跨网络包拆开的中文字节，不能把每个包单独转成字符串。
     const decoder = new TextDecoder("utf-8", { fatal: true });
     let buffer = "";
+    // 仅消费以空行结束的完整事件；残余半帧留在 buffer 等待下一包。
     const drain = () => {
       let boundary;
       while ((boundary = /\r?\n\r?\n/.exec(buffer))) {
@@ -294,6 +317,7 @@ async function readReply(state, message) {
   }
 }
 
+// 提交时创建用户与助手气泡；回复进行中再次点击提交则调用停止逻辑。
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   if (active) { stopReply(); return; }
@@ -315,10 +339,12 @@ form.addEventListener("submit", (event) => {
   active = state;
   input.value = "";
   busy(true);
+  // 动画负责显示队列，readReply 负责填充队列，二者共享本轮 state。
   state.animation = requestAnimationFrame((time) => tick(state, time));
   void readReply(state, message);
 });
 
+// 为两个新会话入口绑定重置动作，清空页面身份后下一条消息重新创建会话。
 newButtons.forEach((button) => button.addEventListener("click", () => {
   if (active) return;
   conversationId = null;
@@ -331,12 +357,14 @@ newButtons.forEach((button) => button.addEventListener("click", () => {
   scrollArea.scrollTop = 0;
   input.focus({ preventScroll: true });
 }));
+// 示例问题只填入输入框，由用户确认后发送。
 document.querySelectorAll("[data-prompt]").forEach((button) => button.addEventListener("click", () => {
   input.value = button.dataset.prompt;
   resizeInput();
   input.focus({ preventScroll: true });
 }));
 
+// 用五秒超时探测健康接口，更新页面连接提示。
 async function checkConnection() {
   try {
     const response = await fetch("/health", { signal: AbortSignal.timeout(5000) });

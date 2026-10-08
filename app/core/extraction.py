@@ -11,12 +11,14 @@ from app.core.prompts import build_extract_messages
 from app.schemas.extract import AfterSalesResult
 
 
+# 构造模型结构化输出无效时使用的统一上游错误。
 def invalid_output() -> ServiceError:
     return ServiceError(
         "invalid_structured_output", "模型返回的结构化结果无效，请稍后重试。", 502,
     )
 
 
+# 同时校验原始 JSON 和解析结果，拒绝截断、解析错误或结果不一致。
 def validate_structured_output(output: Any, schema: type[BaseModel]) -> BaseModel:
     """Validate the untouched response as well as LangChain's parsed result."""
     if not isinstance(output, dict) or output.get("parsing_error") is not None:
@@ -25,7 +27,7 @@ def validate_structured_output(output: Any, schema: type[BaseModel]) -> BaseMode
     if (not isinstance(raw, AIMessage) or not isinstance(parsed, schema)
             or raw.response_metadata.get("finish_reason") == "length"):
         raise invalid_output()
-    # The LangChain JSON parser can repair a missing closing bracket.
+    # LangChain 解析器可能补齐缺失括号，因此再次校验未修复的原始 JSON。
     try:
         result = schema.model_validate_json(raw.text)
     except ValidationError as exc:
@@ -36,12 +38,14 @@ def validate_structured_output(output: Any, schema: type[BaseModel]) -> BaseMode
 
 
 class ExtractionService:
+    # 绑定售后结果 Schema，并要求模型返回原始响应以便复核。
     def __init__(self, model: Any, input_budget: int):
         self.structured_model = model.with_structured_output(
             AfterSalesResult, method="json_mode", include_raw=True,
         )
         self.input_budget = input_budget
 
+    # 检查输入预算、调用模型并复核字段，确保订单号和期望方案来自原文。
     async def extract(self, text: str) -> AfterSalesResult:
         messages = build_extract_messages(text)
         if estimate_tokens(messages) > self.input_budget:
@@ -58,6 +62,7 @@ class ExtractionService:
             ) from exc
 
         result = validate_structured_output(output, AfterSalesResult)
+        # Schema 合法仍不代表来源可信，文本字段必须逐字出现在用户原文中。
         if any(
             value is not None and value not in text
             for value in (result.order_id, result.expected_solution)
