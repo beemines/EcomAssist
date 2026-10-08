@@ -2,7 +2,7 @@
 
 第三章在 MySQL 持久会话与单轮工具调用上加入 Dense 知识库，沿用 FastAPI、LangChain 和 OpenAI 兼容 Chat Completions。每条用户消息一次工具选择、最多一个逻辑工具、一次最终流式回答，没有 Agent Loop。订单、商品和物流返回随机模拟数据；FAQ 使用云端 BGE-M3 与本机 Milvus 检索、MySQL 读取权威正文；人工工单真实写库并将会话转人工。原售后信息提取接口继续保留。
 
-本章实际域内召回5/5、原问法应用SSE及持久回答、两个自建进程中断恢复已验证；域外误召回观察仍失败。当前 Prompt 实际九类评估9/9；最终总回归显式启用 MySQL/Milvus，729 passed、0 failed、0 skipped。六项任务审查及整分支修复复核通过。详见[第三章验证记录](docs/validation/ch03-results.md)、[代码审查](docs/validation/ch03-code-review.md)与[开发记录](dev-notes/ch03.md)；合并/推送待用户选择，主库建库和宿主定时任务尚未部署。第二章的历史工具验收及未完成项保留在[旧验证记录](docs/validation/tool-calling-results.md)，不能由本章单个邮费回答推断旧八类均已通过。原始业务建表为[sql/schema.sql](sql/schema.sql)，新增两表为用户原样[sql/ch03-ddl.sql](sql/ch03-ddl.sql)。
+本章实际域内召回5/5、原问法应用SSE及持久回答、两个自建进程中断恢复已验证；域外误召回观察仍失败。当前 Prompt 实际九类评估9/9；最终总回归显式启用 MySQL/Milvus，729 passed、0 failed、0 skipped。六项任务审查及整分支修复复核通过。详见[第三章验证记录](docs/validation/ch03-results.md)、[代码审查](docs/validation/ch03-code-review.md)与[开发记录](dev-notes/ch03.md)；分支已改名为 `feat/dense-knowledge` 并于2026-10-08本地合并到 `master`，尚未推送；主库建库和宿主定时任务尚未部署。第二章的历史工具验收及未完成项保留在[旧验证记录](docs/validation/tool-calling-results.md)，不能由本章单个邮费回答推断旧八类均已通过。原始业务建表为[sql/schema.sql](sql/schema.sql)，新增两表为用户原样[sql/ch03-ddl.sql](sql/ch03-ddl.sql)。
 
 ## 安装、数据库与启动
 
