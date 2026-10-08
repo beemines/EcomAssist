@@ -1,6 +1,6 @@
 # 第四步设计：混合检索、重排与质量评估
 
-日期：2026-10-08。当前阶段：用户已用“继续”确认会话中的设计方案；本文件完成后交用户审阅。正式实现计划及产品实现尚未开始。
+日期：2026-10-08。用户先以“继续”确认会话中的设计方案，再以“是的，继续”确认本书面 Spec。当前进入正式实现计划审阅阶段，产品实现尚未开始。
 
 ## 1. 目的与验收范围
 
@@ -153,4 +153,4 @@ README 提供迁移、重建、切换、校准、四策略评估、服务启动�
 - [PyMilvus Async API](https://github.com/milvus-io/pymilvus/blob/master/_autodocs/api-reference/async-milvus-client.md)：hybrid_search 与检索请求签名，已结合安装版本核对。
 - [SiliconFlow Rerank](https://docs.siliconflow.cn/docs/api/rerank-post)：云端重排请求与结果索引定义。
 
-自审结论：范围覆盖用户七项功能与两表 DDL；旧 done 行重建和新 pending 写入分别定义；候选 Top-10、实际输入及引用快照三者区分；评分阈值由独立数据决定；入池条件统一 useful=false；前端反馈没有后端写入。设计不存在未填占位符；阈值数值与真实报告属于必须通过后续校准/验收得到的实测产物，不伪写为设计事实。等待用户审阅本 Spec 后再编写实现计划。
+自审结论：范围覆盖用户七项功能与两表 DDL；旧 done 行重建和新 pending 写入分别定义；候选 Top-10、实际输入及引用快照三者区分；评分阈值由独立数据决定；入池条件统一 useful=false；前端反馈没有后端写入。设计不存在未填占位符；阈值数值与真实报告属于必须通过后续校准/验收得到的实测产物，不伪写为设计事实。用户已批准本 Spec；对应计划为 [2026-10-08-hybrid-retrieval.md](../plans/2026-10-08-hybrid-retrieval.md)。
