@@ -19,11 +19,17 @@ class Settings(BaseSettings):
     llm_base_url: HttpUrl = Field(validation_alias="LLM_BASE_URL")
     llm_model: str = Field(validation_alias="LLM_MODEL")
     llm_api_key: SecretStr = Field(validation_alias="LLM_API_KEY")
+    siliconflow_api_key: SecretStr | None = Field(default=None, validation_alias="SILICONFLOW_API_KEY")
+    embedding_model: Literal['BAAI/bge-m3'] = Field(default='BAAI/bge-m3', validation_alias='EMBEDDING_MODEL')
+    embedding_timeout_seconds: float = Field(default=20, gt=0, validation_alias='EMBEDDING_TIMEOUT_SECONDS')
+    milvus_uri: HttpUrl = Field(default='http://127.0.0.1:19530', validation_alias='MILVUS_URI')
+    milvus_timeout_seconds: float = Field(default=5, gt=0, validation_alias='MILVUS_TIMEOUT_SECONDS')
     llm_token_limit_field: Literal["max_tokens", "max_completion_tokens"] = Field(
         default="max_tokens", validation_alias="LLM_TOKEN_LIMIT_FIELD"
     )
     input_token_budget: int = Field(default=2000, gt=0, validation_alias="INPUT_TOKEN_BUDGET")
     max_output_tokens: int = Field(default=512, gt=0, validation_alias="MAX_OUTPUT_TOKENS")
+    qa_max_output_tokens: int = Field(default=2048, gt=0, validation_alias="QA_MAX_OUTPUT_TOKENS")
     llm_timeout_seconds: float = Field(default=60.0, gt=0, validation_alias="LLM_TIMEOUT_SECONDS")
     mysql_host: str = Field(default="127.0.0.1", validation_alias="MYSQL_HOST")
     mysql_port: int = Field(default=3307, gt=0, le=65535, validation_alias="MYSQL_PORT")
@@ -55,6 +61,13 @@ class Settings(BaseSettings):
     def model_must_not_be_blank(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("model must not be blank")
+        return value
+
+    @field_validator('qa_max_output_tokens', mode='before')
+    @classmethod
+    def qa_output_budget_must_not_be_bool(cls, value):
+        if isinstance(value, bool):
+            raise ValueError('QA output budget must be a positive integer')
         return value
 
     @field_validator("llm_api_key")

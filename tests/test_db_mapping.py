@@ -17,7 +17,7 @@ def test_mapping_matches_all_supplied_columns_and_constraints():
         FAQ: ["id", "question", "answer", "category", "created_at", "updated_at"],
         Ticket: ["ticket_no", "conversation_id", "description", "ticket_type", "status", "created_at"],
     }
-    assert set(Conversation.metadata.tables) == {"conversations", "messages", "faq", "tickets"}
+    assert set(Conversation.metadata.tables) == {"conversations", "messages", "faq", "tickets", "knowledge_chunks", "qa_extraction_staging"}
     for model, columns in expected.items():
         table = model.__table__
         assert list(table.columns.keys()) == columns

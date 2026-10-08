@@ -3,7 +3,7 @@ from typing import Any
 import httpx
 from langchain_core.messages import AIMessage
 from openai import APITimeoutError
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.core.errors import InputTooLong, ServiceError
 from app.core.memory import estimate_tokens
@@ -15,6 +15,24 @@ def invalid_output() -> ServiceError:
     return ServiceError(
         "invalid_structured_output", "模型返回的结构化结果无效，请稍后重试。", 502,
     )
+
+
+def validate_structured_output(output: Any, schema: type[BaseModel]) -> BaseModel:
+    """Validate the untouched response as well as LangChain's parsed result."""
+    if not isinstance(output, dict) or output.get("parsing_error") is not None:
+        raise invalid_output()
+    raw, parsed = output.get("raw"), output.get("parsed")
+    if (not isinstance(raw, AIMessage) or not isinstance(parsed, schema)
+            or raw.response_metadata.get("finish_reason") == "length"):
+        raise invalid_output()
+    # The LangChain JSON parser can repair a missing closing bracket.
+    try:
+        result = schema.model_validate_json(raw.text)
+    except ValidationError as exc:
+        raise invalid_output() from exc
+    if result != parsed:
+        raise invalid_output()
+    return result
 
 
 class ExtractionService:
@@ -39,23 +57,7 @@ class ExtractionService:
                 "upstream_error", "模型服务暂时不可用，请稍后重试。", 502,
             ) from exc
 
-        if not isinstance(output, dict) or output.get("parsing_error") is not None:
-            raise invalid_output()
-        raw, parsed = output.get("raw"), output.get("parsed")
-        if (
-            not isinstance(raw, AIMessage)
-            or not isinstance(parsed, AfterSalesResult)
-            or raw.response_metadata.get("finish_reason") == "length"
-        ):
-            raise invalid_output()
-        # LangChain 的 JSON 解析器可能补齐缺失的右括号。
-        # 必须独立校验原始文本的完整性，不能直接接受修补后的结果。
-        try:
-            result = AfterSalesResult.model_validate_json(raw.text)
-        except ValidationError as exc:
-            raise invalid_output() from exc
-        if result != parsed:
-            raise invalid_output()
+        result = validate_structured_output(output, AfterSalesResult)
         if any(
             value is not None and value not in text
             for value in (result.order_id, result.expected_solution)

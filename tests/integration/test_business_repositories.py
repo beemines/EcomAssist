@@ -7,13 +7,18 @@ import pytest_asyncio
 from langchain_core.messages import HumanMessage
 from sqlalchemy import delete, func, select
 
-from app.db.models import Conversation, FAQ, Message, Ticket
+from app.db.models import Conversation, FAQ, KnowledgeChunk, Message, Ticket
+from app.knowledge.types import ChunkDraft, VectorHit
+from app.knowledge.vectors import MilvusIndex
+from app.repositories.knowledge import KnowledgeRepository
 from app.repositories.conversations import ConversationRepository
 from app.repositories.faq import FAQRepository
 from app.repositories.tickets import TicketRepository
 from app.tools.executor import ToolExecutor
 from app.tools.registry import build_registry
 from app.tools.types import ToolCall, ToolContext
+from tests.ch03_fakes import RecordingEmbedder
+from tests.fakes import FAQStub
 
 
 @pytest_asyncio.fixture
@@ -39,20 +44,67 @@ async def new_turn(database, owned_rows, question="请求人工"):
 
 
 @pytest.mark.asyncio
-async def test_faq_actual_like_is_question_only_literal_and_limited(mysql_database, owned_rows):
-    repository = FAQRepository(mysql_database)
-    assert any("退货" in row["question"] for row in await repository.search("退货"))
-    assert await repository.search("邮费") == []
-    token = "task3-" + uuid4().hex
-    async with mysql_database.session() as session, session.begin():
-        rows = [FAQ(question=token + suffix, answer="answer-only-marker", category="测试") for suffix in ("%", "_", "plain", "a", "b")]
-        session.add_all(rows)
+async def test_faq_real_mysql_done_filter_raw_query_order_and_no_legacy_like(knowledge_rows, owned_rows):
+    database, token = knowledge_rows.database, knowledge_rows.token
+    knowledge = KnowledgeRepository(database)
+    ids = await knowledge.add_chunks([
+        ChunkDraft(token, '退货规则', '七天'), ChunkDraft(token, '运费规则', '八元'),
+        ChunkDraft(token, '未审核正文', '不得返回'), ChunkDraft(token, '缺失正文', '不得返回'),
+    ])
+    await knowledge.mark_done(ids[:2])
+    async with database.session() as session, session.begin():
+        await session.execute(delete(KnowledgeChunk).where(KnowledgeChunk.id == ids[3]))
+        old = FAQ(question=token + '邮费是多少', answer='旧 LIKE 正文不得返回', category='旧数据')
+        session.add(old)
         await session.flush()
-        owned_rows[1].extend(row.id for row in rows)
-    assert [r["question"] for r in await repository.search(token + "%")] == [token + "%"]
-    assert [r["question"] for r in await repository.search(token + "_")] == [token + "_"]
-    assert await repository.search("answer-only-marker") == []
-    assert len(await repository.search(token, limit=10)) == 3
+        owned_rows[1].append(old.id)
+
+    class Index:
+        hits = [VectorHit(ids[1], .9), VectorHit(ids[0], .8), VectorHit(ids[2], .7)]
+        async def search(self, vector, limit=3):
+            assert limit == 3
+            return self.hits[:limit]
+
+    embedder, index = RecordingEmbedder(), Index()
+    repository = FAQRepository(database, embedder, index)
+    raw = ' \t邮费是多少\n '
+    assert await repository.search(raw, limit=10) == [
+        {'id': ids[1], 'question': '运费规则', 'answer': '八元', 'category': token},
+        {'id': ids[0], 'question': '退货规则', 'answer': '七天', 'category': token},
+    ]
+    assert embedder.texts == [raw]
+    index.hits = [VectorHit(ids[3], .95), VectorHit(ids[0], .9)]
+    assert [row['id'] for row in await repository.search('邮费是多少')] == [ids[0]]
+    index.hits = []
+    assert await repository.search(token + '邮费是多少') == []
+
+
+async def test_faq_real_milvus_search_projects_only_real_mysql_done_rows(knowledge_rows, milvus_collection):
+    database, token = knowledge_rows.database, knowledge_rows.token
+    knowledge = KnowledgeRepository(database)
+    ids = await knowledge.add_chunks([
+        ChunkDraft(token, '退货规则', '七天'), ChunkDraft(token, '运费规则', '八元'),
+        ChunkDraft(token, '待向量提交', '不得返回'), ChunkDraft(token, '已删除正文', '不得返回'),
+    ])
+    await knowledge.mark_done(ids[:2])
+    service = milvus_collection
+    index = MilvusIndex(service.uri, collection=service.name, client=service.client)
+    await index.upsert([
+        (ids[0], [.8, .6] + [0.0] * 1022), (ids[1], [1.0] + [0.0] * 1023),
+        (ids[2], [.6, .8] + [0.0] * 1022),
+    ])
+    embedder = RecordingEmbedder()
+    repository = FAQRepository(database, embedder, index)
+    assert await repository.search('邮费是多少', limit=10) == [
+        {'id': ids[1], 'question': '运费规则', 'answer': '八元', 'category': token},
+        {'id': ids[0], 'question': '退货规则', 'answer': '七天', 'category': token},
+    ]
+    # A missing SQL row can still have a dense hit; never return vector text.
+    async with database.session() as session, session.begin():
+        await session.execute(delete(KnowledgeChunk).where(KnowledgeChunk.id == ids[3]))
+    await index.upsert([(ids[3], [.99, .01] + [0.0] * 1022)])
+    assert [row['id'] for row in await repository.search('邮费是多少')] == [ids[1], ids[0]]
+    assert embedder.texts == ['邮费是多少', '邮费是多少']
 
 
 @pytest.mark.asyncio
@@ -121,7 +173,7 @@ async def test_ticket_commit_then_timeout_keeps_one_row(mysql_database, owned_ro
             return result
 
     tickets = CommitThenTimeout()
-    registry = build_registry(FAQRepository(mysql_database), tickets, ToolContext(identifier, message_id, "请求人工"))
+    registry = build_registry(FAQStub(), tickets, ToolContext(identifier, message_id, "请求人工"))
     outcome = await ToolExecutor().execute(ToolCall("same-id", "create_ticket", {"description": "损坏", "ticket_type": "售后"}), registry)
     assert outcome.status == "success" and outcome.attempts == 2
     async with mysql_database.session() as session:
@@ -269,7 +321,7 @@ async def test_ticket_cancel_after_commit_does_not_retry(mysql_database, owned_r
             committed.set()
             await asyncio.Event().wait()
 
-    registry = build_registry(FAQRepository(mysql_database), CommitThenWait(), ToolContext(identifier, message_id, "人工"))
+    registry = build_registry(FAQStub(), CommitThenWait(), ToolContext(identifier, message_id, "人工"))
     task = asyncio.create_task(ToolExecutor().execute(ToolCall("same-id", "create_ticket", {"description": "人工", "ticket_type": "咨询"}), registry))
     await committed.wait()
     task.cancel()

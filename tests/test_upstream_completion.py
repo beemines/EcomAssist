@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from app.core.llm import create_model
 from app.main import create_app
-from tests.fakes import ConversationStore, decode_sse, fake_settings
+from tests.fakes import FAQStub, ConversationStore, decode_sse, fake_settings
 
 
 @pytest.mark.parametrize("reasons, done_marker, terminal", [
@@ -59,7 +59,7 @@ async def test_factory_stream_requires_normal_completion_before_history_commit(
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond), trust_env=False) as upstream:
         model = create_model(settings, http_async_client=upstream)
         try:
-            app = create_app(settings, model=model, repository=repository)
+            app = create_app(settings, faq_repository=FAQStub(), model=model, repository=repository)
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app), base_url="http://test", trust_env=False,
             ) as client:

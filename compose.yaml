@@ -15,7 +15,8 @@ services:
       - ./sql/mysql.cnf:/config/mysql.cnf:ro
       - ./sql/mysql-entrypoint.sh:/config/mysql-entrypoint.sh:ro
       - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./sql/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./sql/ch03-ddl.sql:/docker-entrypoint-initdb.d/02-ch03-ddl.sql:ro
+      - ./sql/seed.sql:/docker-entrypoint-initdb.d/03-seed.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "--host=127.0.0.1", "--silent"]
       interval: 3s
@@ -40,7 +41,8 @@ services:
       - ./sql/mysql.cnf:/config/mysql.cnf:ro
       - ./sql/mysql-entrypoint.sh:/config/mysql-entrypoint.sh:ro
       - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./sql/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./sql/ch03-ddl.sql:/docker-entrypoint-initdb.d/02-ch03-ddl.sql:ro
+      - ./sql/seed.sql:/docker-entrypoint-initdb.d/03-seed.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "--host=127.0.0.1", "--silent"]
       interval: 3s

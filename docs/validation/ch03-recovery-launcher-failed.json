@@ -1,0 +1,20 @@
+{
+  "kind": "actual_owned_process_recovery",
+  "started_at": "2026-10-07T14:22:10.590445+00:00",
+  "database": "127.0.0.1:3308/customer_service_test",
+  "attempted": 1,
+  "not_attempted": 1,
+  "cases": [
+    {
+      "phase": "after_pending",
+      "collection": "knowledge_test_2e70d5b4dbdc403f9684b0a7feaa8c97",
+      "passed": false,
+      "owned_children": [],
+      "error_type": "ValueError",
+      "cleanup": "owned_rows_and_collection_removed"
+    }
+  ],
+  "passed": false,
+  "cleanup": "owned_rows_and_collections_removed",
+  "finished_at": "2026-10-07T14:22:16.077146+00:00"
+}

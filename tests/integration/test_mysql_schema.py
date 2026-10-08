@@ -10,7 +10,7 @@ async def test_mysql_schema_matches_supplied_ddl(mysql_database):
             SELECT TABLE_NAME, ENGINE, TABLE_COLLATION FROM information_schema.TABLES
             WHERE TABLE_SCHEMA = DATABASE()
         """))).all()
-        assert {row.TABLE_NAME for row in tables} == {"conversations", "messages", "faq", "tickets"}
+        assert {row.TABLE_NAME for row in tables} == {"conversations", "messages", "faq", "tickets", "knowledge_chunks", "qa_extraction_staging"}
         assert all(row.ENGINE == "InnoDB" and row.TABLE_COLLATION.startswith("utf8mb4_") for row in tables)
         columns = (await session.execute(text("""
             SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA, COLUMN_KEY
@@ -50,6 +50,7 @@ async def test_mysql_schema_matches_supplied_ddl(mysql_database):
             SELECT TABLE_NAME, CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
             FROM information_schema.KEY_COLUMN_USAGE
             WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL
+              AND TABLE_NAME IN ('conversations', 'messages', 'faq', 'tickets')
         """))).all()
         assert set(foreign_keys) == {
             ("messages", "fk_messages_conversation", "conversation_id", "conversations", "id"),
@@ -60,6 +61,7 @@ async def test_mysql_schema_matches_supplied_ddl(mysql_database):
         indexes = (await session.execute(text("""
             SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME FROM information_schema.STATISTICS
             WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME IN ('conversations', 'messages', 'faq', 'tickets')
         """))).all()
         assert set(indexes) == {
             ("conversations", "PRIMARY", "id"), ("conversations", "idx_user_id", "user_id"),
