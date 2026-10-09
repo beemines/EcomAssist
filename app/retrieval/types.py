@@ -1,5 +1,8 @@
 # 混合索引行保存知识主键、固定维度向量、三栏拼接正文和分类元数据。
 from dataclasses import dataclass
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.knowledge.embeddings import validate_vector
 from app.knowledge.types import validate_id, validate_text
@@ -19,3 +22,25 @@ class IndexedChunk:
         if not isinstance(self.text, str):
             raise ValueError('indexed text must be text')
         validate_text('category', self.category, 255)
+
+
+class QueryPlan(BaseModel):
+    # 查询对象严格拒绝额外字段和类型转换，长度契约同时约束原始 JSON。
+    model_config = ConfigDict(strict=True, extra='forbid')
+    standard: str = Field(min_length=1, max_length=512)
+    expansions: list[Annotated[str, Field(min_length=1, max_length=64)]] = Field(max_length=4)
+
+    @field_validator('standard', 'expansions')
+    @classmethod
+    def reject_blank_text(cls, value):
+        texts = [value] if isinstance(value, str) else value
+        if any(not text.strip() for text in texts):
+            raise ValueError('query text must not be blank')
+        return value
+
+
+class RerankHit(BaseModel):
+    # 只返回输入位置与有限相关分数，不接收云端返回的正文替代知识原文。
+    model_config = ConfigDict(strict=True, extra='forbid', allow_inf_nan=False)
+    index: int = Field(ge=0)
+    score: float
