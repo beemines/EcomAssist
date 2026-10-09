@@ -1,0 +1,1508 @@
+{
+  "kind": "actual_tcp",
+  "records": [
+    {
+      "name": "category",
+      "question": "普通小件配送费多少？",
+      "category": "合成型号与条件知识",
+      "facts": [
+        "8",
+        "99"
+      ],
+      "conversation_id": "9007199254741255",
+      "events": [
+        {
+          "event": "status",
+          "seconds": 0.045,
+          "body": {
+            "phase": "selecting"
+          }
+        },
+        {
+          "event": "status",
+          "seconds": 7.065,
+          "body": {
+            "phase": "tool_running",
+            "tool_name": "query_faq",
+            "tool_call_id": "call_-7183557446529446205"
+          }
+        },
+        {
+          "event": "status",
+          "seconds": 27.455,
+          "body": {
+            "phase": "checking"
+          }
+        },
+        {
+          "event": "status",
+          "seconds": 30.42,
+          "body": {
+            "phase": "tool_completed",
+            "tool_name": "query_faq",
+            "tool_call_id": "call_-7183557446529446205",
+            "status": "success"
+          }
+        },
+        {
+          "event": "citations",
+          "seconds": 30.422,
+          "body": {
+            "citations": [
+              {
+                "n": 1,
+                "chunk_id": "554",
+                "section_path": "合成型号与条件知识/配送",
+                "question": "演示店普通小件配送费是多少？",
+                "answer": "中国大陆普通配送区域的普通小件标准配送费为8元，单笔订单商品实付金额满99元包邮。偏远地区、港澳台与大件运费未提供，需另行确认。"
+              },
+              {
+                "n": 3,
+                "chunk_id": "557",
+                "section_path": "合成型号与条件知识/退货",
+                "question": "退货运费谁承担？",
+                "answer": "普通商品质量问题经演示客服确认后由演示店承担退货运费；非质量原因由买家承担退货运费。"
+              },
+              {
+                "n": 5,
+                "chunk_id": "561",
+                "section_path": "合成型号与条件知识/条件",
+                "question": "XM-A17拆封使用后可以无理由退货吗？",
+                "answer": "XM-A17属于普通商品，拆封且已使用不支持七天无理由退货；质量问题应联系演示客服确认。"
+              },
+              {
+                "n": 7,
+                "chunk_id": "558",
+                "section_path": "合成型号与条件知识/售后",
+                "question": "如何办理退货或退款申请？",
+                "answer": "打开演示订单页面，选择售后申请，提交问题描述，等待演示客服确认。申请提交不表示退款已执行，资料没有提供退款到账时间。"
+              },
+              {
+                "n": 9,
+                "chunk_id": "562",
+                "section_path": "合成型号与条件知识/条件",
+                "question": "XM-A17保修多久？",
+                "answer": "XM-A17在签收后12个月内可申请保修；保修申请需要购买凭证和商品序列号。"
+              },
+              {
+                "n": 10,
+                "chunk_id": "560",
+                "section_path": "合成型号与条件知识/售后",
+                "question": "维修需要哪些凭证？",
+                "answer": "演示维修申请必须提供购买凭证和商品序列号，缺任一项需要补充后再申请。"
+              },
+              {
+                "n": 8,
+                "chunk_id": "553",
+                "section_path": "合成型号与条件知识/数据范围",
+                "question": "数据范围",
+                "answer": "全部型号、参数及政策为人工合成教学资料，仅适用演示店铺，不代表真实商家。"
+              },
+              {
+                "n": 6,
+                "chunk_id": "559",
+                "section_path": "合成型号与条件知识/售后",
+                "question": "如何查询物流？",
+                "answer": "打开演示订单页面，选择物流详情查看演示物流信息；没有订单号不能确定某个订单的实际物流状态。"
+              },
+              {
+                "n": 4,
+                "chunk_id": "556",
+                "section_path": "合成型号与条件知识/退货",
+                "question": "普通商品可以什么时候申请退货？",
+                "answer": "普通商品签收后七天内可以申请退货，拆封且已使用的普通商品不支持七天无理由退货。"
+              },
+              {
+                "n": 2,
+                "chunk_id": "555",
+                "section_path": "合成型号与条件知识/配送",
+                "question": "演示店何时发货？",
+                "answer": "普通小件订单付款后两个工作日内安排发货；资料没有承诺配送到达日期。"
+              }
+            ]
+          }
+        },
+        {
+          "event": "status",
+          "seconds": 30.422,
+          "body": {
+            "phase": "answering"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.239,
+          "body": {
+            "delta": "您好"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.239,
+          "body": {
+            "delta": "！"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.248,
+          "body": {
+            "delta": "根据"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.248,
+          "body": {
+            "delta": "店铺"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.273,
+          "body": {
+            "delta": "政策"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.274,
+          "body": {
+            "delta": "，"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.282,
+          "body": {
+            "delta": "中国大陆"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.312,
+          "body": {
+            "delta": "普通"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.313,
+          "body": {
+            "delta": "配送"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.313,
+          "body": {
+            "delta": "区域的"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.313,
+          "body": {
+            "delta": "普通"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.313,
+          "body": {
+            "delta": "小"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.313,
+          "body": {
+            "delta": "件"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.34,
+          "body": {
+            "delta": "标准"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.34,
+          "body": {
+            "delta": "配送"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.34,
+          "body": {
+            "delta": "费"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.34,
+          "body": {
+            "delta": "为"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.34,
+          "body": {
+            "delta": " "
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.37,
+          "body": {
+            "delta": "8"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.37,
+          "body": {
+            "delta": " 元"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.37,
+          "body": {
+            "delta": "；"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.382,
+          "body": {
+            "delta": "单"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.389,
+          "body": {
+            "delta": "笔"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.39,
+          "body": {
+            "delta": "订单"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.39,
+          "body": {
+            "delta": "商品"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.39,
+          "body": {
+            "delta": "实"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.39,
+          "body": {
+            "delta": "付"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.411,
+          "body": {
+            "delta": "金额"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.412,
+          "body": {
+            "delta": "满"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.412,
+          "body": {
+            "delta": " "
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.413,
+          "body": {
+            "delta": "99"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.414,
+          "body": {
+            "delta": " 元"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.414,
+          "body": {
+            "delta": "可"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.442,
+          "body": {
+            "delta": "包邮"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.442,
+          "body": {
+            "delta": " ["
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.442,
+          "body": {
+            "delta": "1"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.442,
+          "body": {
+            "delta": "]。"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.446,
+          "body": {
+            "delta": "偏远"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.466,
+          "body": {
+            "delta": "地区"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.467,
+          "body": {
+            "delta": "、"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.467,
+          "body": {
+            "delta": "港澳"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.467,
+          "body": {
+            "delta": "台"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.467,
+          "body": {
+            "delta": "及"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.512,
+          "body": {
+            "delta": "大"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.512,
+          "body": {
+            "delta": "件"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.512,
+          "body": {
+            "delta": "商品的"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.523,
+          "body": {
+            "delta": "运"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.523,
+          "body": {
+            "delta": "费"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.523,
+          "body": {
+            "delta": "政策"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.554,
+          "body": {
+            "delta": "暂"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.575,
+          "body": {
+            "delta": "未"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.576,
+          "body": {
+            "delta": "提供"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.576,
+          "body": {
+            "delta": "，"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.576,
+          "body": {
+            "delta": "如"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.603,
+          "body": {
+            "delta": "需"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.604,
+          "body": {
+            "delta": "了解"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.63,
+          "body": {
+            "delta": "可"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.661,
+          "body": {
+            "delta": "进一步"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.691,
+          "body": {
+            "delta": "确认"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.691,
+          "body": {
+            "delta": " ["
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.735,
+          "body": {
+            "delta": "1"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.736,
+          "body": {
+            "delta": "]。"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.736,
+          "body": {
+            "delta": "请问"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.756,
+          "body": {
+            "delta": "还有"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.756,
+          "body": {
+            "delta": "其他"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.756,
+          "body": {
+            "delta": "可以"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 32.768,
+          "body": {
+            "delta": "帮您的吗？"
+          }
+        },
+        {
+          "event": "done",
+          "seconds": 32.798,
+          "body": {
+            "conversation_id": "9007199254741255",
+            "message_id": "438"
+          }
+        }
+      ],
+      "answer": "您好！根据店铺政策，中国大陆普通配送区域的普通小件标准配送费为 8 元；单笔订单商品实付金额满 99 元可包邮 [1]。偏远地区、港澳台及大件商品的运费政策暂未提供，如需了解可进一步确认 [1]。请问还有其他可以帮您的吗？",
+      "http_status": 200,
+      "done_count": 1,
+      "delta_count": 67,
+      "facts_match": true,
+      "citations_before_delta": true,
+      "error": []
+    },
+    {
+      "name": "multi_condition",
+      "question": "XM-A17保修12个月内申请要准备哪两个凭证？",
+      "facts": [
+        "购买凭证",
+        "商品序列号"
+      ],
+      "conversation_id": "9007199254741256",
+      "events": [
+        {
+          "event": "status",
+          "seconds": 0.031,
+          "body": {
+            "phase": "selecting"
+          }
+        },
+        {
+          "event": "status",
+          "seconds": 11.671,
+          "body": {
+            "phase": "tool_running",
+            "tool_name": "query_faq",
+            "tool_call_id": "call_-7183519925695146019"
+          }
+        },
+        {
+          "event": "status",
+          "seconds": 20.268,
+          "body": {
+            "phase": "checking"
+          }
+        },
+        {
+          "event": "status",
+          "seconds": 21.675,
+          "body": {
+            "phase": "tool_completed",
+            "tool_name": "query_faq",
+            "tool_call_id": "call_-7183519925695146019",
+            "status": "success"
+          }
+        },
+        {
+          "event": "citations",
+          "seconds": 21.677,
+          "body": {
+            "citations": [
+              {
+                "n": 1,
+                "chunk_id": "562",
+                "section_path": "合成型号与条件知识/条件",
+                "question": "XM-A17保修多久？",
+                "answer": "XM-A17在签收后12个月内可申请保修；保修申请需要购买凭证和商品序列号。"
+              },
+              {
+                "n": 3,
+                "chunk_id": "560",
+                "section_path": "合成型号与条件知识/售后",
+                "question": "维修需要哪些凭证？",
+                "answer": "演示维修申请必须提供购买凭证和商品序列号，缺任一项需要补充后再申请。"
+              },
+              {
+                "n": 5,
+                "chunk_id": "561",
+                "section_path": "合成型号与条件知识/条件",
+                "question": "XM-A17拆封使用后可以无理由退货吗？",
+                "answer": "XM-A17属于普通商品，拆封且已使用不支持七天无理由退货；质量问题应联系演示客服确认。"
+              },
+              {
+                "n": 7,
+                "chunk_id": "558",
+                "section_path": "合成型号与条件知识/售后",
+                "question": "如何办理退货或退款申请？",
+                "answer": "打开演示订单页面，选择售后申请，提交问题描述，等待演示客服确认。申请提交不表示退款已执行，资料没有提供退款到账时间。"
+              },
+              {
+                "n": 9,
+                "chunk_id": "551",
+                "section_path": "合成演示操作手册/演示申请步骤",
+                "question": "演示申请步骤",
+                "answer": "先打开演示订单页面。再选择售后申请。提交问题描述后等待演示客服确认。"
+              },
+              {
+                "n": 10,
+                "chunk_id": "572",
+                "section_path": "合成型号与条件知识/型号参数",
+                "question": "XM-A07",
+                "answer": "XM-A07参数：容量107毫升，额定功率17瓦，防水等级IP47。仅适用于本型号，不适用于其他近似型号。"
+              },
+              {
+                "n": 8,
+                "chunk_id": "552",
+                "section_path": "合成演示操作手册/演示申请步骤/状态表",
+                "question": "状态表",
+                "answer": "| 状态 | 演示说明 |\n| --- | --- |\n| 待确认 | 演示客服检查资料 |\n| 已受理 | 演示申请进入处理 |\n| 已完成 | 演示记录已关闭 |"
+              },
+              {
+                "n": 6,
+                "chunk_id": "564",
+                "section_path": "合成型号与条件知识/条件",
+                "question": "XM-A17能在雨中充电吗？",
+                "answer": "XM-A17充电时必须保持机身和接口干燥，不允许在雨中充电；防水等级不能证明湿水充电安全。"
+              },
+              {
+                "n": 4,
+                "chunk_id": "582",
+                "section_path": "合成型号与条件知识/型号参数",
+                "question": "XM-A17",
+                "answer": "XM-A17参数：容量117毫升，额定功率27瓦，防水等级IP57。仅适用于本型号，不适用于其他近似型号。"
+              },
+              {
+                "n": 2,
+                "chunk_id": "563",
+                "section_path": "合成型号与条件知识/条件",
+                "question": "XM-A18保修多久？",
+                "answer": "XM-A18在签收后6个月内可申请保修；保修申请需要购买凭证和商品序列号。"
+              }
+            ]
+          }
+        },
+        {
+          "event": "status",
+          "seconds": 21.677,
+          "body": {
+            "phase": "answering"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.158,
+          "body": {
+            "delta": "您好"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.158,
+          "body": {
+            "delta": "！"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.288,
+          "body": {
+            "delta": "XM"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.291,
+          "body": {
+            "delta": "-A"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.292,
+          "body": {
+            "delta": "17"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.292,
+          "body": {
+            "delta": " 在"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.353,
+          "body": {
+            "delta": "签"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.353,
+          "body": {
+            "delta": "收"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.36,
+          "body": {
+            "delta": "后"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.36,
+          "body": {
+            "delta": " "
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.431,
+          "body": {
+            "delta": "12"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.432,
+          "body": {
+            "delta": " "
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.432,
+          "body": {
+            "delta": "个月内"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.432,
+          "body": {
+            "delta": "可"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.441,
+          "body": {
+            "delta": "申请"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.442,
+          "body": {
+            "delta": "保修"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.494,
+          "body": {
+            "delta": "，"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.494,
+          "body": {
+            "delta": "申请"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.556,
+          "body": {
+            "delta": "时"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.56,
+          "body": {
+            "delta": "需要"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.561,
+          "body": {
+            "delta": "准备"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.561,
+          "body": {
+            "delta": "的两个"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.634,
+          "body": {
+            "delta": "凭证"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.635,
+          "body": {
+            "delta": "是"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.694,
+          "body": {
+            "delta": "："
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.694,
+          "body": {
+            "delta": "**"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.715,
+          "body": {
+            "delta": "购买"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.768,
+          "body": {
+            "delta": "凭证"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.769,
+          "body": {
+            "delta": "**"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.808,
+          "body": {
+            "delta": "和"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.863,
+          "body": {
+            "delta": "**"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.864,
+          "body": {
+            "delta": "商品"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.864,
+          "body": {
+            "delta": "序列"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.864,
+          "body": {
+            "delta": "号"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.864,
+          "body": {
+            "delta": "**"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.864,
+          "body": {
+            "delta": "["
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.906,
+          "body": {
+            "delta": "1"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.906,
+          "body": {
+            "delta": "]"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.997,
+          "body": {
+            "delta": "。\n\n"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.998,
+          "body": {
+            "delta": "如"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.998,
+          "body": {
+            "delta": "需"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 25.998,
+          "body": {
+            "delta": "其他"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 26.058,
+          "body": {
+            "delta": "帮助"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 26.059,
+          "body": {
+            "delta": "，"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 26.059,
+          "body": {
+            "delta": "欢迎"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 26.112,
+          "body": {
+            "delta": "随时"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 26.127,
+          "body": {
+            "delta": "咨询"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 26.127,
+          "body": {
+            "delta": "～"
+          }
+        },
+        {
+          "event": "done",
+          "seconds": 26.2,
+          "body": {
+            "conversation_id": "9007199254741256",
+            "message_id": "442"
+          }
+        }
+      ],
+      "answer": "您好！XM-A17 在签收后 12 个月内可申请保修，申请时需要准备的两个凭证是：**购买凭证**和**商品序列号**[1]。\n\n如需其他帮助，欢迎随时咨询～",
+      "http_status": 200,
+      "done_count": 1,
+      "delta_count": 48,
+      "facts_match": true,
+      "citations_before_delta": true,
+      "error": []
+    },
+    {
+      "name": "unknown",
+      "question": "XM-A17支持无线充电吗？",
+      "facts": [],
+      "expect_refusal": true,
+      "conversation_id": "9007199254741257",
+      "events": [
+        {
+          "event": "status",
+          "seconds": 0.028,
+          "body": {
+            "phase": "selecting"
+          }
+        },
+        {
+          "event": "status",
+          "seconds": 13.491,
+          "body": {
+            "phase": "tool_running",
+            "tool_name": "query_faq",
+            "tool_call_id": "call_-7183542740561421033"
+          }
+        },
+        {
+          "event": "status",
+          "seconds": 19.28,
+          "body": {
+            "phase": "checking"
+          }
+        },
+        {
+          "event": "status",
+          "seconds": 22.075,
+          "body": {
+            "phase": "tool_completed",
+            "tool_name": "query_faq",
+            "tool_call_id": "call_-7183542740561421033",
+            "status": "success"
+          }
+        },
+        {
+          "event": "citations",
+          "seconds": 22.076,
+          "body": {
+            "citations": [
+              {
+                "n": 1,
+                "chunk_id": "564",
+                "section_path": "合成型号与条件知识/条件",
+                "question": "XM-A17能在雨中充电吗？",
+                "answer": "XM-A17充电时必须保持机身和接口干燥，不允许在雨中充电；防水等级不能证明湿水充电安全。"
+              },
+              {
+                "n": 3,
+                "chunk_id": "561",
+                "section_path": "合成型号与条件知识/条件",
+                "question": "XM-A17拆封使用后可以无理由退货吗？",
+                "answer": "XM-A17属于普通商品，拆封且已使用不支持七天无理由退货；质量问题应联系演示客服确认。"
+              },
+              {
+                "n": 5,
+                "chunk_id": "562",
+                "section_path": "合成型号与条件知识/条件",
+                "question": "XM-A17保修多久？",
+                "answer": "XM-A17在签收后12个月内可申请保修；保修申请需要购买凭证和商品序列号。"
+              },
+              {
+                "n": 7,
+                "chunk_id": "581",
+                "section_path": "合成型号与条件知识/型号参数",
+                "question": "XM-A16",
+                "answer": "XM-A16参数：容量116毫升，额定功率26瓦，防水等级IP56。仅适用于本型号，不适用于其他近似型号。"
+              },
+              {
+                "n": 9,
+                "chunk_id": "592",
+                "section_path": "合成型号与条件知识/型号参数",
+                "question": "XM-A27",
+                "answer": "XM-A27参数：容量127毫升，额定功率37瓦，防水等级IP67。仅适用于本型号，不适用于其他近似型号。"
+              },
+              {
+                "n": 10,
+                "chunk_id": "566",
+                "section_path": "合成型号与条件知识/型号参数",
+                "question": "XM-A01",
+                "answer": "XM-A01参数：容量101毫升，额定功率11瓦，防水等级IP41。仅适用于本型号，不适用于其他近似型号。"
+              },
+              {
+                "n": 8,
+                "chunk_id": "583",
+                "section_path": "合成型号与条件知识/型号参数",
+                "question": "XM-A18",
+                "answer": "XM-A18参数：容量118毫升，额定功率28瓦，防水等级IP58。仅适用于本型号，不适用于其他近似型号。"
+              },
+              {
+                "n": 6,
+                "chunk_id": "572",
+                "section_path": "合成型号与条件知识/型号参数",
+                "question": "XM-A07",
+                "answer": "XM-A07参数：容量107毫升，额定功率17瓦，防水等级IP47。仅适用于本型号，不适用于其他近似型号。"
+              },
+              {
+                "n": 4,
+                "chunk_id": "565",
+                "section_path": "合成型号与条件知识/条件",
+                "question": "XM-A18能在雨中充电吗？",
+                "answer": "XM-A18充电时必须保持机身和接口干燥，不允许在雨中充电；防水等级不能证明湿水充电安全。"
+              },
+              {
+                "n": 2,
+                "chunk_id": "582",
+                "section_path": "合成型号与条件知识/型号参数",
+                "question": "XM-A17",
+                "answer": "XM-A17参数：容量117毫升，额定功率27瓦，防水等级IP57。仅适用于本型号，不适用于其他近似型号。"
+              }
+            ]
+          }
+        },
+        {
+          "event": "status",
+          "seconds": 22.076,
+          "body": {
+            "phase": "answering"
+          }
+        },
+        {
+          "event": "delta",
+          "seconds": 22.076,
+          "body": {
+            "delta": "目前的知识资料不足以确认这个问题，我无法给出可靠答案。请补充具体商品或适用条件，或联系人工客服确认。"
+          }
+        },
+        {
+          "event": "done",
+          "seconds": 22.086,
+          "body": {
+            "conversation_id": "9007199254741257",
+            "message_id": "446"
+          }
+        }
+      ],
+      "answer": "目前的知识资料不足以确认这个问题，我无法给出可靠答案。请补充具体商品或适用条件，或联系人工客服确认。",
+      "http_status": 200,
+      "done_count": 1,
+      "delta_count": 1,
+      "facts_match": true,
+      "citations_before_delta": true,
+      "error": []
+    }
+  ],
+  "audit": {
+    "messages": [
+      {
+        "id": "427",
+        "conversation_id": "9007199254741254",
+        "role": "user",
+        "content": "邮费是多少",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "428",
+        "conversation_id": "9007199254741254",
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_-7183551193057059601",
+            "type": "function",
+            "function": {
+              "name": "query_faq",
+              "arguments": "{\"keyword\":\"邮费\"}"
+            }
+          }
+        ],
+        "tool_call_id": null
+      },
+      {
+        "id": "429",
+        "conversation_id": "9007199254741254",
+        "role": "tool",
+        "content": "{\"found\":true,\"matches\":[{\"id\":\"548\",\"question\":\"邮费是多少？\\n快递费用怎么收？\",\"answer\":\"本回答仅适用于人工合成演示店铺、中国大陆普通配送区域的普通小件商品。标准配送费为 8 元，单笔订单商品实付金额满 99 元包邮；港澳台、偏远地区和大件商品需另行确认。本文件不代表真实商家政策。\",\"category\":\"合成演示 FAQ\",\"section_path\":\"合成演示 FAQ/配送问答\",\"score\":0.7018767595291138,\"score_kind\":\"rerank\",\"n\":1},{\"id\":\"554\",\"question\":\"演示店普通小件配送费是多少？\",\"answer\":\"中国大陆普通配送区域的普通小件标准配送费为8元，单笔订单商品实付金额满99元包邮。偏远地区、港澳台与大件运费未提供，需另行确认。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/配送\",\"score\":0.14791062474250793,\"score_kind\":\"rerank\",\"n\":3},{\"id\":\"547\",\"question\":\"退货申请\",\"answer\":\"> [!IMPORTANT]\\n> 仅在本合成演示中，普通商品签收后七天内可以申请退货；退货原因和实际运费承担需另行确认。\",\"category\":\"合成演示政策\",\"section_path\":\"合成演示政策/退货申请\",\"score\":0.0012753207702189684,\"score_kind\":\"rerank\",\"n\":5},{\"id\":\"549\",\"question\":\"退货怎么申请？\",\"answer\":\"本合成演示中的普通商品，可在签收后七天内联系演示客服申请退货，具体责任另行确认。\",\"category\":\"合成演示 FAQ\",\"section_path\":\"合成演示 FAQ/配送问答\",\"score\":0.00018048948550131172,\"score_kind\":\"rerank\",\"n\":7},{\"id\":\"556\",\"question\":\"普通商品可以什么时候申请退货？\",\"answer\":\"普通商品签收后七天内可以申请退货，拆封且已使用的普通商品不支持七天无理由退货。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/退货\",\"score\":0.00011926671140827239,\"score_kind\":\"rerank\",\"n\":9},{\"id\":\"558\",\"question\":\"如何办理退货或退款申请？\",\"answer\":\"打开演示订单页面，选择售后申请，提交问题描述，等待演示客服确认。申请提交不表示退款已执行，资料没有提供退款到账时间。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/售后\",\"score\":7.552713213954121e-05,\"score_kind\":\"rerank\",\"n\":10},{\"id\":\"559\",\"question\":\"如何查询物流？\",\"answer\":\"打开演示订单页面，选择物流详情查看演示物流信息；没有订单号不能确定某个订单的实际物流状态。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/售后\",\"score\":0.0001452387368772179,\"score_kind\":\"rerank\",\"n\":8},{\"id\":\"555\",\"question\":\"演示店何时发货？\",\"answer\":\"普通小件订单付款后两个工作日内安排发货；资料没有承诺配送到达日期。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/配送\",\"score\":0.0004967520944774151,\"score_kind\":\"rerank\",\"n\":6},{\"id\":\"557\",\"question\":\"退货运费谁承担？\",\"answer\":\"普通商品质量问题经演示客服确认后由演示店承担退货运费；非质量原因由买家承担退货运费。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/退货\",\"score\":0.0025654619093984365,\"score_kind\":\"rerank\",\"n\":4},{\"id\":\"546\",\"question\":\"标准配送费用\",\"answer\":\"本文件是人工合成的教学演示知识，不代表真实商家政策。\\n以下规则仅适用于本演示店铺、中国大陆普通配送区域的普通小件商品，不适用于港澳台、偏远地区或大件商品。\\n在上述演示范围内，标准配送费为 8 元；单笔订单商品实付金额满 99 元包邮。\\n未写明范围的运费应由客服另行确认，不得将本演示金额推广到真实商家。\",\"category\":\"合成演示政策\",\"section_path\":\"合成演示政策/标准配送费用\",\"score\":0.2062695026397705,\"score_kind\":\"rerank\",\"n\":2}],\"retrieval\":{\"strategy\":\"hybrid_rerank\",\"candidate_count\":50,\"match_count\":10}}",
+        "tool_calls": null,
+        "tool_call_id": "call_-7183551193057059601"
+      },
+      {
+        "id": "430",
+        "conversation_id": "9007199254741254",
+        "role": "assistant",
+        "content": "目前的知识资料不足以确认这个问题，我无法给出可靠答案。请补充具体商品或适用条件，或联系人工客服确认。",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "431",
+        "conversation_id": "9007199254741254",
+        "role": "user",
+        "content": "XM-A17参数是什么？",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "432",
+        "conversation_id": "9007199254741254",
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_-7183546691931336097",
+            "type": "function",
+            "function": {
+              "name": "query_faq",
+              "arguments": "{\"keyword\":\"XM-A17参数\"}"
+            }
+          }
+        ],
+        "tool_call_id": null
+      },
+      {
+        "id": "433",
+        "conversation_id": "9007199254741254",
+        "role": "tool",
+        "content": "{\"found\":true,\"matches\":[{\"id\":\"582\",\"question\":\"XM-A17\",\"answer\":\"XM-A17参数：容量117毫升，额定功率27瓦，防水等级IP57。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.9993956089019775,\"score_kind\":\"rerank\",\"n\":1},{\"id\":\"564\",\"question\":\"XM-A17能在雨中充电吗？\",\"answer\":\"XM-A17充电时必须保持机身和接口干燥，不允许在雨中充电；防水等级不能证明湿水充电安全。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.553808331489563,\"score_kind\":\"rerank\",\"n\":3},{\"id\":\"562\",\"question\":\"XM-A17保修多久？\",\"answer\":\"XM-A17在签收后12个月内可申请保修；保修申请需要购买凭证和商品序列号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.42841166257858276,\"score_kind\":\"rerank\",\"n\":5},{\"id\":\"581\",\"question\":\"XM-A16\",\"answer\":\"XM-A16参数：容量116毫升，额定功率26瓦，防水等级IP56。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.27748724818229675,\"score_kind\":\"rerank\",\"n\":7},{\"id\":\"602\",\"question\":\"XM-A37\",\"answer\":\"XM-A37参数：容量137毫升，额定功率47瓦，防水等级IP49。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.1803661286830902,\"score_kind\":\"rerank\",\"n\":9},{\"id\":\"566\",\"question\":\"XM-A01\",\"answer\":\"XM-A01参数：容量101毫升，额定功率11瓦，防水等级IP41。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.15116573870182037,\"score_kind\":\"rerank\",\"n\":10},{\"id\":\"592\",\"question\":\"XM-A27\",\"answer\":\"XM-A27参数：容量127毫升，额定功率37瓦，防水等级IP67。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.24904412031173706,\"score_kind\":\"rerank\",\"n\":8},{\"id\":\"583\",\"question\":\"XM-A18\",\"answer\":\"XM-A18参数：容量118毫升，额定功率28瓦，防水等级IP58。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.2960416078567505,\"score_kind\":\"rerank\",\"n\":6},{\"id\":\"572\",\"question\":\"XM-A07\",\"answer\":\"XM-A07参数：容量107毫升，额定功率17瓦，防水等级IP47。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.47431713342666626,\"score_kind\":\"rerank\",\"n\":4},{\"id\":\"561\",\"question\":\"XM-A17拆封使用后可以无理由退货吗？\",\"answer\":\"XM-A17属于普通商品，拆封且已使用不支持七天无理由退货；质量问题应联系演示客服确认。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.6084586977958679,\"score_kind\":\"rerank\",\"n\":2}],\"retrieval\":{\"strategy\":\"hybrid_rerank\",\"candidate_count\":50,\"match_count\":10}}",
+        "tool_calls": null,
+        "tool_call_id": "call_-7183546691931336097"
+      },
+      {
+        "id": "434",
+        "conversation_id": "9007199254741254",
+        "role": "assistant",
+        "content": "您好！XM-A17 的参数如下[1]：\n\n- 容量：117毫升\n- 额定功率：27瓦\n- 防水等级：IP57\n\n请注意该参数仅适用于 XM-A17 型号，不适用于其他近似型号[1]。还有其他问题欢迎随时咨询～",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "435",
+        "conversation_id": "9007199254741255",
+        "role": "user",
+        "content": "普通小件配送费多少？",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "436",
+        "conversation_id": "9007199254741255",
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_-7183557446529446205",
+            "type": "function",
+            "function": {
+              "name": "query_faq",
+              "arguments": "{\"keyword\":\"普通小件配送费\"}"
+            }
+          }
+        ],
+        "tool_call_id": null
+      },
+      {
+        "id": "437",
+        "conversation_id": "9007199254741255",
+        "role": "tool",
+        "content": "{\"found\":true,\"matches\":[{\"id\":\"554\",\"question\":\"演示店普通小件配送费是多少？\",\"answer\":\"中国大陆普通配送区域的普通小件标准配送费为8元，单笔订单商品实付金额满99元包邮。偏远地区、港澳台与大件运费未提供，需另行确认。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/配送\",\"score\":0.9969812035560608,\"score_kind\":\"rerank\",\"n\":1},{\"id\":\"557\",\"question\":\"退货运费谁承担？\",\"answer\":\"普通商品质量问题经演示客服确认后由演示店承担退货运费；非质量原因由买家承担退货运费。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/退货\",\"score\":0.0047181230038404465,\"score_kind\":\"rerank\",\"n\":3},{\"id\":\"561\",\"question\":\"XM-A17拆封使用后可以无理由退货吗？\",\"answer\":\"XM-A17属于普通商品，拆封且已使用不支持七天无理由退货；质量问题应联系演示客服确认。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":8.287769014714286e-05,\"score_kind\":\"rerank\",\"n\":5},{\"id\":\"558\",\"question\":\"如何办理退货或退款申请？\",\"answer\":\"打开演示订单页面，选择售后申请，提交问题描述，等待演示客服确认。申请提交不表示退款已执行，资料没有提供退款到账时间。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/售后\",\"score\":3.610851490520872e-05,\"score_kind\":\"rerank\",\"n\":7},{\"id\":\"562\",\"question\":\"XM-A17保修多久？\",\"answer\":\"XM-A17在签收后12个月内可申请保修；保修申请需要购买凭证和商品序列号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":2.6811743737198412e-05,\"score_kind\":\"rerank\",\"n\":9},{\"id\":\"560\",\"question\":\"维修需要哪些凭证？\",\"answer\":\"演示维修申请必须提供购买凭证和商品序列号，缺任一项需要补充后再申请。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/售后\",\"score\":1.8828637621481903e-05,\"score_kind\":\"rerank\",\"n\":10},{\"id\":\"553\",\"question\":\"数据范围\",\"answer\":\"全部型号、参数及政策为人工合成教学资料，仅适用演示店铺，不代表真实商家。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/数据范围\",\"score\":3.4097251045750454e-05,\"score_kind\":\"rerank\",\"n\":8},{\"id\":\"559\",\"question\":\"如何查询物流？\",\"answer\":\"打开演示订单页面，选择物流详情查看演示物流信息；没有订单号不能确定某个订单的实际物流状态。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/售后\",\"score\":6.58203789498657e-05,\"score_kind\":\"rerank\",\"n\":6},{\"id\":\"556\",\"question\":\"普通商品可以什么时候申请退货？\",\"answer\":\"普通商品签收后七天内可以申请退货，拆封且已使用的普通商品不支持七天无理由退货。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/退货\",\"score\":0.00018657073087524623,\"score_kind\":\"rerank\",\"n\":4},{\"id\":\"555\",\"question\":\"演示店何时发货？\",\"answer\":\"普通小件订单付款后两个工作日内安排发货；资料没有承诺配送到达日期。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/配送\",\"score\":0.049885768443346024,\"score_kind\":\"rerank\",\"n\":2}],\"retrieval\":{\"strategy\":\"hybrid_rerank\",\"candidate_count\":50,\"match_count\":10}}",
+        "tool_calls": null,
+        "tool_call_id": "call_-7183557446529446205"
+      },
+      {
+        "id": "438",
+        "conversation_id": "9007199254741255",
+        "role": "assistant",
+        "content": "您好！根据店铺政策，中国大陆普通配送区域的普通小件标准配送费为 8 元；单笔订单商品实付金额满 99 元可包邮 [1]。偏远地区、港澳台及大件商品的运费政策暂未提供，如需了解可进一步确认 [1]。请问还有其他可以帮您的吗？",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "439",
+        "conversation_id": "9007199254741256",
+        "role": "user",
+        "content": "XM-A17保修12个月内申请要准备哪两个凭证？",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "440",
+        "conversation_id": "9007199254741256",
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_-7183519925695146019",
+            "type": "function",
+            "function": {
+              "name": "query_faq",
+              "arguments": "{\"keyword\":\"XM-A17保修12个月内申请要准备哪两个凭证\"}"
+            }
+          }
+        ],
+        "tool_call_id": null
+      },
+      {
+        "id": "441",
+        "conversation_id": "9007199254741256",
+        "role": "tool",
+        "content": "{\"found\":true,\"matches\":[{\"id\":\"562\",\"question\":\"XM-A17保修多久？\",\"answer\":\"XM-A17在签收后12个月内可申请保修；保修申请需要购买凭证和商品序列号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.9951996803283691,\"score_kind\":\"rerank\",\"n\":1},{\"id\":\"560\",\"question\":\"维修需要哪些凭证？\",\"answer\":\"演示维修申请必须提供购买凭证和商品序列号，缺任一项需要补充后再申请。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/售后\",\"score\":0.2681073546409607,\"score_kind\":\"rerank\",\"n\":3},{\"id\":\"561\",\"question\":\"XM-A17拆封使用后可以无理由退货吗？\",\"answer\":\"XM-A17属于普通商品，拆封且已使用不支持七天无理由退货；质量问题应联系演示客服确认。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.029536966234445572,\"score_kind\":\"rerank\",\"n\":5},{\"id\":\"558\",\"question\":\"如何办理退货或退款申请？\",\"answer\":\"打开演示订单页面，选择售后申请，提交问题描述，等待演示客服确认。申请提交不表示退款已执行，资料没有提供退款到账时间。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/售后\",\"score\":0.002528311451897025,\"score_kind\":\"rerank\",\"n\":7},{\"id\":\"551\",\"question\":\"演示申请步骤\",\"answer\":\"先打开演示订单页面。再选择售后申请。提交问题描述后等待演示客服确认。\",\"category\":\"合成演示操作手册\",\"section_path\":\"合成演示操作手册/演示申请步骤\",\"score\":0.0010773116955533624,\"score_kind\":\"rerank\",\"n\":9},{\"id\":\"572\",\"question\":\"XM-A07\",\"answer\":\"XM-A07参数：容量107毫升，额定功率17瓦，防水等级IP47。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.0008388722199015319,\"score_kind\":\"rerank\",\"n\":10},{\"id\":\"552\",\"question\":\"状态表\",\"answer\":\"| 状态 | 演示说明 |\\n| --- | --- |\\n| 待确认 | 演示客服检查资料 |\\n| 已受理 | 演示申请进入处理 |\\n| 已完成 | 演示记录已关闭 |\",\"category\":\"合成演示操作手册/演示申请步骤\",\"section_path\":\"合成演示操作手册/演示申请步骤/状态表\",\"score\":0.0022614970803260803,\"score_kind\":\"rerank\",\"n\":8},{\"id\":\"564\",\"question\":\"XM-A17能在雨中充电吗？\",\"answer\":\"XM-A17充电时必须保持机身和接口干燥，不允许在雨中充电；防水等级不能证明湿水充电安全。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.004004050977528095,\"score_kind\":\"rerank\",\"n\":6},{\"id\":\"582\",\"question\":\"XM-A17\",\"answer\":\"XM-A17参数：容量117毫升，额定功率27瓦，防水等级IP57。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.06922990083694458,\"score_kind\":\"rerank\",\"n\":4},{\"id\":\"563\",\"question\":\"XM-A18保修多久？\",\"answer\":\"XM-A18在签收后6个月内可申请保修；保修申请需要购买凭证和商品序列号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.4259166717529297,\"score_kind\":\"rerank\",\"n\":2}],\"retrieval\":{\"strategy\":\"hybrid_rerank\",\"candidate_count\":50,\"match_count\":10}}",
+        "tool_calls": null,
+        "tool_call_id": "call_-7183519925695146019"
+      },
+      {
+        "id": "442",
+        "conversation_id": "9007199254741256",
+        "role": "assistant",
+        "content": "您好！XM-A17 在签收后 12 个月内可申请保修，申请时需要准备的两个凭证是：**购买凭证**和**商品序列号**[1]。\n\n如需其他帮助，欢迎随时咨询～",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "443",
+        "conversation_id": "9007199254741257",
+        "role": "user",
+        "content": "XM-A17支持无线充电吗？",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "444",
+        "conversation_id": "9007199254741257",
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_-7183542740561421033",
+            "type": "function",
+            "function": {
+              "name": "query_faq",
+              "arguments": "{\"keyword\":\"XM-A17支持无线充电\"}"
+            }
+          }
+        ],
+        "tool_call_id": null
+      },
+      {
+        "id": "445",
+        "conversation_id": "9007199254741257",
+        "role": "tool",
+        "content": "{\"found\":true,\"matches\":[{\"id\":\"564\",\"question\":\"XM-A17能在雨中充电吗？\",\"answer\":\"XM-A17充电时必须保持机身和接口干燥，不允许在雨中充电；防水等级不能证明湿水充电安全。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.7978503108024597,\"score_kind\":\"rerank\",\"n\":1},{\"id\":\"561\",\"question\":\"XM-A17拆封使用后可以无理由退货吗？\",\"answer\":\"XM-A17属于普通商品，拆封且已使用不支持七天无理由退货；质量问题应联系演示客服确认。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.10374459624290466,\"score_kind\":\"rerank\",\"n\":3},{\"id\":\"562\",\"question\":\"XM-A17保修多久？\",\"answer\":\"XM-A17在签收后12个月内可申请保修；保修申请需要购买凭证和商品序列号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.012504287995398045,\"score_kind\":\"rerank\",\"n\":5},{\"id\":\"581\",\"question\":\"XM-A16\",\"answer\":\"XM-A16参数：容量116毫升，额定功率26瓦，防水等级IP56。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.0020462623797357082,\"score_kind\":\"rerank\",\"n\":7},{\"id\":\"592\",\"question\":\"XM-A27\",\"answer\":\"XM-A27参数：容量127毫升，额定功率37瓦，防水等级IP67。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.0018306664424017072,\"score_kind\":\"rerank\",\"n\":9},{\"id\":\"566\",\"question\":\"XM-A01\",\"answer\":\"XM-A01参数：容量101毫升，额定功率11瓦，防水等级IP41。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.0016633056802675128,\"score_kind\":\"rerank\",\"n\":10},{\"id\":\"583\",\"question\":\"XM-A18\",\"answer\":\"XM-A18参数：容量118毫升，额定功率28瓦，防水等级IP58。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.0019191809697076678,\"score_kind\":\"rerank\",\"n\":8},{\"id\":\"572\",\"question\":\"XM-A07\",\"answer\":\"XM-A07参数：容量107毫升，额定功率17瓦，防水等级IP47。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.005110911093652248,\"score_kind\":\"rerank\",\"n\":6},{\"id\":\"565\",\"question\":\"XM-A18能在雨中充电吗？\",\"answer\":\"XM-A18充电时必须保持机身和接口干燥，不允许在雨中充电；防水等级不能证明湿水充电安全。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.04452843591570854,\"score_kind\":\"rerank\",\"n\":4},{\"id\":\"582\",\"question\":\"XM-A17\",\"answer\":\"XM-A17参数：容量117毫升，额定功率27瓦，防水等级IP57。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.20695190131664276,\"score_kind\":\"rerank\",\"n\":2}],\"retrieval\":{\"strategy\":\"hybrid_rerank\",\"candidate_count\":50,\"match_count\":10}}",
+        "tool_calls": null,
+        "tool_call_id": "call_-7183542740561421033"
+      },
+      {
+        "id": "446",
+        "conversation_id": "9007199254741257",
+        "role": "assistant",
+        "content": "目前的知识资料不足以确认这个问题，我无法给出可靠答案。请补充具体商品或适用条件，或联系人工客服确认。",
+        "tool_calls": null,
+        "tool_call_id": null
+      }
+    ],
+    "pool": [
+      {
+        "conversation_id": "9007199254741254",
+        "raw_question": "邮费是多少",
+        "source": "retrieval_low_conf",
+        "reason": "当前知识证据为空或低于已校准重排门槛。"
+      },
+      {
+        "conversation_id": "9007199254741257",
+        "raw_question": "XM-A17支持无线充电吗？",
+        "source": "retrieval_low_conf",
+        "reason": "当前知识证据为空或低于已校准重排门槛。"
+      }
+    ]
+  },
+  "checks": [
+    {
+      "name": "category",
+      "done_identity_matches": true,
+      "persisted_answer_matches": true,
+      "citation_snapshot_matches": true,
+      "unknown_refusal_matches": null,
+      "pool_rows": 0,
+      "pool_raw_matches": false
+    },
+    {
+      "name": "multi_condition",
+      "done_identity_matches": true,
+      "persisted_answer_matches": true,
+      "citation_snapshot_matches": true,
+      "unknown_refusal_matches": null,
+      "pool_rows": 0,
+      "pool_raw_matches": false
+    },
+    {
+      "name": "unknown",
+      "done_identity_matches": true,
+      "persisted_answer_matches": true,
+      "citation_snapshot_matches": true,
+      "unknown_refusal_matches": true,
+      "pool_rows": 1,
+      "pool_raw_matches": true
+    }
+  ],
+  "cleanup_counts": {
+    "messages": 0,
+    "tickets": 0,
+    "low_confidence_questions": 0,
+    "conversations": 0,
+    "knowledge_chunks": 0
+  },
+  "owned_collection_remains": false
+}

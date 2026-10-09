@@ -262,10 +262,10 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
 
 **Interfaces:** Consumes citations/checking/delta/done 及 Task 8 校准结果；message_id/conversation_id/chunk_id 均字符串。本任务直接迭代，不派前端 TDD 或代码审查任务。
 
-- [ ] **1. 直接实现交互。** 已知 [n] 变为按钮，跨增量的半个编号先缓存直到完整；打开可关闭/键盘访问的来源面板，使用 textContent 显示章节与原文。新回复拥有自己的映射。
-- [ ] **2. 直接实现反馈。** 成功 done 后在左下角显示 👍/👎，第一次选择点亮并显示“已反馈”，随后禁用；只存页面状态，无后端请求。
-- [ ] **3. 浏览器验收。** 在3308测试库/owned知识和唯一集合启动专用本地应用，使用已校准阈值；验证后按所有权清理本任务数据，先删除这些会话关联的问题池/消息/工单，再删会话和本任务知识/集合，保留已生成的编造台账。查看真实引用原文；重复编号都定位同块；两轮 [1] 不串源；含 HTML/脚本字面的原文作为文本；分块 [、1、] 能形成按钮；超大 ID 保留；点击反馈一次锁定，网络面板无反馈 POST；取消回复不显示反馈。
-- [ ] **4. 留痕、提交。** `feat: add clickable citations and one-time chat feedback`；记录截图/结果与用户纠偏。前端的运行报错按实际行为修复，不补上用户排除的工作流。
+- [x] **1. 直接实现交互。** 已知 [n] 变为按钮，跨增量的半个编号先缓存直到完整；打开可关闭/键盘访问的来源面板，使用 textContent 显示章节与原文。新回复拥有自己的映射。
+- [x] **2. 直接实现反馈。** 成功 done 后在左下角显示 👍/👎，第一次选择点亮并显示“已反馈”，随后禁用；只存页面状态，无后端请求。
+- [x] **3. 浏览器验收。** 在3308测试库/owned知识和唯一集合启动专用本地应用，使用已校准阈值；验证后按所有权清理本任务数据，先删除这些会话关联的问题池/消息/工单，再删会话和本任务知识/集合，保留已生成的编造台账。查看真实引用原文；重复编号都定位同块；两轮 [1] 不串源；含 HTML/脚本字面的原文作为文本；分块 [、1、] 能形成按钮；超大 ID 保留；点击反馈一次锁定，网络面板无反馈 POST；取消回复不显示反馈。
+- [x] **4. 留痕、提交。** `feat: add clickable citations and one-time chat feedback`；记录截图/结果与用户纠偏。前端的运行报错按实际行为修复，不补上用户排除的工作流。
 
 ## Task 10：整分支核验、真实聊天验收与交付
 
@@ -290,3 +290,14 @@ Spec 覆盖：第 3 节→Task 1–3；第 4 节→Task 4–5；第 5 节→Task
 接口参考：[SQLAlchemy MySQL](https://docs.sqlalchemy.org/en/20/dialects/mysql.html)、[FastAPI 生命周期](https://fastapi.tiangolo.com/advanced/events/)、[FastAPI 异步测试](https://fastapi.tiangolo.com/advanced/async-tests/)、[LangChain 模型](https://github.com/langchain-ai/docs/blob/main/src/oss/langchain/models.mdx)。
 
 当前为书面计划阶段，所有任务未开始；未创建新工作树、未安装依赖、未执行新 DDL 或收费模型请求。用户审阅本计划后按保留的 Subagent-Driven 方法执行。
+
+## 2026-10-09 用户批准的结构化输出预算调整
+
+真实首次校准8题只有K02/K03/K06改写合法，另4题invalid_structured_output、1题upstream_timeout；只能得到3份真实样本，不能推导八题阈值，随后比较报告如实记录120份未执行。该次采集未保存raw/finish metadata，不能把四题错误全断言为length；此前Task4/6已经独立观察到512上限下的length。
+
+用户明确选择“独立提高改写/自评预算至2048（推荐）”：新增 QUERY_MAX_OUTPUT_TOKENS=2048 和 SUFFICIENCY_MAX_OUTPUT_TOKENS=2048，仅用于各自结构化实例/绑定。线上最终回答 MAX_OUTPUT_TOKENS=512、现有模型/上游、15秒改写/20秒自评期限及零重试不变；裁判既定2048也不变。主聊天与评估采用同一预算分配，不能只在评估侧放宽。
+
+Task8允许最小修改 app/core/llm.py、app/main.py（及必要 services/transport/lifecycle tests）保证独立输出请求体和资源归属。当前工厂由extra_body配置token字段，必须核验真实请求中改写/自评2048、最终512，不能被原extra_body覆盖。官方API先Context7核对。原失败报告另存512历史；新实现先验证原5失败query一次，随后完整8题重校准、有效才填忽略的本地.env并跑一次四策略比较。失败不修补JSON、不换技术栈、不暗加重试/期限；如仍阻塞继续报告实证。
+### 2026-10-09 · 用户批准改写期限调整
+
+2048预算的八题校准有4题有效、4题在原15秒期限内超时，未生成门槛；用户明确选择“允许改写超时提高到 60 秒（推荐）”。仅 QUERY_TIMEOUT_SECONDS / QueryPlanner 改写上限与默认改为60秒，FAQ总期限90秒、自评20秒、嵌入20秒、Milvus5秒、重排20秒、单轮240秒不变；改写/自评2048、最终512、模型和零重试不变。原512和2048/15秒报告分别保留，60秒完整八题只重新校准一次，合法有效才写忽略的本地.env并继续四策略比较。这是用户明确决定，不是代理自行放宽。

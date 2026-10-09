@@ -1,0 +1,816 @@
+{
+  "started_at": "2026-10-09T09:49:15.148976+00:00",
+  "owned_conversations": [
+    "9007199254741254",
+    "9007199254741255",
+    "9007199254741256",
+    "9007199254741257"
+  ],
+  "owned_ids": [
+    546,
+    547,
+    548,
+    549,
+    550,
+    551,
+    552,
+    553,
+    554,
+    555,
+    556,
+    557,
+    558,
+    559,
+    560,
+    561,
+    562,
+    563,
+    564,
+    565,
+    566,
+    567,
+    568,
+    569,
+    570,
+    571,
+    572,
+    573,
+    574,
+    575,
+    576,
+    577,
+    578,
+    579,
+    580,
+    581,
+    582,
+    583,
+    584,
+    585,
+    586,
+    587,
+    588,
+    589,
+    590,
+    591,
+    592,
+    593,
+    594,
+    595,
+    596,
+    597,
+    598,
+    599,
+    600,
+    601,
+    602,
+    603,
+    604,
+    605,
+    606,
+    607,
+    608,
+    609,
+    610,
+    611,
+    612,
+    613,
+    614,
+    615,
+    616,
+    617,
+    618,
+    619,
+    620,
+    621,
+    622,
+    623,
+    624,
+    625,
+    626,
+    627,
+    628,
+    629
+  ],
+  "model_request_count": {
+    "BAAI/bge-m3": 5,
+    "glm-5.3-flash": 18
+  },
+  "cleanup": "owned_rows_collection_removed_faith_ledger_preserved",
+  "model_requests": [
+    {
+      "model": "BAAI/bge-m3",
+      "stream": false,
+      "max_output_tokens": null,
+      "operation": "embedding",
+      "http_status": 200
+    },
+    {
+      "model": "BAAI/bge-m3",
+      "stream": false,
+      "max_output_tokens": null,
+      "operation": "embedding",
+      "http_status": 200
+    },
+    {
+      "model": "BAAI/bge-m3",
+      "stream": false,
+      "max_output_tokens": null,
+      "operation": "embedding",
+      "http_status": 200
+    },
+    {
+      "model": "BAAI/bge-m3",
+      "stream": false,
+      "max_output_tokens": null,
+      "operation": "embedding",
+      "http_status": 200
+    },
+    {
+      "model": "BAAI/bge-m3",
+      "stream": false,
+      "max_output_tokens": null,
+      "operation": "embedding",
+      "http_status": 200
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": false,
+      "max_output_tokens": 512,
+      "operation": "unknown",
+      "http_status": 200,
+      "response_metadata": {
+        "model": "glm-5.3-flash",
+        "usage": {
+          "completion_tokens": 331,
+          "completion_tokens_details": {
+            "reasoning_tokens": 316
+          },
+          "prompt_tokens": 770,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 1101
+        },
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "content_characters": 0,
+            "reasoning_characters": 1242
+          }
+        ]
+      }
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": false,
+      "max_output_tokens": 2048,
+      "operation": "query",
+      "question": "邮费是多少",
+      "http_status": 200,
+      "response_metadata": {
+        "model": "glm-5.3-flash",
+        "usage": {
+          "completion_tokens": 21,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "prompt_tokens": 255,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 276
+        },
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "content_characters": 43,
+            "reasoning_characters": 0
+          }
+        ]
+      }
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": false,
+      "max_output_tokens": 2048,
+      "operation": "sufficiency",
+      "question": "邮费是多少",
+      "http_status": 200,
+      "response_metadata": {
+        "model": "glm-5.3-flash",
+        "usage": {
+          "completion_tokens": 52,
+          "completion_tokens_details": {
+            "reasoning_tokens": 25
+          },
+          "prompt_tokens": 1431,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 1483
+        },
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "content_characters": 72,
+            "reasoning_characters": 72
+          }
+        ]
+      }
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": false,
+      "max_output_tokens": 512,
+      "operation": "unknown",
+      "http_status": 200,
+      "response_metadata": {
+        "model": "glm-5.3-flash",
+        "usage": {
+          "completion_tokens": 118,
+          "completion_tokens_details": {
+            "reasoning_tokens": 102
+          },
+          "prompt_tokens": 1838,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 1956
+        },
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "content_characters": 0,
+            "reasoning_characters": 420
+          }
+        ]
+      }
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": false,
+      "max_output_tokens": 2048,
+      "operation": "query",
+      "question": "XM-A17参数是什么？",
+      "http_status": 200,
+      "response_metadata": {
+        "model": "glm-5.3-flash",
+        "usage": {
+          "completion_tokens": 350,
+          "completion_tokens_details": {
+            "reasoning_tokens": 321
+          },
+          "prompt_tokens": 258,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 608
+        },
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "content_characters": 63,
+            "reasoning_characters": 1090
+          }
+        ]
+      }
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": false,
+      "max_output_tokens": 2048,
+      "operation": "sufficiency",
+      "question": "XM-A17参数是什么？",
+      "http_status": 200,
+      "response_metadata": {
+        "model": "glm-5.3-flash",
+        "usage": {
+          "completion_tokens": 86,
+          "completion_tokens_details": {
+            "reasoning_tokens": 64
+          },
+          "prompt_tokens": 1342,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 1428
+        },
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "content_characters": 67,
+            "reasoning_characters": 230
+          }
+        ]
+      }
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": true,
+      "max_output_tokens": 512,
+      "operation": "generation",
+      "http_status": 200
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": false,
+      "max_output_tokens": 512,
+      "operation": "unknown",
+      "http_status": 200,
+      "response_metadata": {
+        "model": "glm-5.3-flash",
+        "usage": {
+          "completion_tokens": 148,
+          "completion_tokens_details": {
+            "reasoning_tokens": 131
+          },
+          "prompt_tokens": 774,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 922
+        },
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "content_characters": 0,
+            "reasoning_characters": 541
+          }
+        ]
+      }
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": false,
+      "max_output_tokens": 2048,
+      "operation": "query",
+      "question": "普通小件配送费多少？",
+      "http_status": 200,
+      "response_metadata": {
+        "model": "glm-5.3-flash",
+        "usage": {
+          "completion_tokens": 985,
+          "completion_tokens_details": {
+            "reasoning_tokens": 951
+          },
+          "prompt_tokens": 259,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 1244
+        },
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "content_characters": 65,
+            "reasoning_characters": 3316
+          }
+        ]
+      }
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": false,
+      "max_output_tokens": 2048,
+      "operation": "sufficiency",
+      "question": "普通小件配送费多少？",
+      "http_status": 200,
+      "response_metadata": {
+        "model": "glm-5.3-flash",
+        "usage": {
+          "completion_tokens": 112,
+          "completion_tokens_details": {
+            "reasoning_tokens": 77
+          },
+          "prompt_tokens": 1344,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 1456
+        },
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "content_characters": 78,
+            "reasoning_characters": 356
+          }
+        ]
+      }
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": true,
+      "max_output_tokens": 512,
+      "operation": "generation",
+      "http_status": 200
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": false,
+      "max_output_tokens": 512,
+      "operation": "unknown",
+      "http_status": 200,
+      "response_metadata": {
+        "model": "glm-5.3-flash",
+        "usage": {
+          "completion_tokens": 274,
+          "completion_tokens_details": {
+            "reasoning_tokens": 250
+          },
+          "prompt_tokens": 780,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 1054
+        },
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "content_characters": 0,
+            "reasoning_characters": 945
+          }
+        ]
+      }
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": false,
+      "max_output_tokens": 2048,
+      "operation": "query",
+      "question": "XM-A17保修12个月内申请要准备哪两个凭证？",
+      "http_status": 200,
+      "response_metadata": {
+        "model": "glm-5.3-flash",
+        "usage": {
+          "completion_tokens": 819,
+          "completion_tokens_details": {
+            "reasoning_tokens": 774
+          },
+          "prompt_tokens": 265,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 1084
+        },
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "content_characters": 95,
+            "reasoning_characters": 2877
+          }
+        ]
+      }
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": false,
+      "max_output_tokens": 2048,
+      "operation": "sufficiency",
+      "question": "XM-A17保修12个月内申请要准备哪两个凭证？",
+      "http_status": 200,
+      "response_metadata": {
+        "model": "glm-5.3-flash",
+        "usage": {
+          "completion_tokens": 101,
+          "completion_tokens_details": {
+            "reasoning_tokens": 65
+          },
+          "prompt_tokens": 1371,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 1472
+        },
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "content_characters": 83,
+            "reasoning_characters": 322
+          }
+        ]
+      }
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": true,
+      "max_output_tokens": 512,
+      "operation": "generation",
+      "http_status": 200
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": false,
+      "max_output_tokens": 512,
+      "operation": "unknown",
+      "http_status": 200,
+      "response_metadata": {
+        "model": "glm-5.3-flash",
+        "usage": {
+          "completion_tokens": 303,
+          "completion_tokens_details": {
+            "reasoning_tokens": 285
+          },
+          "prompt_tokens": 775,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 1078
+        },
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "content_characters": 0,
+            "reasoning_characters": 1189
+          }
+        ]
+      }
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": false,
+      "max_output_tokens": 2048,
+      "operation": "query",
+      "question": "XM-A17支持无线充电吗？",
+      "http_status": 200,
+      "response_metadata": {
+        "model": "glm-5.3-flash",
+        "usage": {
+          "completion_tokens": 423,
+          "completion_tokens_details": {
+            "reasoning_tokens": 380
+          },
+          "prompt_tokens": 260,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 683
+        },
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "content_characters": 89,
+            "reasoning_characters": 1405
+          }
+        ]
+      }
+    },
+    {
+      "model": "glm-5.3-flash",
+      "stream": false,
+      "max_output_tokens": 2048,
+      "operation": "sufficiency",
+      "question": "XM-A17支持无线充电吗？",
+      "http_status": 200,
+      "response_metadata": {
+        "model": "glm-5.3-flash",
+        "usage": {
+          "completion_tokens": 109,
+          "completion_tokens_details": {
+            "reasoning_tokens": 88
+          },
+          "prompt_tokens": 1354,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 1463
+        },
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "content_characters": 65,
+            "reasoning_characters": 424
+          }
+        ]
+      }
+    }
+  ],
+  "vectorized_count": 84,
+  "ready": true,
+  "threshold": 0.8201608061790466,
+  "collection": "knowledge_test_ui_4e192fbe532440fc9df48b093a002eee",
+  "audit": {
+    "messages": [
+      {
+        "id": "427",
+        "conversation_id": "9007199254741254",
+        "role": "user",
+        "content": "邮费是多少",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "428",
+        "conversation_id": "9007199254741254",
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_-7183551193057059601",
+            "type": "function",
+            "function": {
+              "name": "query_faq",
+              "arguments": "{\"keyword\":\"邮费\"}"
+            }
+          }
+        ],
+        "tool_call_id": null
+      },
+      {
+        "id": "429",
+        "conversation_id": "9007199254741254",
+        "role": "tool",
+        "content": "{\"found\":true,\"matches\":[{\"id\":\"548\",\"question\":\"邮费是多少？\\n快递费用怎么收？\",\"answer\":\"本回答仅适用于人工合成演示店铺、中国大陆普通配送区域的普通小件商品。标准配送费为 8 元，单笔订单商品实付金额满 99 元包邮；港澳台、偏远地区和大件商品需另行确认。本文件不代表真实商家政策。\",\"category\":\"合成演示 FAQ\",\"section_path\":\"合成演示 FAQ/配送问答\",\"score\":0.7018767595291138,\"score_kind\":\"rerank\",\"n\":1},{\"id\":\"554\",\"question\":\"演示店普通小件配送费是多少？\",\"answer\":\"中国大陆普通配送区域的普通小件标准配送费为8元，单笔订单商品实付金额满99元包邮。偏远地区、港澳台与大件运费未提供，需另行确认。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/配送\",\"score\":0.14791062474250793,\"score_kind\":\"rerank\",\"n\":3},{\"id\":\"547\",\"question\":\"退货申请\",\"answer\":\"> [!IMPORTANT]\\n> 仅在本合成演示中，普通商品签收后七天内可以申请退货；退货原因和实际运费承担需另行确认。\",\"category\":\"合成演示政策\",\"section_path\":\"合成演示政策/退货申请\",\"score\":0.0012753207702189684,\"score_kind\":\"rerank\",\"n\":5},{\"id\":\"549\",\"question\":\"退货怎么申请？\",\"answer\":\"本合成演示中的普通商品，可在签收后七天内联系演示客服申请退货，具体责任另行确认。\",\"category\":\"合成演示 FAQ\",\"section_path\":\"合成演示 FAQ/配送问答\",\"score\":0.00018048948550131172,\"score_kind\":\"rerank\",\"n\":7},{\"id\":\"556\",\"question\":\"普通商品可以什么时候申请退货？\",\"answer\":\"普通商品签收后七天内可以申请退货，拆封且已使用的普通商品不支持七天无理由退货。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/退货\",\"score\":0.00011926671140827239,\"score_kind\":\"rerank\",\"n\":9},{\"id\":\"558\",\"question\":\"如何办理退货或退款申请？\",\"answer\":\"打开演示订单页面，选择售后申请，提交问题描述，等待演示客服确认。申请提交不表示退款已执行，资料没有提供退款到账时间。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/售后\",\"score\":7.552713213954121e-05,\"score_kind\":\"rerank\",\"n\":10},{\"id\":\"559\",\"question\":\"如何查询物流？\",\"answer\":\"打开演示订单页面，选择物流详情查看演示物流信息；没有订单号不能确定某个订单的实际物流状态。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/售后\",\"score\":0.0001452387368772179,\"score_kind\":\"rerank\",\"n\":8},{\"id\":\"555\",\"question\":\"演示店何时发货？\",\"answer\":\"普通小件订单付款后两个工作日内安排发货；资料没有承诺配送到达日期。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/配送\",\"score\":0.0004967520944774151,\"score_kind\":\"rerank\",\"n\":6},{\"id\":\"557\",\"question\":\"退货运费谁承担？\",\"answer\":\"普通商品质量问题经演示客服确认后由演示店承担退货运费；非质量原因由买家承担退货运费。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/退货\",\"score\":0.0025654619093984365,\"score_kind\":\"rerank\",\"n\":4},{\"id\":\"546\",\"question\":\"标准配送费用\",\"answer\":\"本文件是人工合成的教学演示知识，不代表真实商家政策。\\n以下规则仅适用于本演示店铺、中国大陆普通配送区域的普通小件商品，不适用于港澳台、偏远地区或大件商品。\\n在上述演示范围内，标准配送费为 8 元；单笔订单商品实付金额满 99 元包邮。\\n未写明范围的运费应由客服另行确认，不得将本演示金额推广到真实商家。\",\"category\":\"合成演示政策\",\"section_path\":\"合成演示政策/标准配送费用\",\"score\":0.2062695026397705,\"score_kind\":\"rerank\",\"n\":2}],\"retrieval\":{\"strategy\":\"hybrid_rerank\",\"candidate_count\":50,\"match_count\":10}}",
+        "tool_calls": null,
+        "tool_call_id": "call_-7183551193057059601"
+      },
+      {
+        "id": "430",
+        "conversation_id": "9007199254741254",
+        "role": "assistant",
+        "content": "目前的知识资料不足以确认这个问题，我无法给出可靠答案。请补充具体商品或适用条件，或联系人工客服确认。",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "431",
+        "conversation_id": "9007199254741254",
+        "role": "user",
+        "content": "XM-A17参数是什么？",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "432",
+        "conversation_id": "9007199254741254",
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_-7183546691931336097",
+            "type": "function",
+            "function": {
+              "name": "query_faq",
+              "arguments": "{\"keyword\":\"XM-A17参数\"}"
+            }
+          }
+        ],
+        "tool_call_id": null
+      },
+      {
+        "id": "433",
+        "conversation_id": "9007199254741254",
+        "role": "tool",
+        "content": "{\"found\":true,\"matches\":[{\"id\":\"582\",\"question\":\"XM-A17\",\"answer\":\"XM-A17参数：容量117毫升，额定功率27瓦，防水等级IP57。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.9993956089019775,\"score_kind\":\"rerank\",\"n\":1},{\"id\":\"564\",\"question\":\"XM-A17能在雨中充电吗？\",\"answer\":\"XM-A17充电时必须保持机身和接口干燥，不允许在雨中充电；防水等级不能证明湿水充电安全。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.553808331489563,\"score_kind\":\"rerank\",\"n\":3},{\"id\":\"562\",\"question\":\"XM-A17保修多久？\",\"answer\":\"XM-A17在签收后12个月内可申请保修；保修申请需要购买凭证和商品序列号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.42841166257858276,\"score_kind\":\"rerank\",\"n\":5},{\"id\":\"581\",\"question\":\"XM-A16\",\"answer\":\"XM-A16参数：容量116毫升，额定功率26瓦，防水等级IP56。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.27748724818229675,\"score_kind\":\"rerank\",\"n\":7},{\"id\":\"602\",\"question\":\"XM-A37\",\"answer\":\"XM-A37参数：容量137毫升，额定功率47瓦，防水等级IP49。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.1803661286830902,\"score_kind\":\"rerank\",\"n\":9},{\"id\":\"566\",\"question\":\"XM-A01\",\"answer\":\"XM-A01参数：容量101毫升，额定功率11瓦，防水等级IP41。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.15116573870182037,\"score_kind\":\"rerank\",\"n\":10},{\"id\":\"592\",\"question\":\"XM-A27\",\"answer\":\"XM-A27参数：容量127毫升，额定功率37瓦，防水等级IP67。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.24904412031173706,\"score_kind\":\"rerank\",\"n\":8},{\"id\":\"583\",\"question\":\"XM-A18\",\"answer\":\"XM-A18参数：容量118毫升，额定功率28瓦，防水等级IP58。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.2960416078567505,\"score_kind\":\"rerank\",\"n\":6},{\"id\":\"572\",\"question\":\"XM-A07\",\"answer\":\"XM-A07参数：容量107毫升，额定功率17瓦，防水等级IP47。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.47431713342666626,\"score_kind\":\"rerank\",\"n\":4},{\"id\":\"561\",\"question\":\"XM-A17拆封使用后可以无理由退货吗？\",\"answer\":\"XM-A17属于普通商品，拆封且已使用不支持七天无理由退货；质量问题应联系演示客服确认。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.6084586977958679,\"score_kind\":\"rerank\",\"n\":2}],\"retrieval\":{\"strategy\":\"hybrid_rerank\",\"candidate_count\":50,\"match_count\":10}}",
+        "tool_calls": null,
+        "tool_call_id": "call_-7183546691931336097"
+      },
+      {
+        "id": "434",
+        "conversation_id": "9007199254741254",
+        "role": "assistant",
+        "content": "您好！XM-A17 的参数如下[1]：\n\n- 容量：117毫升\n- 额定功率：27瓦\n- 防水等级：IP57\n\n请注意该参数仅适用于 XM-A17 型号，不适用于其他近似型号[1]。还有其他问题欢迎随时咨询～",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "435",
+        "conversation_id": "9007199254741255",
+        "role": "user",
+        "content": "普通小件配送费多少？",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "436",
+        "conversation_id": "9007199254741255",
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_-7183557446529446205",
+            "type": "function",
+            "function": {
+              "name": "query_faq",
+              "arguments": "{\"keyword\":\"普通小件配送费\"}"
+            }
+          }
+        ],
+        "tool_call_id": null
+      },
+      {
+        "id": "437",
+        "conversation_id": "9007199254741255",
+        "role": "tool",
+        "content": "{\"found\":true,\"matches\":[{\"id\":\"554\",\"question\":\"演示店普通小件配送费是多少？\",\"answer\":\"中国大陆普通配送区域的普通小件标准配送费为8元，单笔订单商品实付金额满99元包邮。偏远地区、港澳台与大件运费未提供，需另行确认。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/配送\",\"score\":0.9969812035560608,\"score_kind\":\"rerank\",\"n\":1},{\"id\":\"557\",\"question\":\"退货运费谁承担？\",\"answer\":\"普通商品质量问题经演示客服确认后由演示店承担退货运费；非质量原因由买家承担退货运费。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/退货\",\"score\":0.0047181230038404465,\"score_kind\":\"rerank\",\"n\":3},{\"id\":\"561\",\"question\":\"XM-A17拆封使用后可以无理由退货吗？\",\"answer\":\"XM-A17属于普通商品，拆封且已使用不支持七天无理由退货；质量问题应联系演示客服确认。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":8.287769014714286e-05,\"score_kind\":\"rerank\",\"n\":5},{\"id\":\"558\",\"question\":\"如何办理退货或退款申请？\",\"answer\":\"打开演示订单页面，选择售后申请，提交问题描述，等待演示客服确认。申请提交不表示退款已执行，资料没有提供退款到账时间。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/售后\",\"score\":3.610851490520872e-05,\"score_kind\":\"rerank\",\"n\":7},{\"id\":\"562\",\"question\":\"XM-A17保修多久？\",\"answer\":\"XM-A17在签收后12个月内可申请保修；保修申请需要购买凭证和商品序列号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":2.6811743737198412e-05,\"score_kind\":\"rerank\",\"n\":9},{\"id\":\"560\",\"question\":\"维修需要哪些凭证？\",\"answer\":\"演示维修申请必须提供购买凭证和商品序列号，缺任一项需要补充后再申请。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/售后\",\"score\":1.8828637621481903e-05,\"score_kind\":\"rerank\",\"n\":10},{\"id\":\"553\",\"question\":\"数据范围\",\"answer\":\"全部型号、参数及政策为人工合成教学资料，仅适用演示店铺，不代表真实商家。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/数据范围\",\"score\":3.4097251045750454e-05,\"score_kind\":\"rerank\",\"n\":8},{\"id\":\"559\",\"question\":\"如何查询物流？\",\"answer\":\"打开演示订单页面，选择物流详情查看演示物流信息；没有订单号不能确定某个订单的实际物流状态。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/售后\",\"score\":6.58203789498657e-05,\"score_kind\":\"rerank\",\"n\":6},{\"id\":\"556\",\"question\":\"普通商品可以什么时候申请退货？\",\"answer\":\"普通商品签收后七天内可以申请退货，拆封且已使用的普通商品不支持七天无理由退货。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/退货\",\"score\":0.00018657073087524623,\"score_kind\":\"rerank\",\"n\":4},{\"id\":\"555\",\"question\":\"演示店何时发货？\",\"answer\":\"普通小件订单付款后两个工作日内安排发货；资料没有承诺配送到达日期。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/配送\",\"score\":0.049885768443346024,\"score_kind\":\"rerank\",\"n\":2}],\"retrieval\":{\"strategy\":\"hybrid_rerank\",\"candidate_count\":50,\"match_count\":10}}",
+        "tool_calls": null,
+        "tool_call_id": "call_-7183557446529446205"
+      },
+      {
+        "id": "438",
+        "conversation_id": "9007199254741255",
+        "role": "assistant",
+        "content": "您好！根据店铺政策，中国大陆普通配送区域的普通小件标准配送费为 8 元；单笔订单商品实付金额满 99 元可包邮 [1]。偏远地区、港澳台及大件商品的运费政策暂未提供，如需了解可进一步确认 [1]。请问还有其他可以帮您的吗？",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "439",
+        "conversation_id": "9007199254741256",
+        "role": "user",
+        "content": "XM-A17保修12个月内申请要准备哪两个凭证？",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "440",
+        "conversation_id": "9007199254741256",
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_-7183519925695146019",
+            "type": "function",
+            "function": {
+              "name": "query_faq",
+              "arguments": "{\"keyword\":\"XM-A17保修12个月内申请要准备哪两个凭证\"}"
+            }
+          }
+        ],
+        "tool_call_id": null
+      },
+      {
+        "id": "441",
+        "conversation_id": "9007199254741256",
+        "role": "tool",
+        "content": "{\"found\":true,\"matches\":[{\"id\":\"562\",\"question\":\"XM-A17保修多久？\",\"answer\":\"XM-A17在签收后12个月内可申请保修；保修申请需要购买凭证和商品序列号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.9951996803283691,\"score_kind\":\"rerank\",\"n\":1},{\"id\":\"560\",\"question\":\"维修需要哪些凭证？\",\"answer\":\"演示维修申请必须提供购买凭证和商品序列号，缺任一项需要补充后再申请。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/售后\",\"score\":0.2681073546409607,\"score_kind\":\"rerank\",\"n\":3},{\"id\":\"561\",\"question\":\"XM-A17拆封使用后可以无理由退货吗？\",\"answer\":\"XM-A17属于普通商品，拆封且已使用不支持七天无理由退货；质量问题应联系演示客服确认。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.029536966234445572,\"score_kind\":\"rerank\",\"n\":5},{\"id\":\"558\",\"question\":\"如何办理退货或退款申请？\",\"answer\":\"打开演示订单页面，选择售后申请，提交问题描述，等待演示客服确认。申请提交不表示退款已执行，资料没有提供退款到账时间。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/售后\",\"score\":0.002528311451897025,\"score_kind\":\"rerank\",\"n\":7},{\"id\":\"551\",\"question\":\"演示申请步骤\",\"answer\":\"先打开演示订单页面。再选择售后申请。提交问题描述后等待演示客服确认。\",\"category\":\"合成演示操作手册\",\"section_path\":\"合成演示操作手册/演示申请步骤\",\"score\":0.0010773116955533624,\"score_kind\":\"rerank\",\"n\":9},{\"id\":\"572\",\"question\":\"XM-A07\",\"answer\":\"XM-A07参数：容量107毫升，额定功率17瓦，防水等级IP47。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.0008388722199015319,\"score_kind\":\"rerank\",\"n\":10},{\"id\":\"552\",\"question\":\"状态表\",\"answer\":\"| 状态 | 演示说明 |\\n| --- | --- |\\n| 待确认 | 演示客服检查资料 |\\n| 已受理 | 演示申请进入处理 |\\n| 已完成 | 演示记录已关闭 |\",\"category\":\"合成演示操作手册/演示申请步骤\",\"section_path\":\"合成演示操作手册/演示申请步骤/状态表\",\"score\":0.0022614970803260803,\"score_kind\":\"rerank\",\"n\":8},{\"id\":\"564\",\"question\":\"XM-A17能在雨中充电吗？\",\"answer\":\"XM-A17充电时必须保持机身和接口干燥，不允许在雨中充电；防水等级不能证明湿水充电安全。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.004004050977528095,\"score_kind\":\"rerank\",\"n\":6},{\"id\":\"582\",\"question\":\"XM-A17\",\"answer\":\"XM-A17参数：容量117毫升，额定功率27瓦，防水等级IP57。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.06922990083694458,\"score_kind\":\"rerank\",\"n\":4},{\"id\":\"563\",\"question\":\"XM-A18保修多久？\",\"answer\":\"XM-A18在签收后6个月内可申请保修；保修申请需要购买凭证和商品序列号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.4259166717529297,\"score_kind\":\"rerank\",\"n\":2}],\"retrieval\":{\"strategy\":\"hybrid_rerank\",\"candidate_count\":50,\"match_count\":10}}",
+        "tool_calls": null,
+        "tool_call_id": "call_-7183519925695146019"
+      },
+      {
+        "id": "442",
+        "conversation_id": "9007199254741256",
+        "role": "assistant",
+        "content": "您好！XM-A17 在签收后 12 个月内可申请保修，申请时需要准备的两个凭证是：**购买凭证**和**商品序列号**[1]。\n\n如需其他帮助，欢迎随时咨询～",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "443",
+        "conversation_id": "9007199254741257",
+        "role": "user",
+        "content": "XM-A17支持无线充电吗？",
+        "tool_calls": null,
+        "tool_call_id": null
+      },
+      {
+        "id": "444",
+        "conversation_id": "9007199254741257",
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_-7183542740561421033",
+            "type": "function",
+            "function": {
+              "name": "query_faq",
+              "arguments": "{\"keyword\":\"XM-A17支持无线充电\"}"
+            }
+          }
+        ],
+        "tool_call_id": null
+      },
+      {
+        "id": "445",
+        "conversation_id": "9007199254741257",
+        "role": "tool",
+        "content": "{\"found\":true,\"matches\":[{\"id\":\"564\",\"question\":\"XM-A17能在雨中充电吗？\",\"answer\":\"XM-A17充电时必须保持机身和接口干燥，不允许在雨中充电；防水等级不能证明湿水充电安全。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.7978503108024597,\"score_kind\":\"rerank\",\"n\":1},{\"id\":\"561\",\"question\":\"XM-A17拆封使用后可以无理由退货吗？\",\"answer\":\"XM-A17属于普通商品，拆封且已使用不支持七天无理由退货；质量问题应联系演示客服确认。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.10374459624290466,\"score_kind\":\"rerank\",\"n\":3},{\"id\":\"562\",\"question\":\"XM-A17保修多久？\",\"answer\":\"XM-A17在签收后12个月内可申请保修；保修申请需要购买凭证和商品序列号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.012504287995398045,\"score_kind\":\"rerank\",\"n\":5},{\"id\":\"581\",\"question\":\"XM-A16\",\"answer\":\"XM-A16参数：容量116毫升，额定功率26瓦，防水等级IP56。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.0020462623797357082,\"score_kind\":\"rerank\",\"n\":7},{\"id\":\"592\",\"question\":\"XM-A27\",\"answer\":\"XM-A27参数：容量127毫升，额定功率37瓦，防水等级IP67。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.0018306664424017072,\"score_kind\":\"rerank\",\"n\":9},{\"id\":\"566\",\"question\":\"XM-A01\",\"answer\":\"XM-A01参数：容量101毫升，额定功率11瓦，防水等级IP41。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.0016633056802675128,\"score_kind\":\"rerank\",\"n\":10},{\"id\":\"583\",\"question\":\"XM-A18\",\"answer\":\"XM-A18参数：容量118毫升，额定功率28瓦，防水等级IP58。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.0019191809697076678,\"score_kind\":\"rerank\",\"n\":8},{\"id\":\"572\",\"question\":\"XM-A07\",\"answer\":\"XM-A07参数：容量107毫升，额定功率17瓦，防水等级IP47。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.005110911093652248,\"score_kind\":\"rerank\",\"n\":6},{\"id\":\"565\",\"question\":\"XM-A18能在雨中充电吗？\",\"answer\":\"XM-A18充电时必须保持机身和接口干燥，不允许在雨中充电；防水等级不能证明湿水充电安全。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/条件\",\"score\":0.04452843591570854,\"score_kind\":\"rerank\",\"n\":4},{\"id\":\"582\",\"question\":\"XM-A17\",\"answer\":\"XM-A17参数：容量117毫升，额定功率27瓦，防水等级IP57。仅适用于本型号，不适用于其他近似型号。\",\"category\":\"合成型号与条件知识\",\"section_path\":\"合成型号与条件知识/型号参数\",\"score\":0.20695190131664276,\"score_kind\":\"rerank\",\"n\":2}],\"retrieval\":{\"strategy\":\"hybrid_rerank\",\"candidate_count\":50,\"match_count\":10}}",
+        "tool_calls": null,
+        "tool_call_id": "call_-7183542740561421033"
+      },
+      {
+        "id": "446",
+        "conversation_id": "9007199254741257",
+        "role": "assistant",
+        "content": "目前的知识资料不足以确认这个问题，我无法给出可靠答案。请补充具体商品或适用条件，或联系人工客服确认。",
+        "tool_calls": null,
+        "tool_call_id": null
+      }
+    ],
+    "pool": [
+      {
+        "conversation_id": "9007199254741254",
+        "raw_question": "邮费是多少",
+        "source": "retrieval_low_conf",
+        "reason": "当前知识证据为空或低于已校准重排门槛。"
+      },
+      {
+        "conversation_id": "9007199254741257",
+        "raw_question": "XM-A17支持无线充电吗？",
+        "source": "retrieval_low_conf",
+        "reason": "当前知识证据为空或低于已校准重排门槛。"
+      }
+    ]
+  },
+  "finished_at": "2026-10-09T10:02:54.260531+00:00"
+}
