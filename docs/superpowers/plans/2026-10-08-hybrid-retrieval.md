@@ -136,7 +136,7 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
 - Produces RerankHit(index: int, score: float)；SiliconFlowReranker(settings: Settings, *, http_client=None)，async rank(query: str, documents: list[str], *, top_n: int = 10) -> list[RerankHit]、async aclose() -> None。
 - Settings 增加 RERANK_MODEL 固定 BAAI/bge-reranker-v2-m3，RERANK_TIMEOUT_SECONDS=20、QUERY_TIMEOUT_SECONDS=15、RERANK_MIN_SCORE 缺省 None 但线上启用需有限数；校准 CLI 可在该值缺失时运行。.env.example 对阈值只写校准说明，不填空字符串或假定固定值。新增数值配置拒绝布尔值，超时必须有限且正。
 
-- [ ] **1. 编写 RED 测试。** 原始 json 截断/解析器修补/多余字段/非 stop 拒绝；明确型号、数值和否定条件不被丢弃，冲突标准问法确定性回退原话；HTTP 请求正确模型、top_n、return_documents=false；重复/out-of-range/布尔索引、NaN 分数拒绝；取消传播、外部 HTTP 客户端归属正确。
+- [x] **1. 编写 RED 测试。** 原始 json 截断/解析器修补/多余字段/非 stop 拒绝；明确型号、数值和否定条件不被丢弃，冲突标准问法确定性回退原话；HTTP 请求正确模型、top_n、return_documents=false；重复/out-of-range/布尔索引、NaN 分数拒绝；取消传播、外部 HTTP 客户端归属正确。
   ```python
   def test_conflicting_rewrite_preserves_original_question(conflicting_plan, raw_question):
       assert conflicting_plan.standard == raw_question
@@ -145,10 +145,10 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
       assert request_json['model'] == 'BAAI/bge-reranker-v2-m3'
       assert request_json['top_n'] == 10 and request_json['return_documents'] is False
   ```
-- [ ] **2. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_query_understanding.py tests/test_reranker.py -q`，由受控模型/HTTP transport 提供原始回包，不连接云端。
-- [ ] **3. 实现两个适配器。** QueryPlanner 明确 method=json_mode、include_raw=True；复用原始 JSON 校验思路并要求 finish_reason=stop。Prompt 保留品牌/型号/金额/条件，把扩展限定为检索。Reranker 校验回包并按分数降序、同分服务顺序返回，最多 min(top_n, 输入数)；不靠返回 document 替换权威正文。
-- [ ] **4. 运行 GREEN 与 Prompt 样例。** 同命令通过；标注样例至少含中文口语、品牌/连字符型号、数值、否定、多条件各两条，真实 GLM 对提交的合成样例评估，记录失败但不修改标注使其通过。
-- [ ] **5. 审查、留痕、提交。** `feat: normalize retrieval queries and add BGE reranking`。
+- [x] **2. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_query_understanding.py tests/test_reranker.py -q`，由受控模型/HTTP transport 提供原始回包，不连接云端。
+- [x] **3. 实现两个适配器。** QueryPlanner 明确 method=json_mode、include_raw=True；复用原始 JSON 校验思路并要求 finish_reason=stop。Prompt 保留品牌/型号/金额/条件，把扩展限定为检索。Reranker 校验回包并按分数降序、同分服务顺序返回，最多 min(top_n, 输入数)；不靠返回 document 替换权威正文。
+- [x] **4. 运行 GREEN 与 Prompt 样例。** 同命令通过；标注样例至少含中文口语、品牌/连字符型号、数值、否定、多条件各两条，真实 GLM 对提交的合成样例评估，记录失败但不修改标注使其通过。
+- [x] **5. 审查、留痕、提交。** `feat: normalize retrieval queries and add BGE reranking`。
 
 ## Task 5：统一检索服务与 FAQ 契约扩展
 
