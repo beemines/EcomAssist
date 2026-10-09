@@ -69,6 +69,8 @@ services:
       MINIO_ADDRESS: minio:9000
     volumes:
       - milvus-data:/var/lib/milvus
+      # 官方 user.yaml 配置只读挂载，启用 TEXT 所需的 StorageV3。
+      - ./config/milvus-user.yaml:/milvus/configs/user.yaml:ro
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:9091/healthz']
       interval: 30s
