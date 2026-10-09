@@ -111,7 +111,7 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
 - Produces HybridKnowledgeJobs(repository, embedder, index)；async rebuild_done(batch_size: int = 20) -> dict、async vectorize_pending(batch_size: int = 20) -> int、async verify_done(batch_size: int = 20) -> dict。rebuild_done 调用后逐批读回，最终比较 done 主键全集；verify_done 返回 ready/mysql_count/vector_count/missing_ids/extra_ids/mismatched_ids，ready=false 时 CLI 非零退出。读回 text/category 与 MySQL 精确比较，Dense 验维度及有限值；不为独立核验再重复全量云端嵌入。
 - CLI 增加 rebuild-hybrid、verify-hybrid（各 --batch-size，默认 20）；init-vectors/vectorize-pending/run-daily 使用配置的混合集合。旧 Dense helper 不再被新 CLI 误调用。
 
-- [ ] **1. 编写 RED 测试。** done 可被新集合重建且状态不改；pending 不被重建标 done；批次中断后相同主键重跑无重复；虚假 ACK 不标 done；数量相等但错 id、错误 text/category 或额外 id 导致校验失败；每日任务共用原锁。
+- [x] **1. 编写 RED 测试。** done 可被新集合重建且状态不改；pending 不被重建标 done；批次中断后相同主键重跑无重复；虚假 ACK 不标 done；数量相等但错 id、错误 text/category 或额外 id 导致校验失败；每日任务共用原锁。
   ```python
   async def test_rebuild_covers_done_without_promoting_pending(rebuilt_index, mysql_done_ids, pending_row):
       assert mysql_done_ids == await rebuilt_index.all_ids()
@@ -122,10 +122,10 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
   def test_equal_count_with_wrong_text_cannot_pass_cutover(verification):
       assert not verification['ready']
   ```
-- [ ] **2. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_hybrid_jobs.py tests/test_knowledge_cli.py -q`；恢复集成单独 `tests/integration/test_hybrid_recovery.py --run-mysql --run-milvus`。
-- [ ] **3. 实现分批工作与 CLI。** 外部嵌入/索引调用不持 MySQL 写事务，任务锁覆盖整个命令；text/category 和 Dense 一起 upsert，ACK/读回正确才做下一步；pending 的 mark_done 只发生在当前新集合成功写入后。验证失败退出非零，不自动清旧集合或重置状态。
-- [ ] **4. 运行 GREEN。** 假中断和真实 owned 任务中断恢复验证都通过；记录原主键集、新主键集及复跑结果。任务程序进程中断只针对本次创建的进程。
-- [ ] **5. 审查、留痕、提交。** `feat: rebuild hybrid knowledge index and resume pending writes`。
+- [x] **2. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_hybrid_jobs.py tests/test_knowledge_cli.py -q`；恢复集成单独 `tests/integration/test_hybrid_recovery.py --run-mysql --run-milvus`。
+- [x] **3. 实现分批工作与 CLI。** 外部嵌入/索引调用不持 MySQL 写事务，任务锁覆盖整个命令；text/category 和 Dense 一起 upsert，ACK/读回正确才做下一步；pending 的 mark_done 只发生在当前新集合成功写入后。验证失败退出非零，不自动清旧集合或重置状态。
+- [x] **4. 运行 GREEN。** 假中断和真实 owned 任务中断恢复验证都通过；记录原主键集、新主键集及复跑结果。任务程序进程中断只针对本次创建的进程。
+- [x] **5. 审查、留痕、提交。** `feat: rebuild hybrid knowledge index and resume pending writes`。
 
 ## Task 4：单轮查询理解与云端重排适配
 
