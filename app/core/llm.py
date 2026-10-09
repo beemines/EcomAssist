@@ -5,6 +5,18 @@ from langchain_openai import ChatOpenAI
 from app.config import Settings
 
 
+# 浅副本合并真实请求extra_body，不创建/拥有新客户端；只关闭来源实例一次。
+# 外部注入的其他模型由调用方配置预算，保持其接口与资源所有权。
+def model_with_output_budget(model, settings: Settings, budget: int):
+    if type(budget) is not int or budget <= 0:
+        raise ValueError('output budget must be a positive integer')
+    if not isinstance(model, ChatOpenAI):
+        return model
+    body = dict(model.extra_body or {})
+    body[settings.llm_token_limit_field] = budget
+    return model.model_copy(update={'extra_body': body}, deep=False)
+
+
 # 依据配置创建 Chat Completions 客户端，设置超时和输出上限。
 def create_model(
     settings: Settings, *, http_async_client: httpx.AsyncClient | None = None,
