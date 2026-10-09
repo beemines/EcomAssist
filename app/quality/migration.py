@@ -122,3 +122,20 @@ async def migrate_quality(database: Database) -> None:
                 await connection.exec_driver_sql(statement)
         for name, expected in contracts.items():
             await _verify(connection, name, expected, target)
+
+
+# 在线启动只读取原 DDL 契约和实际结构，缺表或漂移都拒绝，不执行任何 DDL。
+async def verify_quality(database: Database) -> None:
+    statements = _statements(_DDL.read_text(encoding='utf-8'))
+    contracts = dict(_contract(s) for s in statements if s.startswith('CREATE TABLE '))
+    if set(contracts) != _TABLE_NAMES or statements[0] != 'SET NAMES utf8mb4':
+        raise RuntimeError('invalid quality DDL: tables or character set')
+    async with database.engine.connect() as connection:
+        target = await connection.scalar(text('SELECT DATABASE()'))
+        if target is None or target != database.engine.url.database:
+            raise RuntimeError('quality verification target database mismatch')
+        existing = set((await connection.scalars(text("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('low_confidence_questions','faith_cases')"))).all())
+        if existing != _TABLE_NAMES:
+            raise RuntimeError('quality schema missing; explicit migration required')
+        for name, expected in contracts.items():
+            await _verify(connection, name, expected, target)

@@ -1,7 +1,7 @@
 # 应用知识检索依赖的生命周期测试，检查依赖注入、初始化失败及关闭责任。
 import httpx
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, AIMessageChunk
 
 import app.main as main
 from tests.fakes import ConversationStore, FAQStub, StreamingModel, decode_sse, fake_settings
@@ -20,12 +20,12 @@ async def test_injected_faq_avoids_retrieval_clients_and_remains_caller_owned(mo
     def forbidden(*args, **kwargs):
         raise AssertionError('created an external client for an injected FAQ')
     monkeypatch.setattr(main, 'SiliconFlowEmbedder', forbidden, raising=False)
-    monkeypatch.setattr(main, 'MilvusIndex', forbidden, raising=False)
+    monkeypatch.setattr(main, 'HybridMilvusIndex', forbidden, raising=False)
     class FAQ(FAQStub):
         # 若应用关闭注入 FAQ 便立即失败，核对资源所有权。
         async def aclose(self): forbidden()
     row = {'id': 7, 'question': '运费规则', 'answer': '八元', 'category': '配送'}
-    model = StreamingModel()
+    model = StreamingModel([AIMessageChunk('八元[1]', response_metadata={'finish_reason': 'stop'})])
     model.selected = AIMessage('', tool_calls=[{'name': 'query_faq', 'args': {'keyword': '邮费'}, 'id': 'faq'}],
         response_metadata={'finish_reason': 'tool_calls'})
     faq = FAQ([row])
@@ -61,6 +61,14 @@ def owned_resources(monkeypatch, failure=None):
         created.append('model')
         model = StreamingModel()
         model.root_async_client, model.root_client = AsyncModelClient(), SyncModelClient()
+        structured = model.with_structured_output
+        # 结构化包装失败也需关闭已注册客户端，包装本身不拥有共享客户端。
+        def with_structured_output(schema, **kwargs):
+            if ((failure == 'planner_init' and schema.__name__ == 'QueryPlan')
+                    or (failure == 'sufficiency_init' and schema.__name__ == '_Assessment')):
+                raise RuntimeError('controlled structured init failure')
+            return structured(schema, **kwargs)
+        model.with_structured_output = with_structured_output
         return model
     class Embedder:
         # 记录嵌入客户端创建，确认索引初始化前已有的资源。
@@ -71,27 +79,38 @@ def owned_resources(monkeypatch, failure=None):
             if failure == 'embedder_close': raise RuntimeError('controlled embedder close failure')
     class Index:
         # 检查索引端点和超时，并可在构造阶段失败以测试部分初始化回收。
-        def __init__(self, uri, *, timeout):
+        def __init__(self, uri, *, collection, timeout):
             if failure == 'index_init': raise RuntimeError('controlled index init failure')
             created.append('index')
             assert uri == 'http://127.0.0.1:19530/' and timeout == 5
         # 记录索引就绪检查，并可注入准备失败检验启动回滚。
-        async def ensure_collection(self):
+        async def ensure_collection(self, *, create_if_missing):
+            assert create_if_missing is False
             created.append('ready')
             if failure == 'index_ready': raise RuntimeError('controlled index readiness failure')
         # 记录索引关闭并可抛错，确认它不阻止后续资源清理。
         async def aclose(self):
             closed.append('index')
             if failure == 'index_close': raise RuntimeError('controlled index close failure')
+    class Reranker:
+        # 记录重排创建与释放，验证它归应用持有且逆序关闭。
+        def __init__(self, settings):
+            if failure == 'reranker_init': raise RuntimeError('controlled reranker init failure')
+            created.append('reranker')
+        # 重排先关闭，不阻止其他资源释放。
+        async def aclose(self):
+            closed.append('reranker')
+            if failure == 'reranker_close': raise RuntimeError('controlled reranker close failure')
+    monkeypatch.setattr(main, 'SiliconFlowReranker', Reranker)
     monkeypatch.setattr(main, 'Database', Database)
     monkeypatch.setattr(main, 'create_model', model_factory)
     monkeypatch.setattr(main, 'SiliconFlowEmbedder', Embedder, raising=False)
-    monkeypatch.setattr(main, 'MilvusIndex', Index, raising=False)
+    monkeypatch.setattr(main, 'HybridMilvusIndex', Index, raising=False)
     return created, closed
 
 
 # 验证应用持有的所有依赖按逆初始化顺序关闭一次，单个关闭异常不漏资源。
-@pytest.mark.parametrize('failure', [None, 'model_close', 'embedder_close', 'index_close'])
+@pytest.mark.parametrize('failure', [None, 'model_close', 'embedder_close', 'index_close', 'reranker_close'])
 async def test_owned_resources_close_once_even_when_another_close_fails(monkeypatch, failure):
     created, closed = owned_resources(monkeypatch, failure)
     # 模型、数据库和 FAQ 依赖在 lifespan 内初始化，部分初始化失败也应能回收资源。
@@ -99,14 +118,14 @@ async def test_owned_resources_close_once_even_when_another_close_fails(monkeypa
     # 执行真实应用生命周期，确认进入时依赖均已创建且尚未关闭。
     async def run():
         async with app.router.lifespan_context(app):
-            assert created == ['database', 'model', 'embedder', 'index', 'ready']
+            assert created == ['database', 'model', 'embedder', 'index', 'ready', 'reranker']
             assert closed == []
     if failure:
         with pytest.raises(RuntimeError, match='controlled'):
             await run()
     else:
         await run()
-    assert closed == ['index', 'embedder', 'async_model', 'sync_model', 'database']
+    assert closed == ['reranker', 'index', 'embedder', 'async_model', 'sync_model', 'database']
 
 
 # 验证模型或索引各初始化阶段失败时，只回收已成功创建的资源。
@@ -114,6 +133,9 @@ async def test_owned_resources_close_once_even_when_another_close_fails(monkeypa
     ('model_init', ['database']),
     ('index_init', ['embedder', 'async_model', 'sync_model', 'database']),
     ('index_ready', ['index', 'embedder', 'async_model', 'sync_model', 'database']),
+    ('reranker_init', ['index', 'embedder', 'async_model', 'sync_model', 'database']),
+    ('planner_init', ['reranker', 'index', 'embedder', 'async_model', 'sync_model', 'database']),
+    ('sufficiency_init', ['reranker', 'index', 'embedder', 'async_model', 'sync_model', 'database']),
 ])
 async def test_initialization_failure_releases_already_owned_resources(monkeypatch, failure, expected):
     _, closed = owned_resources(monkeypatch, failure)

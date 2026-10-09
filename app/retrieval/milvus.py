@@ -41,11 +41,13 @@ class HybridMilvusIndex:
             *args, timeout=None, retry_times=0, retry_on_rate_limit=False, **kwargs,
         )
 
-    # 创建五字段 TEXT 中文 BM25 集合并严格核验，结构漂移时拒绝操作而不删除或修补。
+    # 离线可创建集合；在线只核验既有结构，缺集合时在任何 DDL 前拒绝。
     @_bounded
-    async def ensure_collection(self) -> None:
+    async def ensure_collection(self, *, create_if_missing: bool = True) -> None:
         self._ready = False
         if not await self._call('has_collection', self.collection):
+            if not create_if_missing:
+                raise ValueError('hybrid knowledge collection is missing; explicit initialization required')
             schema = AsyncMilvusClient.create_schema(auto_id=False, enable_dynamic_field=False)
             schema.add_field('id', DataType.INT64, is_primary=True, auto_id=False)
             schema.add_field('embedding', DataType.FLOAT_VECTOR, dim=1024)

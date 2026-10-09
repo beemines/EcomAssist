@@ -1,4 +1,4 @@
-# 语义 FAQ 工具测试，覆盖向量命中投影、空结果、超时重试和取消传播。
+# 保留旧 Dense 投影入口，并验证统一 FAQ 的故障、零重试和取消传播。
 import asyncio
 import pytest
 
@@ -14,6 +14,26 @@ from tests.tool_fakes import ToolModel, ToolRepository, collect, selected_call
 from tests.fakes import fake_settings
 from app.core.tool_chat import ToolChatService
 from app.core.conversation_locks import ConversationLocks
+
+
+# 旧 Dense 故障样例通过真实统一服务复用受控依赖，线上工具不再调用旧 search。
+def connect_retriever(faq):
+    from app.retrieval.service import RetrievalService
+    from app.retrieval.types import QueryPlan
+    class Planner:
+        # 受控查询计划避免云端请求，仍让真实服务读取完整原话。
+        async def plan(self, question):
+            return QueryPlan(standard=question, expansions=[])
+    class Index:
+        # 复用旧故障索引作为受控召回源，不加入生产 Dense 回退。
+        async def recall(self, vector, text, **kwargs):
+            return await faq.index.search(vector, limit=3)
+    class Reranker:
+        # 故障样例不得到达正常重排阶段。
+        async def rank(self, *args, **kwargs):
+            raise AssertionError('failed retrieval reached reranker')
+    faq.retriever = RetrievalService(faq.knowledge, faq.embedder, Index(), Planner(), Reranker())
+    return faq
 
 
 class SearchIndex:
@@ -98,7 +118,7 @@ async def test_dense_failure_is_tool_error_without_like_fallback(monkeypatch, st
 
     monkeypatch.setattr(KnowledgeRepository, 'get_done', failed_sql)
     index = SearchIndex([VectorHit(1, .9)], RuntimeError('synthetic vector failure') if stage == 'vector' else None)
-    faq = make_faq(Embedder(), index)
+    faq = connect_retriever(make_faq(Embedder(), index))
     registry = build_registry(faq, TicketStub(), ToolContext('10', 42, '邮费是多少'))
     outcome = await ToolExecutor().execute(ToolCall('faq', 'query_faq', {'keyword': '邮费是多少'}), registry)
     assert outcome.content == {'error': {'code': 'tool_execution_error', 'message': '工具执行失败。'}}
@@ -124,31 +144,30 @@ class WaitingEmbedder:
 # 构造实际工具聊天服务，使用短超时和指定重试上限处理 FAQ 查询。
 def chat_service(faq, retries):
     model = ToolModel(selected_call('query_faq', {'keyword': '邮费是多少'}))
-    settings = fake_settings(tool_timeout_seconds=.01, tool_max_retries=retries)
+    faq = connect_retriever(faq)
+    settings = fake_settings(tool_timeout_seconds=.01, tool_max_retries=retries, faq_timeout_seconds=.01)
     service = ToolChatService(model, ToolRepository(),
         lambda ctx: build_registry(faq, TicketStub(), ctx), ConversationLocks(), settings)
     return service, model
 
 
-# 验证每次超时检索均被取消，重试次数受限，最终模型仍按工具错误完成回答。
-@pytest.mark.parametrize('retries,attempts', [(0, 1), (1, 2)])
-async def test_tool_timeout_stops_each_retrieval_and_preserves_bounded_retry(retries, attempts):
+# FAQ 超时取消本次检索且始终零重试，不进入自由文本最终回答。
+@pytest.mark.parametrize('retries,attempts', [(0, 1), (1, 1)])
+async def test_faq_timeout_stops_retrieval_without_retry_or_free_answer(retries, attempts):
     embedder, index = WaitingEmbedder(), SearchIndex()
     service, model = chat_service(make_faq(embedder, index), retries)
     events = await collect(service, await service.prepare('10', '邮费是多少'))
     assert embedder.calls == embedder.cancelled == attempts
     assert index.calls == []
-    assert model.selection_requests == model.final_stream_requests == 1
-    assert any(event.data.get('status') == 'error' for event in events)
-    assert events[-1].event == 'done'
-    assert 'tool_timeout' in model.final_input[-1].content
+    assert model.selection_requests == 1 and model.final_stream_requests == 0
+    assert events[-1].event == 'error' and events[-1].data['code'] == 'tool_timeout'
 
 
 # 验证外部取消嵌入会传播取消、释放锁，且不再检索向量或启动最终模型。
 async def test_outer_cancel_during_embedding_has_no_vector_sql_or_model_retry():
     embedder, index = WaitingEmbedder(), SearchIndex()
     service, model = chat_service(make_faq(embedder, index), 1)
-    service.executor.timeout_seconds = 2
+    service.executor.overrides['query_faq'] = (2, 0)
     task = asyncio.create_task(collect(service, await service.prepare('10', '邮费是多少')))
     await asyncio.wait_for(embedder.started.wait(), 1)
     task.cancel()

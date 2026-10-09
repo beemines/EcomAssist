@@ -17,7 +17,7 @@ class ToolModel:
     # 配置工具选择与最终回复片段，并初始化绑定和请求计数。
     def __init__(self, selected=None, chunks=None):
         self.selected = selected if selected is not None else selected_call()
-        self.chunks = chunks if chunks is not None else [AIMessageChunk("模拟订单已完成。"), AIMessageChunk("", response_metadata={"finish_reason": "stop"})]
+        self.chunks = chunks if chunks is not None else [AIMessageChunk("模拟订单已完成。" if self.selected.tool_calls else "您好。"), AIMessageChunk("", response_metadata={"finish_reason": "stop"})]
         self.selection_requests = self.final_stream_requests = self.bind_requests = 0
         self.final_input = None
         self.bind_options = None
@@ -28,6 +28,12 @@ class ToolModel:
         self.bind_requests += 1
         self.bind_options = kwargs
         return self
+
+    # 使用严格结构化包让旧离线模型也经过真实充分性服务，不跳过质量校验。
+    def with_structured_output(self, schema, **kwargs):
+        from tests.fakes import AssessmentModel
+        kind = 'knowledge' if self.selected.tool_calls else 'auto'
+        return AssessmentModel(kind=kind).with_structured_output(schema, **kwargs)
 
     # 返回预设工具选择，或抛出异常以模拟选择阶段的模型故障。
     async def ainvoke(self, messages):
@@ -89,6 +95,11 @@ class ControlledExecutor:
 
 
 class FAQ:
+    # 新工具路径返回同一权威正文并附真实质量字段，保留旧 search 评估入口。
+    async def retrieve(self, keyword, *, raw_question, category=None):
+        matches = await self.search(keyword, limit=10)
+        return {'found': bool(matches), 'matches': [dict(item, section_path=None, score=.9, score_kind='rerank') for item in matches],
+                'retrieval': {'strategy': 'hybrid_rerank', 'candidate_count': len(matches), 'match_count': len(matches)}}
     # 为邮费或退货关键词提供固定 FAQ，其余关键词返回空结果。
     async def search(self, keyword, limit):
         if keyword == '邮费':

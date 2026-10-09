@@ -9,6 +9,7 @@ class ToolContext:
     conversation_id: str
     user_message_id: int
     user_question: str
+    category: str | None = None
 
 
 # 模型选择经校验后形成的单次工具申请。

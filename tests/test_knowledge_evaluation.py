@@ -81,14 +81,14 @@ async def test_app_audit_rejects_wrong_knowledge_even_with_good_sse_and_persiste
     from app.main import create_app
     module = implementation()
     repository = ConversationStore()
-    model = StreamingModel([AIMessageChunk(content='合成演示8元'),
+    model = StreamingModel([AIMessageChunk(content='合成演示8元[1]'),
         AIMessageChunk(content='', response_metadata={'finish_reason': 'stop'})])
     model.selected = AIMessage('', tool_calls=[{'id': 'shipping-1', 'name': 'query_faq',
         'args': {'keyword': '邮费'}}], response_metadata={'finish_reason': 'tool_calls'})
     class FAQ:
         # 返回错误知识主键，构造流正常但知识来源不符的验收场景。
-        async def search(self, keyword, limit=3):
-            return [{'id': 99, 'question': '配送', 'answer': '8元', 'category': '演示'}]
+        async def retrieve(self, keyword, *, raw_question, category=None):
+            return {'found': True, 'matches': [{'id': 99, 'question': '配送', 'answer': '8元', 'category': '演示', 'section_path': None, 'score': .9, 'score_kind': 'rerank'}], 'retrieval': {'strategy': 'hybrid_rerank', 'candidate_count': 1, 'match_count': 1}}
     faq = FAQ()
     monkeypatch.setattr(module, 'ConversationRepository', lambda database: repository)
     monkeypatch.setattr(module, 'create_app', lambda settings, **kwargs:
@@ -96,7 +96,7 @@ async def test_app_audit_rejects_wrong_knowledge_even_with_good_sse_and_persiste
     result = await module.evaluate_app(fake_settings(), None, faq, [7], 'synthetic')
     assert result['passed'] is False
     assert result['persisted_final_answer'] is True
-    assert result['actual_hit_ids'] == [99]
+    assert result['actual_hit_ids'] == ['99']
     assert result['stream']['done_count'] == 1
     assert result['answer_review'] == 'pending_manual_fact_review'
 

@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     tool_input_token_budget: int = Field(default=8000, gt=0, validation_alias="TOOL_INPUT_TOKEN_BUDGET")
     tool_timeout_seconds: float = Field(default=5.0, gt=0, validation_alias="TOOL_TIMEOUT_SECONDS")
     tool_max_retries: int = Field(default=1, ge=0, le=1, validation_alias="TOOL_MAX_RETRIES")
+    faq_timeout_seconds: float = Field(default=90, gt=0, le=90, validation_alias='FAQ_TIMEOUT_SECONDS')
+    chat_timeout_seconds: float = Field(default=240, gt=0, le=240, validation_alias='CHAT_TIMEOUT_SECONDS')
 
     # 校验数据库密码并构造保留特殊字符的异步 MySQL 连接地址。
     @property
@@ -90,7 +92,7 @@ class Settings(BaseSettings):
         return value
 
     # 新增数值配置在强制转换前排除布尔值，有限数校验沿用全局配置。
-    @field_validator('rerank_timeout_seconds', 'query_timeout_seconds', 'sufficiency_timeout_seconds', 'rerank_min_score', mode='before')
+    @field_validator('rerank_timeout_seconds', 'query_timeout_seconds', 'sufficiency_timeout_seconds', 'rerank_min_score', 'faq_timeout_seconds', 'chat_timeout_seconds', mode='before')
     @classmethod
     def retrieval_numbers_must_not_be_bool(cls, value):
         if isinstance(value, bool):

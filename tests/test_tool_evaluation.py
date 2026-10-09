@@ -24,7 +24,7 @@ SHIPPING_MATCH = {'id': 7, 'question': '标准配送费用', 'answer': '合成�
 
 
 # 预置匹配审计并运行真实工具评测，支持参数、结果、答案或 SSE 协议故障注入。
-async def run_case(case, *, mode='good', args=None, result=None, answer=None):
+async def run_case(case, *, mode='good', args=None, result=None, answer=None, done_message_id=None):
     module = implementation()
     repo = ConversationStore('9007199254741099')
     identifier = repo.identifier
@@ -41,7 +41,7 @@ async def run_case(case, *, mode='good', args=None, result=None, answer=None):
         if request.url.path == '/api/conversations':
             return httpx.Response(200, json={'conversation_id': identifier})
         data = frame('status', {'phase': 'selecting'}) + frame('delta', {'delta': answer[:2]}) + frame('delta', {'delta': answer[2:]})
-        data += frame('done', {'conversation_id': identifier})
+        data += frame('done', {'conversation_id': identifier, **({'message_id': done_message_id} if done_message_id is not None else {})})
         if mode == 'incomplete':
             data = data[:data.rfind(b'event: done')]
         elif mode == 'wrong_identity':
@@ -152,3 +152,18 @@ async def test_evaluation_uses_application_chain_and_committed_audit():
     assert report.cases[0]['tool_result']['order_id'] == 'A-42'
     assert report.cases[0]['tool_result']['mock'] is True
     assert repo.commits == 1
+
+
+# 新 done 主键必须与真实已提交助手行一致，不能只匹配会话或回答内容。
+@pytest.mark.parametrize('message_id,passed', [('4', True), ('999', False)])
+async def test_new_done_identity_must_match_committed_final_message(message_id, passed):
+    report, _, _ = await run_case(CASES[4], done_message_id=message_id)
+    assert report.cases[0]['passed'] is passed
+
+
+# FAQ 十条上限适配新契约，但第十一条仍不能通过持久化审计。
+@pytest.mark.parametrize('count,passed', [(4, True), (10, True), (11, False)])
+async def test_faq_audit_accepts_top_ten_and_rejects_overflow(count, passed):
+    result = {'found': True, 'matches': [dict(SHIPPING_MATCH, id=n) for n in range(1, count + 1)]}
+    report, _, _ = await run_case(CASES[4], result=result)
+    assert report.cases[0]['passed'] is passed

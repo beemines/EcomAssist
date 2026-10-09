@@ -32,7 +32,8 @@ async def test_extract_returns_exact_three_keys_with_source_values():
     assert response.status_code == second.status_code == 200
     assert response.json() == RESULT
     assert response.headers["content-type"].startswith("application/json")
-    assert model.structured_options == [(AfterSalesResult, "json_mode", True)]
+    assert model.structured_options[-1:] == [(AfterSalesResult, 'json_mode', True)]
+    assert [schema.__name__ for schema, _, _ in model.structured_options] == ['_Assessment', 'AfterSalesResult']
 
 
 # 验证所有声明的请求类别都合法，缺失订单与诉求可返回空值。

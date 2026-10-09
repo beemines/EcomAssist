@@ -50,8 +50,13 @@ def audit_messages(rows, case, stream) -> dict:
             result.update(actual_tool=call['name'], actual_args=call['args'], tool_result=content,
                           actual_found=content.get('found'), matches=content.get('matches'), ticket_no=content.get('ticket_no'))
             if call['name'] == 'query_faq':
-                if type(content.get('found')) is not bool or not isinstance(content.get('matches'), list) or content['found'] != bool(content['matches']) or len(content['matches']) > 3:
+                if type(content.get('found')) is not bool or not isinstance(content.get('matches'), list) or content['found'] != bool(content['matches']) or len(content['matches']) > 10:
                     raise ValueError
+                if stream.get('citations') is not None:
+                    expected = [{'n': item['n'], 'chunk_id': str(item['id']), 'section_path': item.get('section_path'),
+                                 'question': item['question'], 'answer': item['answer']} for item in content['matches']]
+                    if stream['citations'] != expected:
+                        raise ValueError
             if call['name'] == 'create_ticket':
                 expected_no = 'T' + sha256(f"{stream['conversation_id']}:{users[0].id}:{call['id']}".encode()).hexdigest()[:31]
                 if content.get('ticket_no') != expected_no or content.get('status') != '待处理':
@@ -60,6 +65,8 @@ def audit_messages(rows, case, stream) -> dict:
         if len(answers) != 1 or answers[0].content != stream['text']:
             raise ValueError
         if answers[0].id <= (tools[0].id if tools else users[0].id):
+            raise ValueError
+        if stream.get('message_id') is not None and stream['message_id'] != str(answers[0].id):
             raise ValueError
         result['passed'] = (stream['error_code'] is None and result['actual_tool'] == case['expected_tool']
                             and result['actual_args'] == case['expected_args']

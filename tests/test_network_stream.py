@@ -45,44 +45,44 @@ async def local_server(app):
 async def test_real_network_first_event_arrives_before_last_chunk_allowed():
     _, _, create_app = implementations()
     model = StreamingModel([
-        AIMessageChunk(content="first"), AIMessageChunk(content="last"),
+        AIMessageChunk(content="您"), AIMessageChunk(content="好"),
         AIMessageChunk(content="", response_metadata={"finish_reason": "stop"}),
     ], gate_at=1)
     repository = ConversationStore()
     app = create_app(fake_settings(), faq_repository=FAQStub(), model=model, repository=repository)
     async with local_server(app) as url, httpx.AsyncClient(base_url=url, trust_env=False) as client:
-        async with client.stream("POST", "/api/chat", json={"conversation_id": "1", "message": "hello"}) as response:
+        async with client.stream("POST", "/api/chat", json={"conversation_id": "1", "message": "你好"}) as response:
             lines = response.aiter_lines()
-            for _ in range(2):
-                assert await asyncio.wait_for(anext(lines), 2) == "event: status"
+            for expected in ["status", "status", "citations", "status"]:
+                assert await asyncio.wait_for(anext(lines), 2) == "event: " + expected
                 await anext(lines)
                 await anext(lines)
             assert await asyncio.wait_for(anext(lines), 2) == "event: delta"
-            assert await asyncio.wait_for(anext(lines), 2) == 'data: {"delta":"first"}'
+            assert await asyncio.wait_for(anext(lines), 2) == 'data: {"delta":"您"}'
             await asyncio.wait_for(model.waiting.wait(), 2)
             assert model.gate.is_set() is False
             assert model.eof.is_set() is False
             model.gate.set()
             remainder = [line async for line in lines]
-            assert 'data: {"delta":"last"}' in remainder
+            assert 'data: {"delta":"好"}' in remainder
             assert remainder.count("event: done") == 1
-    assert [item.content for item in repository.snapshot("1")] == ["hello", "firstlast"]
+    assert [item.content for item in repository.snapshot("1")] == ["你好", "您好"]
 
 
 # 验证真实客户端断连取消阻塞的上游流，半轮不提交且同会话可立即重试。
 async def test_real_network_disconnect_stops_upstream_and_session_is_reusable():
     _, _, create_app = implementations()
     model = StreamingModel([
-        AIMessageChunk(content="first"), AIMessageChunk(content="last"),
+        AIMessageChunk(content="您"), AIMessageChunk(content="好"),
         AIMessageChunk(content="", response_metadata={"finish_reason": "stop"}),
     ], gate_at=1)
     repository = ConversationStore()
     app = create_app(fake_settings(), faq_repository=FAQStub(), model=model, repository=repository)
     async with local_server(app) as url, httpx.AsyncClient(base_url=url, trust_env=False) as client:
-        async with client.stream("POST", "/api/chat", json={"conversation_id": "1", "message": "aborted"}) as response:
+        async with client.stream("POST", "/api/chat", json={"conversation_id": "1", "message": "你好"}) as response:
             lines = response.aiter_lines()
-            for _ in range(2):
-                assert await asyncio.wait_for(anext(lines), 2) == "event: status"
+            for expected in ["status", "status", "citations", "status"]:
+                assert await asyncio.wait_for(anext(lines), 2) == "event: " + expected
                 await anext(lines)
                 await anext(lines)
             assert await asyncio.wait_for(anext(lines), 2) == "event: delta"
@@ -94,7 +94,7 @@ async def test_real_network_disconnect_stops_upstream_and_session_is_reusable():
         # 而非仅让它在后台继续完成。
         assert model.gate.is_set() is False
         model.gate_at = None
-        response = await client.post("/api/chat", json={"conversation_id": "1", "message": "retry"})
+        response = await client.post("/api/chat", json={"conversation_id": "1", "message": "谢谢"})
         assert response.status_code == 200
         assert "event: done" in response.text
-    assert [item.content for item in repository.snapshot("1")] == ["retry", "firstlast"]
+    assert [item.content for item in repository.snapshot("1")] == ["谢谢", "您好"]
