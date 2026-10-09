@@ -184,7 +184,7 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
 - Produces QualityDecision(useful: bool, reason: str, response_kind: Literal['knowledge','social','clarification'], source: Literal['retrieval_low_conf','self_check'] | None)。SufficiencyService(model, *, input_budget: int, timeout: float = 20, minimum_rerank_score: float | None)，async check(raw_question: str, evidence: EvidencePacket) -> QualityDecision。
 - Produces validate_answer(answer: str, finish_reasons: set[str], evidence: EvidencePacket, decision: QualityDecision) -> None；固定 REFUSAL_TEXT='目前的知识资料不足以确认这个问题，我无法给出可靠答案。请补充具体商品或适用条件，或联系人工客服确认。'。Settings 增加 SUFFICIENCY_TIMEOUT_SECONDS=20。
 
-- [ ] **1. 编写 RED 测试。** 整块预算、JSON 双限、历史整轮裁剪；所有候选因尺寸不能放入时报预算错误；最强首/次强尾，编号不因排列改变；模型自评 true 不能放行空知识/低重排分；social/clarification 不得代替有业务事实的知识回答；非法原始 JSON/截断/超时不变成 useful=false；引用必须在本轮且知识回答至少一个。
+- [x] **1. 编写 RED 测试。** 整块预算、JSON 双限、历史整轮裁剪；所有候选因尺寸不能放入时报预算错误；最强首/次强尾，编号不因排列改变；模型自评 true 不能放行空知识/低重排分；social/clarification 不得代替有业务事实的知识回答；非法原始 JSON/截断/超时不变成 useful=false；引用必须在本轮且知识回答至少一个。
   ```python
   def test_evidence_keeps_best_at_edges_and_citations_exact(packet_view):
       order, citation_ids, actual_prompt_chunk_ids, payload_json = packet_view
@@ -194,10 +194,10 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
   def test_empty_or_low_score_evidence_cannot_be_self_approved(decision):
       assert (decision.useful, decision.source) == (False, 'retrieval_low_conf')
   ```
-- [ ] **2. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_evidence.py tests/test_sufficiency.py tests/test_answer_citations.py tests/test_tool_history.py -q`。
-- [ ] **3. 实现三模块。** 编号在预算选择后确定；展示顺序使用两侧交替规则，不改变编号。自评 json_mode/include_raw 严格验证，缺失阈值在 hybrid_rerank 在线准备阶段明确拒绝。单纯 BM25/Dense/RRF 分数不冒充重排置信度；评估基线使用同一内容自评，报告披露 hybrid_rerank 额外低分门槛。Prompt 列明禁止保证到账/配送日期及工单处理承诺，最终不绑定工具。
-- [ ] **4. 运行 GREEN 与评估样例。** 同命令通过；充分性标注集含无证据、无关证据、缺关键条件、完整证据、低分强制拒答、社交/澄清和禁止承诺，真实合成样例结果另存；不用单测假分数校准真实阈值。
-- [ ] **5. 审查、留痕、提交。** `feat: ground answers with bounded evidence and sufficiency checks`。
+- [x] **2. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_evidence.py tests/test_sufficiency.py tests/test_answer_citations.py tests/test_tool_history.py -q`。
+- [x] **3. 实现三模块。** 编号在预算选择后确定；展示顺序使用两侧交替规则，不改变编号。自评 json_mode/include_raw 严格验证，缺失阈值在 hybrid_rerank 在线准备阶段明确拒绝。单纯 BM25/Dense/RRF 分数不冒充重排置信度；评估基线使用同一内容自评，报告披露 hybrid_rerank 额外低分门槛。Prompt 列明禁止保证到账/配送日期及工单处理承诺，最终不绑定工具。
+- [x] **4. 运行 GREEN 与评估样例。** 同命令通过；充分性标注集含无证据、无关证据、缺关键条件、完整证据、低分强制拒答、社交/澄清和禁止承诺，真实合成样例结果另存；不用单测假分数校准真实阈值。
+- [x] **5. 审查、留痕、提交。** `feat: ground answers with bounded evidence and sufficiency checks`。
 
 ## Task 7：聊天工具、SSE、拒答提交与资源生命周期
 
