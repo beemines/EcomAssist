@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     embedding_model: Literal['BAAI/bge-m3'] = Field(default='BAAI/bge-m3', validation_alias='EMBEDDING_MODEL')
     embedding_timeout_seconds: float = Field(default=20, gt=0, validation_alias='EMBEDDING_TIMEOUT_SECONDS')
     milvus_uri: HttpUrl = Field(default='http://127.0.0.1:19530', validation_alias='MILVUS_URI')
+    # 新检索链路使用独立混合集合，旧稠密评估仍保留原集合。
+    milvus_collection: str = Field(default='knowledge_hybrid', min_length=1, validation_alias='MILVUS_COLLECTION')
     milvus_timeout_seconds: float = Field(default=5, gt=0, validation_alias='MILVUS_TIMEOUT_SECONDS')
     # 不同上游接受的输出上限字段可能不同，但应用只开放这两个协议字段。
     llm_token_limit_field: Literal["max_tokens", "max_completion_tokens"] = Field(

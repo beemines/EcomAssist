@@ -1,0 +1,4 @@
+# Milvus 3.0 TEXT 字段需要官方 StorageV3；仅覆盖该开关，保留镜像默认配置。
+common:
+  storage:
+    useLoonFFI: true
