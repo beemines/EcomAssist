@@ -158,3 +158,62 @@ async def test_outer_cancel_during_embedding_has_no_vector_sql_or_model_retry():
     assert index.calls == []
     assert model.selection_requests == 1 and model.final_stream_requests == 0
     service.locks.acquire('10').release()
+
+
+# 新接口必须传递完整原话和分类并保持旧三个位置参数可用。
+async def test_retrieve_adapter_uses_original_question_and_category():
+    from tests.test_retrieval_service import service_parts
+    service, _, _, embedder, index, planner, _ = service_parts(
+        [VectorHit(8, .7)], [ChunkRecord('售后', '能退吗', '权威答案', id=8, vectorize_status='done')], [])
+    # 本测试使用不重排的服务代理，验证 adapter 的默认调用而不引入真实云端。
+    class Retriever:
+        # adapter 必须使用原问题并传递品类，不允许只用抽取关键词检索。
+        async def retrieve(self, raw_question, *, category=None):
+            return await service.retrieve(raw_question, category=category, strategy='hybrid')
+
+    import inspect
+    assert 'retriever' in inspect.signature(FAQRepository).parameters, 'FAQ adapter is missing'
+    faq = FAQRepository(NoSQL(), embedder, index, retriever=Retriever())
+    result = await faq.retrieve('能退吗', raw_question='SKU-X9 能退吗', category='售后')
+    assert result['found'] is True and result['matches'][0]['answer'] == '权威答案'
+    assert planner.calls == ['SKU-X9 能退吗'] and index.calls[0][3] == '售后'
+
+
+# 缺少新依赖时必须明确失败，不能静默使用旧 Dense 或 LIKE。
+async def test_retrieve_without_retriever_does_not_use_legacy_search():
+    embedder, index = RecordingEmbedder(), SearchIndex()
+    faq = make_faq(embedder, index)
+    assert hasattr(faq, 'retrieve'), 'FAQ adapter is missing'
+    with pytest.raises(RuntimeError, match='retriever'):
+        await faq.retrieve('邮费', raw_question='邮费是多少')
+    assert embedder.texts == index.calls == []
+
+
+# keyword 仍须是原话连续片段，非法长度或来源不能触发新服务。
+@pytest.mark.parametrize('keyword,raw_question', [('', '问题'), ('x' * 129, 'x' * 129),
+                                                  ('能退吗', '多久能退款'), (1, '问题')])
+async def test_retrieve_keyword_contract_rejects_invalid_input(keyword, raw_question):
+    class Retriever:
+        # 任一非法输入进入依赖都是 adapter 的回归。
+        async def retrieve(self, *args, **kwargs):
+            raise AssertionError('invalid input reached retriever')
+
+    import inspect
+    assert 'retriever' in inspect.signature(FAQRepository).parameters, 'FAQ adapter is missing'
+    faq = FAQRepository(NoSQL(), RecordingEmbedder(), SearchIndex(), retriever=Retriever())
+    with pytest.raises(ValueError):
+        await faq.retrieve(keyword, raw_question=raw_question)
+
+
+# 新 adapter 不能将连接故障转为 found=false。
+async def test_retrieve_adapter_propagates_dependency_failure():
+    class Retriever:
+        # 模拟新服务的连接故障并要求直接传播。
+        async def retrieve(self, *args, **kwargs):
+            raise RuntimeError('synthetic retrieval failure')
+
+    import inspect
+    assert 'retriever' in inspect.signature(FAQRepository).parameters, 'FAQ adapter is missing'
+    faq = FAQRepository(NoSQL(), RecordingEmbedder(), SearchIndex(), retriever=Retriever())
+    with pytest.raises(RuntimeError, match='synthetic retrieval failure'):
+        await faq.retrieve('邮费', raw_question='邮费是多少')

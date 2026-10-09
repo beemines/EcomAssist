@@ -1,18 +1,30 @@
-# 保持 FAQ 工具返回契约，通过 Dense 向量检索命中并从 MySQL 读取权威原文。
+# 保留旧 Dense 评估入口，并通过显式依赖提供统一 FAQ 检索契约。
 from app.db.session import Database
 from app.knowledge.types import Embedder, VectorIndex
 from app.repositories.knowledge import KnowledgeRepository
+from app.retrieval.service import RetrievalService, faq_payload
 
 
 class FAQRepository:
     """Dense hits determine order; MySQL done rows own the answer text."""
 
-    # 组合数据库权威文本仓储、向量生成器和向量检索索引。
-    def __init__(self, database: Database, embedder: Embedder, index: VectorIndex):
+    # 保留三个位置参数，统一检索依赖仅通过可选关键字显式注入。
+    def __init__(self, database: Database, embedder: Embedder, index: VectorIndex,
+                 *, retriever: RetrievalService | None = None):
         self.database = database
         self.embedder = embedder
         self.index = index
         self.knowledge = KnowledgeRepository(database)
+        self.retriever = retriever
+
+    # keyword 保持原话片段约束；新路径始终用本轮完整原话和分类进行检索。
+    async def retrieve(self, keyword: str, *, raw_question: str, category: str | None = None) -> dict:
+        if (not isinstance(keyword, str) or not 1 <= len(keyword) <= 128
+                or not isinstance(raw_question, str) or keyword not in raw_question):
+            raise ValueError('Invalid FAQ keyword or raw question.')
+        if self.retriever is None:
+            raise RuntimeError('FAQ retriever is required for unified retrieval')
+        return faq_payload(await self.retriever.retrieve(raw_question, category=category))
 
     # 语义检索最多三条命中，按命中顺序返回已完成向量化的数据库原文。
     async def search(self, keyword: str, limit: int = 3) -> list[dict]:
