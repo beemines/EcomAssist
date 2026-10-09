@@ -2,6 +2,7 @@
 # schtasks /Create /TN "ECS Knowledge Daily" /SC DAILY /ST 02:00 /TR 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\shixi\ecommerce-customer-service\scripts\run-knowledge-daily.ps1"' /F
 # 本脚本负责运行每日任务；上面的注册命令需要单独执行。
 # 先把已核验代码部署到固定目录；并发运行时 MySQL GET_LOCK 会拒绝第二个任务。
+# 首次切换先运行 rebuild-hybrid 和 verify-hybrid；每日 pending 写入使用 MILVUS_COLLECTION 配置的混合集合。
 $ErrorActionPreference = 'Stop'
 $projectRoot = 'D:\shixi\ecommerce-customer-service'
 $env:UV_CACHE_DIR = 'D:\shixi\ecommerce-customer-service\.cache\uv'

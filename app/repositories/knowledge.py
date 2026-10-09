@@ -61,6 +61,18 @@ class KnowledgeRepository:
             rows = (await session.scalars(select(KnowledgeChunk).where(KnowledgeChunk.vectorize_status == "pending").order_by(KnowledgeChunk.id).limit(limit))).all()
             return [_record(row) for row in rows]
 
+    # 用升序主键分页读取 done；返回脱离会话的记录，不持事务等待嵌入或索引。
+    async def done_page(self, *, after_id: int = 0, limit: int = 20) -> list[ChunkRecord]:
+        if type(after_id) is not int or not 0 <= after_id <= 9223372036854775807:
+            raise ValueError('done cursor must fit nonnegative INT64')
+        if type(limit) is not int or limit < 1:
+            raise ValueError('done limit must be a positive integer')
+        async with self.database.session() as session, session.begin():
+            rows = (await session.scalars(select(KnowledgeChunk).where(
+                KnowledgeChunk.vectorize_status == 'done', KnowledgeChunk.id > after_id)
+                .order_by(KnowledgeChunk.id).limit(limit))).all()
+            return [_record(row) for row in rows]
+
     # 锁定并核对整批分块后，原子地回填向量标识和完成状态。
     async def mark_done(self, ids: list[int]) -> None:
         _ids(ids)
