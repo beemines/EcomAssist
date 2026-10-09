@@ -238,8 +238,8 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
 - Produces FaithfulnessJudge(model, input_budget: int)，async judge(question: str, answer: str, citations: list[Citation]) -> dict，含 claims/support/reason/score，非法输出抛安全错误，不生成编造记录。Settings 增加 FAITH_JUDGE_INPUT_TOKEN_BUDGET=16000、FAITH_JUDGE_MAX_OUTPUT_TOKENS=2048；裁判使用同一 LLM_MODEL/上游的独立模型实例，输出上限取该字段，线上回答仍使用既有 MAX_OUTPUT_TOKENS，不修改共享实例预算。
 - CLI `python -m evals.evaluate_retrieval --mode calibrate|compare --output PATH`；可选 `--cases PATH`（比较默认 retrieval_cases.jsonl，校准默认 retrieval_calibration.jsonl）、`--database test|configured`（默认 test）。PATH 为 JSON 报告路径，Markdown 写同 stem 的 .md；两模式均保存逐题检查点。
 
-- [ ] **1. 写固定合成数据和金标。** 30 题五桶，每桶难度各两题；8 校准题独立 ID，型号近邻干扰项、双证据多条件、无答案均具备人工可核对事实。gold_chunk_refs 使用冻结原文的 section_path/questions/answer 三元组，映射到当次导入的 owned chunk，避免同一 FAQ 标题下不同问题都误算相关；缺失映射立即失败。同一三元组若对应多个物理块，明确记录全部相关 ID 和重复数，指标仍遵循 Spec 的 chunk ID 定义，不改成另一套分组评分。纯数据/Prompt 用这套标注集验证替代 TDD。
-- [ ] **2. 为可单测评分器/运行器写 RED。** 覆盖多相关块、重复 id、未命中/空 gold、Top-50 与 Top-10 区分、阈值同分、四策略冻结输入、错误/未执行计数、裁判原 JSON 非法、拒答无断言 n/a；只有真实有效 unsupported claim 才调用台账。
+- [x] **1. 写固定合成数据和金标。** 30 题五桶，每桶难度各两题；8 校准题独立 ID，型号近邻干扰项、双证据多条件、无答案均具备人工可核对事实。gold_chunk_refs 使用冻结原文的 section_path/questions/answer 三元组，映射到当次导入的 owned chunk，避免同一 FAQ 标题下不同问题都误算相关；缺失映射立即失败。同一三元组若对应多个物理块，明确记录全部相关 ID 和重复数，指标仍遵循 Spec 的 chunk ID 定义，不改成另一套分组评分。纯数据/Prompt 用这套标注集验证替代 TDD。
+- [x] **2. 为可单测评分器/运行器写 RED。** 覆盖多相关块、重复 id、未命中/空 gold、Top-50 与 Top-10 区分、阈值同分、四策略冻结输入、错误/未执行计数、裁判原 JSON 非法、拒答无断言 n/a；只有真实有效 unsupported claim 才调用台账。
   ```python
   def test_metrics_distinguish_partial_recall_and_rank():
       assert retrieval_metrics([20, 10], {10, 30}, k=10) == {'recall': 0.5, 'mrr': 0.5}
@@ -251,10 +251,10 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
       report, completed, remaining = partial_report
       assert (report['attempted'], report['not_attempted']) == (completed, remaining)
   ```
-- [ ] **3. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_retrieval_metrics.py tests/test_retrieval_evaluation.py tests/test_faithfulness_judge.py -q`。
-- [ ] **4. 实现评估接口。** 默认测试库/UUID 集合及本次拥有记录，比较前冻结语料/查询/阈值/模型/预算；按三元组将金标映射到物理 ID，再调用 retrieval_metrics，同一命中 ID 只计一次。Faithfulness 逐断言判支持，保留完整证据和裁判版本。所有有效编造判定写台账，不能靠可选开关忽略；test 模式 ledger_eval_id='T'+数据集 eval_id，configured 模式使用数据集原 ID，报告同时保存两种 ID。台账在所选数据库长期保留；清理只移除本次临时知识、会话和集合。configured 模式显式读现有知识/写对应台账，不删除既有知识或台账。报告记录 hybrid_rerank 的分数门槛差异，避免将全部生成变化归因为排序。JSON 逐题检查点+Markdown 总体/五桶四行对照；运行失败写缺失项并非零退出，清理错误也算失败。
-- [ ] **5. 运行 GREEN，再真实校准/比较。** 先通过受控回归，再对提交的合成语料做真实八题校准，记录建议阈值并填本地 .env；随后跑四策略，逐题保存 ranked IDs/原问/标准问/全部证据/答案/自评/裁判及耗时。真实模型数量与调用失败如实记录，不自动换模型、扩充输出上限或反复重跑全量。受控报告必须标明 controlled。
-- [ ] **6. 审查、留痕、提交。** `test: evaluate four retrieval strategies and persist fabrication cases`；真实报告保存在 docs/validation/hybrid-retrieval-{calibration,comparison}.json 与 Markdown 报告，历史报告不覆盖。
+- [x] **3. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_retrieval_metrics.py tests/test_retrieval_evaluation.py tests/test_faithfulness_judge.py -q`。
+- [x] **4. 实现评估接口。** 默认测试库/UUID 集合及本次拥有记录，比较前冻结语料/查询/阈值/模型/预算；按三元组将金标映射到物理 ID，再调用 retrieval_metrics，同一命中 ID 只计一次。Faithfulness 逐断言判支持，保留完整证据和裁判版本。所有有效编造判定写台账，不能靠可选开关忽略；test 模式 ledger_eval_id='T'+数据集 eval_id，configured 模式使用数据集原 ID，报告同时保存两种 ID。台账在所选数据库长期保留；清理只移除本次临时知识、会话和集合。configured 模式显式读现有知识/写对应台账，不删除既有知识或台账。报告记录 hybrid_rerank 的分数门槛差异，避免将全部生成变化归因为排序。JSON 逐题检查点+Markdown 总体/五桶四行对照；运行失败写缺失项并非零退出，清理错误也算失败。
+- [x] **5. 运行 GREEN，再真实校准/比较。** 先通过受控回归，再对提交的合成语料做真实八题校准，记录建议阈值并填本地 .env；随后跑四策略，逐题保存 ranked IDs/原问/标准问/全部证据/答案/自评/裁判及耗时。真实模型数量与调用失败如实记录，不自动换模型、扩充输出上限或反复重跑全量。受控报告必须标明 controlled。
+- [x] **6. 审查、留痕、提交。** `test: evaluate four retrieval strategies and persist fabrication cases`；真实报告保存在 docs/validation/hybrid-retrieval-{calibration,comparison}.json 与 Markdown 报告，历史报告不覆盖。
 
 ## Task 9：引用来源面板与一次性满意度（Vibe Coding）
 
