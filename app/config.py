@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     # 重排型号固定；离线校准可缺阈值，线上充分性/启动检查必须拒绝缺失阈值。
     rerank_model: Literal['BAAI/bge-reranker-v2-m3'] = Field(default='BAAI/bge-reranker-v2-m3', validation_alias='RERANK_MODEL')
     rerank_timeout_seconds: float = Field(default=20, gt=0, validation_alias='RERANK_TIMEOUT_SECONDS')
-    query_timeout_seconds: float = Field(default=15, gt=0, validation_alias='QUERY_TIMEOUT_SECONDS')
+    query_timeout_seconds: float = Field(default=60, gt=0, le=60, validation_alias='QUERY_TIMEOUT_SECONDS')
     sufficiency_timeout_seconds: float = Field(default=20, gt=0, validation_alias='SUFFICIENCY_TIMEOUT_SECONDS')
     rerank_min_score: float | None = Field(default=None, validation_alias='RERANK_MIN_SCORE')
     # 不同上游接受的输出上限字段可能不同，但应用只开放这两个协议字段。
@@ -43,7 +43,11 @@ class Settings(BaseSettings):
     # 在线输入预算、在线回答上限和离线 QA 抽取上限各自独立，避免互相挤占。
     input_token_budget: int = Field(default=2000, gt=0, validation_alias="INPUT_TOKEN_BUDGET")
     max_output_tokens: int = Field(default=512, gt=0, validation_alias="MAX_OUTPUT_TOKENS")
+    query_max_output_tokens: int = Field(default=2048, gt=0, validation_alias='QUERY_MAX_OUTPUT_TOKENS')
+    sufficiency_max_output_tokens: int = Field(default=2048, gt=0, validation_alias='SUFFICIENCY_MAX_OUTPUT_TOKENS')
     qa_max_output_tokens: int = Field(default=2048, gt=0, validation_alias="QA_MAX_OUTPUT_TOKENS")
+    faith_judge_input_token_budget: int = Field(default=16000, gt=0, validation_alias='FAITH_JUDGE_INPUT_TOKEN_BUDGET')
+    faith_judge_max_output_tokens: int = Field(default=2048, gt=0, validation_alias='FAITH_JUDGE_MAX_OUTPUT_TOKENS')
     llm_timeout_seconds: float = Field(default=60.0, gt=0, validation_alias="LLM_TIMEOUT_SECONDS")
     # MySQL 地址默认对应业务 Compose 实例，根用户密码仅供显式管理/测试操作使用。
     mysql_host: str = Field(default="127.0.0.1", validation_alias="MYSQL_HOST")
@@ -83,8 +87,9 @@ class Settings(BaseSettings):
             raise ValueError("model must not be blank")
         return value
 
-    # 在整数转换前排除布尔值，避免把开关误当作 QA 输出预算。
-    @field_validator('qa_max_output_tokens', mode='before')
+    # 在整数转换前排除布尔值，避免把开关误当作各自独立的输出预算。
+    @field_validator('qa_max_output_tokens', 'query_max_output_tokens', 'sufficiency_max_output_tokens',
+                     'faith_judge_input_token_budget', 'faith_judge_max_output_tokens', mode='before')
     @classmethod
     def qa_output_budget_must_not_be_bool(cls, value):
         if isinstance(value, bool):

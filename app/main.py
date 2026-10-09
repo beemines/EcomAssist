@@ -30,7 +30,7 @@ from app.repositories.tickets import TicketRepository
 from app.tools.registry import build_registry
 from app.core.errors import ServiceError
 from app.core.extraction import ExtractionService
-from app.core.llm import create_model
+from app.core.llm import create_model, model_with_output_budget
 
 
 class _UnavailableDatabase:
@@ -63,9 +63,13 @@ def create_app(
         app.state.repository = repository
         app.state.database = database
         tickets = TicketRepository(database)
+        assessment = sufficiency_service if sufficiency_service is not None else SufficiencyService(
+            model_with_output_budget(model, settings, settings.sufficiency_max_output_tokens),
+            input_budget=settings.tool_input_token_budget, timeout=settings.sufficiency_timeout_seconds,
+            minimum_rerank_score=settings.rerank_min_score)
         app.state.chat_service = ToolChatService(model, repository,
             lambda context: build_registry(faq_repository, tickets, context), ConversationLocks(), settings,
-            sufficiency_service=sufficiency_service, quality_repository=quality_repository)
+            sufficiency_service=assessment, quality_repository=quality_repository)
         app.state.extraction_service = ExtractionService(model, settings.input_token_budget)
 
     # 在应用启动时准备依赖，并在退出时按注册顺序的逆序释放资源。
@@ -94,11 +98,13 @@ def create_app(
                 await index.ensure_collection(create_if_missing=False)
                 reranker = SiliconFlowReranker(settings)
                 resources.push_async_callback(reranker.aclose)
-                planner = QueryPlanner(model, settings.tool_input_token_budget, timeout=settings.query_timeout_seconds)
+                planner = QueryPlanner(model_with_output_budget(model, settings, settings.query_max_output_tokens),
+                    settings.tool_input_token_budget, timeout=settings.query_timeout_seconds)
                 retriever = RetrievalService(KnowledgeRepository(database), embedder, index, planner, reranker)
                 faq_repository = FAQRepository(database, embedder, index, retriever=retriever)
             if sufficiency_service is None:
-                sufficiency_service = SufficiencyService(model, input_budget=settings.tool_input_token_budget,
+                sufficiency_service = SufficiencyService(model_with_output_budget(model, settings, settings.sufficiency_max_output_tokens),
+                    input_budget=settings.tool_input_token_budget,
                     timeout=settings.sufficiency_timeout_seconds, minimum_rerank_score=settings.rerank_min_score)
             if quality_repository is None:
                 quality_repository = QualityRepository(database)

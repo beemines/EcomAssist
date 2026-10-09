@@ -67,11 +67,11 @@ def _safe_plan(raw_question: str, plan: QueryPlan) -> QueryPlan:
 
 class QueryPlanner:
     # 绑定严格原始 JSON 输出；预算和绝对期限由调用方提供，模型生命周期仍归调用方。
-    def __init__(self, model: Any, input_budget: int, timeout: float = 15):
+    def __init__(self, model: Any, input_budget: int, timeout: float = 60):
         if type(input_budget) is not int or input_budget <= 0:
             raise ValueError('input budget must be a positive integer')
-        if type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0:
-            raise ValueError('query timeout must be finite and positive')
+        if type(timeout) not in (int, float) or not math.isfinite(timeout) or not 0 < timeout <= 60:
+            raise ValueError('query timeout must be finite and in (0, 60]')
         self.structured_model = model.with_structured_output(QueryPlan, method='json_mode', include_raw=True)
         self.input_budget, self.timeout = input_budget, timeout
 

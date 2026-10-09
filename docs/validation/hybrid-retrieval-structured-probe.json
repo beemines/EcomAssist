@@ -1,0 +1,116 @@
+{
+  "kind": "actual_structured_budget_probe",
+  "online_output_budget": 512,
+  "query_output_budget": 2048,
+  "sufficiency_output_budget": 2048,
+  "model": "glm-5.3-flash",
+  "retries": 0,
+  "query_timeout": 15.0,
+  "started_at": "2026-10-09T09:32:08.881672+00:00",
+  "records": [
+    {
+      "eval_id": "K01",
+      "question": "普通小件订单实付98元运费是多少？",
+      "status": "ok",
+      "plan": {
+        "standard": "普通小件订单实付98元运费是多少？",
+        "expansions": []
+      },
+      "response_metadata": [
+        {
+          "status": 200,
+          "model": "glm-5.3-flash",
+          "usage": {
+            "completion_tokens": 646,
+            "completion_tokens_details": {
+              "reasoning_tokens": 580
+            },
+            "prompt_tokens": 264,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "total_tokens": 910
+          },
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "content_characters": 107,
+              "reasoning_characters": 1858
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "eval_id": "K04",
+      "question": "XM-A17保修12个月内申请要准备哪两个凭证？",
+      "status": "error",
+      "error_type": "ServiceError",
+      "error_code": "upstream_timeout",
+      "cause_types": [
+        "TimeoutError",
+        "CancelledError"
+      ],
+      "response_metadata": []
+    },
+    {
+      "eval_id": "K05",
+      "question": "XM-A99容量是多少？",
+      "status": "ok",
+      "plan": {
+        "standard": "XM-A99容量是多少？",
+        "expansions": []
+      },
+      "response_metadata": [
+        {
+          "status": 200,
+          "model": "glm-5.3-flash",
+          "usage": {
+            "completion_tokens": 647,
+            "completion_tokens_details": {
+              "reasoning_tokens": 616
+            },
+            "prompt_tokens": 258,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "total_tokens": 905
+          },
+          "choices": [
+            {
+              "finish_reason": "stop",
+              "content_characters": 65,
+              "reasoning_characters": 2183
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "eval_id": "K07",
+      "question": "大件发往香港运费固定几元？",
+      "status": "error",
+      "error_type": "ServiceError",
+      "error_code": "upstream_timeout",
+      "cause_types": [
+        "TimeoutError",
+        "CancelledError"
+      ],
+      "response_metadata": []
+    },
+    {
+      "eval_id": "K08",
+      "question": "质量问题申请退款保证今天到账吗？",
+      "status": "error",
+      "error_type": "ServiceError",
+      "error_code": "upstream_timeout",
+      "cause_types": [
+        "TimeoutError",
+        "CancelledError"
+      ],
+      "response_metadata": []
+    }
+  ],
+  "finished_at": "2026-10-09T09:33:14.417941+00:00",
+  "passed": false
+}
