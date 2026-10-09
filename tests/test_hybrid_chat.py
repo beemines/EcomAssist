@@ -150,13 +150,19 @@ async def test_total_deadline_and_cancellation_never_commit():
     service.settings = service.settings.model_copy(update={'chat_timeout_seconds': .02})
     events = await collect(service, await service.prepare('42', '退货规则'))
     assert events[-1].data['code'] == 'upstream_timeout' and quality.pool == []
+    assert not any(row.role == 'assistant' and not row.tool_calls for row in repository.rows)
     service.settings = service.settings.model_copy(update={'chat_timeout_seconds': 2})
+    started.clear()
     task = asyncio.create_task(collect(service, await service.prepare('42', '退货规则')))
     await started.wait()
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
     assert quality.pool == []
+    assert not any(row.role == 'assistant' and not row.tool_calls for row in repository.rows)
+    # 取消后同一会话可立即重新占用，凭证由collect的finally归还。
+    prepared = await service.prepare('42', '退货规则')
+    service.release(prepared)
 
 
 # category 在 HTTP 边界严格校验，不接受数字、空白或超长过滤值。

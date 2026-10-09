@@ -22,14 +22,17 @@ class OwnedRepository(KnowledgeRepository):
         super().__init__(database)
         self.ids = ids
 
+    # 在真实主键分页结果中限制本次拥有记录，避免重建其他任务知识。
     async def done_page(self, *, after_id=0, limit=20):
         return [row for row in await super().done_page(after_id=max(after_id, min(self.ids) - 1), limit=limit)
                 if row.id in self.ids]
 
+    # 从真实pending查询中选出本次拥有记录，保持并发测试隔离。
     async def pending(self, limit=20):
         return [row for row in await super().pending(10000) if row.id in self.ids][:limit]
 
 
+# 读取拥有主键的状态和向量身份，核对中断前后数据库是否正确变化。
 async def states(database, ids):
     async with database.session() as session:
         rows = (await session.execute(select(KnowledgeChunk.id, KnowledgeChunk.vectorize_status,
@@ -37,6 +40,7 @@ async def states(database, ids):
     return [tuple(row) for row in rows]
 
 
+# 验证真实done分页的严格主键顺序、pending排除和非法参数早拒。
 async def test_real_done_page_has_keyset_order_and_validates_arguments(knowledge_rows):
     repo = KnowledgeRepository(knowledge_rows.database)
     ids = await repo.add_chunks([ChunkDraft(knowledge_rows.token, '第一页', '答案'),
@@ -52,6 +56,7 @@ async def test_real_done_page_has_keyset_order_and_validates_arguments(knowledge
             await repo.done_page(after_id=after_id, limit=limit)
 
 
+# 验证旧done重建保持状态、pending确认后恢复及错误内容阻止切换。
 async def test_real_rebuild_preserves_pending_then_recovers_confirmed_write(knowledge_rows, milvus_collection):
     repo = KnowledgeRepository(knowledge_rows.database)
     ids = await repo.add_chunks([ChunkDraft(knowledge_rows.token, question, '合成答案')
@@ -68,6 +73,7 @@ async def test_real_rebuild_preserves_pending_then_recovers_confirmed_write(know
     assert await states(knowledge_rows.database, ids) == before
 
     class CommitFaultRepository(OwnedRepository):
+        # 在向量确认后模拟状态事务失败，暴露可恢复的pending窗口。
         async def mark_done(self, identifiers):
             raise RuntimeError('controlled MySQL status commit interruption')
     interrupted = jobs(CommitFaultRepository(knowledge_rows.database, ids), Embedder(), index)
@@ -92,6 +98,7 @@ async def test_real_rebuild_preserves_pending_then_recovers_confirmed_write(know
     print(f'real pending recovery: original_done={ids[:2]}, rebuilt={ids[:2]}, resumed={ids}')
 
 
+# 中断本测试拥有的子进程，再以相同主键重放并核对完整原文和状态。
 async def test_owned_process_interrupted_rebuild_replays_same_primary_keys(knowledge_rows, milvus_collection, tmp_path):
     repo = KnowledgeRepository(knowledge_rows.database)
     ids = await repo.add_chunks([ChunkDraft(knowledge_rows.token, f'中断问题{i}', '合成答案') for i in range(3)])
@@ -109,15 +116,20 @@ async def test_owned_process_interrupted_rebuild_replays_same_primary_keys(knowl
         from app.retrieval.milvus import HybridMilvusIndex
         from tests.integration.test_hybrid_recovery import OwnedRepository
         from tests.test_hybrid_jobs import Embedder, jobs
+        # 拥有的子进程只操作3308及本测试主键，在写入后等待父进程中断。
         async def main():
             settings = load_settings()
             database = Database(settings.database_url.set(host='127.0.0.1', port=3308,
                 database='customer_service_test', username='customer_service'))
             ids = json.loads(sys.argv[1])
             class PausedIndex(HybridMilvusIndex):
+                # 完整写临时信号后原子发布，父进程不可能读取半截JSON。
                 async def upsert(self, rows):
                     actual = await super().upsert(rows)
-                    Path(sys.argv[3]).write_text(json.dumps(actual), encoding='utf-8')
+                    signal = Path(sys.argv[3])
+                    temporary = signal.with_suffix('.tmp')
+                    temporary.write_text(json.dumps(actual), encoding='utf-8')
+                    temporary.replace(signal)
                     await asyncio.Event().wait()
                     return actual
             index = PausedIndex('http://127.0.0.1:19530', collection=sys.argv[2])

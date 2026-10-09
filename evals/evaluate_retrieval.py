@@ -15,7 +15,8 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from sqlalchemy import delete, select
 
 from app.config import load_settings
-from app.core.answer_validation import REFUSAL_TEXT, validate_answer
+from app.core.answer_validation import (REFUSAL_TEXT, FinalAnswerStream, close_answer_stream,
+                                        ensure_answer_active, validate_answer)
 from app.core.errors import ServiceError
 from app.core.evidence import build_evidence
 from app.core.llm import create_model, model_with_output_budget
@@ -33,6 +34,7 @@ from app.retrieval.milvus import HybridMilvusIndex
 from app.retrieval.query import QueryPlanner
 from app.retrieval.rerank import SiliconFlowReranker
 from app.retrieval.service import RetrievalService, faq_payload
+from app.retrieval.types import validate_category
 from evals.faithfulness import FaithfulnessJudge, JUDGE_VERSION, JUDGE_PROMPT
 from evals.knowledge_recovery import OwnedRepository, attempt_cleanup, test_settings, timestamp, write_checkpoint
 from evals.retrieval_metrics import choose_threshold, retrieval_metrics
@@ -185,6 +187,8 @@ def initial_report(cases, gold, *, database_mode, kind, mode='compare'):
 async def evaluate_cases(cases, *, gold, planner, retrieval, model, judge, quality, settings,
                          database_mode, output, kind='actual', report=None):
     """复用完整线上检索、证据、自评、流式生成及裁判链公平比较四策略。"""
+    for case in cases:
+        validate_category(case.get('category'))
     report = report if report is not None else initial_report(cases, gold, database_mode=database_mode, kind=kind)
     report.update(gold_mapping=gold, threshold=settings.rerank_min_score,
         threshold_difference='hybrid_rerank uses calibrated score gate; other strategies content self-check only')
@@ -216,9 +220,10 @@ async def evaluate_cases(cases, *, gold, planner, retrieval, model, judge, quali
                     rewrite_latency_seconds=rewrite_elapsed, faq_remaining_seconds=faq_remaining,
                     chat_remaining_seconds=chat_remaining)
                 started, stage = monotonic(), 'retrieval'
+                deadline = asyncio.get_running_loop().time() + chat_remaining
                 save_report(output, report)
                 try:
-                    async with asyncio.timeout(chat_remaining):
+                    async with asyncio.timeout_at(deadline):
                         async with asyncio.timeout(faq_remaining):
                             bundle = await retrieval.retrieve(case['query'], category=case.get('category'),
                                                                strategy=strategy, query_plan=plan)
@@ -248,19 +253,25 @@ async def evaluate_cases(cases, *, gold, planner, retrieval, model, judge, quali
                         stage = 'generation'
                         text, finishes = '', set()
                         if decision.useful:
-                            async for chunk in model.astream(packet.messages):
-                                if chunk.tool_calls or chunk.invalid_tool_calls:
-                                    raise ServiceError('invalid_answer', '最终模型申请工具。', 502)
-                                text += chunk.text
-                                finish = chunk.response_metadata.get('finish_reason')
-                                if finish:
-                                    finishes.add(finish)
+                            ensure_answer_active(deadline)
+                            final_stream = FinalAnswerStream()
+                            upstream = model.astream(packet.messages)
+                            try:
+                                async for chunk in upstream:
+                                    final_stream.accept(chunk)
+                                text = final_stream.complete(deadline)
+                                finishes = final_stream.reasons
+                            finally:
+                                # 主动关闭非法工具、长度、传输故障和取消中提前终止的迭代器。
+                                await close_answer_stream(upstream)
                         else:
                             text, finishes = REFUSAL_TEXT, {'stop'}
+                        ensure_answer_active(deadline)
                         record.update(answer=text, finish_reasons=sorted(finishes))
                         validate_answer(text, finishes, packet, decision)
                         stage = 'judge'
                         judgment = await judge.judge(case['query'], text, packet.citations)
+                        ensure_answer_active(deadline)
                         record.update(judge=judgment, faithfulness=judgment['score'])
                         unsupported = [c for c in judgment['claims'] if c['support'] is False]
                         if unsupported:
@@ -269,6 +280,7 @@ async def evaluate_cases(cases, *, gold, planner, retrieval, model, judge, quali
                                 case['query'], strategy, text, json.dumps(unsupported, ensure_ascii=False),
                                 record['citations'], settings.llm_model))
                             record['fabrication_persisted'] = True
+                        ensure_answer_active(deadline)
                         record['status'] = 'ok'
                 except Exception as exc:
                     record.update(status='error', error_stage=stage, failure_details=failure_details(exc), error_type=type(exc).__name__,
@@ -285,6 +297,8 @@ async def evaluate_cases(cases, *, gold, planner, retrieval, model, judge, quali
 
 async def calibrate_cases(cases, *, gold, planner, retrieval, output, report):
     """逐题收集真实有限重排分；八题全部合法后才选择拒答门槛。"""
+    for case in cases:
+        validate_category(case.get('category'))
     samples = []
     for case, record in zip(cases, report['records']):
         started = monotonic()
@@ -345,6 +359,9 @@ async def evaluate(cases, *, mode, database_mode, output):
     save_report(output, report)
     database, index, ids = None, None, []
     try:
+        # 整批输入在创建资源或第一次改写之前校验，后题非法不能消耗前题请求。
+        for case in cases:
+            validate_category(case.get('category'))
         settings = test_settings() if database_mode == 'test' else load_settings()
         report.update(database=f'{settings.mysql_host}:{settings.mysql_port}/{settings.mysql_database}',
             online_model=settings.llm_model, embedding_model=settings.embedding_model, rerank_model=settings.rerank_model,

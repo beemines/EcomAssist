@@ -5,7 +5,6 @@ from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-import anyio
 import httpx
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
@@ -19,9 +18,9 @@ from app.core.errors import ServiceError
 from app.core.prompts import build_grounded_answer_system_prompt, build_tool_chat_system_prompt
 from app.core.evidence import build_evidence
 from app.core.sufficiency import SufficiencyService
-from app.core.answer_validation import REFUSAL_TEXT, validate_answer
+from app.core.answer_validation import REFUSAL_TEXT, FinalAnswerStream, close_answer_stream, validate_answer
 from app.quality.repository import QualityRepository
-from app.knowledge.types import validate_text
+from app.retrieval.types import validate_category
 from app.core.tool_history import build_tool_messages, completed_turns
 from app.repositories.conversations import ConversationRepository
 from app.repositories.records import record_from_message
@@ -77,7 +76,7 @@ class ToolChatService:
 
     # 占用会话、校验完整历史和必需输入预算，再保存用户消息并绑定工具上下文。
     async def prepare(self, conversation_id: str, message: str, *, category: str | None = None) -> PreparedToolChat:
-        validate_text('category', category, 255, nullable=True)
+        validate_category(category)
         deadline = asyncio.get_running_loop().time() + self.settings.chat_timeout_seconds
         lease = self.locks.acquire(conversation_id)
         try:
@@ -195,31 +194,15 @@ class ToolChatService:
                     prepared.messages = build_tool_messages(SystemMessage(build_tool_chat_system_prompt()), prepared.turns,
                         prepared.current, self.settings.tool_input_token_budget, tool_schema=[], current_tool_messages=pending)
                 yield StreamEvent("status", {"phase": "answering"})
-                parts: list[str] = []
-                size = 0
-                utf8_size = 0
-                reasons: set[str] = set()
+                final_stream = FinalAnswerStream()
                 prepared.upstream = self.model.astream(prepared.messages)
                 async for chunk in prepared.upstream:
-                    if (chunk.tool_calls or chunk.invalid_tool_calls or getattr(chunk, "tool_call_chunks", None)
-                            or chunk.additional_kwargs.get("tool_calls")):
-                        raise _protocol_error("最终回复再次申请工具，无法完成本次回答。")
-                    reason = chunk.response_metadata.get("finish_reason")
-                    if reason is not None:
-                        reasons.add(reason)
-                    text = chunk.text
+                    text = final_stream.accept(chunk)
                     if text:
-                        size += len(text)
-                        utf8_size += len(text.encode('utf-8'))
-                        if size > 20000 or utf8_size > 65535:
-                            raise _protocol_error("模型回复超出可保存长度。")
-                        parts.append(text)
                         yield StreamEvent("delta", {"delta": text})
-                answer = "".join(parts)
-                if reasons != {"stop"} or not answer.strip():
-                    raise _protocol_error("模型回复未正常完成，请稍后重试。")
+                answer = final_stream.complete(prepared.deadline)
                 if knowledge_path:
-                    validate_answer(answer, reasons, evidence, decision)
+                    validate_answer(answer, final_stream.reasons, evidence, decision)
                 # 下层吞掉取消时仍不得把断开的流程提交为成功回答。
                 task = asyncio.current_task()
                 if task is not None and task.cancelling():
@@ -237,13 +220,7 @@ class ToolChatService:
         finally:
             # 校验失败可能提前退出 async for，主动关闭当前迭代器以归还上游连接。
             upstream, prepared.upstream = prepared.upstream, None
-            close = getattr(upstream, "aclose", None)
-            if close is not None:
-                with anyio.move_on_after(5, shield=True):
-                    try:
-                        await close()
-                    except Exception:
-                        pass
+            await close_answer_stream(upstream)
 
     # 归还本次工具聊天持有的会话占用凭证。
     def release(self, prepared: PreparedToolChat) -> None:

@@ -9,9 +9,9 @@ from typing import Literal
 from pymilvus import AnnSearchRequest, AsyncMilvusClient, DataType, Function, FunctionType, RRFRanker
 
 from app.knowledge.embeddings import validate_vector
-from app.knowledge.types import VectorHit, validate_id, validate_text
+from app.knowledge.types import VectorHit, validate_id
 from app.knowledge.vectors import validate_acknowledged_ids
-from app.retrieval.types import IndexedChunk
+from app.retrieval.types import IndexedChunk, validate_category
 
 
 # 为整个逻辑操作设置一次期限，嵌套调用不能延长外层预算，取消直接传播。
@@ -221,7 +221,7 @@ class HybridMilvusIndex:
             vector = validate_vector(vector)
         if strategy in ('bm25', 'hybrid') and (not isinstance(text, str) or not text.strip()):
             raise ValueError('BM25 query must be nonempty text')
-        validate_text('category', category, 255, nullable=True)
+        validate_category(category)
         if not self._ready:
             await self.ensure_collection()
         expression = {} if category is None else {'expr': 'category == {category}', 'expr_params': {'category': category}}

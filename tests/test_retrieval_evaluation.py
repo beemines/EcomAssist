@@ -296,6 +296,7 @@ async def test_shared_rewrite_latency_is_charged_to_every_strategy_deadline(tmp_
     rewrite=30. if stage=='retrieval' else 50.
     monkeypatch.setattr(module,'monotonic',lambda:clock['now'])
     monkeypatch.setattr(module.asyncio,'timeout',lambda seconds:timeout(seconds/100))
+    monkeypatch.setattr(module.asyncio,'timeout_at',lambda deadline:timeout(max(0., deadline-asyncio.get_running_loop().time())/100))
     class SlowPlan(Planner):
         async def plan(self,query):
             """冻结一次合法计划并模拟已消耗的改写时间，不增加模型请求。"""
@@ -322,3 +323,218 @@ async def test_shared_rewrite_latency_is_charged_to_every_strategy_deadline(tmp_
     assert report['errors']==4 and not ledger.cases
     assert all(r['error_stage']==stage and r['rewrite_latency_seconds']==rewrite for r in report['records'])
     assert all(r['faq_remaining_seconds']==90-rewrite and r['chat_remaining_seconds']==240-rewrite for r in report['records'])
+
+
+@pytest.mark.parametrize('mode', ['compare', 'calibrate'])
+@pytest.mark.parametrize('category', ['', ' \t', 7, True, '中' * 256])
+async def test_all_case_categories_validated_before_first_shared_rewrite(tmp_path, mode, category):
+    """整批预检分类，后题非法也不能先消耗前题的共享改写请求。"""
+    module = api()
+    invalid = case('A02'); invalid['category'] = category
+    cases = [case(), invalid]
+    planner = Planner()
+    report = module.initial_report(cases, {}, database_mode='test', kind='controlled', mode=mode)
+    with pytest.raises(ValueError):
+        if mode == 'calibrate':
+            await module.calibrate_cases(cases, gold={}, planner=planner, retrieval=Retrieval(),
+                output=tmp_path/'invalid.json', report=report)
+        else:
+            await module.evaluate_cases(cases, gold={}, planner=planner, retrieval=Retrieval(),
+                model=Model(), judge=Judge(), quality=Ledger(), settings=fake_settings(),
+                database_mode='test', output=tmp_path/'invalid.json', kind='controlled')
+    assert planner.ordinal == 0
+
+
+@pytest.mark.parametrize('failure', ['characters', 'utf8', 'tools', 'invalid_tools', 'tool_chunks',
+                                    'raw_tools', 'length', 'missing_stop', 'bad_citation', 'exception'])
+async def test_final_stream_boundary_rejects_and_closes_before_judge_or_ledger(tmp_path, failure):
+    """评估应拒绝线上无法完成的流，并显式关闭迭代器后才继续下一策略。"""
+    from langchain_core.messages import AIMessageChunk
+    text = '中' * 22000 + '[1]' if failure == 'characters' else '😀' * 16384 + '[1]' if failure == 'utf8' else '邮费8元[1]。'
+    kwargs = {'response_metadata': {'finish_reason': 'stop'}}
+    if failure == 'tools':
+        kwargs['tool_calls'] = [dict(name='query_faq', args={}, id='again')]
+    elif failure == 'invalid_tools':
+        kwargs['invalid_tool_calls'] = [dict(name='query_faq', args='invalid', id='again', error='invalid')]
+    elif failure == 'tool_chunks':
+        kwargs['tool_call_chunks'] = [dict(name='query_faq', args='', id='again', index=0)]
+    elif failure == 'raw_tools':
+        kwargs['additional_kwargs'] = {'tool_calls': [{'opaque': 'unparsed'}]}
+    elif failure == 'length':
+        kwargs['response_metadata'] = {'finish_reason': 'length'}
+    elif failure == 'missing_stop':
+        kwargs['response_metadata'] = {}
+    elif failure == 'bad_citation':
+        text = '邮费8元[99]。'
+    closes, judgments = [], []
+    class Stream:
+        def __init__(self):
+            """每策略建立独立迭代器，记录显式资源释放次数。"""
+            self.sent = False
+        def __aiter__(self):
+            """返回本流，便于区分穷尽读取与提前退出。"""
+            return self
+        async def __anext__(self):
+            """产生指定非法片段或传输错误，不访问真实模型。"""
+            if self.sent:
+                raise StopAsyncIteration
+            self.sent = True
+            if failure == 'exception':
+                raise RuntimeError('controlled stream failure')
+            return AIMessageChunk(text, **kwargs)
+        async def aclose(self):
+            """记录明确关闭，防止依赖垃圾回收延后释放上游连接。"""
+            closes.append(True)
+    class Final(Model):
+        def astream(self, messages):
+            """提供具备显式关闭接口的受控最终流。"""
+            return Stream()
+    class RecordingJudge(Judge):
+        async def judge(self, *args):
+            """记录裁判入口，非法答案不得到达此阶段。"""
+            judgments.append(True)
+            return await super().judge(*args)
+    ledger = Ledger()
+    report = await api().evaluate_cases([case()], gold={'A01': {'ids': [10]}}, planner=Planner(),
+        retrieval=Retrieval(), model=Final(), judge=RecordingJudge(), quality=ledger,
+        settings=fake_settings(), database_mode='test', output=tmp_path/'stream.json', kind='controlled')
+    assert report['errors'] == 4 and not report['passed']
+    assert not judgments and not ledger.cases
+    assert closes == [True] * 4
+    assert all(r['error_stage'] == 'generation' for r in report['records'])
+
+
+@pytest.mark.parametrize('swallow', ['cancel', 'uncancel', 'blocked_loop'])
+async def test_final_stream_cannot_turn_expired_cumulative_deadline_into_success(tmp_path, swallow):
+    """吞取消或阻塞事件循环后返回stop仍须按绝对累计期限失败。"""
+    import asyncio, time
+    from langchain_core.messages import AIMessageChunk
+    closed, judgments = [], []
+    class SlowFinal(Model):
+        async def astream(self, messages):
+            """模拟超时已触发却被下层吞掉的流，finally暴露关闭行为。"""
+            try:
+                if swallow == 'blocked_loop':
+                    time.sleep(.03)
+                else:
+                    try:
+                        await asyncio.sleep(1)
+                    except asyncio.CancelledError:
+                        if swallow == 'uncancel':
+                            asyncio.current_task().uncancel()
+                yield AIMessageChunk('邮费8元[1]。', response_metadata={'finish_reason': 'stop'})
+            finally:
+                closed.append(True)
+    class RecordingJudge(Judge):
+        async def judge(self, *args):
+            """超期答案不得发送裁判请求或写入编造台账。"""
+            judgments.append(True)
+            return await super().judge(*args)
+    ledger = Ledger()
+    report = await api().evaluate_cases([case()], gold={'A01': {'ids': [10]}}, planner=Planner(),
+        retrieval=Retrieval(), model=SlowFinal(), judge=RecordingJudge(), quality=ledger,
+        settings=fake_settings(chat_timeout_seconds=.01), database_mode='test',
+        output=tmp_path/'timeout.json', kind='controlled')
+    assert report['errors'] == 4 and not report['passed']
+    assert not judgments and not ledger.cases and closed == [True] * 4
+
+
+async def test_caller_cancellation_swallowed_by_final_stream_still_propagates(tmp_path):
+    """调用方取消即使被模型吞掉也向外传播，不能落账或返回成功报告。"""
+    import asyncio
+    from langchain_core.messages import AIMessageChunk
+    started, closed = asyncio.Event(), asyncio.Event()
+    ledger = Ledger()
+    class SlowFinal(Model):
+        async def astream(self, messages):
+            """以可观测信号确保取消发生在最终流正在等待时。"""
+            try:
+                started.set()
+                try:
+                    await asyncio.sleep(.1)
+                except asyncio.CancelledError:
+                    pass
+                yield AIMessageChunk('邮费8元[1]。', response_metadata={'finish_reason': 'stop'})
+            finally:
+                closed.set()
+    task = asyncio.create_task(api().evaluate_cases([case()], gold={'A01': {'ids': [10]}},
+        planner=Planner(), retrieval=Retrieval(), model=SlowFinal(), judge=Judge(), quality=ledger,
+        settings=fake_settings(), database_mode='test', output=tmp_path/'cancelled.json', kind='controlled'))
+    await started.wait()
+    task.cancel()
+    try:
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, .5)
+        assert closed.is_set() and not ledger.cases
+    finally:
+        if not task.done():
+            task.cancel()
+
+
+@pytest.mark.parametrize('mode', ['calibrate', 'compare'])
+async def test_cli_evaluation_invalid_category_precedes_resource_or_model_creation(tmp_path, monkeypatch, mode):
+    """真实CLI入口非法分类早拒，初始化模型和数据库之前就保留未执行报告。"""
+    module = api()
+    invalid = case(); invalid['category'] = ' '
+    def forbidden(*args, **kwargs):
+        """非法输入不能初始化数据库或收费模型，触达边界立即失败。"""
+        pytest.fail('invalid category reached owned resource or model construction')
+    monkeypatch.setattr(module, 'Database', forbidden)
+    monkeypatch.setattr(module, 'create_model', forbidden)
+    report = await module.evaluate([invalid], mode=mode, database_mode='test', output=tmp_path/'preflight.json')
+    assert not report['passed'] and report['failure_details']['error_type'] == 'ValueError'
+    assert report['model_request_count'] == {} and report['attempted'] == 0
+
+
+async def test_final_stream_close_wait_is_bounded_and_shielded(tmp_path, monkeypatch):
+    """上游关闭永久等待时清理须受屏蔽的固定上限约束，不能卡住后续策略。"""
+    import asyncio, anyio
+    from time import monotonic
+    from langchain_core.messages import AIMessageChunk
+    boundaries, cancelled = [], []
+    original = anyio.move_on_after
+    def scaled_scope(seconds, *, shield):
+        """保留实际AnyIO取消语义，缩放五秒清理期限以快速核对有界退出。"""
+        boundaries.append((seconds, shield))
+        return original(.01, shield=shield)
+    monkeypatch.setattr(anyio, 'move_on_after', scaled_scope)
+    class StuckStream:
+        def __aiter__(self):
+            """提供非法最终工具字段，使消费者立即进入清理。"""
+            return self
+        async def __anext__(self):
+            """每次读都产生工具申请，必须在读取第二次之前拒绝。"""
+            return AIMessageChunk('邮费8元[1]。', additional_kwargs={'tool_calls': [{'opaque': 'unparsed'}]})
+        async def aclose(self):
+            """关闭永久等待，退出信号验证有界清理真正取消资源等待。"""
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.append(True)
+    class Final(Model):
+        def astream(self, messages):
+            """让四策略各持有一个关闭会阻塞的上游流。"""
+            return StuckStream()
+    started = monotonic()
+    ledger = Ledger()
+    report = await api().evaluate_cases([case()], gold={'A01': {'ids': [10]}}, planner=Planner(),
+        retrieval=Retrieval(), model=Final(), judge=Judge(), quality=ledger, settings=fake_settings(),
+        database_mode='test', output=tmp_path/'close-bound.json', kind='controlled')
+    assert report['errors'] == 4 and not ledger.cases
+    assert boundaries == [(5, True)] * 4 and cancelled == [True] * 4
+    assert monotonic() - started < 1
+
+
+@pytest.mark.parametrize('text', ['x' * 19997 + '[1]', '😀' * 16383 + '[1]'], ids=['characters-at-limit', 'utf8-within-limit'])
+async def test_final_stream_accepts_online_character_and_utf8_boundaries(tmp_path, text):
+    """合法引用答案在字符或字节边界内仍可完成，防止保护误拒安全正文。"""
+    from langchain_core.messages import AIMessageChunk
+    class Final(Model):
+        async def astream(self, messages):
+            """将合法长正文拆成两段，验证累计长度不依赖单一片段。"""
+            yield AIMessageChunk(text[:10000])
+            yield AIMessageChunk(text[10000:], response_metadata={'finish_reason': 'stop'})
+    report = await api().evaluate_cases([case()], gold={'A01': {'ids': [10]}}, planner=Planner(),
+        retrieval=Retrieval(), model=Final(), judge=Judge(), quality=Ledger(), settings=fake_settings(),
+        database_mode='test', output=tmp_path/'valid-length.json', kind='controlled')
+    assert report['passed'] and all(r['answer'] == text for r in report['records'])

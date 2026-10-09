@@ -175,3 +175,31 @@ async def test_invalid_arguments_fail_before_dependencies(kwargs):
     with pytest.raises(ValueError):
         await service.retrieve('问题', **kwargs)
     assert planner.calls == embedder.texts == index.calls == []
+
+
+@pytest.mark.parametrize('category', ['', ' \t', 7, True, '中' * 256])
+async def test_retrieval_category_rejected_before_any_dependency(category):
+    """分类不合法时必须早拒，不能调用改写、嵌入、索引或权威仓储。"""
+    service, _, repo, embedder, index, planner, reranker = service_parts()
+    with pytest.raises(ValueError):
+        await service.retrieve('问题', category=category)
+    assert planner.calls == embedder.texts == index.calls == repo.calls == reranker.calls == []
+
+
+@pytest.mark.parametrize('raw', ['', ' \t', None, 7, True, '中' * 513])
+async def test_existing_raw_question_guards_precede_all_dependencies(raw):
+    """原话为空、非文本或超长时保持现有早拒，不花费模型和索引请求。"""
+    from app.core.errors import InputTooLong
+    service, _, repo, embedder, index, planner, reranker = service_parts()
+    with pytest.raises((ValueError, InputTooLong)):
+        await service.retrieve(raw)
+    assert planner.calls == embedder.texts == index.calls == repo.calls == reranker.calls == []
+
+
+@pytest.mark.parametrize('plan', [{}, '伪计划', 7, True])
+async def test_existing_injected_plan_guard_precedes_all_dependencies(plan):
+    """非法注入计划在改写或召回前拒绝，不能当作冻结的可信计划。"""
+    service, _, repo, embedder, index, planner, reranker = service_parts()
+    with pytest.raises(ValueError):
+        await service.retrieve('问题', query_plan=plan)
+    assert planner.calls == embedder.texts == index.calls == repo.calls == reranker.calls == []

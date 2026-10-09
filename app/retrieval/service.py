@@ -2,12 +2,12 @@
 from typing import Literal
 
 from app.core.errors import InputTooLong
-from app.knowledge.types import Embedder, embedding_text, validate_text
+from app.knowledge.types import Embedder, embedding_text
 from app.repositories.knowledge import KnowledgeRepository
 from app.retrieval.milvus import HybridMilvusIndex
 from app.retrieval.query import QueryPlanner
 from app.retrieval.rerank import SiliconFlowReranker
-from app.retrieval.types import QueryPlan, RetrievalBundle, ScoredChunk
+from app.retrieval.types import QueryPlan, RetrievalBundle, ScoredChunk, validate_category
 
 
 class RetrievalService:
@@ -27,7 +27,7 @@ class RetrievalService:
             raise ValueError('raw question must be nonempty text')
         if len(raw_question) > 512:
             raise InputTooLong()
-        validate_text('category', category, 255, nullable=True)
+        validate_category(category)
         if query_plan is not None and not isinstance(query_plan, QueryPlan):
             raise ValueError('query plan must be a QueryPlan')
         plan = query_plan if query_plan is not None else await self.planner.plan(raw_question)
