@@ -203,13 +203,15 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
 
 **Files:** Modify app/tools/{business,types,executor}.py、app/core/tool_chat.py、app/api/chat.py、app/schemas/chat.py、app/main.py、app/repositories/conversations.py、tests/tool_fakes.py；Test tests/test_hybrid_chat.py、test_hybrid_lifecycle.py、test_tool_executor.py、test_schemas.py、test_stream_lifecycle.py、test_tool_chat_service.py。
 
+执行范围澄清：按线上只读核验最小扩展 app/retrieval/milvus.py、app/quality/migration.py，配置期限修改 app/config.py，工具选择Prompt修改 core/prompts.py；旧消费者 evals/smoke.py/evaluate_tools.py 及必要旧 fixtures/tests 同步新SSE契约与Top-10，不降低审计标准。ConversationRepository已有真实返回主键，消耗现有契约而无需人工制造改动。
+
 **Interfaces:**
 - ToolContext 增加 category: str | None = None；ChatRequest 同名可选字段；ToolChatService.prepare(conversation_id: str, message: str, *, category: str | None = None) 保留原参数。
 - ToolExecutor 增加可选 overrides: Mapping[str, tuple[float, int]] | None，query_faq=(90,0)，默认仍原 timeout/max_retries；FAQ 文档改为混合检索最多 10，模型看不到会话/分类身份参数。Settings 增加 FAQ_TIMEOUT_SECONDS=90、CHAT_TIMEOUT_SECONDS=240。
 - ConversationRepository.append_message 仍返回 int；done={conversation_id: str, message_id: str}。create_app 增加可选 sufficiency_service、quality_repository 注入，其他原注入参数保留。
 - citations 事件 data={citations: [Citation 的原始字段对象]}；status 增加 checking；tool 结果持久化使用 EvidencePacket.payload，编号映射不能与实际模型输入分叉。
 
-- [ ] **1. 编写 RED 测试。** 一次选择/一个工具/一次自由文本生成；category 校验和可信闭包；先 citations 后 delta，提交后 done；知识不足仅固定拒答+单条池记录；无工具知识问题自评不足同样拒答；FAQ 故障/非法自评/预算错误无池记录；取消传播、240 秒上限、事务失败无 done；invalid [99]/非 stop/再次工具申请不保存完整回答；超大身份字符串不转浮点。
+- [x] **1. 编写 RED 测试。** 一次选择/一个工具/一次自由文本生成；category 校验和可信闭包；先 citations 后 delta，提交后 done；知识不足仅固定拒答+单条池记录；无工具知识问题自评不足同样拒答；FAQ 故障/非法自评/预算错误无池记录；取消传播、240 秒上限、事务失败无 done；invalid [99]/非 stop/再次工具申请不保存完整回答；超大身份字符串不转浮点。
   ```python
   def test_citations_precede_deltas_and_done_follows_commit(completed_stream):
       events, done, persisted_assistant_id = completed_stream
@@ -221,10 +223,10 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
   def test_failed_or_cancelled_turn_has_no_success_or_pool(failed_turn):
       assert not failed_turn.has_done and not failed_turn.has_pool_row
   ```
-- [ ] **2. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_hybrid_chat.py tests/test_hybrid_lifecycle.py tests/test_tool_executor.py tests/test_schemas.py tests/test_stream_lifecycle.py tests/test_tool_chat_service.py -q`；故障触发必须可观测，不能只断言内部函数调用次数。
-- [ ] **3. 接入主流程与应用工厂。** FAQ 成功后先选证据、自评，再保存对应 tool 结果；工具失败明确走故障路径。拒答流结束后用 QualityRepository 短事务提交，正常回答用既有仓储；都返回可信 message_id。应用 lifespan 管理自建客户端并保持注入对象外部归属，启动核验集合、阈值和必要表结构，不自动建库或执行产品 DDL。
-- [ ] **4. 运行 GREEN 与回归。** 同命令及现有 HTTP/历史/取消测试通过；显式退出 lifespan 验证资源关闭顺序和关闭异常，SSE 多字节/终止事件用真实本地网络测试，不以 ASGI 缓冲结果证明逐 token 到达。
-- [ ] **5. 审查、留痕、提交。** `feat: stream cited knowledge answers and persist safe refusals`。
+- [x] **2. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_hybrid_chat.py tests/test_hybrid_lifecycle.py tests/test_tool_executor.py tests/test_schemas.py tests/test_stream_lifecycle.py tests/test_tool_chat_service.py -q`；故障触发必须可观测，不能只断言内部函数调用次数。
+- [x] **3. 接入主流程与应用工厂。** FAQ 成功后先选证据、自评，再保存对应 tool 结果；工具失败明确走故障路径。拒答流结束后用 QualityRepository 短事务提交，正常回答用既有仓储；都返回可信 message_id。应用 lifespan 管理自建客户端并保持注入对象外部归属，启动核验集合、阈值和必要表结构，不自动建库或执行产品 DDL。
+- [x] **4. 运行 GREEN 与回归。** 同命令及现有 HTTP/历史/取消测试通过；显式退出 lifespan 验证资源关闭顺序和关闭异常，SSE 多字节/终止事件用真实本地网络测试，不以 ASGI 缓冲结果证明逐 token 到达。
+- [x] **5. 审查、留痕、提交。** `feat: stream cited knowledge answers and persist safe refusals`。
 
 ## Task 8：标注数据、校准、四策略报告与忠实度台账
 
