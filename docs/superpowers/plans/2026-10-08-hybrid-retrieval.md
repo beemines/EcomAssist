@@ -160,7 +160,7 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
 - Produces faq_payload(bundle: RetrievalBundle) -> dict，含 found/matches，matches 至多 10，字段 id/question/answer/category/section_path/score/score_kind；retrieval 元数据含策略和计数，不重复存正文。
 - FAQRepository 原位置参数保持可用，新增可选 retriever；新增 async retrieve(keyword: str, *, raw_question: str, category: str | None = None) -> dict。旧 search(keyword, limit=3) 用于旧 Dense 评估；新的聊天工具调用 retrieve。
 
-- [ ] **1. 编写 RED 测试。** 四策略按签名选择路径，BM25 不额外请求嵌入，已注入 query_plan 不重复改写；Dense/RRF/重排的分数类型不混用；取权威 done 正文并复核 category；缺失或 pending id 丢弃后不能伪造命中；重排 index 对齐融合候选，JSON payload 不带 Top-50 正文。
+- [x] **1. 编写 RED 测试。** 四策略按签名选择路径，BM25 不额外请求嵌入，已注入 query_plan 不重复改写；Dense/RRF/重排的分数类型不混用；取权威 done 正文并复核 category；缺失或 pending id 丢弃后不能伪造命中；重排 index 对齐融合候选，JSON payload 不带 Top-50 正文。
   ```python
   def test_rerank_top_ten_keeps_mysql_authoritative_text(retrieved):
       bundle, output, authoritative_mysql_answer = retrieved
@@ -169,10 +169,10 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
   def test_four_strategies_share_frozen_query_plan(planner_call_count):
       assert planner_call_count == 1
   ```
-- [ ] **2. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_retrieval_service.py tests/test_semantic_faq.py -q`。
-- [ ] **3. 实现 RetrievalService 与 FAQ adapter。** 标准问法供 Dense，标准问法+扩展+保留原标识供 BM25，重排使用本轮原问题判断相关性；所有候选按主键去重；使用 get_done 读权威数据。category 进入两路索引而不是结果后过滤代替前过滤。
-- [ ] **4. 运行 GREEN。** 同命令通过，旧独立 Dense evaluator 仍能用 search；新路径 found=false 仅表示无合法证据，不把连接异常包装成空结果。
-- [ ] **5. 审查、留痕、提交。** `feat: integrate hybrid retrieval behind the FAQ contract`。
+- [x] **2. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_retrieval_service.py tests/test_semantic_faq.py -q`。
+- [x] **3. 实现 RetrievalService 与 FAQ adapter。** 标准问法供 Dense，标准问法+扩展+保留原标识供 BM25，重排使用本轮原问题判断相关性；所有候选按主键去重；使用 get_done 读权威数据。category 进入两路索引而不是结果后过滤代替前过滤。
+- [x] **4. 运行 GREEN。** 同命令通过，旧独立 Dense evaluator 仍能用 search；新路径 found=false 仅表示无合法证据，不把连接异常包装成空结果。
+- [x] **5. 审查、留痕、提交。** `feat: integrate hybrid retrieval behind the FAQ contract`。
 
 ## Task 6：证据预算、引用编号及充分性自评
 
