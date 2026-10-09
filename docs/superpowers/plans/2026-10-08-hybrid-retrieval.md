@@ -273,11 +273,11 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
 
 **Interfaces:** Consumes Task 1–9 的当前代码、真实评估报告及来源/反馈页面；Produces 当前分支审查结论、真实验收结果、演示命令和 finish 过程记录。本任务不新增业务接口。
 
-- [ ] **1. 总体后端审查。** 按 Spec/Plan 对所有 backend/dataset/CLI 做独立整分支审查，关注 Review Focus 五项、台账复发与跨策略更新、最终事务、资源生命周期和 Prompt 注入边界；前端范围按用户例外排除。发现问题交原实现者修复并定向复核，更新过程记录。
-- [ ] **2. 当前代码完整核验。** UTF-8/中文函数说明/无意密钥/`git diff --check`；`.venv/Scripts/python.exe -u -m pytest -q --run-mysql --run-milvus -o faulthandler_timeout=30`。测试库及新表前提先显式准备；Windows 回环限制用已确认的沙箱外本地方式，不改业务代码绕过环境。记录通过/失败/跳过实际数，沿用老结果无效。
-- [ ] **3. 当前代码真实聊天。** 本轮 owned 合成会话问具体型号、邮费、带品类过滤、多条件和库外问题；检查 SSE 增量、引用一致、拒答及 MySQL 问题池。Task 8 数字与浏览器结果互相独立记录，ASGI 缓冲不能替代浏览器流式演示。
-- [ ] **4. 准备交付命令和文档。** 明确 `python -m app.quality.cli migrate`、`python -m app.knowledge.cli rebuild-hybrid/verify-hybrid`、pending、阈值校准、四策略评估、`uvicorn app.main:create_app --factory --workers 1` 及创建会话/curl -N 调用；curl 上限至少 250 秒。引用和反馈在浏览器验收；人工台账 `cases/resolve` 展示必填说明。
-- [ ] **5. 记录 finish、提交并整合。** 所需测试和真实验收通过后追加 finish 四项；交付实际报告路径/限制/命令及 dev-notes。按 finishing-a-development-branch 技能和用户已明确的整合指令处理分支；未获得本步整合选择时交付可审查分支，不强推或重写历史。
+- [x] **1. 总体后端审查。** 按 Spec/Plan 对所有 backend/dataset/CLI 做独立整分支审查，关注 Review Focus 五项、台账复发与跨策略更新、最终事务、资源生命周期和 Prompt 注入边界；前端范围按用户例外排除。发现问题交原实现者修复并定向复核，更新过程记录。
+- [x] **2. 当前代码完整核验。** UTF-8/中文函数说明/无意密钥/`git diff --check`；`.venv/Scripts/python.exe -u -m pytest -q --run-mysql --run-milvus -o faulthandler_timeout=30`。测试库及新表前提先显式准备；Windows 回环限制用已确认的沙箱外本地方式，不改业务代码绕过环境。记录通过/失败/跳过实际数，沿用老结果无效。
+- [x] **3. 当前代码真实聊天。** 本轮 owned 合成会话问具体型号、邮费、带品类过滤、多条件和库外问题；检查 SSE 增量、引用一致、拒答及 MySQL 问题池。Task 8 数字与浏览器结果互相独立记录，ASGI 缓冲不能替代浏览器流式演示。
+- [x] **4. 准备交付命令和文档。** 明确 `python -m app.quality.cli migrate`、`python -m app.knowledge.cli rebuild-hybrid/verify-hybrid`、pending、阈值校准、四策略评估、`uvicorn app.main:create_app --factory --workers 1` 及创建会话/curl -N 调用；curl 上限至少 250 秒。引用和反馈在浏览器验收；人工台账 `cases/resolve` 展示必填说明。
+- [x] **5. 记录 finish、提交并整合。** 所需测试和真实验收通过后追加 finish 四项；交付实际报告路径/限制/命令及 dev-notes。按 finishing-a-development-branch 技能和用户已明确的整合指令处理分支；未获得本步整合选择时交付可审查分支，不强推或重写历史。
 
 ## 自审与待执行状态
 
@@ -289,7 +289,7 @@ Spec 覆盖：第 3 节→Task 1–3；第 4 节→Task 4–5；第 5 节→Task
 
 接口参考：[SQLAlchemy MySQL](https://docs.sqlalchemy.org/en/20/dialects/mysql.html)、[FastAPI 生命周期](https://fastapi.tiangolo.com/advanced/events/)、[FastAPI 异步测试](https://fastapi.tiangolo.com/advanced/async-tests/)、[LangChain 模型](https://github.com/langchain-ai/docs/blob/main/src/oss/langchain/models.mdx)。
 
-当前为书面计划阶段，所有任务未开始；未创建新工作树、未安装依赖、未执行新 DDL 或收费模型请求。用户审阅本计划后按保留的 Subagent-Driven 方法执行。
+计划发布时为书面计划阶段，所有任务未开始；未创建新工作树、未安装依赖、未执行新 DDL 或收费模型请求。用户审阅本计划后按保留的 Subagent-Driven 方法执行。
 
 ## 2026-10-09 用户批准的结构化输出预算调整
 

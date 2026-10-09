@@ -1,0 +1,25 @@
+{
+  "checked_code_commit": "c34af70dffe6c50e1ff90b091033630abff6edde",
+  "command": "D:/shixi/ecommerce-customer-service/.venv/Scripts/python.exe -u -m pytest -q --run-mysql --run-milvus -o faulthandler_timeout=30",
+  "exit_code": 0,
+  "passed": 1205,
+  "failed": 0,
+  "skipped": 0,
+  "seconds": 149.1,
+  "service_prerequisites": {
+    "mysql": "127.0.0.1:3308/customer_service_test,8requiredtablesready",
+    "milvus": "127.0.0.1:19530,healthy,ownedUUIDcollections"
+  },
+  "prior_failed_validation": {
+    "checked_code_commit": "2ac60e51ca44aa784c7085f2a04b45aaa8d434af",
+    "passed": 1204,
+    "failed": 1,
+    "seconds": 119.28,
+    "sole_failure": "tests/integration/test_mysql_schema.py: obsolete exact six-table expectation; corrected to current eight with strict equality"
+  },
+  "log_note": "30-second faulthandler dump during existing native launcher subprocess test; test resumed and complete process exited0. This is not a pytest failure.",
+  "cloud_model_calls": "none; controlled models and deterministic embedding fixtures only",
+  "rulings": [
+    "Ruling: 为满足用户要求的当前完整回归，继续修正服务全套新发现的旧六表断言并对这一小段补充复核，不以最终单波上限保留失败；仍严格断言当前八表且保留引擎/编码核验 — 第四步明确新增两张质量表、测试前提已核实为八表，用户要求完成测试优先 — 若判断错会掩盖结构差异，故不改数据库、不降为子集判断，保留质量DDL专项验证。"
+  ]
+}
