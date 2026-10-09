@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     # 新检索链路使用独立混合集合，旧稠密评估仍保留原集合。
     milvus_collection: str = Field(default='knowledge_hybrid', min_length=1, validation_alias='MILVUS_COLLECTION')
     milvus_timeout_seconds: float = Field(default=5, gt=0, validation_alias='MILVUS_TIMEOUT_SECONDS')
+    # 重排型号固定；阈值允许缺省以便离线校准，线上启用由检索服务检查。
+    rerank_model: Literal['BAAI/bge-reranker-v2-m3'] = Field(default='BAAI/bge-reranker-v2-m3', validation_alias='RERANK_MODEL')
+    rerank_timeout_seconds: float = Field(default=20, gt=0, validation_alias='RERANK_TIMEOUT_SECONDS')
+    query_timeout_seconds: float = Field(default=15, gt=0, validation_alias='QUERY_TIMEOUT_SECONDS')
+    rerank_min_score: float | None = Field(default=None, validation_alias='RERANK_MIN_SCORE')
     # 不同上游接受的输出上限字段可能不同，但应用只开放这两个协议字段。
     llm_token_limit_field: Literal["max_tokens", "max_completion_tokens"] = Field(
         default="max_tokens", validation_alias="LLM_TOKEN_LIMIT_FIELD"
@@ -81,6 +86,14 @@ class Settings(BaseSettings):
     def qa_output_budget_must_not_be_bool(cls, value):
         if isinstance(value, bool):
             raise ValueError('QA output budget must be a positive integer')
+        return value
+
+    # 新增数值配置在强制转换前排除布尔值，有限数校验沿用全局配置。
+    @field_validator('rerank_timeout_seconds', 'query_timeout_seconds', 'rerank_min_score', mode='before')
+    @classmethod
+    def retrieval_numbers_must_not_be_bool(cls, value):
+        if isinstance(value, bool):
+            raise ValueError('retrieval numeric settings must not be boolean')
         return value
 
     # 拒绝全空白的模型密钥，保持密钥包装类型不变。
