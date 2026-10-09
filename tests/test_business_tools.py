@@ -58,7 +58,7 @@ async def test_faq_requires_literal_question_fragment_and_empty_match_is_success
     assert rejected.content["error"]["code"] == "invalid_keyword"
     assert faq.keywords == []
     missing = await ToolExecutor().execute(ToolCall("ok", "query_faq", {"keyword": "邮费"}), registry)
-    assert missing.status == "success" and missing.content == {"found": False, "matches": []}
+    assert missing.status == "success" and missing.content == {'found': False, 'matches': [], 'retrieval': {'strategy': 'hybrid_rerank', 'candidate_count': 0, 'match_count': 0}}
     assert faq.keywords == ["邮费"]
 
 
@@ -68,7 +68,7 @@ async def test_faq_matches_return_question_answer_category():
     rows = [{"id": 1, "question": "退货政策", "answer": "七天", "category": "售后"}]
     registry = build_registry(FAQStub(rows), TicketStub(), ToolContext("10", 42, "退货政策是什么"))
     outcome = await ToolExecutor().execute(ToolCall("ok", "query_faq", {"keyword": "退货"}), registry)
-    assert outcome.content == {"found": True, "matches": rows}
+    assert outcome.content == {'found': True, 'matches': [dict(rows[0], section_path=None, score=.9, score_kind='rerank')], 'retrieval': {'strategy': 'hybrid_rerank', 'candidate_count': 1, 'match_count': 1}}
 
 
 # 验证非法类型、长度、枚举及额外字段在执行前被拒绝，不能伪造内部上下文。

@@ -51,7 +51,7 @@ async def test_budget_error_is_http_422_and_releases_acquired_session():
     model, repository = StreamingModel(), ConversationStore()
     client = client_for(model, repository, tool_input_token_budget=1)
     async with client as client:
-        response = await client.post("/api/chat", json={"conversation_id": "1", "message": "hello"})
+        response = await client.post("/api/chat", json={"conversation_id": "1", "message": "你好"})
     assert response.status_code == 422
     assert response.json() == {"code": "input_too_long", "message": "Input exceeds the context budget."}
     assert model.calls == []
@@ -67,7 +67,7 @@ async def test_session_busy_is_http_409_before_response_start():
     lease = client._transport.app.state.chat_service.locks.acquire("1")
     try:
         async with client as client:
-            response = await client.post("/api/chat", json={"conversation_id": "1", "message": "hello"})
+            response = await client.post("/api/chat", json={"conversation_id": "1", "message": "你好"})
         assert response.status_code == 409
         assert response.json() == {"code": "session_busy", "message": "Session is processing another request."}
         assert model.calls == []
@@ -81,32 +81,48 @@ async def test_raw_deltas_headers_and_complete_second_turn_history():
     model = StreamingModel([
         AIMessageChunk(content=""),
         AIMessageChunk(content=[{"type": "reasoning", "reasoning": "private"}]),
-        AIMessageChunk(content='您好，\n"订单"'),
-        AIMessageChunk(content=[{"type": "text", "text": "可以咨询。"}]),
+        AIMessageChunk(content='您好，\n您好。'),
+        AIMessageChunk(content=[{"type": "text", "text": "很高兴为您服务。"}]),
         AIMessageChunk(content="", response_metadata={"finish_reason": "stop"}),
         AIMessageChunk(content="", chunk_position="last"),
     ])
     repository = ConversationStore()
     async with client_for(model, repository) as client:
-        first = await client.post("/api/chat", json={"conversation_id": "1", "message": "first"})
+        first = await client.post("/api/chat", json={"conversation_id": "1", "message": "你好"})
         model.chunks = [
-            AIMessageChunk(content="second answer"),
+            AIMessageChunk(content="不客气。"),
             AIMessageChunk(content="", response_metadata={"finish_reason": "stop"}),
         ]
-        second = await client.post("/api/chat", json={"conversation_id": "1", "message": "second"})
+        second = await client.post("/api/chat", json={"conversation_id": "1", "message": "谢谢"})
     assert first.headers["content-type"].startswith("text/event-stream")
     assert first.headers["cache-control"] == "no-cache"
     assert first.headers["x-accel-buffering"] == "no"
     assert decode_sse(first.text) == [
         ("status", {"phase": "selecting"}),
+        ("status", {"phase": "checking"}),
+        ("citations", {"citations": []}),
         ("status", {"phase": "answering"}),
-        ("delta", {"delta": '您好，\n"订单"'}),
-        ("delta", {"delta": "可以咨询。"}),
-        ("done", {"conversation_id": "1"}),
+        ("delta", {"delta": '您好，\n您好。'}),
+        ("delta", {"delta": "很高兴为您服务。"}),
+        ("done", {"conversation_id": "1", "message_id": "2"}),
     ]
-    assert [item.content for item in model.calls[1][1:]] == ["first", '您好，\n"订单"可以咨询。', "second"]
-    assert decode_sse(second.text)[-1] == ("done", {"conversation_id": "1"})
-    assert [item.content for item in repository.snapshot("1")] == ["first", '您好，\n"订单"可以咨询。', "second", "second answer"]
+    assert [item.content for item in model.calls[1][1:]] == ["你好", '您好，\n您好。很高兴为您服务。', "谢谢"]
+    assert decode_sse(second.text)[-1] == ("done", {"conversation_id": "1", "message_id": "4"})
+    assert [item.content for item in repository.snapshot("1")] == ["你好", '您好，\n您好。很高兴为您服务。', "谢谢", "不客气。"]
+
+
+# 原有引号/换行 JSON 转义边界在业务工具分支继续验证，普通问候仍受非事实校验。
+async def test_business_delta_preserves_quotes_and_newlines():
+    from tests.tool_fakes import selected_call
+    model = StreamingModel([AIMessageChunk('模拟订单：\n"已完成"', response_metadata={'finish_reason': 'stop'})])
+    model.selected = selected_call()
+    repository = ConversationStore()
+    async with client_for(model, repository) as client:
+        response = await client.post('/api/chat', json={'conversation_id': '1', 'message': '查订单 A-42'})
+    frames = decode_sse(response.text)
+    assert next(data['delta'] for event, data in frames if event == 'delta') == '模拟订单：\n"已完成"'
+    assert frames[-1] == ('done', {'conversation_id': '1', 'message_id': '4'})
+    assert repository.rows['1'][-1].content == '模拟订单：\n"已完成"'
 
 
 # 验证各种上游故障仅发送一次脱敏错误，关闭流、释放锁且不回放半轮回答。
@@ -120,9 +136,9 @@ async def test_upstream_failure_sends_safe_error_once_and_preserves_history(fail
     repository = ConversationStore()
     await repository.seed("1", [HumanMessage(content="old"), AIMessage(content="answer")])
     async with client_for(model, repository) as client:
-        response = await client.post("/api/chat", json={"conversation_id": "1", "message": "new"})
+        response = await client.post("/api/chat", json={"conversation_id": "1", "message": "你好"})
     events = decode_sse(response.text)
-    assert [event for event, _ in events] == ["status", "status", "delta", "error"]
+    assert [event for event, _ in events] == ["status", "status", "citations", "status", "delta", "error"]
     assert set(events[-1][1]) == {"code", "message"}
     assert events[-1][1]["code"] == ("upstream_error" if isinstance(failure, RuntimeError) else "upstream_timeout")
     assert "SECRET" not in response.text
@@ -140,7 +156,7 @@ async def test_upstream_failure_sends_safe_error_once_and_preserves_history(fail
 async def test_empty_or_explicitly_truncated_response_errors_without_commit(chunks):
     repository, model = ConversationStore(), StreamingModel(chunks)
     async with client_for(model, repository) as client:
-        response = await client.post("/api/chat", json={"conversation_id": "1", "message": "hello"})
+        response = await client.post("/api/chat", json={"conversation_id": "1", "message": "你好"})
     events = decode_sse(response.text)
     assert events[-1][0] == "error"
     assert sum(event == "error" for event, _ in events) == 1

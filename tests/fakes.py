@@ -7,6 +7,33 @@ from langchain_core.messages import AIMessage, AIMessageChunk
 from app.config import Settings
 
 
+class AssessmentModel:
+    # 提供结构化包及可观测故障；真实 SufficiencyService 负责严格解析。
+    def __init__(self, useful=True, kind='knowledge', failure=None):
+        self.data = {'useful': useful, 'reason': '本轮受控证据判定', 'response_kind': kind}
+        self.failure = failure
+
+    # 使用调用方实际 Schema 校验预设结果，保留真实 raw 内容。
+    def with_structured_output(self, schema, **kwargs):
+        self.schema = schema
+        return self
+
+    # 结构化服务仍检查实际停止标识与 JSON，异常不得变成 useful=false。
+    async def ainvoke(self, messages):
+        if self.failure:
+            raise self.failure
+        data = dict(self.data)
+        if data['response_kind'] == 'auto':
+            question = json.loads(messages[-1].content)['question']
+            data['response_kind'] = 'clarification' if question == '我的订单到哪了？' else 'social'
+        try:
+            parsed, error = self.schema.model_validate(data), None
+        except ValueError as exc:
+            parsed, error = None, exc
+        return {'raw': AIMessage(json.dumps(data, ensure_ascii=False), response_metadata={'finish_reason': 'stop'}),
+                'parsed': parsed, 'parsing_error': error}
+
+
 class FAQStub:
     # 配置 FAQ 命中结果或检索异常，并保留查询关键词供断言。
     def __init__(self, matches=None, *, failure=None):
@@ -21,9 +48,16 @@ class FAQStub:
             raise self.failure
         return self.matches[:limit]
 
+    # 统一 FAQ 入口仍记录原关键词；质量字段显式提供，故障继续传播。
+    async def retrieve(self, keyword, *, raw_question, category=None):
+        matches = await self.search(keyword, limit=10)
+        return {'found': bool(matches), 'matches': [dict(row, section_path=None, score=.9, score_kind='rerank') for row in matches],
+                'retrieval': {'strategy': 'hybrid_rerank', 'candidate_count': len(matches), 'match_count': len(matches)}}
+
 
 # 构造禁用环境文件且使用虚假模型凭据的设置，允许测试覆盖指定字段。
 def fake_settings(**overrides):
+    overrides.setdefault('rerank_min_score', .5)
     return Settings(
         _env_file=None,
         llm_base_url="https://upstream.invalid/v1/",
@@ -64,6 +98,8 @@ class StreamingModel:
 
     # 返回结构化模型替身，替代真实的结构化输出请求。
     def with_structured_output(self, schema, *, method, include_raw):
+        if schema.__name__ == '_Assessment':
+            return AssessmentModel(kind='knowledge' if self.selected.tool_calls else 'auto').with_structured_output(schema)
         return StructuredModel()
 
     # 在指定片段处阻塞以模拟慢流或断连，支持尾部故障，并通过信号区分正常结束与资源关闭。

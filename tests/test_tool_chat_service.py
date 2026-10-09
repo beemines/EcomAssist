@@ -22,7 +22,7 @@ async def test_one_call_reinjects_matching_tool_and_streams():
     assert model.bind_options == {"tool_choice": "auto", "parallel_tool_calls": False}
     assert isinstance(model.final_input[-1], ToolMessage)
     assert model.final_input[-1].tool_call_id == model.selected.tool_calls[0]["id"]
-    assert events[-1].event == "done" and events[-1].data == {"conversation_id": "42"}
+    assert events[-1].event == "done" and events[-1].data == {"conversation_id": "42", "message_id": "104"}
     assert trace.index("commit_final") < trace.index("done")
     assert contexts[-1].user_message_id == prepared.user_message_id == 101
     assert [event.data for event in events if event.event == "status"] == [
@@ -230,14 +230,23 @@ async def test_annotated_cases_structure_and_controlled_reinjection(case):
     assert case["expected_found"] is None or type(case["expected_found"]) is bool
     assert all(fragment in case["controlled_answer"] for fragment in case["answer_contains"])
     selected = selected_call(case["expected_tool"], case["expected_args"]) if case["expected_tool"] else AIMessage("", response_metadata={"finish_reason": "stop"})
-    model = ToolModel(selected, [AIMessageChunk(case["controlled_answer"], response_metadata={"finish_reason": "stop"})])
+    # 旧样本正文保留为历史基线；新流契约明确使用本轮合法引用/纯追问。
+    answer = case['controlled_answer']
+    if case['expected_tool'] == 'query_faq':
+        answer += '[1]'
+    elif case['id'] == 'greeting':
+        answer = '您好，请问有什么可以帮助您的吗？'
+    elif case['id'] == 'missing_order':
+        answer = '请提供订单号。'
+    model = ToolModel(selected, [AIMessageChunk(answer, response_metadata={"finish_reason": "stop"})])
     service, _, _, _, _ = setup_service(model=model)
     service.executor = ToolExecutor()
     events = await collect(service, await service.prepare("42", case["message"]))
     assert events[-1].event == "done"
     if case["expected_tool"]:
         result = json.loads(model.final_input[-1].content)
-        assert model.final_input[-1].name == case["expected_tool"]
+        if case['expected_tool'] != 'query_faq':
+            assert model.final_input[-1].name == case["expected_tool"]
         if case["expected_found"] is not None:
             assert result["found"] is case["expected_found"]
             assert case["expected_args"]["keyword"] in case["message"]

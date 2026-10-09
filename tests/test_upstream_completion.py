@@ -38,6 +38,11 @@ async def test_factory_stream_requires_normal_completion_before_history_commit(
         requests.append(request)
         assert str(request.url) == "https://upstream.invalid/v1/chat/completions"
         payload = json.loads(request.content)
+        if not payload.get("stream") and not payload.get('tools'):
+            assert payload['response_format'] == {'type': 'json_object'}
+            assessment = {'useful': True, 'reason': '纯问候', 'response_kind': 'social'}
+            return httpx.Response(200, json={'id': 'assessment', 'object': 'chat.completion', 'created': 1, 'model': settings.llm_model,
+                'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': json.dumps(assessment, ensure_ascii=False)}, 'finish_reason': 'stop'}]})
         if not payload.get("stream"):
             assert payload["parallel_tool_calls"] is False and payload["tool_choice"] == "auto"
             return httpx.Response(200, json={"id": "selection", "object": "chat.completion", "created": 1, "model": settings.llm_model,
@@ -46,9 +51,9 @@ async def test_factory_stream_requires_normal_completion_before_history_commit(
         assert payload["messages"][1:] == [
             {"role": "user", "content": "old"},
             {"role": "assistant", "content": "answer"},
-            {"role": "user", "content": "new"},
+            {"role": "user", "content": "你好"},
         ]
-        choices = [{"delta": {"role": "assistant", "content": "partial answer"},
+        choices = [{"delta": {"role": "assistant", "content": "您好。"},
                     "finish_reason": None}]
         choices.extend({"delta": {}, "finish_reason": reason} for reason in reasons)
         body = "".join("data: " + json.dumps({
@@ -66,7 +71,7 @@ async def test_factory_stream_requires_normal_completion_before_history_commit(
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app), base_url="http://test", trust_env=False,
             ) as client:
-                response = await client.post("/api/chat", json={"conversation_id": "1", "message": "new"})
+                response = await client.post("/api/chat", json={"conversation_id": "1", "message": "你好"})
         finally:
             await model.root_async_client.close()
             model.root_client.close()
@@ -74,11 +79,11 @@ async def test_factory_stream_requires_normal_completion_before_history_commit(
     assert response.status_code == 200
     events = decode_sse(response.text)
     expected_terminal = (
-        ("done", {"conversation_id": "1"}) if terminal == "done" else
+        ("done", {"conversation_id": "1", "message_id": "4"}) if terminal == "done" else
         ("error", {"code": "upstream_error", "message": "模型回复未正常完成，请稍后重试。"})
     )
-    assert events == [("status", {"phase": "selecting"}), ("status", {"phase": "answering"}), ("delta", {"delta": "partial answer"}), expected_terminal]
+    assert events == [("status", {"phase": "selecting"}), ("status", {"phase": "checking"}), ("citations", {"citations": []}), ("status", {"phase": "answering"}), ("delta", {"delta": "您好。"}), expected_terminal]
     assert [item.content for item in repository.snapshot("1")] == (
-        ["old", "answer", "new", "partial answer"] if terminal == "done" else ["old", "answer"]
+        ["old", "answer", "你好", "您好。"] if terminal == "done" else ["old", "answer"]
     )
-    assert len(requests) == 2
+    assert len(requests) == 3

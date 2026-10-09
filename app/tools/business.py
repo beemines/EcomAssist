@@ -37,11 +37,10 @@ def contextual_tools(faq: FAQRepository, tickets: TicketRepository, context: Too
     # 仅使用当前问题的连续原文片段检索 FAQ，返回命中状态和结果。
     @tool(args_schema=FAQArgs)
     async def query_faq(keyword: str) -> dict:
-        """使用当前问题的连续原文片段语义检索 FAQ，最多三条。"""
+        """使用当前问题的连续原文片段申请 FAQ 混合检索，最多十条权威知识。"""
         if keyword not in context.user_question:
             return {"error": {"code": "invalid_keyword", "message": "关键词必须是当前用户问题中的连续原文片段。"}}
-        matches = await faq.search(keyword, limit=3)
-        return {"found": bool(matches), "matches": matches}
+        return await faq.retrieve(keyword, raw_question=context.user_question, category=context.category)
 
     # 调用标识由执行器注入，模型不能指定会话身份或伪造幂等键。
     # 使用闭包身份和运行时注入的调用标识创建幂等人工工单。

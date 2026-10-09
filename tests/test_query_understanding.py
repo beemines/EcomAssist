@@ -239,4 +239,4 @@ def test_invalid_new_retrieval_settings_are_rejected(field, value):
 
 
 def test_calibration_can_load_settings_without_threshold():
-    assert fake_settings().rerank_min_score is None
+    assert fake_settings(rerank_min_score=None).rerank_min_score is None

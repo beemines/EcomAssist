@@ -37,7 +37,7 @@ def test_chat_request_requires_both_fields(missing):
 # 验证合法聊天消息的首尾空白原样保留。
 def test_chat_request_preserves_valid_text():
     assert ChatRequest(conversation_id="1", message=" help ").model_dump() == {
-        "conversation_id": "1", "message": " help ",
+        "conversation_id": "1", "message": " help ", "category": None,
     }
 
 

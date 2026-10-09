@@ -14,7 +14,7 @@ router = APIRouter()
 async def chat(payload: ChatRequest, request: Request) -> ManagedChatResponse:
     service = request.app.state.chat_service
     try:
-        prepared = await service.prepare(payload.conversation_id, payload.message)
+        prepared = await service.prepare(payload.conversation_id, payload.message, category=payload.category)
     except ServiceError:
         raise
     except Exception:

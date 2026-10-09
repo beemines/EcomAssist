@@ -116,6 +116,34 @@ async def test_fragmented_utf8_sse_and_round_continuity(tmp_path):
     assert first[0][1]["user_id"] != second[0][1]["user_id"]
 
 
+# 新引用事件严格保留稳定展示编号，done 的大整数消息身份保留字符串。
+@pytest.mark.parametrize('fault', [None, 'numeric_id', 'leading_zero', 'duplicate_n', 'wrong_order', 'late_citations', 'extra_field'])
+async def test_new_sse_quality_contract_accepts_only_valid_shapes_and_order(fault):
+    citation = {'n': 1, 'chunk_id': '9007199254740993', 'section_path': None, 'question': '规则', 'answer': '答案'}
+    citations = [citation]
+    done = {'conversation_id': '1', 'message_id': '18446744073709551615'}
+    if fault == 'numeric_id': done['message_id'] = 18446744073709551615
+    if fault == 'leading_zero': done['message_id'] = '01'
+    if fault == 'duplicate_n': citations.append(dict(citation, chunk_id='2'))
+    if fault == 'wrong_order': citations = [dict(citation, n=2), dict(citation, n=1, chunk_id='2')]
+    if fault == 'extra_field': citations[0]['untrusted'] = 'x'
+    evidence_frame = frame('citations', {'citations': citations})
+    delta_frame = frame('delta', {'delta': '答案[1]'})
+    data = frame('status', {'phase': 'checking'})
+    data += (delta_frame + evidence_frame) if fault == 'late_citations' else (evidence_frame + delta_frame)
+    data += frame('done', done)
+    # 受控外部 HTTP 返回逐字节 UTF-8，真实解析器消费完整新事件序列。
+    def handler(request):
+        return httpx.Response(200, headers={'content-type': 'text/event-stream'}, stream=Fragments(data))
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await implementation().chat_round(client, 'http://test', '1', '退货规则', min_deltas=1)
+    if fault is None:
+        assert result['error_code'] is None and result['message_id'] == '18446744073709551615'
+        assert result['citations'] == [citation]
+    else:
+        assert result['error_code'] is not None
+
+
 # 验证错误状态、缺失或重复完成、错序增量、编号不符、连续性丢失与断连均不能通过。
 @pytest.mark.parametrize("mode", ["non200", "missing_done", "error_done", "duplicate_done", "after_done", "one_delta", "wrong_identity", "continuity", "disconnect"])
 async def test_invalid_streams_cannot_pass(tmp_path, mode):

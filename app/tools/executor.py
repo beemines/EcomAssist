@@ -48,13 +48,19 @@ class ToolExecutor:
     """每次逻辑调用至多重试一次；取消直接传播，结果只含安全业务数据。"""
 
     # 校验有限正超时和至多一次重试的配置。
-    def __init__(self, timeout_seconds: float = 5, max_retries: int = 1):
+    def __init__(self, timeout_seconds: float = 5, max_retries: int = 1,
+                 *, overrides: Mapping[str, tuple[float, int]] | None = None):
         if isinstance(timeout_seconds, bool) or not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
             raise ValueError("Timeout must be finite and positive.")
         if type(max_retries) is not int or max_retries not in (0, 1):
             raise ValueError("At most one retry is allowed.")
         self.timeout_seconds = timeout_seconds
         self.max_retries = max_retries
+        self.overrides = dict(overrides or {})
+        for name, (timeout, retries) in self.overrides.items():
+            if (not isinstance(name, str) or not name or type(timeout) not in (int, float)
+                    or not math.isfinite(timeout) or timeout <= 0 or type(retries) is not int or retries not in (0, 1)):
+                raise ValueError('Invalid tool execution override.')
 
     # 校验完整工具参数、注入可信调用标识，并在有限重试内执行同一次逻辑调用。
     async def execute(self, call: ToolCall, registry: Mapping[str, BaseTool]) -> ToolOutcome:
@@ -73,14 +79,15 @@ class ToolExecutor:
             schema.model_validate({**call.args, **dict.fromkeys(hidden, call.id)})
         except (ValidationError, TypeError, ValueError):
             return _error("invalid_arguments", 0)
-        for attempt in range(1, self.max_retries + 2):
+        timeout, max_retries = self.overrides.get(call.name, (self.timeout_seconds, self.max_retries))
+        for attempt in range(1, max_retries + 2):
             task = asyncio.current_task()
             if task is not None and task.cancelling():
                 raise asyncio.CancelledError()
             try:
                 # LangChain 注入会修改字典，因此每次执行都深拷贝原始参数。
                 full_call = {"type": "tool_call", "name": call.name, "args": deepcopy(call.args), "id": call.id}
-                async with asyncio.timeout(self.timeout_seconds):
+                async with asyncio.timeout(timeout):
                     result = await tool.ainvoke(full_call)
                 # 下层可能吞掉调用方取消并返回；不能将其归一为成功。
                 if task is not None and task.cancelling():
@@ -107,6 +114,6 @@ class ToolExecutor:
                     code, retry = exc.code, False
                 else:
                     code, retry = "tool_execution_error", False
-                if not retry or attempt > self.max_retries:
+                if not retry or attempt > max_retries:
                     return _error(code, attempt)
         raise AssertionError("Unreachable execution state.")

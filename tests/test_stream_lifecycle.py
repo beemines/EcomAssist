@@ -18,7 +18,7 @@ async def response_for(model, store=None):
     store = store if store is not None else ConversationStore()
     await store.seed("1", [HumanMessage(content="old"), AIMessage(content="answer")])
     service = ToolChatService(model, store, lambda context: build_registry(FAQ(), Tickets(), context), ConversationLocks(), fake_settings())
-    prepared = await service.prepare("1", "new")
+    prepared = await service.prepare("1", "你好")
     return ManagedChatResponse(service, prepared), store, prepared
 
 
@@ -45,7 +45,7 @@ def assert_no_new_completed_turn_and_released(store, response):
 # 验证终止 SSE 发送前最终回答已提交，响应体正确结束且资源与锁均释放。
 async def test_done_send_success_observes_commit_before_send_and_ends_body():
     model = StreamingModel([
-        AIMessageChunk(content="A"), AIMessageChunk(content="B"),
+        AIMessageChunk(content="你"), AIMessageChunk(content="好"),
         AIMessageChunk(content="", response_metadata={"finish_reason": "stop"}),
     ])
     response, store, prepared = await response_for(model)
@@ -56,14 +56,14 @@ async def test_done_send_success_observes_commit_before_send_and_ends_body():
         sent.append(message)
         if message["type"] == "http.response.body" and not message["more_body"]:
             assert store.commits == 1
-            assert [item.content for item in store.snapshot("1")] == ["old", "answer", "new", "AB"]
+            assert [item.content for item in store.snapshot("1")] == ["old", "answer", "你好", "你好"]
 
     await call_response(response, send)
     bodies = [message for message in sent if message["type"] == "http.response.body"]
-    assert [message["more_body"] for message in bodies] == [True, True, True, True, False]
-    assert [event for event, _ in decode_sse(b"".join(message["body"] for message in bodies).decode())] == ["status", "status", "delta", "delta", "done"]
+    assert [message["more_body"] for message in bodies] == [True, True, True, True, True, True, False]
+    assert [event for event, _ in decode_sse(b"".join(message["body"] for message in bodies).decode())] == ["status", "status", "citations", "status", "delta", "delta", "done"]
     assert store.commits == 1
-    assert [item.content for item in store.snapshot("1")] == ["old", "answer", "new", "AB"]
+    assert [item.content for item in store.snapshot("1")] == ["old", "answer", "你好", "你好"]
     assert model.closed.is_set()
     response.service.locks.acquire("1").release()
 
@@ -73,7 +73,7 @@ async def test_done_send_success_observes_commit_before_send_and_ends_body():
 @pytest.mark.parametrize("stage", ["before_first", "next_wait", "last_delta"])
 async def test_disconnect_at_each_precommit_boundary_preserves_completed_history(spec, stage):
     model = StreamingModel(
-        [AIMessageChunk(content="A"), AIMessageChunk(content="B"),
+        [AIMessageChunk(content="你"), AIMessageChunk(content="好"),
          AIMessageChunk(content="", response_metadata={"finish_reason": "stop"})],
         gate_at={"before_first": 0, "next_wait": 1, "last_delta": 3}.get(stage),
     )
@@ -89,7 +89,7 @@ async def test_disconnect_at_each_precommit_boundary_preserves_completed_history
     if stage in ("before_first", "next_wait", "last_delta"):
         await asyncio.wait_for(model.waiting.wait(), 2)
         if stage == "last_delta":
-            assert sum(message["type"] == "http.response.body" for message in sent) == 4
+            assert sum(message["type"] == "http.response.body" for message in sent) == 6
             assert model.eof.is_set() is False
         disconnect.set()
     await asyncio.wait_for(task, 2)
@@ -116,7 +116,7 @@ async def test_send_oserror_closes_iterator_preserves_only_completed_answer(stag
     assert stage == "start" or model.closed.is_set()
     if stage == "done":
         assert store.commits == 1
-        assert [item.content for item in store.snapshot("1")] == ["old", "answer", "new", "你好"]
+        assert [item.content for item in store.snapshot("1")] == ["old", "answer", "你好", "你好"]
         response.service.locks.acquire("1").release()
     else:
         assert_no_new_completed_turn_and_released(store, response)
@@ -182,9 +182,9 @@ async def test_close_failure_does_not_obscure_release():
 async def test_service_commits_final_answer_before_done_without_response_commit():
     response, store, prepared = await response_for(StreamingModel())
     events = [event async for event in response.events]
-    assert [event.event for event in events] == ["status", "status", "delta", "done"]
+    assert [event.event for event in events] == ["status", "status", "citations", "status", "delta", "done"]
     assert store.commits == 1
-    assert [item.content for item in store.snapshot("1")] == ["old", "answer", "new", "你好"]
+    assert [item.content for item in store.snapshot("1")] == ["old", "answer", "你好", "你好"]
     response.service.release(prepared)
 
 
@@ -195,14 +195,14 @@ async def test_response_budget_trimming_preserves_persisted_history():
     await store.seed("1", [HumanMessage(content="X" * 15000), AIMessage(content="Y" * 15000)])
     response.service.release(response.prepared)
     response.service.settings = fake_settings(tool_input_token_budget=8000)
-    prepared = await response.service.prepare("1", "new")
+    prepared = await response.service.prepare("1", "你好")
     response = ManagedChatResponse(response.service, prepared)
     # 忽略传输消息，让测试只观察输入裁剪与持久历史的区别。
     async def send(message):
         pass
     await call_response(response, send)
     assert all("X" * 15000 != item.content for item in response.service.model.calls[-1])
-    assert [item.content for item in store.snapshot("1")][-2:] == ["new", "你好"]
+    assert [item.content for item in store.snapshot("1")][-2:] == ["你好", "你好"]
     assert len(store.snapshot("1")) == 6
 
 
@@ -216,7 +216,7 @@ async def test_commit_failure_emits_only_error_and_no_done():
         sent.append(message)
     await call_response(response, send)
     names = [name for name, _ in decode_sse(b"".join(message.get("body", b"") for message in sent).decode())]
-    assert names == ["status", "status", "delta", "error"]
+    assert names == ["status", "status", "citations", "status", "delta", "error"]
     assert_no_new_completed_turn_and_released(store, response)
 
 
@@ -285,7 +285,7 @@ async def test_cancellation_after_terminal_send_return_keeps_committed_history()
     with pytest.raises(asyncio.CancelledError):
         await task
     assert store.commits == 1
-    assert [item.content for item in store.snapshot("1")] == ["old", "answer", "new", "你好"]
+    assert [item.content for item in store.snapshot("1")] == ["old", "answer", "你好", "你好"]
     response.service.locks.acquire("1").release()
 
 
@@ -367,7 +367,7 @@ async def test_disconnect_after_eof_before_done_delivery_preserves_committed_ans
         sent.append(message)
     await asyncio.wait_for(call_response(response, send, disconnect, spec), 2)
     assert store.commits == 1
-    assert [item.content for item in store.snapshot("1")] == ["old", "answer", "new", "你好"]
+    assert [item.content for item in store.snapshot("1")] == ["old", "answer", "你好", "你好"]
     assert not any(message.get("more_body") is False for message in sent)
     assert model.closed.is_set()
     response.service.locks.acquire("1").release()

@@ -155,7 +155,7 @@ async def test_owned_database_and_model_close_once_even_if_model_close_fails(mon
     assert closed == ["async_model", "sync_model", "database"]
 
 
-# 验证注入 FAQ 故障产生安全的工具失败状态，聊天仍能完成且不出现依赖属性错误。
+# FAQ 故障终止本轮并保留安全错误，不生成自由回答或出现依赖属性错误。
 async def test_injected_faq_failure_has_safe_tool_error():
     model = StreamingModel()
     model.selected = AIMessage("", tool_calls=[{"name": "query_faq", "args": {"keyword": "退货"}, "id": "faq_call"}], response_metadata={"finish_reason": "tool_calls"})
@@ -164,8 +164,8 @@ async def test_injected_faq_failure_has_safe_tool_error():
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test") as client:
         response = await client.post("/api/chat", json={"conversation_id": "1", "message": "如何退货"})
     events = decode_sse(response.text)
-    assert events[2][1]["status"] == "error"
-    assert events[-1][0] == "done"
+    assert events[-1][0] == "error"
+    assert events[-1][1]["code"] == "tool_execution_error"
     assert "AttributeError" not in response.text
     assert model.requests == 1
 
@@ -175,10 +175,10 @@ async def test_same_conversation_concurrent_request_is_http_409():
     model = StreamingModel(gate_at=0)
     repository = ConversationStore()
     async with client_for(model, repository) as client:
-        first = asyncio.create_task(client.post("/api/chat", json={"conversation_id": "1", "message": "first"}))
+        first = asyncio.create_task(client.post("/api/chat", json={"conversation_id": "1", "message": "你好"}))
         try:
             await asyncio.wait_for(model.waiting.wait(), 2)
-            second = await client.post("/api/chat", json={"conversation_id": "1", "message": "second"})
+            second = await client.post("/api/chat", json={"conversation_id": "1", "message": "谢谢"})
             assert second.status_code == 409
             assert second.json()["code"] == "session_busy"
             assert model.requests == 1

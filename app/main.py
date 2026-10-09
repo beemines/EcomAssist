@@ -1,6 +1,7 @@
 # FastAPI 应用工厂：组装模型、仓储与工具服务，挂载接口和静态聊天页。
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
+import math
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -17,7 +18,14 @@ from app.db.session import Database
 from app.repositories.conversations import ConversationRepository
 from app.repositories.faq import FAQRepository
 from app.knowledge.embeddings import SiliconFlowEmbedder
-from app.knowledge.vectors import MilvusIndex
+from app.retrieval.milvus import HybridMilvusIndex
+from app.retrieval.query import QueryPlanner
+from app.retrieval.rerank import SiliconFlowReranker
+from app.retrieval.service import RetrievalService
+from app.repositories.knowledge import KnowledgeRepository
+from app.core.sufficiency import SufficiencyService
+from app.quality.repository import QualityRepository
+from app.quality.migration import verify_quality
 from app.repositories.tickets import TicketRepository
 from app.tools.registry import build_registry
 from app.core.errors import ServiceError
@@ -39,6 +47,8 @@ def create_app(
     database: Database | None = None,
     repository: ConversationRepository | None = None,
     faq_repository: FAQRepository | None = None,
+    sufficiency_service: SufficiencyService | None = None,
+    quality_repository: QualityRepository | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
     owns_database = database is None and repository is None
@@ -54,14 +64,17 @@ def create_app(
         app.state.database = database
         tickets = TicketRepository(database)
         app.state.chat_service = ToolChatService(model, repository,
-            lambda context: build_registry(faq_repository, tickets, context), ConversationLocks(), settings)
+            lambda context: build_registry(faq_repository, tickets, context), ConversationLocks(), settings,
+            sufficiency_service=sufficiency_service, quality_repository=quality_repository)
         app.state.extraction_service = ExtractionService(model, settings.input_token_budget)
 
     # 在应用启动时准备依赖，并在退出时按注册顺序的逆序释放资源。
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        nonlocal database, repository, model, faq_repository
+        nonlocal database, repository, model, faq_repository, sufficiency_service, quality_repository
         async with AsyncExitStack() as resources:
+            if settings.rerank_min_score is None or not math.isfinite(settings.rerank_min_score):
+                raise ValueError('online hybrid retrieval requires a calibrated finite threshold')
             if owns_database:
                 database = Database(settings.database_url)
                 resources.push_async_callback(database.dispose)
@@ -75,10 +88,23 @@ def create_app(
             if faq_repository is None:
                 embedder = SiliconFlowEmbedder(settings)
                 resources.push_async_callback(embedder.aclose)
-                index = MilvusIndex(str(settings.milvus_uri), timeout=settings.milvus_timeout_seconds)
+                index = HybridMilvusIndex(str(settings.milvus_uri), collection=settings.milvus_collection,
+                                          timeout=settings.milvus_timeout_seconds)
                 resources.push_async_callback(index.aclose)
-                await index.ensure_collection()
-                faq_repository = FAQRepository(database, embedder, index)
+                await index.ensure_collection(create_if_missing=False)
+                reranker = SiliconFlowReranker(settings)
+                resources.push_async_callback(reranker.aclose)
+                planner = QueryPlanner(model, settings.tool_input_token_budget, timeout=settings.query_timeout_seconds)
+                retriever = RetrievalService(KnowledgeRepository(database), embedder, index, planner, reranker)
+                faq_repository = FAQRepository(database, embedder, index, retriever=retriever)
+            if sufficiency_service is None:
+                sufficiency_service = SufficiencyService(model, input_budget=settings.tool_input_token_budget,
+                    timeout=settings.sufficiency_timeout_seconds, minimum_rerank_score=settings.rerank_min_score)
+            if quality_repository is None:
+                quality_repository = QualityRepository(database)
+            # 真实数据库即使注入仍核验；纯仓储注入不凭空创建连接池。
+            if getattr(database, 'engine', None) is not None:
+                await verify_quality(database)
             configure(app)
             yield
 

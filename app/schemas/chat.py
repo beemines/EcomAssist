@@ -10,6 +10,7 @@ class ChatRequest(BaseModel):
 
     conversation_id: str = Field(strict=True, min_length=1, max_length=20)
     message: str = Field(strict=True, min_length=1, max_length=20000)
+    category: str | None = Field(default=None, strict=True, min_length=1, max_length=255)
 
     # 沿用仓储身份规则校验会话主键，将业务错误转换为 Schema 校验错误。
     @field_validator("conversation_id")
@@ -27,4 +28,12 @@ class ChatRequest(BaseModel):
     def must_not_be_blank(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("must not be blank")
+        return value
+
+    # 分类只接受可信请求中的非空原文，不把数字转换为文本过滤条件。
+    @field_validator('category')
+    @classmethod
+    def category_not_blank(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError('category must not be blank')
         return value

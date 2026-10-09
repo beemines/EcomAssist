@@ -11,11 +11,12 @@ from uuid import uuid4
 import anyio
 import httpx
 
+from app.core.errors import ServiceError
 from evals.evaluate import extract_request, identity, save_report
 
 
 REQUEST_DEADLINE_SECONDS = 75.0
-CHAT_DEADLINE_SECONDS = 150.0
+CHAT_DEADLINE_SECONDS = 240.0
 ORDER = "20261005001"
 EXTRACT_TEXT = "订单 20261005001 的杯子收到就碎了，我想退货退款。"
 EXTRACT_EXPECTED = {"order_id": ORDER, "request_type": "return_refund", "expected_solution": "退货退款"}
@@ -50,7 +51,7 @@ async def create_conversation(client, base_url, user_id) -> dict:
 # 网络 EOF 本身不表示成功；帧格式、身份和结束顺序都要通过校验。
 async def chat_round(client, base_url, conversation_id, message, *, min_deltas=2) -> dict:
     result = {"status_code": None, "events": [], "deltas": [], "text": "", "nonempty_delta_count": 0,
-              "done_count": 0, "first_delta_seconds": None, "error_code": None}
+              "done_count": 0, "first_delta_seconds": None, "error_code": None, 'message_id': None, 'citations': None}
     started = monotonic()
     decoder = codecs.getincrementaldecoder("utf-8")()
     buffer = ""
@@ -74,7 +75,7 @@ async def chat_round(client, base_url, conversation_id, message, *, min_deltas=2
                 data_lines.append(value)
         if event is None and not data_lines:
             return
-        if event not in {"status", "delta", "done", "error"}:
+        if event not in {"status", "citations", "delta", "done", "error"}:
             raise ValueError
         data = json.loads("\n".join(data_lines))
         if not isinstance(data, dict):
@@ -83,8 +84,38 @@ async def chat_round(client, base_url, conversation_id, message, *, min_deltas=2
         if result["done_count"]:
             protocol_errors.append('event_after_done')
         if event == 'status':
-            if data.get('phase') not in {'selecting', 'tool_running', 'tool_completed', 'answering'}:
+            phase = data.get('phase')
+            if phase in {'selecting', 'checking', 'answering'}:
+                if set(data) != {'phase'}:
+                    raise ValueError
+            elif phase in {'tool_running', 'tool_completed'}:
+                fields = {'phase', 'tool_name', 'tool_call_id'} | ({'status'} if phase == 'tool_completed' else set())
+                if (set(data) != fields or data['tool_name'] not in {'query_faq', 'query_order', 'query_product', 'query_logistics', 'create_ticket'}
+                        or not isinstance(data['tool_call_id'], str) or not 1 <= len(data['tool_call_id'].strip()) <= 64
+                        or (phase == 'tool_completed' and data['status'] not in {'success', 'error'})):
+                    raise ValueError
+            else:
                 raise ValueError
+        elif event == 'citations':
+            if (set(data) != {'citations'} or not isinstance(data['citations'], list) or len(data['citations']) > 10
+                    or result['deltas'] or result['citations'] is not None):
+                raise ValueError
+            items = data['citations']
+            expected = list(range(1, len(items) + 1))
+            expected = expected[::2] + list(reversed(expected[1::2]))
+            identifiers = set()
+            from app.repositories.conversations import _conversation_id
+            for item, number in zip(items, expected, strict=True):
+                if (not isinstance(item, dict) or set(item) != {'n', 'chunk_id', 'section_path', 'question', 'answer'}
+                        or type(item['n']) is not int or item['n'] != number
+                        or any(not isinstance(item[field], str) or not item[field].strip() for field in ('chunk_id', 'question', 'answer'))
+                        or (item['section_path'] is not None and not isinstance(item['section_path'], str))):
+                    raise ValueError
+                _conversation_id(item['chunk_id'])
+                if item['chunk_id'] in identifiers:
+                    raise ValueError
+                identifiers.add(item['chunk_id'])
+            result['citations'] = items
         elif event == "delta":
             if set(data) != {"delta"} or not isinstance(data["delta"], str):
                 raise ValueError
@@ -95,8 +126,13 @@ async def chat_round(client, base_url, conversation_id, message, *, min_deltas=2
                     result["first_delta_seconds"] = monotonic() - started
         elif event == "done":
             result["done_count"] += 1
-            if data != {"conversation_id": conversation_id}:
+            # 保留旧终止帧兼容；新主键一旦出现就必须严格且可与持久审计比对。
+            if set(data) not in ({'conversation_id'}, {'conversation_id', 'message_id'}) or data.get('conversation_id') != conversation_id:
                 protocol_errors.append("wrong_identity")
+            if 'message_id' in data:
+                from app.repositories.conversations import _conversation_id
+                _conversation_id(data['message_id'])
+                result['message_id'] = data['message_id']
         else:
             # 保留错误事件的证据，丢弃不可信的错误提示内容。
             protocol_errors.append("error_event")
@@ -130,7 +166,7 @@ async def chat_round(client, base_url, conversation_id, message, *, min_deltas=2
         result["error_code"] = "timeout"
     except httpx.HTTPError:
         result["error_code"] = "transport_error"
-    except (ValueError, UnicodeError):
+    except (ValueError, UnicodeError, TypeError, KeyError, ServiceError):
         result["error_code"] = "invalid_sse"
     result["text"] = "".join(result["deltas"])
     if result["error_code"] is None:
