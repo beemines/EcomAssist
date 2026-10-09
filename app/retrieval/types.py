@@ -8,6 +8,13 @@ from app.knowledge.embeddings import validate_vector
 from app.knowledge.types import ChunkRecord, VectorHit, validate_id, validate_text
 
 
+# 检索分类沿用HTTP契约；通用数据库文本校验仍可接收合法空存储字段。
+def validate_category(category: str | None) -> None:
+    validate_text('category', category, 255, nullable=True)
+    if category is not None and not category.strip():
+        raise ValueError('retrieval category must be nonblank text')
+
+
 @dataclass(frozen=True)
 class IndexedChunk:
     id: int
@@ -21,7 +28,9 @@ class IndexedChunk:
         object.__setattr__(self, 'embedding', validate_vector(self.embedding))
         if not isinstance(self.text, str):
             raise ValueError('indexed text must be text')
-        validate_text('category', self.category, 255)
+        validate_category(self.category)
+        if self.category is None:
+            raise ValueError('indexed category must be text')
 
 
 class QueryPlan(BaseModel):
@@ -33,6 +42,7 @@ class QueryPlan(BaseModel):
     @field_validator('standard', 'expansions')
     @classmethod
     def reject_blank_text(cls, value):
+        """拒绝标准问法或扩展词中的纯空白，保证每个查询片段有效。"""
         texts = [value] if isinstance(value, str) else value
         if any(not text.strip() for text in texts):
             raise ValueError('query text must not be blank')

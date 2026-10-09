@@ -1,5 +1,8 @@
 # 验证最终文字结束状态与本轮引用，非知识输出限于纯问候和必要追问。
+import asyncio
 import re
+
+import anyio
 
 from app.core.errors import ServiceError
 from app.core.evidence import EvidencePacket
@@ -23,6 +26,60 @@ _CLARIFY_CLAUSE = re.compile(
     r'请问(?:您的)?' + _DETAILS + r'(?:是什么|是何时|是多久|呢)?|'
     r'(?:请问)?(?:您)?(?:是否|有没有)(?:拆封|收货)|(?:请问)?(?:您)?(?:什么时候|何时)(?:购买|收货)(?:的)?)'
 )
+
+
+# 下层即使吞掉取消或阻塞事件循环，也不能在已取消或绝对期限后继续成功链路。
+def ensure_answer_active(deadline: float | None = None) -> None:
+    task = asyncio.current_task()
+    if task is not None and task.cancelling():
+        raise asyncio.CancelledError()
+    if deadline is not None and asyncio.get_running_loop().time() >= deadline:
+        raise TimeoutError('answer deadline expired')
+
+
+class FinalAnswerStream:
+    """线上与评估共用最终流协议、可保存长度及完整结束保护。"""
+
+    def __init__(self):
+        """累计字符与UTF-8字节，保存实际流中的结束状态和正文片段。"""
+        self.parts, self.reasons = [], set()
+        self.characters = self.utf8_bytes = 0
+
+    def accept(self, chunk) -> str:
+        """拒绝所有形式的工具申请与超限正文，合法片段才交给消费者展示。"""
+        if (chunk.tool_calls or chunk.invalid_tool_calls or getattr(chunk, 'tool_call_chunks', None)
+                or chunk.additional_kwargs.get('tool_calls')):
+            raise ServiceError('upstream_error', '最终回复再次申请工具，无法完成本次回答。', 502)
+        reason = chunk.response_metadata.get('finish_reason')
+        if reason is not None:
+            self.reasons.add(reason)
+        text = chunk.text
+        if text:
+            self.characters += len(text)
+            self.utf8_bytes += len(text.encode('utf-8'))
+            if self.characters > 20000 or self.utf8_bytes > 65535:
+                raise ServiceError('upstream_error', '模型回复超出可保存长度。', 502)
+            self.parts.append(text)
+        return text
+
+    def complete(self, deadline: float | None = None) -> str:
+        """只有完整stop、非空正文且未取消超期的流才能进入持久化或裁判。"""
+        ensure_answer_active(deadline)
+        answer = ''.join(self.parts)
+        if self.reasons != {'stop'} or not answer.strip():
+            raise ServiceError('upstream_error', '模型回复未正常完成，请稍后重试。', 502)
+        return answer
+
+
+async def close_answer_stream(upstream) -> None:
+    """提前失败或正常结束均显式回收流，在独立五秒屏蔽范围内限制清理等待。"""
+    close = getattr(upstream, 'aclose', None)
+    if close is not None:
+        with anyio.move_on_after(5, shield=True):
+            try:
+                await close()
+            except Exception:
+                pass
 
 
 # 各分句必须完整符合允许的形式，不能在追问后附加政策、状态或承诺。

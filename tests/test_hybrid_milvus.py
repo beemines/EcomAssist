@@ -480,3 +480,18 @@ async def test_external_cancellation_propagates_to_rpc():
     with pytest.raises(asyncio.CancelledError):
         await task
     assert client.cancelled and client.attempts == 1
+
+
+@pytest.mark.parametrize('category', ['', ' \t', 7, True, '中' * 256])
+async def test_invalid_category_cannot_reach_index_initialization_or_search(category):
+    """分类早拒必须发生在集合初始化与任何搜索前，避免无效筛选误算未命中。"""
+    Index, _ = implementation()
+    client = SearchClient()
+    index = Index('unused', client=client)
+    async def forbidden_initialization(*args, **kwargs):
+        """无效分类不得触发初始化查询，显式定位错误边界。"""
+        pytest.fail('invalid category reached index initialization')
+    client.has_collection = forbidden_initialization
+    with pytest.raises(ValueError):
+        await index.recall(vector(), '问题', strategy='hybrid', category=category)
+    assert client.calls == []

@@ -9,11 +9,13 @@ from app.retrieval.types import RerankHit
 
 
 class SiliconFlowReranker:
+    # 记录重排配置及HTTP客户端归属，注入客户端由调用方负责关闭。
     def __init__(self, settings: Settings, *, http_client=None):
         self.settings = settings
         self._owns_client = http_client is None
         self._client = http_client if http_client is not None else httpx.AsyncClient()
 
+    # 发送固定模型的零重试重排请求，校验全集位置和分数后稳定排序裁剪。
     async def rank(self, query: str, documents: list[str], *, top_n: int = 10) -> list[RerankHit]:
         if not isinstance(query, str) or not query.strip():
             raise ValueError('rerank query must be nonempty text')
@@ -60,6 +62,7 @@ class SiliconFlowReranker:
         # Python 稳定排序在同分时维持服务返回顺序；校验全集后再裁剪。
         return sorted(hits, key=lambda hit: -hit.score)[:min(top_n, len(documents))]
 
+    # 仅关闭本适配器创建的HTTP客户端，保持外部注入资源可复用。
     async def aclose(self) -> None:
         if self._owns_client:
             await self._client.aclose()

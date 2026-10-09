@@ -274,12 +274,14 @@ async def test_cli_vector_jobs_share_lock_release_clients_and_database(monkeypat
     if command == 'vectorize-pending': assert state['batch_size'] == 2
 
 
+# 验证混合重建和核验命令接受默认及显式批量参数。
 @pytest.mark.parametrize('command', ['rebuild-hybrid', 'verify-hybrid'])
 def test_hybrid_commands_accept_default_and_explicit_batch_size(command):
     assert cli.parser().parse_args([command]).batch_size == 20
     assert cli.parser().parse_args([command, '--batch-size', '2']).batch_size == 2
 
 
+# 独立核验发现错误主键时CLI返回失败，且不创建云端嵌入客户端。
 def test_verify_hybrid_false_ready_exits_nonzero_without_cloud_embedding(monkeypatch, capsys):
     from tests.fakes import fake_settings
     from tests.test_hybrid_jobs import Repository, Index, record
@@ -288,19 +290,25 @@ def test_verify_hybrid_false_ready_exits_nonzero_without_cloud_embedding(monkeyp
     repo, index = Repository([record(3)]), Index()
     index.rows[99] = IndexedChunk(99, [0.1] * 1024, 'wrong primary key', '耳机')
     class Database:
+        # 数据库替身不连接外部资源，保留CLI构造接口。
         def __init__(self, url): pass
+        # 记录数据库回收，验证核验失败仍释放拥有资源。
         async def dispose(self): state['closed'].append('database')
+    # 模拟作业互斥锁并在退出时归还，验证CLI全程保持锁。
     @asynccontextmanager
     async def lock(database):
         state['locked'] = True
         try: yield
         finally: state['locked'] = False
     class OwnedIndex(Index):
+        # 仅在持有锁时构造索引，并校验使用配置的混合集合。
         def __init__(self, uri, **kwargs):
             assert state['locked']
             assert kwargs['collection'] == 'configured_hybrid'
             self.rows = index.rows
+        # 记录索引释放顺序，覆盖失败后的资源清理。
         async def aclose(self): state['closed'].append('index')
+    # 禁止独立切换核验创建嵌入客户端，避免无意义付费请求。
     def forbidden_embedder(settings):
         pytest.fail('independent verification must not construct a cloud embedder')
     for name, value in [('Database', Database), ('job_lock', lock),
@@ -314,6 +322,7 @@ def test_verify_hybrid_false_ready_exits_nonzero_without_cloud_embedding(monkeyp
     assert state['closed'] == ['index', 'database'] and not state['locked']
 
 
+# 运行实际混合CLI，核对切换就绪、额外主键失败、pending和清理顺序。
 @pytest.mark.parametrize('command,extra,want_exit', [
     ('rebuild-hybrid', False, 0), ('rebuild-hybrid', True, 1), ('verify-hybrid', False, 0),
 ])
@@ -329,8 +338,11 @@ def test_actual_hybrid_cli_rebuild_and_verify_report_cutover_readiness(monkeypat
     if extra:
         index.rows[99] = IndexedChunk(99, [0.1] * 1024, '额外正文', '耳机')
     class Database:
+        # 以无外部连接的数据库替身驱动真实CLI生命周期。
         def __init__(self, url): pass
+        # 记录重建或核验结束后数据库已释放。
         async def dispose(self): state['closed'].append('database')
+    # 记录锁取得次数并确保退出归还，防止索引操作逃逸作业互斥范围。
     @asynccontextmanager
     async def lock(database):
         state['locked'] = True
@@ -338,17 +350,22 @@ def test_actual_hybrid_cli_rebuild_and_verify_report_cutover_readiness(monkeypat
         try: yield
         finally: state['locked'] = False
     class OwnedIndex(Index):
+        # 共享受控索引状态，并核验构造时已锁定正确集合。
         def __init__(self, uri, **kwargs):
             assert state['locked'] and kwargs['collection'] == 'configured_hybrid'
             self.__dict__ = index.__dict__
+        # 验证每批写入都持有作业锁且遵守显式批量大小。
         async def upsert(self, rows):
             assert state['locked'] and len(rows) == 1
             return await super().upsert(rows)
+        # 记录受控索引关闭，检查CLI成功和失败分支均回收。
         async def aclose(self): state['closed'].append('index')
     class OwnedEmbedder(Embedder):
+        # 只有重建命令在锁内可以创建嵌入客户端，独立核验禁止创建。
         def __init__(self, settings):
             assert command == 'rebuild-hybrid' and state['locked']
             self.texts = embedder.texts
+        # 记录嵌入客户端关闭，核对创建与回收责任一致。
         async def aclose(self): state['closed'].append('embedder')
     for name, value in [('Database', Database), ('job_lock', lock),
         ('KnowledgeRepository', lambda db: repo), ('HybridMilvusIndex', OwnedIndex),

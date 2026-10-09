@@ -6,6 +6,7 @@ import pytest
 from app.knowledge.types import ChunkRecord
 
 
+# 加载实际混合作业类，使缺失实现表现为清晰的行为测试失败。
 def jobs(repository, embedder, index):
     try:
         from app.knowledge.hybrid_jobs import HybridKnowledgeJobs
@@ -14,23 +15,28 @@ def jobs(repository, embedder, index):
     return HybridKnowledgeJobs(repository, embedder, index)
 
 
+# 构造带固定主键及对应向量状态的知识记录，便于人工核对恢复结果。
 def record(identifier, status='done'):
     return ChunkRecord('耳机', f'问题{identifier}', f'答案{identifier}', id=identifier,
                        vector_id=str(identifier) if status == 'done' else None, vectorize_status=status)
 
 
 class Repository:
+    # 按主键保存受控知识和状态变更轨迹，隔离真实数据库操作。
     def __init__(self, rows):
         self.rows = {row.id: row for row in rows}
         self.marked = []
 
+    # 按主键升序分页已完成知识，保留after_id和limit的真实语义。
     async def done_page(self, *, after_id=0, limit=20):
         return [row for identifier, row in sorted(self.rows.items())
                 if identifier > after_id and row.vectorize_status == 'done'][:limit]
 
+    # 提供有序待处理知识，供双写确认和状态提交测试消费。
     async def pending(self, limit=20):
         return [row for _, row in sorted(self.rows.items()) if row.vectorize_status == 'pending'][:limit]
 
+    # 记录确认成功的主键并更新状态及向量身份，模拟事务可见结果。
     async def mark_done(self, ids):
         self.marked.extend(ids)
         for identifier in ids:
@@ -38,15 +44,18 @@ class Repository:
 
 
 class Embedder:
+    # 记录待嵌入正文，检测重建或独立核验是否额外请求模型。
     def __init__(self):
         self.texts = []
 
+    # 返回固定1024维向量并记录输入正文，隔离付费嵌入。
     async def embed(self, texts):
         self.texts.extend(texts)
         return [[0.1] * 1024 for _ in texts]
 
 
 class Index:
+    # 配置批次中断、错误确认或读回损坏，模拟各个恢复窗口。
     def __init__(self, *, interrupt_at=None, false_ack=False, bad_readback=False):
         self.rows = {}
         self.calls = 0
@@ -54,6 +63,7 @@ class Index:
         self.false_ack = false_ack
         self.bad_readback = bad_readback
 
+    # 按固定主键幂等写入，指定批次可中断或返回错误确认主键。
     async def upsert(self, rows):
         self.calls += 1
         if self.calls == self.interrupt_at:
@@ -61,9 +71,11 @@ class Index:
         self.rows.update({row.id: row for row in rows})
         return [999] if self.false_ack else [row.id for row in rows]
 
+    # 仅返回实际存在的索引行，暴露缺行而非伪造确认数据。
     async def get_rows(self, ids):
         return [self.rows[identifier] for identifier in ids if identifier in self.rows]
 
+    # 比较完整索引读回，错误正文或确认损坏必须阻止标done。
     async def verify_rows(self, rows):
         if self.bad_readback or await self.get_rows([row.id for row in rows]) != rows:
             raise ValueError('readback mismatch')
@@ -73,6 +85,7 @@ class Index:
         return set(self.rows)
 
 
+# 验证重建只覆盖旧done且保持pending，索引正文来自完整三栏原文。
 async def test_rebuild_covers_done_without_promoting_pending():
     repo, embedder, index = Repository([record(3), record(8), record(12, 'pending')]), Embedder(), Index()
     result = await jobs(repo, embedder, index).rebuild_done(1)
@@ -85,6 +98,7 @@ async def test_rebuild_covers_done_without_promoting_pending():
     assert len(embedder.texts) == 2
 
 
+# 验证中断后相同主键重放可恢复全量，旧done状态无需重复更新。
 async def test_interrupted_rebuild_resumes_with_same_primary_keys():
     repo, index = Repository([record(3), record(8), record(15)]), Index(interrupt_at=2)
     worker = jobs(repo, Embedder(), index)
@@ -96,6 +110,7 @@ async def test_interrupted_rebuild_resumes_with_same_primary_keys():
     assert repo.marked == []
 
 
+# 确认或读回失败时pending不得晋升，避免把未确认写入宣称完成。
 @pytest.mark.parametrize('failure', ['false_ack', 'bad_readback'])
 async def test_pending_is_not_promoted_without_ack_and_readback(failure):
     repo, index = Repository([record(5, 'pending')]), Index(**{failure: True})
@@ -104,8 +119,10 @@ async def test_pending_is_not_promoted_without_ack_and_readback(failure):
     assert repo.rows[5].vectorize_status == 'pending' and repo.marked == []
 
 
+# 验证向量已写但状态事务失败后能够幂等恢复同一主键。
 async def test_pending_write_recovers_when_status_commit_fails():
     class CommitFaultRepository(Repository):
+        # 首次状态提交故意失败，下一次允许真实替身更新以验证恢复窗口。
         async def mark_done(self, ids):
             if not self.marked:
                 self.marked.append('failed')
@@ -120,6 +137,7 @@ async def test_pending_write_recovers_when_status_commit_fails():
     assert await index.all_ids() == {5} and repo.rows[5].vectorize_status == 'done'
 
 
+# 独立核验发现错误身份、正文、分类、维度或非有限向量时禁止切换。
 @pytest.mark.parametrize('damage,want', [
     ('wrong_id', dict(missing_ids=[3], extra_ids=[99], mismatched_ids=[])),
     ('text', dict(missing_ids=[], extra_ids=[], mismatched_ids=[3])),
@@ -146,6 +164,7 @@ async def test_verification_rejects_wrong_ids_fields_or_dense_values_without_emb
     assert result == dict(ready=False, mysql_count=1, vector_count=len(index.rows), **want)
 
 
+# 非法批量参数必须在分页、嵌入或索引操作前拒绝。
 @pytest.mark.parametrize('method', ['rebuild_done', 'vectorize_pending', 'verify_done'])
 @pytest.mark.parametrize('batch_size', [0, -1, True, 1.5])
 async def test_invalid_batch_size_is_rejected_before_external_work(method, batch_size):
