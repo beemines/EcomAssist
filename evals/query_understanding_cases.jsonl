@@ -8,3 +8,6 @@
 {"id":"negation-2","tags":["否定"],"question":"没有发票能申请维修吗？","intent":"保留没有发票的维修条件","required":["没有发票","维修"],"forbidden":["有发票才能","已有发票"],"expansion_rule":"不能删除或反转无发票条件"}
 {"id":"conditions-1","tags":["多条件"],"question":"未拆封而且购买7天内，退货是否免运费？","intent":"保留未拆封与7天内两个条件","required":["未拆封","7天内","退货","运费"],"forbidden":["已拆封","超过7天"],"expansion_rule":"两个条件不能删减或反转"}
 {"id":"conditions-2","tags":["多条件"],"question":"外包装完整并且配件齐全，能换货但不要退款吗？","intent":"同时保留包装、配件、换货及拒绝退款","required":["外包装完整","配件齐全","换货","不要退款"],"forbidden":["配件缺失","只要退款"],"expansion_rule":"保留所有条件与否定，不确定则不扩展"}
+{"id":"synonym-refund-1","tags":["中文口语","检索同义词"],"question":"退款咋办","intent":"退款申请流程归一为标准问法，退钱同义词仅出现在检索扩展","required":["退款"],"forbidden":["退款已到账","换货","退货"],"required_standard":"退款如何办理？","required_expansion_any":["退钱"],"expansion_rule":"仅扩展退款申请同义问法，不能改成退款进度或退货"}
+{"id":"synonym-refund-2","tags":["中文口语","检索同义词"],"question":"退钱咋办","intent":"退钱口语归一为退款标准主题，保留检索侧退钱同义词","required":["退款"],"forbidden":["退款已到账","换货","退货"],"required_standard":"退款如何办理？","required_expansion_any":["退钱"],"expansion_rule":"只有已确认的退款申请意图可扩展，不得发明执行结果"}
+{"id":"unicode-amount-1","tags":["数值","全角锚点"],"question":"满２９９元免运费吗？","intent":"全角金额阈值保持原始字面形式，不能变为１９９或ASCII金额","required":["２９９元","运费"],"forbidden":["１９９元","299元"],"required_standard":"满２９９元免运费吗？","expansion_rule":"存在不确定金额条件时保守原话、不扩展"}

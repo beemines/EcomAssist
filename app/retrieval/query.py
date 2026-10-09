@@ -15,37 +15,58 @@ from app.core.prompts import build_query_messages
 from app.retrieval.types import QueryPlan
 
 
-# 不声称理解任意品牌语义：对型号、数值、否定和条件句直接保留整条原话。
-_CONSTRAINT = re.compile(r'[A-Za-z0-9]|不|没|未|无|别|只|除|且|并|同时|如果|若|但是|但|才|内|超过|至少|最多')
-# 中文连续内容保留原样，仅允许移除明确的提问语气，未知品牌自然留在内容段中。
-_QUESTION_FILLER = re.compile(r'请问|麻烦|帮我|怎么|如何|咋办|咋整|能否|是否|可以|吗|呢|啊|呀')
-_RETRIEVAL_FILLER = re.compile(r'流程|办理|申请|问题|政策|规定|方式|处理|查询')
+# 只归一已知的完整问句模板，不能用子串替换去猜测任意品牌或限制条件。
+_CONDITION = re.compile(r'不|没|未|无|别|只|除|且|并|同时|如果|若|但是|但|才|内|超过|至少|最多')
+_ENDING = r'[啊呀呢吗]*[？?。.!！]*'
+_LOOKUP = re.compile(
+    r'(?:请问)?(?:物流|快递)\s*(?:咋查|怎么查|怎么查询|如何查|如何查询|查询|查询方法|查询流程)' + _ENDING,
+)
+_APPLICATION = re.compile(
+    r'(?:请问)?(?P<topic>退款|退钱|退货)\s*'
+    r'(?:咋办|怎么办|如何办理|如何申请|怎么申请|申请|办理|流程|申请流程|申请方式|申请方法|办理流程|办理方式|办理方法)'
+    + _ENDING,
+)
 
 
-# 仅放行原始内容与通用检索连接词；未知新增中文内容可能是品牌或条件，保守回退。
-def _preserves_content(text: str, anchors: list[str]) -> bool:
-    remainder = text
-    for anchor in anchors:
-        if anchor not in text:
-            return False
-        remainder = remainder.replace(anchor, '')
-    remainder = _RETRIEVAL_FILLER.sub('', _QUESTION_FILLER.sub('', remainder))
-    return not re.search(r'[\u4e00-\u9fff]', remainder)
+# Unicode 数字以及非汉字字母都是身份/数值锚点，涵盖全角型号、全角金额和其他数字文字。
+def _has_protected_anchor(text: str) -> bool:
+    return bool(_CONDITION.search(text)) or any(
+        char.isnumeric() or (char.isalpha() and not '\u4e00' <= char <= '\u9fff')
+        for char in text
+    )
+
+
+# 仅完整匹配时确认主题与意图；同义词不能把退款申请改成退货或进度查询。
+def _phrase_signature(text: str) -> tuple[str, str] | None:
+    if _has_protected_anchor(text):
+        return None
+    text = text.strip()
+    if _LOOKUP.fullmatch(text):
+        return '物流', '查询'
+    match = _APPLICATION.fullmatch(text)
+    if match:
+        topic = match.group('topic')
+        return ('退款' if topic == '退钱' else topic), '办理'
+    return None
 
 
 def _safe_plan(raw_question: str, plan: QueryPlan) -> QueryPlan:
-    if _CONSTRAINT.search(raw_question) or _CONSTRAINT.search(plan.standard):
+    # 未知身份/条件或模型改变主题意图时回退原话；合法 JSON 才能进入此验证步骤。
+    signature = _phrase_signature(raw_question)
+    if signature is None or _phrase_signature(plan.standard) != signature:
         return QueryPlan(standard=raw_question, expansions=[])
-    anchors = re.findall(r'[\u4e00-\u9fff]+', _QUESTION_FILLER.sub('', raw_question))
-    if not anchors or not _preserves_content(plan.standard, anchors):
-        return QueryPlan(standard=raw_question, expansions=[])
-    # 扩展也须携带原始内容段，不能引入新的数字、型号或限制。
-    expansions = [text for text in plan.expansions
-                  if not _CONSTRAINT.search(text) and _preserves_content(text, anchors)]
-    return QueryPlan(standard=plan.standard, expansions=expansions)
+    topic, intent = signature
+    standard = f'{topic}如何{intent}？'
+    # 仅检索输出携带口语同义词；原始消息与知识正文都不改动。模型回显也能产生有效归一。
+    expansions = [text for text in plan.expansions if _phrase_signature(text) == signature]
+    synonym = {'物流': '快递', '退款': '退钱'}.get(topic)
+    if synonym:
+        expansions.append(f'{synonym}如何{intent}？')
+    return QueryPlan(standard=standard, expansions=list(dict.fromkeys(expansions))[:4])
 
 
 class QueryPlanner:
+    # 绑定严格原始 JSON 输出；预算和绝对期限由调用方提供，模型生命周期仍归调用方。
     def __init__(self, model: Any, input_budget: int, timeout: float = 15):
         if type(input_budget) is not int or input_budget <= 0:
             raise ValueError('input budget must be a positive integer')
@@ -54,7 +75,8 @@ class QueryPlanner:
         self.structured_model = model.with_structured_output(QueryPlan, method='json_mode', include_raw=True)
         self.input_budget, self.timeout = input_budget, timeout
 
-    # 外部注入的模型由调用方关闭；取消不捕获、不重试，超时转换为统一上游错误。
+    # 限时理解本轮原话并复核原始 JSON，最后执行主题意图校验与有界同义扩展。
+    # 外部模型由调用方关闭；取消不捕获、不重试，超时转换为统一上游错误。
     async def plan(self, raw_question: str) -> QueryPlan:
         if not isinstance(raw_question, str) or not raw_question.strip():
             raise ValueError('raw question must be nonempty text')
