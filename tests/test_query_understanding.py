@@ -49,6 +49,56 @@ async def test_single_turn_json_request_and_valid_query_plan():
     assert requests[0]['messages'][-1] == {'role': 'user', 'content': '退货咋办'}
 
 
+# 正向语义断言能发现只返回合法原话、却未完成口语归一或同义扩展的退化。
+@pytest.mark.parametrize('raw,standard,expansions,want_standard,want_expansion', [
+    ('物流咋查啊', '物流如何查询？', ['快递查询方法'], '物流如何查询？', '快递查询方法'),
+    ('退款咋办', '退钱如何办理？', ['退钱申请流程'], '退款如何办理？', '退钱申请流程'),
+    ('退钱咋办', '退款如何办理？', ['退钱办理流程'], '退款如何办理？', '退钱办理流程'),
+])
+async def test_safe_colloquial_rewrite_and_retrieval_synonym_are_preserved(raw, standard, expansions, want_standard, want_expansion):
+    result, _ = await query(raw, json.dumps({'standard': standard, 'expansions': expansions}))
+    assert result.standard == want_standard
+    assert want_expansion in result.expansions
+
+
+@pytest.mark.parametrize('raw,want_standard,want_expansion', [
+    ('物流咋查啊', '物流如何查询？', '快递如何查询？'),
+    ('退款咋办', '退款如何办理？', '退钱如何办理？'),
+    ('退钱咋办', '退款如何办理？', '退钱如何办理？'),
+])
+async def test_valid_model_echo_still_normalizes_known_phrase_and_generates_synonym(raw, want_standard, want_expansion):
+    result, requests = await query(raw, json.dumps({'standard': raw, 'expansions': []}))
+    assert result.standard == want_standard and result.standard != raw
+    assert want_expansion in result.expansions
+    assert requests[0]['messages'][-1]['content'] == raw
+
+
+@pytest.mark.parametrize('raw,standard', [
+    ('满２９９元免运费吗？', '满１９９元免运费吗？'),
+    ('星河 ＡＣ－１２ 如何查询？', '星河 ＡＣ－１３ 如何查询？'),
+    ('星河 ＡＢ 耳机？', '星河 ＣＤ 耳机？'),
+    ('满٢٩٩元免运费吗？', '满١٩٩元免运费吗？'),
+])
+async def test_unicode_numeric_and_model_anchor_conflicts_preserve_original(raw, standard):
+    result, _ = await query(raw, json.dumps({'standard': standard, 'expansions': [standard]}))
+    assert result.standard == raw
+    assert result.expansions == []
+
+
+@pytest.mark.parametrize('raw,standard,expansion', [
+    ('退钱牌耳机退款咋办', '退款牌耳机退钱如何办理？', '退钱申请流程'),
+    ('星河耳机退款咋办', '星河耳机退钱如何办理？', '星河耳机退钱申请流程'),
+    ('退款咋办', '退款如何办理？', '退货申请流程'),
+    ('退款咋办', '退款怎么查询？', '退款查询流程'),
+])
+async def test_unknown_identity_or_changed_intent_cannot_enter_safe_synonym_path(raw, standard, expansion):
+    result, _ = await query(raw, json.dumps({'standard': standard, 'expansions': [expansion]}))
+    if raw != '退款咋办' or standard == '退款怎么查询？':
+        assert result.standard == raw and result.expansions == []
+    else:
+        assert expansion not in result.expansions
+
+
 @pytest.mark.parametrize('content,finish', [
     ('{"standard":"售后？","expansions":[]', 'stop'),
     ('{"standard":"售后？","expansions":[],"answer":"可以退款"}', 'stop'),
