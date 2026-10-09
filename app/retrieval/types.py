@@ -1,11 +1,11 @@
 # 混合索引行保存知识主键、固定维度向量、三栏拼接正文和分类元数据。
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.knowledge.embeddings import validate_vector
-from app.knowledge.types import validate_id, validate_text
+from app.knowledge.types import ChunkRecord, VectorHit, validate_id, validate_text
 
 
 @dataclass(frozen=True)
@@ -44,3 +44,20 @@ class RerankHit(BaseModel):
     model_config = ConfigDict(strict=True, extra='forbid', allow_inf_nan=False)
     index: int = Field(ge=0)
     score: float
+
+
+# 分数必须保留其来源标签，禁止把余弦、BM25、融合和重排分数当成同一量纲。
+@dataclass(frozen=True)
+class ScoredChunk:
+    chunk: ChunkRecord
+    score: float
+    score_kind: Literal['cosine', 'bm25', 'rrf', 'rerank']
+
+
+# 候选只保留主键和原召回分数，正文仅由最终权威匹配持有。
+@dataclass(frozen=True)
+class RetrievalBundle:
+    query: QueryPlan
+    strategy: str
+    candidates: list[VectorHit]
+    matches: list[ScoredChunk]
