@@ -68,5 +68,10 @@
       </footer>
     </main>
   </div>
+  <!-- 来源弹窗只显示本轮引用的原文；内容由脚本以纯文本填入。 -->
+  <dialog class="source-dialog" id="source-dialog" aria-labelledby="source-title">
+    <header class="source-header"><div><p class="source-eyebrow">回答依据</p><h2 id="source-title">知识来源</h2></div><button type="button" id="source-close" class="source-close" aria-label="关闭知识来源">×</button></header>
+    <div class="source-content"><p id="source-path" class="source-path"></p><p id="source-question" class="source-question"></p><div id="source-answer" class="source-answer"></div><p id="source-id" class="source-id"></p></div>
+  </dialog>
 </body>
 </html>

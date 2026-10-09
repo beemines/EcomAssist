@@ -156,3 +156,14 @@ README 提供迁移、重建、切换、校准、四策略评估、服务启动�
 - [SiliconFlow Rerank](https://docs.siliconflow.cn/docs/api/rerank-post)：云端重排请求与结果索引定义。
 
 自审结论：范围覆盖用户七项功能与两表 DDL；旧 done 行重建和新 pending 写入分别定义；候选 Top-10、实际输入及引用快照三者区分；评分阈值由独立数据决定；入池条件统一 useful=false；前端反馈没有后端写入。设计不存在未填占位符；阈值数值与真实报告属于必须通过后续校准/验收得到的实测产物，不伪写为设计事实。用户已批准本 Spec；对应计划为 [2026-10-08-hybrid-retrieval.md](../plans/2026-10-08-hybrid-retrieval.md)。
+
+## 2026-10-09 用户批准的结构化输出预算调整
+
+真实首次校准8题只有K02/K03/K06改写合法，另4题invalid_structured_output、1题upstream_timeout；只能得到3份真实样本，不能推导八题阈值，随后比较报告如实记录120份未执行。该次采集未保存raw/finish metadata，不能把四题错误全断言为length；此前Task4/6已经独立观察到512上限下的length。
+
+用户明确选择“独立提高改写/自评预算至2048（推荐）”：新增 QUERY_MAX_OUTPUT_TOKENS=2048 和 SUFFICIENCY_MAX_OUTPUT_TOKENS=2048，仅用于各自结构化实例/绑定。线上最终回答 MAX_OUTPUT_TOKENS=512、现有模型/上游、15秒改写/20秒自评期限及零重试不变；裁判既定2048也不变。主聊天与评估采用同一预算分配，不能只在评估侧放宽。
+
+Task8允许最小修改 app/core/llm.py、app/main.py（及必要 services/transport/lifecycle tests）保证独立输出请求体和资源归属。当前工厂由extra_body配置token字段，必须核验真实请求中改写/自评2048、最终512，不能被原extra_body覆盖。官方API先Context7核对。原失败报告另存512历史；新实现先验证原5失败query一次，随后完整8题重校准、有效才填忽略的本地.env并跑一次四策略比较。失败不修补JSON、不换技术栈、不暗加重试/期限；如仍阻塞继续报告实证。
+### 2026-10-09 · 用户批准改写期限调整
+
+2048预算的八题校准有4题有效、4题在原15秒期限内超时，未生成门槛；用户明确选择“允许改写超时提高到 60 秒（推荐）”。仅 QUERY_TIMEOUT_SECONDS / QueryPlanner 改写上限与默认改为60秒，FAQ总期限90秒、自评20秒、嵌入20秒、Milvus5秒、重排20秒、单轮240秒不变；改写/自评2048、最终512、模型和零重试不变。原512和2048/15秒报告分别保留，60秒完整八题只重新校准一次，合法有效才写忽略的本地.env并继续四策略比较。这是用户明确决定，不是代理自行放宽。

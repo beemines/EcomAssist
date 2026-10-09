@@ -911,3 +911,163 @@ textarea:disabled {
     overflow-wrap:anywhere
   }
 }
+
+/* 引用按钮保留原位置，绿色底色区分可点击来源与普通正文。 */
+.citation-button {
+  display:inline-flex;
+  align-items:center;
+  border:0;
+  border-radius:5px;
+  padding:0 4px;
+  margin:0 2px;
+  background:#e1ebdc;
+  color:#286659;
+  font-size:11px;
+  font-weight:650;
+  line-height:1.8;
+  vertical-align:1px
+}
+.citation-button:hover {
+  background:#cadfc8
+}
+
+/* 每段完整回答左下角展示反馈，已选按钮点亮且整组只接受一次选择。 */
+.answer-feedback {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  margin-top:14px;
+  padding-top:10px;
+  border-top:1px solid #e1e8db;
+  white-space:normal
+}
+.feedback-button {
+  display:grid;
+  place-items:center;
+  width:31px;
+  height:29px;
+  padding:0;
+  border:1px solid transparent;
+  border-radius:7px;
+  color:#647b61;
+  background:transparent;
+  font-size:14px;
+  line-height:1
+}
+.feedback-button:not(:disabled):hover {
+  background:#e5eddf
+}
+.feedback-button:disabled {
+  opacity:.42
+}
+.feedback-button.selected:disabled {
+  opacity:1;
+  border-color:#9dc1a9;
+  background:#d9e8d6
+}
+.feedback-label {
+  color:#879781;
+  font-size:10px;
+  line-height:1.6;
+  margin-left:3px
+}
+
+/* 原生 dialog 提供焦点约束和 Escape 关闭，来源长文在弹窗内部滚动。 */
+.source-dialog {
+  width:min(650px,calc(100% - 40px));
+  max-height:calc(100dvh - 64px);
+  padding:0;
+  color:#30483b;
+  background:#fcfdfb;
+  border:1px solid #d9e4d5;
+  border-radius:20px;
+  box-shadow:0 24px 80px #193e3738;
+  overflow:auto
+}
+.source-dialog::backdrop {
+  background:#213c3545;
+  backdrop-filter:blur(2px)
+}
+.source-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:20px;
+  position:sticky;
+  top:0;
+  background:#f4f7ef;
+  border-bottom:1px solid #e3eadf;
+  padding:21px 26px;
+  z-index:1
+}
+.source-eyebrow {
+  margin:0 0 5px;
+  color:#8ba07f;
+  font-size:10px;
+  letter-spacing:1px
+}
+.source-header h2 {
+  font-size:17px;
+  font-weight:600;
+  margin:0
+}
+.source-close {
+  display:grid;
+  place-items:center;
+  border:1px solid #dfe7d8;
+  background:#fcfdf9;
+  color:#74876a;
+  border-radius:10px;
+  width:34px;
+  height:34px;
+  font-size:23px;
+  line-height:1
+}
+.source-close:hover {
+  background:#e8f0e1
+}
+.source-content {
+  padding:24px 26px 27px;
+  overflow-wrap:anywhere
+}
+.source-path {
+  margin:0 0 16px;
+  border-left:3px solid #8eb395;
+  padding-left:11px;
+  color:#678360;
+  font-size:12px;
+  line-height:1.8;
+  white-space:pre-wrap
+}
+.source-question {
+  margin:0 0 14px;
+  color:#2f4938;
+  font-size:15px;
+  font-weight:600;
+  line-height:1.9;
+  white-space:pre-wrap
+}
+.source-answer {
+  font-size:13px;
+  line-height:2;
+  color:#53664d;
+  white-space:pre-wrap
+}
+.source-id {
+  margin:22px 0 0;
+  color:#9ba694;
+  font-size:10px
+}
+@media(max-width:740px) {
+  .source-dialog {
+    width:calc(100% - 28px);
+    max-height:calc(100dvh - 40px);
+    border-radius:16px
+  }
+  .source-header {
+    padding:18px 20px
+  }
+  .source-content {
+    padding:21px 20px
+  }
+}

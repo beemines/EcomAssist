@@ -11,6 +11,9 @@ const bottomButton = document.querySelector("#scroll-to-bottom");
 const welcome = document.querySelector("#welcome");
 const newButtons = [document.querySelector("#new-chat"), document.querySelector("#mobile-new-chat")];
 const hint = document.querySelector("#composer-hint");
+const sourceDialog = document.querySelector("#source-dialog");
+const sourceClose = document.querySelector("#source-close");
+let sourceTrigger = null;
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 let conversationId = null;
 let active = null;
@@ -117,8 +120,104 @@ function beginText(state) {
   state.bubble.classList.add("typing");
 }
 
+// 标识始终作为规范十进制字符串保存；BigInt 仅校验范围，不转成浮点数。
+function validId(value, maximum = 18446744073709551615n) {
+  return typeof value === "string" && /^[1-9]\d{0,19}$/.test(value) && BigInt(value) <= maximum;
+}
+
+// 引用属于各自回答的映射，弹窗用 textContent 显示原文，避免执行文档内的 HTML。
+function openSource(citation, trigger) {
+  sourceTrigger = trigger;
+  document.querySelector("#source-title").textContent = "知识来源 [" + citation.n + "]";
+  document.querySelector("#source-path").textContent = citation.section_path || "未标注章节路径";
+  document.querySelector("#source-question").textContent = citation.question;
+  document.querySelector("#source-answer").textContent = citation.answer;
+  document.querySelector("#source-id").textContent = "知识块编号 " + citation.chunk_id;
+  if (!sourceDialog.open) sourceDialog.showModal();
+  sourceClose.focus();
+}
+
+// 关闭后恢复到仍在页面上的引用按钮，流式重绘替换按钮时回到输入框。
+function closeSource() {
+  sourceDialog.close();
+}
+sourceClose.addEventListener("click", closeSource);
+// Escape 的原生 dialog 行为也会触发 close，统一恢复键盘焦点。
+sourceDialog.addEventListener("close", () => {
+  const target = sourceTrigger?.isConnected ? sourceTrigger : input;
+  target.focus({ preventScroll: true });
+  sourceTrigger = null;
+});
+// 仅点击弹窗外的遮罩时关闭，点击正文留在原文阅读区域。
+sourceDialog.addEventListener("click", (event) => {
+  if (event.target !== sourceDialog) return;
+  const bounds = sourceDialog.getBoundingClientRect();
+  if (event.clientX < bounds.left || event.clientX > bounds.right ||
+      event.clientY < bounds.top || event.clientY > bounds.bottom) closeSource();
+});
+
+// 重绘已收到的正文，完整且存在于本轮映射的 [n] 才变成可访问按钮。
+// 增量末尾的半个编号先隐藏，下一批到齐后再显示，其他文字仍按原文逐字绘制。
+function renderAnswer(state) {
+  let visible = state.visible;
+  if (!state.networkFinished || state.queue.length) visible = visible.replace(/\[\d*$/, "");
+  const fragment = document.createDocumentFragment();
+  let offset = 0;
+  for (const match of visible.matchAll(/\[([1-9]\d*)\]/g)) {
+    const citation = state.citations.get(match[1]);
+    if (!citation) continue;
+    fragment.append(document.createTextNode(visible.slice(offset, match.index)));
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "citation-button";
+    button.textContent = match[0];
+    button.setAttribute("aria-label", "查看来源 " + citation.n + "：" + (citation.section_path || citation.question));
+    // 点击闭包绑定当前回答的来源对象，后续回复的同号引用不会覆盖它。
+    button.addEventListener("click", () => openSource(citation, button));
+    fragment.append(button);
+    offset = match.index + match[0].length;
+  }
+  fragment.append(document.createTextNode(visible.slice(offset)));
+  state.text.replaceChildren(fragment);
+}
+
+// 仅完整成功回复可反馈，第一次选择后锁定；信号只留在本页面，不发送网络请求。
+function addFeedback(state) {
+  if (state.feedback || !state.done || state.error || state.stopped) return;
+  const feedback = document.createElement("div");
+  feedback.className = "answer-feedback";
+  feedback.setAttribute("aria-label", "评价本次回复");
+  const label = document.createElement("span");
+  label.className = "feedback-label";
+  label.textContent = "这次回复有帮助吗？";
+  const choices = [];
+  for (const [value, icon, title] of [["helpful", "👍", "有帮助"], ["unhelpful", "👎", "没有帮助"]]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "feedback-button";
+    button.textContent = icon;
+    button.setAttribute("aria-label", title);
+    button.setAttribute("aria-pressed", "false");
+    // 两个按钮共用本轮选择值，重复点击不能改变已经采集的反馈。
+    button.addEventListener("click", () => {
+      if (state.feedbackChoice) return;
+      state.feedbackChoice = value;
+      button.classList.add("selected");
+      button.setAttribute("aria-pressed", "true");
+      choices.forEach((choice) => { choice.disabled = true; });
+      label.textContent = "已反馈";
+      feedback.dataset.choice = value;
+    });
+    choices.push(button);
+  }
+  feedback.append(...choices, label);
+  state.bubble.append(feedback);
+  state.feedback = feedback;
+}
+
 // 网络已结束且文字队列已显示完时收尾，保留错误/停止提示并恢复输入。
 function finishVisual(state) {
+  if (state.startedText) renderAnswer(state);
   state.bubble.classList.remove("typing", "waiting");
   if (state.toolBadge?.dataset.status === "running") {
     state.toolBadge.dataset.status = "interrupted";
@@ -132,6 +231,7 @@ function finishVisual(state) {
   } else if (state.stopped) {
     state.note.textContent = state.done ? "已显示收到的完整回复" : "已停止 · 本轮未完整结束，请重新描述问题";
   }
+  addFeedback(state);
   active = null;
   busy(false);
   scrollBottom();
@@ -147,7 +247,7 @@ function tick(state, now) {
   if (state.queue.length && count > 0) {
     beginText(state);
     state.visible += state.queue.splice(0, Math.max(1, count)).join("");
-    state.text.textContent = state.visible;
+    renderAnswer(state);
     state.lastPaint = now;
     scrollBottom();
   } else if (!state.queue.length) {
@@ -171,7 +271,7 @@ function stopReply() {
   if (state.queue.length) {
     beginText(state);
     state.visible += state.queue.splice(0).join("");
-    state.text.textContent = state.visible;
+    renderAnswer(state);
   }
 }
 
@@ -184,6 +284,10 @@ function acceptStatus(payload, state) {
   }
   if (phase === "answering") {
     state.note.textContent = "正在组织回复…";
+    return;
+  }
+  if (phase === "checking") {
+    state.note.textContent = "正在核对回答依据…";
     return;
   }
   if (!["tool_running", "tool_completed"].includes(phase) ||
@@ -215,6 +319,30 @@ function acceptStatus(payload, state) {
   scrollBottom();
 }
 
+// 只接受正文开始前的一份来源全集，严格保留编号和字符串主键。
+function acceptCitations(payload, state) {
+  if (state.hasCitations || state.hasDelta || !payload || Object.keys(payload).length !== 1 ||
+      !Array.isArray(payload.citations) || payload.citations.length > 10) {
+    throw new Error("回答来源格式异常，请重新尝试。");
+  }
+  const mapping = new Map();
+  const identifiers = new Set();
+  for (const citation of payload.citations) {
+    if (!citation || Object.keys(citation).sort().join(",") !== "answer,chunk_id,n,question,section_path" ||
+        !Number.isInteger(citation.n) || citation.n < 1 || citation.n > payload.citations.length ||
+        mapping.has(String(citation.n)) || !validId(citation.chunk_id, 9223372036854775807n) ||
+        identifiers.has(citation.chunk_id) || typeof citation.question !== "string" ||
+        typeof citation.answer !== "string" ||
+        !(citation.section_path === null || typeof citation.section_path === "string")) {
+      throw new Error("回答来源格式异常，请重新尝试。");
+    }
+    mapping.set(String(citation.n), citation);
+    identifiers.add(citation.chunk_id);
+  }
+  state.citations = mapping;
+  state.hasCitations = true;
+}
+
 // 解析完整 SSE 帧，把正文加入码点队列，校验 done 身份并记录安全错误提示。
 function acceptFrame(frame, state) {
   const lines = frame.split(/\r?\n/);
@@ -230,12 +358,18 @@ function acceptFrame(frame, state) {
   try { payload = JSON.parse(data.join("\n")); }
   catch { throw new Error("收到的回复格式异常，请重新尝试。"); }
   if (event === "status" && payload && typeof payload === "object") {
+    if (state.hasDelta) throw new Error("正文开始后收到阶段事件，请重新尝试。");
     acceptStatus(payload, state);
+  } else if (event === "citations") {
+    acceptCitations(payload, state);
   } else if (event === "delta" && typeof payload?.delta === "string") {
+    state.hasDelta = true;
     state.queue.push(...Array.from(payload.delta));
-  } else if (event === "done" && payload?.conversation_id === state.conversationId) {
+  } else if (event === "done" && payload?.conversation_id === state.conversationId &&
+             validId(payload.message_id) && Object.keys(payload).sort().join(",") === "conversation_id,message_id") {
     state.terminal = true;
     state.done = true;
+    state.messageId = payload.message_id;
   } else if (event === "error" && typeof payload?.message === "string") {
     state.terminal = true;
     state.error = payload.message;
@@ -260,8 +394,7 @@ async function readReply(state, message) {
       const identity = await created.json();
       const id = identity?.conversation_id;
       // 始终保留字符串，避免 BIGINT 会话号在浏览器中丢失精度。
-      if (typeof id !== "string" || !/^[1-9]\d{0,19}$/.test(id) ||
-          BigInt(id) > 18446744073709551615n) {
+      if (!validId(id)) {
         throw new Error("会话创建结果异常，请稍后重试。");
       }
       conversationId = id;
@@ -337,7 +470,7 @@ form.addEventListener("submit", (event) => {
     dot.className = "thinking-dot";
     assistant.text.append(dot);
   }
-  const state = { ...assistant, controller: new AbortController(), queue: [], visible: "", lastPaint: performance.now(), networkFinished: false, terminal: false, done: false, stopped: false, error: "", startedText: false, animation: null };
+  const state = { ...assistant, controller: new AbortController(), queue: [], visible: "", citations: new Map(), hasCitations: false, hasDelta: false, lastPaint: performance.now(), networkFinished: false, terminal: false, done: false, stopped: false, error: "", startedText: false, animation: null };
   active = state;
   input.value = "";
   busy(true);
@@ -349,6 +482,7 @@ form.addEventListener("submit", (event) => {
 // 为两个新会话入口绑定重置动作，清空页面身份后下一条消息重新创建会话。
 newButtons.forEach((button) => button.addEventListener("click", () => {
   if (active) return;
+  if (sourceDialog.open) closeSource();
   conversationId = null;
   messages.replaceChildren();
   welcome.hidden = false;
