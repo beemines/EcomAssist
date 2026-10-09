@@ -84,7 +84,7 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
 - Produces async recall(vector: list[float] | None, text: str | None, *, strategy: Literal['dense','bm25','hybrid'], category: str | None = None) -> list[VectorHit]，所有候选最多 50。
 - Settings 增加 MILVUS_COLLECTION（默认 knowledge_hybrid）；模型和维度固定，不增加替代 BM25 模式。
 
-- [ ] **1. 编写 RED 测试。** 核验五字段、TEXT/chinese/BM25 函数、两索引和 Strong；schema 错误不 drop；两路相同参数化 category 前过滤；重复 id/无效向量/错误确认拒绝；无分类时无筛选表达式；实际 analyzer/型号检索。
+- [x] **1. 编写 RED 测试。** 核验五字段、TEXT/chinese/BM25 函数、两索引和 Strong；schema 错误不 drop；两路相同参数化 category 前过滤；重复 id/无效向量/错误确认拒绝；无分类时无筛选表达式；实际 analyzer/型号检索。
   ```python
   def test_hybrid_requests_use_equal_prefilters_and_limits(hybrid_call):
       dense_request, sparse_request, ranker, hybrid_limit = hybrid_call
@@ -96,10 +96,10 @@ Task 1→2→3→4→5→6→7→8→9→10 顺序执行。每项 backend task �
       hit_ids = [hit.id for hit in filtered_hits]
       assert target_model_id in hit_ids[:10] and set(hit_ids) <= headphone_ids
   ```
-- [ ] **2. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_hybrid_milvus.py -q`；集成测试加 `tests/integration/test_hybrid_milvus.py --run-milvus`，随机集合初始化由 fixture 拥有，缺少新实现或错误过滤应失败。
-- [ ] **3. 实现 HybridMilvusIndex。** 用 PyMilvus FunctionType.BM25/AnnSearchRequest/RRFRanker；匹配 Global Constraints。按 PK 写全部字段，读回字段核验；verify_rows 对 Dense float32 比较使用明确容差，text/category 精确一致。外部注入 client 不由适配器关闭。
-- [ ] **4. 运行 GREEN。** 受控调用参数测试与真实 Milvus 测试都通过；确认具体型号在过滤范围内命中，而非仅断言 token 非空。
-- [ ] **5. 审查、留痕、提交。** `feat: add native Chinese BM25 and RRF retrieval index`。
+- [x] **2. 运行 RED。** `.venv/Scripts/python.exe -m pytest tests/test_hybrid_milvus.py -q`；集成测试加 `tests/integration/test_hybrid_milvus.py --run-milvus`，随机集合初始化由 fixture 拥有，缺少新实现或错误过滤应失败。
+- [x] **3. 实现 HybridMilvusIndex。** 用 PyMilvus FunctionType.BM25/AnnSearchRequest/RRFRanker；匹配 Global Constraints。按 PK 写全部字段，读回字段核验；verify_rows 对 Dense float32 比较使用明确容差，text/category 精确一致。外部注入 client 不由适配器关闭。
+- [x] **4. 运行 GREEN。** 受控调用参数测试与真实 Milvus 测试都通过；确认具体型号在过滤范围内命中，而非仅断言 token 非空。
+- [x] **5. 审查、留痕、提交。** `feat: add native Chinese BM25 and RRF retrieval index`。
 
 ## Task 3：done 全量重建与 pending 增量恢复
 
