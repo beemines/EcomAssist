@@ -1,4 +1,4 @@
-# 核对初始化后的四张业务表及种子数据，防止实际数据库偏离用户给定 DDL。
+# 核对当前八张业务及质量表与种子数据，防止实际数据库偏离用户给定 DDL。
 import pytest
 
 
@@ -12,7 +12,10 @@ async def test_mysql_schema_matches_supplied_ddl(mysql_database):
             SELECT TABLE_NAME, ENGINE, TABLE_COLLATION FROM information_schema.TABLES
             WHERE TABLE_SCHEMA = DATABASE()
         """))).all()
-        assert {row.TABLE_NAME for row in tables} == {"conversations", "messages", "faq", "tickets", "knowledge_chunks", "qa_extraction_staging"}
+        assert {row.TABLE_NAME for row in tables} == {
+            "conversations", "messages", "faq", "tickets", "knowledge_chunks", "qa_extraction_staging",
+            "low_confidence_questions", "faith_cases",
+        }
         assert all(row.ENGINE == "InnoDB" and row.TABLE_COLLATION.startswith("utf8mb4_") for row in tables)
         columns = (await session.execute(text("""
             SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA, COLUMN_KEY
