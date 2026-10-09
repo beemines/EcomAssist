@@ -1,0 +1,13 @@
+{
+  "text_files": 219,
+  "python_functions": 1329,
+  "utf8_errors": [],
+  "missing_chinese_explanation": [],
+  "secret_locations": [],
+  "tracked_private_files": [],
+  "checked_code_commit": "c34af70dffe6c50e1ff90b091033630abff6edde",
+  "checked_at_local": "2026-10-09T19:21:56",
+  "javascript_syntax_check": "D:/vue/node.exe --check app/static/chat.js: exit0",
+  "diff_whitespace_check": "git diff --check: exit0",
+  "scope": "Git tracked and non-ignored untracked project text/code; dependencies and ignored scratch excluded; JS named functions have manually verified Chinese comments."
+}
