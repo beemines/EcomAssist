@@ -32,3 +32,13 @@
 从当前会话已读取的用户原消息（turn_id：01a120a8-a009-71e3-a5a3-26e964928679）截取六列 CSV，保存 evals/datasets/merchant-rag-300/original.csv。正文保持用户原始问题和标签，UTF-8、LF；不把发现的问题直接改进原表。
 
 现场核验为 300 行、300 个唯一 ID，A_policy/B_model/C_colloquial/E_multi/D_absent 各 60 行；与提取原文逐字节一致。SHA-256 为 1c145124f298dc224210016e89bf3f1ed619bf18dea5f544616ebd4713053a09。此核验只证明原文归档，尚不证明题目标准答案正确；逐题审标是实施任务 1。
+
+## 联合裁判 API 实现前预查（2026-10-10）
+
+任务2进行时，控制端只读预查任务3的具体接口，没有提前修改其生产代码。通过Context7先resolve LangChain，再查询 /websites/reference_langchain 的 ChatOpenAI.with_structured_output、/pydantic/pydantic 的严格模型校验、/python/cpython 的 asyncio 超时与取消。原回包保存于忽略缓存 .cache/context7-workbench-judge-{langchain,langchain-raw,strict-pydantic,timeout}.txt，任务3代理在使用前必须读取完整回包及核对安装接口。
+
+- [ChatOpenAI API](https://reference.langchain.com/python/langchain-openai/chat_models/base/ChatOpenAI/with_structured_output)说明include_raw返回raw/parsed/parsing_error；应使用原始AIMessage的finish_reason判定正常结束，不能仅信parsed。
+- [Pydantic模型文档](https://github.com/pydantic/pydantic/blob/main/docs/concepts/models.md)区分默认转换与strict校验；字符串布尔不能当严格布尔。回包混有v1示例，不能将其直接搬进v2实现。
+- [CPython超时文档](https://github.com/python/cpython/blob/main/Doc/library/asyncio-task.rst)区分局部超时转换的TimeoutError与外部取消；外部取消不能被一般错误处理吞掉。
+
+只读importlib.metadata/inspect核实实际安装：langchain-core1.6.6、langchain-openai1.6.7、Pydantic2.13.5，与锁文件一致。安装的ChatOpenAI.with_structured_output默认method='json_schema'；Context7回包的一段示例写function_calling，因此不能凭那段默认值接入。后续实现需显式选择项目既有兼容方法并验证raw字段，不依赖默认值，不升级依赖或改模型。检查没有构造模型实例、读取.env或发出模型请求；解释器既存miniconda定位提示仍如实记录。
