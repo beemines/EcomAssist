@@ -404,21 +404,34 @@ async def test_final_stream_boundary_rejects_and_closes_before_judge_or_ledger(t
     assert all(r['error_stage'] == 'generation' for r in report['records'])
 
 
-@pytest.mark.parametrize('swallow', ['cancel', 'uncancel', 'blocked_loop'])
-async def test_final_stream_cannot_turn_expired_cumulative_deadline_into_success(tmp_path, swallow):
-    """吞取消或阻塞事件循环后返回stop仍须按绝对累计期限失败。"""
-    import asyncio, time
+@pytest.mark.parametrize('swallow', ['cancel', 'uncancel', 'blocked_loop', 'before_stream'])
+async def test_final_stream_cannot_turn_expired_cumulative_deadline_into_success(tmp_path, swallow, monkeypatch):
+    """用受控单调时钟区分流前超期及进入后吞取消，均不得成功或落账。"""
+    import asyncio
     from langchain_core.messages import AIMessageChunk
-    closed, judgments = [], []
+    evaluator = api()
+    loop = asyncio.get_running_loop()
+    clock = [loop.time()]
+    # 只控制本测试的时间来源；实际 timeout_at、取消、流守卫与关闭仍运行。
+    monkeypatch.setattr(loop, 'time', lambda: clock[0])
+    monkeypatch.setattr(evaluator, 'monotonic', lambda: clock[0])
+    entered, closed, judgments = [], [], []
     class SlowFinal(Model):
+        async def ainvoke(self, messages):
+            """在流开始前耗尽累计预算，辨别未进入和未关闭生成器。"""
+            if swallow == 'before_stream':
+                clock[0] += .03
+            return await super().ainvoke(messages)
         async def astream(self, messages):
             """模拟超时已触发却被下层吞掉的流，finally暴露关闭行为。"""
             try:
-                if swallow == 'blocked_loop':
-                    time.sleep(.03)
-                else:
+                entered.append(True)
+                clock[0] += .03
+                if swallow != 'blocked_loop':
                     try:
-                        await asyncio.sleep(1)
+                        # 让真实事件循环处理已经到期的 timer，避免机器速度决定进入次数。
+                        while True:
+                            await asyncio.sleep(0)
                     except asyncio.CancelledError:
                         if swallow == 'uncancel':
                             asyncio.current_task().uncancel()
@@ -436,7 +449,14 @@ async def test_final_stream_cannot_turn_expired_cumulative_deadline_into_success
         settings=fake_settings(chat_timeout_seconds=.01), database_mode='test',
         output=tmp_path/'timeout.json', kind='controlled')
     assert report['errors'] == 4 and not report['passed']
-    assert not judgments and not ledger.cases and closed == [True] * 4
+    print(f'deadline_probe mode={swallow} entered={len(entered)} closed={len(closed)}')
+    assert not judgments and not ledger.cases
+    if swallow == 'before_stream':
+        assert entered == [] and closed == []
+    else:
+        assert entered == [True] * 4 and closed == [True] * 4
+    assert all(r['error_stage'] == 'generation' and r['error_code'] == 'generation_error'
+               and r.get('answer') is None for r in report['records'])
 
 
 async def test_caller_cancellation_swallowed_by_final_stream_still_propagates(tmp_path):

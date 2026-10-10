@@ -146,6 +146,35 @@ curl.exe -N --max-time 260 -H 'Content-Type: application/json' --data-binary '@.
 
 模型及 FAQ 不额外重试，取消传播至底层。其他业务工具沿用原有限重试。用户批准保留 PyMilvus 3.0.2 内部不可公开关闭的一次 schema 缓存刷新重试；写入沿用同一主键，所有逻辑调用受外层期限限制。修改 `.env` 后重启进程。
 
+## 冻结 300 题评估工作台
+
+工作台入口为 `/rag-eval`，聊天入口为 `/`。默认 `RAG_EVALUATION_ENABLED=false`，页面可读取资料、历史和已有公开报告；启动和取消需要显式启用。新评估固定使用 `merchant-rag-300-v1`：五桶各 60 题、八篇 50 块、固定 pilot 10 题 / 40 条策略记录，合法匹配且清理成功后才能运行 full 300 题 / 1200 条。线上原有 `calibrated_score` 门槛保持，新评估采用共同内容充分性门槛 `content_ablation`。
+
+在当前 checkout 根目录启动新服务，端口须与来源白名单一致。已有服务无需停止；以下以独立端口 8002 为例，仍沿用本地 `.env` 的模型、密钥、预算和线上校准值：
+
+```powershell
+$env:PYTHONUTF8 = '1'
+$env:PYTHONIOENCODING = 'utf-8'
+$env:RAG_EVALUATION_ENABLED = 'true'
+$env:RAG_EVALUATION_ALLOWED_ORIGINS = '["http://127.0.0.1:8002","http://localhost:8002"]'
+uv run --locked uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8002 --workers 1
+```
+
+只读运行将 `RAG_EVALUATION_ENABLED` 设为 `false`。服务必须只有一个 worker；CLI 和 HTTP 共用 OS 文件锁，同一时刻只有一个运行，取消与清理结束前不会放行下一轮。重启会保留中断记录，不自动续跑收费请求。页面启动 pilot、核对合法输出与清理，再由同页启动 full；不要同时执行下列 CLI 运行命令。
+
+```powershell
+uv run --locked python -m evals.rag_workbench validate --dataset merchant-rag-300-v1
+uv run --locked python -m evals.rag_workbench run --dataset merchant-rag-300-v1 --scope pilot
+uv run --locked python -m evals.rag_workbench run --dataset merchant-rag-300-v1 --scope full
+uv run --locked python -m evals.rag_workbench show --run-id '<实际32位run_id>'
+```
+
+API 基址 `/api/rag-evaluations` 提供 `GET /datasets`、`POST /runs`、`GET /runs`、`GET /runs/{run_id}`、`GET /runs/{run_id}/cases`、`GET /runs/{run_id}/cases/{eval_id}/{strategy}`、`POST /runs/{run_id}/cancel`、`GET /runs/{run_id}/export?format=json|markdown`。启动 JSON 仅接受 `dataset_id` 和 `scope`，取消发送 `{}`；不开放模型、预算、数据库或输出路径修改。新旧报告按各自指标口径展示，`vector` 对应内部 `dense`。
+
+新运行的本地文件位于 `runtime/rag-evaluation/{run_id}/`，该目录已忽略，原始裁判与归属快照不提交。公共 `report.json` / `report.md` 经白名单投影并一致发布后才可下载。材料与标注说明见[材料审计](docs/validation/rag-evaluation-materials-audit.md)，已完成的受控 UI 边界验证见[页面验证](docs/validation/rag-evaluation-ui.md)。真实 pilot/full 报告及最终限制由 Task10 的后续真实阶段发布；受控夹具不能开启真实全量门槛，也不能当作模型得分。
+
+这版材料参考同一金标题库构造，只能支持项目内受控比较。候选 Top-50 等于全部 50 块，候选覆盖饱和不能证明泛化；实际比较还需看首命中、Top-5/10 完整组、Prompt 覆盖、回答要点与忠实度，并列出各指标有效分母、错误与四路共同有效子集。部分失败如实保留，不通过重复全量收费洗分。
+
 ## 回归与开发记录
 
 ```powershell
@@ -154,7 +183,9 @@ uv run --locked pytest -q --run-mysql --run-milvus -o faulthandler_timeout=30
 git diff --check
 ```
 
-当前代码显式启用 MySQL/Milvus 完整回归 **1205 passed、0 failed、0 skipped**；默认配置回归 **1096 passed、109 skipped**。最终后端修复均已通过定向复核。实际云端比较为 **101/120 项完成、19 项错误**，口语邮费问题仍有误拒答，详见[本轮结果](docs/validation/hybrid-retrieval-results.md)及[审查记录](docs/validation/hybrid-retrieval-review.md)。
+2026-10-10 冻结评估工作台的最终工程回归：默认 **1358 passed、116 skipped**，显式启用 MySQL/Milvus **1474 passed、0 failed、0 skipped**。遗留累计期限测试经进入/关闭诊断与确定性时间控制核验；尚待整分支独立后端审查与真实收费 pilot/full，工程绿色不代表模型得分。
+
+此前混合检索阶段显式回归 **1205 passed**、默认 **1096 passed、109 skipped** 为历史记录。此前实际云端比较为 **101/120 项完成、19 项错误**，口语邮费问题仍有误拒答，详见[历史本轮结果](docs/validation/hybrid-retrieval-results.md)及[审查记录](docs/validation/hybrid-retrieval-review.md)，不替代新300题结果。
 
 默认回归跳过真实 MySQL/Milvus 集成；显式启用但服务未就绪会失败。受控模型与确定性向量测试证明协议/事务/错误边界，不证明上游事实质量。第四步过程记录在 [dev-notes/ch04.md](dev-notes/ch04.md)；历史文件名保留原提示词约定，README 和提交不使用章名标记开发阶段。
 
