@@ -148,30 +148,39 @@ curl.exe -N --max-time 260 -H 'Content-Type: application/json' --data-binary '@.
 
 ## 冻结 300 题评估工作台
 
-工作台入口为 `/rag-eval`，聊天入口为 `/`。默认 `RAG_EVALUATION_ENABLED=false`，页面可读取资料、历史和已有公开报告；启动和取消需要显式启用。新评估固定使用 `merchant-rag-300-v1`：五桶各 60 题、八篇 50 块、固定 pilot 10 题 / 40 条策略记录，合法匹配且清理成功后才能运行 full 300 题 / 1200 条。线上原有 `calibrated_score` 门槛保持，新评估采用共同内容充分性门槛 `content_ablation`。
+当前交付状态为 N1/N2 最小修复与专项验证进行中、收费门禁关闭：真实 pilot/full 均未运行。原四项整分支问题已修复，但后续定向复核发现 N1（合法逆序裁判要点导致发布失败）和 N2（审计升级前 v2 报告下载返回409）。现有绿色回归不覆盖这两个组合触发点，不能据此启动真实评估；详见[交付状态](docs/validation/rag-evaluation-delivery.md)。
+
+工作台入口为 `/rag-eval`，聊天入口为 `/`。默认 `RAG_EVALUATION_ENABLED=false`，页面可读取资料、历史与合法已提交报告；启动和取消需要显式启用，旧 pre-audit v2 下载目前受 N2 影响。新评估固定使用 `merchant-rag-300-v1`：五桶各 60 题、八篇 50 块、固定 pilot 10 题 / 40 条策略记录；全部40条合法完成、当前 audit-v1/source-map 与冻结资料及配置匹配、清理成功后才能运行 full 300 题 / 1200 条。线上原有 `calibrated_score` 门槛保持，新评估采用共同内容充分性门槛 `content_ablation`。
 
 在当前 checkout 根目录启动新服务，端口须与来源白名单一致。已有服务无需停止；以下以独立端口 8002 为例，仍沿用本地 `.env` 的模型、密钥、预算和线上校准值：
 
 ```powershell
 $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
-$env:RAG_EVALUATION_ENABLED = 'true'
+$env:RAG_EVALUATION_ENABLED = 'false'
 $env:RAG_EVALUATION_ALLOWED_ORIGINS = '["http://127.0.0.1:8002","http://localhost:8002"]'
 uv run --locked uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8002 --workers 1
 ```
 
-只读运行将 `RAG_EVALUATION_ENABLED` 设为 `false`。服务必须只有一个 worker；CLI 和 HTTP 共用 OS 文件锁，同一时刻只有一个运行，取消与清理结束前不会放行下一轮。重启会保留中断记录，不自动续跑收费请求。页面启动 pilot、核对合法输出与清理，再由同页启动 full；不要同时执行下列 CLI 运行命令。
+上例为只读配置参考，本次文档阶段没有启动服务。只有控制端明确放行收费门禁后，才将 `RAG_EVALUATION_ENABLED` 设为 `true` 并重启自有服务。服务必须只有一个 worker；CLI 和 HTTP 共用 OS 文件锁，同一时刻只有一个运行，取消与清理结束前不会放行下一轮。重启会保留中断记录，不自动续跑收费请求。
 
 ```powershell
 uv run --locked python -m evals.rag_workbench validate --dataset merchant-rag-300-v1
+uv run --locked python -m evals.rag_workbench show --run-id '<已有实际32位run_id>'
+```
+
+下列收费运行命令仅供门禁放行后的复现。原任务要求先从真实页面启动 pilot 一次，核对合法输出与清理，服务端允许后再由同页启动 full 一次；页面与 CLI 不能重复或同时启动同批。
+
+```powershell
 uv run --locked python -m evals.rag_workbench run --dataset merchant-rag-300-v1 --scope pilot
 uv run --locked python -m evals.rag_workbench run --dataset merchant-rag-300-v1 --scope full
-uv run --locked python -m evals.rag_workbench show --run-id '<实际32位run_id>'
 ```
 
 API 基址 `/api/rag-evaluations` 提供 `GET /datasets`、`POST /runs`、`GET /runs`、`GET /runs/{run_id}`、`GET /runs/{run_id}/cases`、`GET /runs/{run_id}/cases/{eval_id}/{strategy}`、`POST /runs/{run_id}/cancel`、`GET /runs/{run_id}/export?format=json|markdown`。启动 JSON 仅接受 `dataset_id` 和 `scope`，取消发送 `{}`；不开放模型、预算、数据库或输出路径修改。新旧报告按各自指标口径展示，`vector` 对应内部 `dense`。
 
-新运行的本地文件位于 `runtime/rag-evaluation/{run_id}/`，该目录已忽略，原始裁判与归属快照不提交。公共 `report.json` / `report.md` 经白名单投影并一致发布后才可下载。材料与标注说明见[材料审计](docs/validation/rag-evaluation-materials-audit.md)，已完成的受控 UI 边界验证见[页面验证](docs/validation/rag-evaluation-ui.md)。真实 pilot/full 报告及最终限制由 Task10 的后续真实阶段发布；受控夹具不能开启真实全量门槛，也不能当作模型得分。
+新运行的本地文件位于 `runtime/rag-evaluation/{run_id}/`，该目录已忽略，原始裁判与归属快照不提交。单份不可变 `source-map.json` 保留完整50块来源和本轮主键，逐题 `audit` 保留稳定组、答案要点及实际候选/最终排序 score/kind；不同分数种类不可直接比较。公共 `report.json` / `report.md` 经白名单投影并一致发布后才可下载，缺少历史捕获的数据保持 null/N/A。旧原始报告已原字节移到 `evals/legacy/rag-evaluation-history.json`，静态URL不再公开原始字段，安全历史API仍提供原指标。
+
+材料与标注说明见[材料审计](docs/validation/rag-evaluation-materials-audit.md)，已完成的受控 UI 边界验证见[页面验证](docs/validation/rag-evaluation-ui.md)。真实 pilot/full 报告由 Task10 后续合法真实阶段发布；当前没有 `merchant-rag-pilot` / `merchant-rag-comparison` 实测报告，不用受控夹具替代真实运行或质量分数。
 
 这版材料参考同一金标题库构造，只能支持项目内受控比较。候选 Top-50 等于全部 50 块，候选覆盖饱和不能证明泛化；实际比较还需看首命中、Top-5/10 完整组、Prompt 覆盖、回答要点与忠实度，并列出各指标有效分母、错误与四路共同有效子集。部分失败如实保留，不通过重复全量收费洗分。
 
@@ -183,7 +192,9 @@ uv run --locked pytest -q --run-mysql --run-milvus -o faulthandler_timeout=30
 git diff --check
 ```
 
-2026-10-10 冻结评估工作台的最终工程回归：默认 **1358 passed、116 skipped**，显式启用 MySQL/Milvus **1474 passed、0 failed、0 skipped**。遗留累计期限测试经进入/关闭诊断与确定性时间控制核验；尚待整分支独立后端审查与真实收费 pilot/full，工程绿色不代表模型得分。
+2026-10-10，生产修复提交 `77d7d02ef1fb500e3ae00f069c368fd204135b3a` 的默认完整回归 **1386 passed、116 skipped（250.03秒）**；最后显式 MySQL/Milvus完整回归 **1502 passed、0 failed、0 skipped（388.30秒）**。显式首轮的四个子进程fixture接线失败已保留，最小fixture修正后才得到该绿色结果。定向复核确认原I1–I4已解决，同时发现仍未修复的N1/N2，工程收费门禁因此继续关闭。此文档阶段没有重复测试。
+
+此前 Task10 工程提交 `ab25215` 的 **1358 passed、116 skipped / 显式1474 passed** 及累计期限诊断仍为历史证据。受控测试与真实服务检索均不等于真实模型质量。
 
 此前混合检索阶段显式回归 **1205 passed**、默认 **1096 passed、109 skipped** 为历史记录。此前实际云端比较为 **101/120 项完成、19 项错误**，口语邮费问题仍有误拒答，详见[历史本轮结果](docs/validation/hybrid-retrieval-results.md)及[审查记录](docs/validation/hybrid-retrieval-review.md)，不替代新300题结果。
 
