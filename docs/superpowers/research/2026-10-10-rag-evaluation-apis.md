@@ -77,3 +77,10 @@ Context7 `/websites/reference_langchain` 的ainvoke/astream结束元数据预查
 ## 运行管理与API后续实现前预查
 
 任务6执行时，控制端提前通过Context7保存workbench-manager-task-lifecycle、workbench-api-lifespan、workbench-api-download原回包。CPython官方明确create_task须保留强引用、取消是协作式、CancelledError继承BaseException；最新签名包含更新版本选项，后续必须按安装3.13.5核对，不能跨版本照搬。FastAPI官方[lifespan](https://fastapi.tiangolo.com/advanced/events)由异步上下文拥有startup/shutdown，TestClient上下文验证全生命周期；不以请求BackgroundTasks持有评估资源。[FileResponse接口](https://fastapi.tiangolo.com/reference/responses)提供path、filename、media_type等参数，导出仍只采用固定受控路径和白名单内容。uv.lock为FastAPI0.142.2/Starlette1.7.0/Uvicorn0.54.0，具体使用前须查安装版本及缺少的参数校验资料。没有提前写Task7/8生产代码。
+## 工作台 API 参数约束预检（Task 8 实现前）
+
+2026-10-10 通过 Context7 MCP 查询 FastAPI 与 Pydantic 官方文档，完整回包保存于 `.cache/context7-workbench-api-query.txt`、`.cache/context7-workbench-api-pydantic.txt`。FastAPI 的 Query 模型支持 `Annotated[FilterParams, Query()]`、`extra=forbid`、整数范围与字符串长度约束；该功能自 0.115.0 提供，锁定 0.142.2 可用。Pydantic 模型须明确 `ConfigDict(extra="forbid")`，默认会忽略未知字段。分页 URL 参数本身是字符串，不能把 strict=True 整体照搬而拒绝合法的 offset/limit；JSON 请求字段可用严格约束。服务端按独立 Host/Origin 白名单拒绝收费写请求；返回错误使用白名单，不能把验证输入或异常原文直接回显。Task 8 仍需核对实际安装签名及原应用 lifespan 资源归属；这次查询没有修改生产代码。
+
+## 工作台前端轮询与详情预检（Task 9 实现前）
+
+Context7 `/mdn/content` 回包存于 `.cache/context7-workbench-ui-polling.txt`，结合原有 `context7-rag-admin-frontend-dom.txt`：正文采用 createElement/textContent；fetch 先验证 HTTP 状态再解析 JSON；轮询必须清除定时器，详情用原生 dialog.showModal()/close() 并恢复触发按钮焦点。回包混有 setHTMLUnsafe 示例，与本项目安全展示要求不符，不能照搬。页面卸载终止轮询、异步旧响应不覆盖新选择，具体实现时按浏览器实际支持与固定 API 契约验收。
