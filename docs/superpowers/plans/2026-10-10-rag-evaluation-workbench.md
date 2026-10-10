@@ -8,7 +8,7 @@
 
 **Tech Stack:** 现有锁定版本 Python / FastAPI / SQLAlchemy / MySQL / LangChain / Milvus，BGE-M3、Milvus BM25 chinese analyzer + RRF、bge-reranker-v2-m3；不新增任务队列或依赖。
 
-**Spec:** [书面设计](../specs/2026-10-09-rag-evaluation-workbench-design.md)，用户 2026-10-10 “确认”。本计划待审阅；执行方式沿用已选 Subagent-Driven，前端采用 Vibe Coding 例外。
+**Spec:** [书面设计](../specs/2026-10-09-rag-evaluation-workbench-design.md)，用户 2026-10-10 “确认”。本计划已由用户“开始实现”批准；执行方式沿用已选 Subagent-Driven，前端采用 Vibe Coding 例外。
 
 ## Global Constraints
 
@@ -226,4 +226,4 @@ $env:PYTHONIOENCODING = 'utf-8'
 - 五类 Review Focus 各有命名测试和所属任务；跨模块类型、同名接口与实体资源所有者一致，没有匿名“处理边界”或未定义后继接口。
 - 本计划不抄写实现函数体；10个交付单元各自可验收，前端采用用户例外。新增路径仅在实现任务时创建。
 - 原 CSV 的归档/行数检查不等于300题审标完成；八篇50块是离线材料事实，不等于已建库。既有1205工程测试结果不代替本次新代码测试。
-- 用户已批准书面设计并保留 Subagent-Driven；计划等待用户审阅后进入任务1。暂未实现新评估后端或启动收费试运行。
+- 用户已批准书面设计并保留 Subagent-Driven；2026-10-10 以“开始实现”批准本计划，进入任务1。批准时新评估后端与收费试运行尚未启动。
