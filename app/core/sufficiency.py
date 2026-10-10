@@ -55,7 +55,10 @@ def _safe_kind(question: str, kind: str) -> Literal['knowledge', 'social', 'clar
 class SufficiencyService:
     # 依赖由调用方拥有；服务不关闭模型，明确使用 SDK JSON 模式与原始输出。
     def __init__(self, model: Any, *, input_budget: int, timeout: float = 20,
-                 minimum_rerank_score: float | None):
+                 minimum_rerank_score: float | None,
+                 mode: Literal['calibrated_score', 'content_ablation'] = 'calibrated_score'):
+        if mode not in ('calibrated_score', 'content_ablation'):
+            raise ValueError('unknown sufficiency mode')
         if type(input_budget) is not int or input_budget <= 0:
             raise ValueError('input budget must be a positive integer')
         if type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0:
@@ -65,12 +68,13 @@ class SufficiencyService:
             raise ValueError('rerank threshold must be finite')
         self.structured_model = model.with_structured_output(_Assessment, method='json_mode', include_raw=True)
         self.input_budget, self.timeout, self.minimum_rerank_score = input_budget, timeout, minimum_rerank_score
+        self.mode = mode
 
     # 无工具问题也必须判定；合法自评后再执行知识空集及真实重排分的硬门槛。
     async def check(self, raw_question: str, evidence: EvidencePacket) -> QualityDecision:
         if not isinstance(raw_question, str) or not raw_question.strip():
             raise ValueError('raw question must be nonempty text')
-        if evidence.strategy == 'hybrid_rerank':
+        if self.mode == 'calibrated_score' and evidence.strategy == 'hybrid_rerank':
             if self.minimum_rerank_score is None:
                 raise ValueError('online hybrid_rerank requires a calibrated threshold')
             if any(item['score_kind'] != 'rerank' for item in evidence.payload.get('matches', [])):
@@ -93,7 +97,8 @@ class SufficiencyService:
             raise invalid_output()
         result = validate_structured_output(output, _Assessment)
         kind = _safe_kind(raw_question, result.response_kind)
-        low = not evidence.citations or (evidence.strategy == 'hybrid_rerank'
+        # 内容消融保留空事实证据门槛；校准分仅属于默认线上重排路径。
+        low = not evidence.citations or (self.mode == 'calibrated_score' and evidence.strategy == 'hybrid_rerank'
             and (evidence.best_score is None or evidence.best_score < self.minimum_rerank_score))
         if kind == 'knowledge' and low:
             return QualityDecision(useful=False, reason='当前知识证据为空或低于已校准重排门槛。',

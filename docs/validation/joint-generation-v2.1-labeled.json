@@ -1,0 +1,54 @@
+{
+  "prompt_version": "joint-generation-v2.1",
+  "verification_scope": "人工标注预期+受控raw解析验证；不代表真实LLM语义质量，真实10题40条试运行属于Task10",
+  "cases": [
+    {
+      "label": "同义表达",
+      "question": "未拆封商品几天内可退？",
+      "answer": "未拆封商品一周内能退。",
+      "points": [{"point_id": "p1", "text": "未拆封七天内可退货", "condition": "未拆封", "aliases": ["一周内可退"]}],
+      "citations": [{"n": 1, "chunk_id": "1", "section_path": "退货", "question": "退货条件", "answer": "未拆封七天内可退货。"}],
+      "expected": {"points": [{"point_id": "p1", "covered": true, "reason": "一周与七天同义且保留未拆封条件"}], "claims": [{"claim": "未拆封商品一周内能退", "supported": true, "reason": "引用1明确给出相同条件和期限"}]}
+    },
+    {
+      "label": "条件遗漏",
+      "question": "商品几天内可退？",
+      "answer": "所有商品七天内可退。",
+      "points": [{"point_id": "p1", "text": "未拆封七天内可退货", "condition": "未拆封", "aliases": []}],
+      "citations": [{"n": 1, "chunk_id": "1", "section_path": "退货", "question": "退货条件", "answer": "未拆封七天内可退货。"}],
+      "expected": {"points": [{"point_id": "p1", "covered": false, "reason": "遗漏未拆封条件且扩大到所有商品"}], "claims": [{"claim": "所有商品七天内可退", "supported": false, "reason": "引用1只支持未拆封商品"}]}
+    },
+    {
+      "label": "部分可答",
+      "question": "什么条件可退，运费谁出？",
+      "answer": "未拆封七天内可退货；运费没有足够证据。",
+      "points": [{"point_id": "p1", "text": "未拆封七天内可退货", "condition": "未拆封", "aliases": []}, {"point_id": "p2", "text": "买家承担退货运费", "condition": null, "aliases": []}],
+      "citations": [{"n": 1, "chunk_id": "1", "section_path": "退货", "question": "退货条件", "answer": "未拆封七天内可退货。"}],
+      "expected": {"points": [{"point_id": "p1", "covered": true, "reason": "退货条件及期限完整"}, {"point_id": "p2", "covered": false, "reason": "没有回答由谁承担运费"}], "claims": [{"claim": "未拆封七天内可退货", "supported": true, "reason": "引用1直接支持"}]}
+    },
+    {
+      "label": "有依据否定",
+      "question": "定制商品支持无理由退货吗？",
+      "answer": "定制商品不支持七天无理由退货。",
+      "points": [{"point_id": "p1", "text": "定制商品不支持七天无理由退货", "condition": "定制商品", "aliases": []}],
+      "citations": [{"n": 1, "chunk_id": "1", "section_path": "例外", "question": "定制退货", "answer": "定制商品不支持七天无理由退货。"}],
+      "expected": {"points": [{"point_id": "p1", "covered": true, "reason": "完整表达定制例外"}], "claims": [{"claim": "定制商品不支持七天无理由退货", "supported": true, "reason": "引用1明确给出否定规则，不是从沉默推断"}]}
+    },
+    {
+      "label": "纯拒答",
+      "question": "未拆封商品几天内可退？",
+      "answer": "现有证据不足，无法回答。",
+      "points": [{"point_id": "p1", "text": "未拆封七天内可退货", "condition": "未拆封", "aliases": []}],
+      "citations": [],
+      "expected": {"points": [{"point_id": "p1", "covered": false, "reason": "纯拒答没有覆盖业务事实"}], "claims": []}
+    },
+    {
+      "label": "金标泄漏反例",
+      "question": "商品保修多久？",
+      "answer": "商品保修两年。",
+      "points": [{"point_id": "p1", "text": "商品保修两年", "condition": null, "aliases": ["二十四个月"]}],
+      "citations": [{"n": 1, "chunk_id": "1", "section_path": "营业", "question": "营业时间", "answer": "门店九点营业。"}],
+      "expected": {"points": [{"point_id": "p1", "covered": true, "reason": "回答覆盖金标事实，但覆盖不等于有支持"}], "claims": [{"claim": "商品保修两年", "supported": false, "reason": "实际引用仅有营业时间，金标不属于证据"}]}
+    }
+  ]
+}
