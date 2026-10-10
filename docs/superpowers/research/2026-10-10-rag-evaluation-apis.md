@@ -42,3 +42,13 @@
 - [CPython超时文档](https://github.com/python/cpython/blob/main/Doc/library/asyncio-task.rst)区分局部超时转换的TimeoutError与外部取消；外部取消不能被一般错误处理吞掉。
 
 只读importlib.metadata/inspect核实实际安装：langchain-core1.6.6、langchain-openai1.6.7、Pydantic2.13.5，与锁文件一致。安装的ChatOpenAI.with_structured_output默认method='json_schema'；Context7回包的一段示例写function_calling，因此不能凭那段默认值接入。后续实现需显式选择项目既有兼容方法并验证raw字段，不依赖默认值，不升级依赖或改模型。检查没有构造模型实例、读取.env或发出模型请求；解释器既存miniconda定位提示仍如实记录。
+
+## 运行文件与 OS 文件锁实现前预查
+
+任务3执行时，控制端经 Context7 `/python/cpython` 查询任务4的原子替换、路径和文件锁接口，原回包保存在 `.cache/context7-workbench-store-locking.txt`。默认网络沙箱拒绝套接字后，公开文档查询经窄范围提升成功；没有发送用户密钥或项目正文。
+
+- [os.replace](https://github.com/python/cpython/blob/main/Doc/library/os.rst) 成功时原子替换；临时文件必须与目标同文件系统，跨文件系统失败不能覆盖旧快照。
+- [msvcrt.locking](https://github.com/python/cpython/blob/main/PC/msvcrtmodule.c) 从当前文件位置锁定指定字节，`LK_NBLCK` 失败抛 `OSError`。固定首字节、保持句柄，不以 PID 删除重建锁文件；真实子进程测试验证进程退出释放。
+- [fcntl.flock](https://github.com/python/cpython/blob/main/Doc/library/fcntl.rst) 的 `LOCK_EX | LOCK_NB` 提供 Unix 对应分支。当前验收以 Windows 安装运行时为准。
+
+冻结接口衔接：隔离导入取得物理主键前，只在 manifest 保存计划 case keys；缺少的计划记录计为未执行。取得 id_map 后执行器再保存严格完整的 CaseRecord，不伪造金标主键。初始化失败保留计划数和错误；公共运行配置与清理结果单独白名单投影，不能绕过 report.py 的裁判快照过滤。
