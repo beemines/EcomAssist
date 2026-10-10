@@ -469,6 +469,65 @@ async def test_duplicate_filters_and_mismatched_loopback_origin_are_rejected(tmp
     assert manager.starts == []
 
 
+@pytest.mark.parametrize('shape', ['preaudit', 'current'])
+@pytest.mark.parametrize('tamper', [None, 'private', 'extra', 'boolean_count', 'clock',
+    'missing_field', 'missing_markdown', 'markdown_mismatch', 'noncanonical', 'uncommitted', 'partial_audit'])
+async def test_v2_export_compatibility_preserves_safe_pair_and_original_files(tmp_path, shape, tamper):
+    """旧新v2只允许安全完整双格式下载；GET保持原字节和时钟且不补造审计。"""
+    from app.rag_evaluation.export import report_envelope, render_markdown
+    from tests.test_rag_metrics import record as completed_record
+    app, manager = application(tmp_path)
+    run_id = await manager.store.create(config(), [('E1', 'dense')])
+    await manager.store.put_case(run_id, completed_record('E1', 'dense'))
+    final = dict(await manager.store.get(run_id), state='completed', outcome='completed', stage='complete',
+        cleanup={'ok': True, 'errors': [], 'unverified': []})
+    saved = report_envelope(final, await manager.store.records(run_id))
+    if shape == 'preaudit':
+        saved.pop('source_map')
+        for row in saved['records']:
+            row.pop('audit')
+        checkpoint = tmp_path/run_id/'records'/'E1--dense.json'
+        original = json.loads(checkpoint.read_text(encoding='utf-8'))
+        original.pop('audit', None)
+        checkpoint.write_text(json.dumps(original, ensure_ascii=False), encoding='utf-8')
+    if tamper == 'private':
+        saved['records'][0]['judge_snapshot'] = {'raw_response': 'PRIVATE-SECRET'}
+    elif tamper == 'extra':
+        saved['request_body'] = 'PRIVATE-SECRET'
+    elif tamper == 'boolean_count':
+        saved['run']['planned_records'] = True
+    elif tamper == 'clock':
+        saved['run']['updated_at'] = 'PRIVATE-SECRET'
+    elif tamper == 'missing_field':
+        saved['records'][0].pop('query')
+    elif tamper == 'partial_audit':
+        if shape == 'preaudit':
+            saved['records'][0]['audit'] = None
+        else:
+            saved['records'][0].pop('audit')
+    json_path, md_path = tmp_path/run_id/'report.json', tmp_path/run_id/'report.md'
+    raw = json.dumps(saved, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode('utf-8')
+    json_path.write_bytes(raw + (b' ' if tamper == 'noncanonical' else b''))
+    md_path.write_bytes(render_markdown(saved).encode('utf-8'))
+    if tamper == 'missing_markdown':
+        md_path.unlink()
+    elif tamper == 'markdown_mismatch':
+        md_path.write_bytes(b'PRIVATE-SECRET')
+    if tamper != 'uncommitted':
+        await manager.store.update(run_id, {key: final[key] for key in ('state', 'outcome', 'stage', 'cleanup')})
+    before = {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in (tmp_path/run_id).rglob('*') if path.is_file()}
+    async with client_for(app) as client:
+        responses = [await client.get(f'{PREFIX}/runs/{run_id}/export?format={kind}') for kind in ('json', 'markdown')]
+        detail = await client.get(f'{PREFIX}/runs/{run_id}')
+    assert [response.status_code for response in responses] == ([200, 200] if tamper is None else [409, 409])
+    if tamper is None:
+        assert responses[0].content == raw and responses[1].content == md_path.read_bytes()
+        assert detail.json()['source_map'] is None
+        assert all('PRIVATE-SECRET' not in response.text for response in responses)
+    assert before == {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in (tmp_path/run_id).rglob('*') if path.is_file()}
+    assert manager.starts == manager.cancels == []
+
+
 @pytest.mark.parametrize('tamper', ['publication_clock', 'duplicate_json_key', 'boolean_count'])
 async def test_export_cannot_hide_secret_in_ignored_clock_or_duplicate_keys(tmp_path, tamper):
     """只容忍合法发布时钟差，文件原文不能藏入被 JSON 解析忽略的私密内容。"""

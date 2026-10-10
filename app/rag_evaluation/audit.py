@@ -110,7 +110,7 @@ def validate_audit(value, row):
             all(_text(alias) for alias in point['aliases']), '标准要点非法')
         seen.add(point['point_id'])
     if row['point_verdicts'] is not None:
-        _require([p['point_id'] for p in points] == [p['point_id'] for p in row['point_verdicts']], '裁判要点与原标准不一致')
+        _require(seen == {p['point_id'] for p in row['point_verdicts']}, '裁判要点与原标准不一致')
     candidate_kind = {'dense': 'cosine', 'bm25': 'bm25', 'hybrid': 'rrf', 'hybrid_rerank': 'rrf'}[row['strategy']]
     for field, ids_field, kind in (('candidate_ranking', 'candidate_ids', candidate_kind),
             ('final_ranking', 'final_ids', 'rerank' if row['strategy'] == 'hybrid_rerank' else candidate_kind)):

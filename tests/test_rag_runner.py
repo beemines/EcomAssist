@@ -45,6 +45,7 @@ class Model:
         self.finish, self.rewrite_error = 'stop', False
         self.delay, self.cancel_stage = 0., None
         self.unsupported, self.invalid_judge = False, False
+        self.judge_point_ids = None
         self.raise_after_cancel = False
         self.useful = True
         self.entered, self.release = asyncio.Event(), asyncio.Event()
@@ -99,6 +100,9 @@ class Structured:
                 'supported': not self.model.unsupported, 'reason': '本轮证据判断'}]}
             if not self.model.useful:
                 body['claims'] = []
+            if self.model.judge_point_ids is not None:
+                body['points'] = [dict(point_id=point_id, covered=True, reason='按ID覆盖要点')
+                    for point_id in self.model.judge_point_ids]
             if self.model.invalid_judge:
                 body['claims'][0]['supported'] = 'false'
         raw = AIMessage(json.dumps(body, ensure_ascii=False), response_metadata={'finish_reason': 'stop'})
@@ -161,6 +165,29 @@ async def setup(tmp_path, count=1):
     runner = module.EvaluationRunner(resources, store, run_id, settings())
     runner.retrieval = Retrieval()
     return runner, resources, store, data, run_id, http
+
+
+@pytest.mark.parametrize('point_ids,valid', [(['p2', 'p1'], True), (['p1'], False),
+    (['p1', 'p1'], False), (['p1', 'unknown'], False)])
+async def test_real_judge_point_ids_persist_by_identity_not_order(tmp_path, point_ids, valid):
+    """真实联合裁判接受完整逆序要点并经runner落盘；缺号、重号、未知号仍是裁判错误。"""
+    runner, resources, store, data, run_id, http = await setup(tmp_path)
+    data = replace(data, cases=(replace(data.cases[0], points=(
+        AnswerPoint('p1', '七天内', None, ()), AnswerPoint('p2', '未拆封', '原封包装', ('没打开',)))),))
+    resources.model.judge_point_ids = point_ids
+    try:
+        await runner.run_cases(data, {'one': 1, 'two': 2}, data.pilot_ids, asyncio.Event())
+    finally:
+        await http.aclose()
+    rows = await RunStore(tmp_path).records(run_id)
+    assert len(rows) == 4
+    assert all(row['status'] == ('completed' if valid else 'judge_error') for row in rows)
+    if valid:
+        assert all([p['point_id'] for p in row['point_verdicts']] == point_ids for row in rows)
+        assert all([p['point_id'] for p in row['audit']['answer_points']] == ['p1', 'p2'] for row in rows)
+        assert all(row['metrics']['answer_point_coverage'] == 1 for row in rows)
+    else:
+        assert all(row['point_verdicts'] is None for row in rows)
 
 
 async def test_one_query_plan_shared_by_four_strategies_and_no_gold_in_generation(tmp_path):

@@ -195,6 +195,14 @@ def _export_paths(store: RunStore, run_id: str, current: dict) -> dict[str, File
             raise PublicError('export_unavailable')
         comparison = copy.deepcopy(saved)
         expected = copy.deepcopy(current)
+        # 只兼容旧v2同时未采集map及全部audit；仅规范内存比较，不改已发布原文件。
+        if ('source_map' not in comparison and expected.get('source_map') is None
+                and isinstance(comparison.get('records'), list)
+                and all(isinstance(row, dict) and 'audit' not in row for row in comparison['records'])
+                and all(row.get('audit') is None for row in expected['records'])):
+            comparison['source_map'] = None
+            for row in comparison['records']:
+                row['audit'] = None
         # manager 完整报告先发布，随后 manifest 更新最后的发布时钟。
         comparison['run'].pop('updated_at', None)
         expected['run'].pop('updated_at', None)
