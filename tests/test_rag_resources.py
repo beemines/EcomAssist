@@ -394,14 +394,10 @@ async def test_real_rpc_interceptor_counts_every_wire_call_and_reset(tmp_path):
     handler = module._CountedHandler(counter=counter, uri=f'http://127.0.0.1:{port}')
     try:
         for channel in (handler._async_channel, handler._create_channel(f'127.0.0.1:{port}')):
-            try:
-                call = channel.unary_unary('/test.Count/Echo')
-                assert await call(b'schema') == b'schema'
-                assert await call(b'upsert') == b'upsert'
-                assert await call(b'replay') == b'replay'
-            finally:
-                if channel is not handler._async_channel:
-                    await channel.close()
+            call = channel.unary_unary('/test.Count/Echo')
+            assert await call(b'schema') == b'schema'
+            assert await call(b'upsert') == b'upsert'
+            assert await call(b'replay') == b'replay'
         assert len(received) == 6
         assert (await store.get(run_id))['request_counts']['milvus'] == 6
     finally:
@@ -670,3 +666,91 @@ async def test_cleanup_snapshot_cancellation_still_closes_resources(tmp_path, mo
     assert database.closed == 1 and owner.index.closed == 1
     assert all(client.is_closed for client in owner._http_clients)
     assert (await owner.cleanup()) == result and database.closed == 1
+
+
+@pytest.mark.parametrize('phase', ['identifier_cancel', 'publish_cancel', 'identifier_error', 'success',
+                                  'close_error', 'close_cancel'])
+async def test_reconnect_owns_every_channel_and_closes_each_once(tmp_path, monkeypatch, phase):
+    """重连握手或发布等待失败，未发布、退休和当前真实通道都由拥有者各关闭一次。"""
+    import grpc
+    module = api()
+    store = RunStore(tmp_path)
+    run_id = await store.create(config(), [('E1', 'dense')])
+    counter = module.RequestCounter(store, run_id, (await store.get(run_id))['request_counts'])
+    created, close_calls, original_closes = [], [], {}
+    original_create = module._CountedHandler._create_channel
+    def observe_create(self, address):
+        """观察真实通道 close 边界，仍执行原始 gRPC 关闭操作。"""
+        channel = original_create(self, address)
+        original_close = channel.close
+        original_closes[channel] = original_close
+        async def observe_close(grace=None):
+            """每次实际 close 调用留痕，不能用假关闭掩盖通道仍存活。"""
+            close_calls.append(channel)
+            if phase in ('close_error', 'close_cancel') and channel is created[1]:
+                if phase == 'close_cancel':
+                    raise asyncio.CancelledError()
+                raise OSError('替换通道关闭失败')
+            await original_close(grace=grace)
+        monkeypatch.setattr(channel, 'close', observe_close)
+        created.append(channel)
+        return channel
+    monkeypatch.setattr(module._CountedHandler, '_create_channel', observe_create)
+    handler = module._CountedHandler(counter=counter, uri='http://127.0.0.1:19530')
+    client = module._CountedMilvusClient('http://127.0.0.1:19530', counter)
+    client._handler = handler
+    owner = module.OwnedResources(settings(), store, run_id)
+    owner._closers.append(('milvus_client', client.close))
+    entered = asyncio.Event()
+    async def identifier(channel, stub, user, timeout):
+        """仅替换握手的等待/异常点，本测试不向外部服务发出 RPC。"""
+        entered.set()
+        if phase == 'identifier_cancel':
+            await asyncio.Event().wait()
+        if phase in ('identifier_error', 'close_error', 'close_cancel'):
+            raise RuntimeError('标识握手失败')
+        return None, channel, stub
+    monkeypatch.setattr(handler, '_setup_identifier_interceptor_for_channel', identifier)
+    if phase == 'publish_cancel':
+        await handler._reconnect_lock.acquire()
+    reconnect = asyncio.create_task(handler.reconnect(timeout=5))
+    try:
+        await entered.wait()
+        if phase in ('identifier_cancel', 'publish_cancel'):
+            reconnect.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await reconnect
+        elif phase in ('identifier_error', 'close_error', 'close_cancel'):
+            with pytest.raises(RuntimeError):
+                await reconnect
+        else:
+            await reconnect
+        if handler._reconnect_lock.locked():
+            handler._reconnect_lock.release()
+        assert len(created) == 2
+        if phase not in ('success', 'close_error', 'close_cancel'):
+            assert created[1].get_state() == grpc.ChannelConnectivity.SHUTDOWN
+        result = await owner.cleanup()
+        if phase in ('close_error', 'close_cancel'):
+            assert not result.ok and result.errors
+            assert created[0].get_state() == grpc.ChannelConnectivity.SHUTDOWN
+            assert [close_calls.count(channel) for channel in created] == [1, 1]
+            assert await owner.cleanup() == result
+            return
+        assert result.ok
+        assert all(channel.get_state() == grpc.ChannelConnectivity.SHUTDOWN for channel in created)
+        assert [close_calls.count(channel) for channel in created] == [1, 1]
+        assert await owner.cleanup() == result
+        await client.close()
+        await handler.close()
+        assert [close_calls.count(channel) for channel in created] == [1, 1]
+    finally:
+        if handler._reconnect_lock.locked():
+            handler._reconnect_lock.release()
+        if not reconnect.done():
+            reconnect.cancel()
+        await asyncio.gather(reconnect, return_exceptions=True)
+        await owner.cleanup()
+        for channel in created:
+            if channel.get_state() != grpc.ChannelConnectivity.SHUTDOWN:
+                await original_closes[channel]()

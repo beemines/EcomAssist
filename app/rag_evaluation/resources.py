@@ -104,15 +104,81 @@ class _CountedHandler(AsyncGrpcHandler):
     def __init__(self, *, counter, **kwargs):
         """先绑定计数器，再允许父构造创建独占通道。"""
         self._counter = counter
+        self._channel_closures = {}
+        self._handler_closing = False
         super().__init__(**kwargs)
 
     def _create_channel(self, address):
         """仅隔离评估使用本机明文服务；禁底层重试，避免不可观察的额外 attempt。"""
+        if self._handler_closing:
+            raise ValueError('Milvus handler is closing')
         if self._secure:
             raise ValueError('evaluation requires the local Milvus endpoint')
-        return grpc.aio.insecure_channel(address, options=[
+        channel = grpc.aio.insecure_channel(address, options=[
             ('grpc.max_send_message_length', -1), ('grpc.max_receive_message_length', -1),
             ('grpc.enable_retries', 0)], interceptors=[_RPCInterceptor(self._counter)])
+        # 注册早于握手或发布；未安装的替换通道同样属于本拥有者。
+        self._channel_closures[channel] = None
+        return channel
+
+    async def _close_channel(self, channel, grace=None):
+        """每条通道只启动一次真实 close，保留任务直到完成或失败供最终清理核验。"""
+        closing = self._channel_closures[channel]
+        if closing is None:
+            closing = asyncio.create_task(channel.close(grace=grace))
+            self._channel_closures[channel] = closing
+        await asyncio.shield(closing)
+
+    async def reconnect(self, address=None, timeout=10):
+        """复用固定 SDK 握手与发布步骤，任何取消窗口都回收尚未发布的替换通道。"""
+        target = address or self._address
+        deadline = timeout if timeout is not None else 10
+        channel = self._create_channel(target)
+        try:
+            final_channel, stub = self._build_stub(channel)
+            identifier, final_channel, stub = await self._setup_identifier_interceptor_for_channel(
+                final_channel, stub, self._user, timeout=deadline)
+            async with self._reconnect_lock:
+                if self._handler_closing:
+                    raise ValueError('Milvus handler is closing')
+                previous = self._async_channel
+                self._address = target
+                self._async_channel, self._final_channel, self._async_stub = channel, final_channel, stub
+                self._async_identifier_interceptor = identifier
+                self._is_channel_ready = True
+        except BaseException:
+            try:
+                await self._close_channel(channel)
+            except (Exception, asyncio.CancelledError):
+                # 原取消/握手错误继续传播；关闭失败留在登记任务中由 owner 汇总。
+                pass
+            raise
+        if previous is not None:
+            retired = asyncio.create_task(self._close_retired_channel(previous, grace=deadline))
+            self._retired_channel_close_tasks.add(retired)
+            retired.add_done_callback(self._retired_channel_close_tasks.discard)
+
+    async def _close_retired_channel(self, channel, grace):
+        """SDK 退休路径与最终清理共用同一 close 任务，错误留给最终清理汇总。"""
+        try:
+            await self._close_channel(channel, grace=grace)
+        except (Exception, asyncio.CancelledError):
+            pass
+
+    async def close(self):
+        """关闭并等待所有已登记通道，包含握手未发布和退休中的通道，不首错中断。"""
+        self._handler_closing = True
+        async with self._reconnect_lock:
+            self._async_channel = self._final_channel = self._async_stub = None
+            self._is_channel_ready = False
+        outcomes = await asyncio.gather(*(self._close_channel(channel)
+            for channel in self._channel_closures), return_exceptions=True)
+        if self._retired_channel_close_tasks:
+            await asyncio.gather(*tuple(self._retired_channel_close_tasks), return_exceptions=True)
+        errors = [outcome for outcome in outcomes if isinstance(outcome, BaseException)]
+        if errors:
+            # 已收集的关闭取消同样是清理失败，不能以 BaseExceptionGroup 跳过 owner 后续清理。
+            raise RuntimeError('Milvus channel cleanup failed') from BaseExceptionGroup('channel errors', errors)
 
 
 class _CountedMilvusClient(AsyncMilvusClient):
