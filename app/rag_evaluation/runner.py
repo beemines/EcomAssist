@@ -144,10 +144,16 @@ class EvaluationRunner:
             rewrite_start = asyncio.get_running_loop().time()
             try:
                 await self._publish(row)
-                self._active(cancel_event)
+                # 阶段期限与借用服务同时开始；已发布检查点之后才作最后出站前复查。
+                rewrite_deadline = min(
+                    asyncio.get_running_loop().time() + self.settings.query_timeout_seconds,
+                    rewrite_start + self.settings.faq_timeout_seconds,
+                    rewrite_start + self.settings.chat_timeout_seconds)
+                self._active(cancel_event, rewrite_deadline)
                 with self.resources.requests.stage('rewrite'):
                     plan = await self.resources.planner.plan(case.query)
-                self._active(cancel_event)
+                # 内层 timeout 可能吞取消并 uncancel；保留的绝对期限仍可拒绝迟到结果。
+                self._active(cancel_event, rewrite_deadline)
             except StoreError:
                 # 检查点故障属于运行级失败，不能伪造四条模型错误后继续收费。
                 raise
@@ -206,10 +212,11 @@ class EvaluationRunner:
                     final_ids=[item.chunk.id for item in bundle.matches],
                     prompt_citations=[asdict(citation) for citation in packet.citations], stage='self_check')
                 await self._publish(row)
-                self._active(cancel_event, deadline)
+                self_check_deadline = min(deadline, loop.time() + self.settings.sufficiency_timeout_seconds)
+                self._active(cancel_event, self_check_deadline)
                 with self.resources.requests.stage('self_check'):
                     decision = await sufficiency.check(case.query, packet)
-                self._active(cancel_event, deadline)
+                self._active(cancel_event, self_check_deadline)
                 row.update(decision=decision.model_dump(), stage='answer')
                 await self._publish(row)
                 self._active(cancel_event, deadline)
@@ -230,10 +237,11 @@ class EvaluationRunner:
                 validate_answer(text, reasons, packet, decision)
                 row.update(answer=text, refused=not decision.useful, stage='judgment')
                 await self._publish(row)
-                self._active(cancel_event, deadline)
+                judge_deadline = min(deadline, loop.time() + self.settings.llm_timeout_seconds)
+                self._active(cancel_event, judge_deadline)
                 with self.resources.requests.stage('judge'):
                     judgment = await judge.judge(case.query, text, packet.citations, case.points)
-                self._active(cancel_event, deadline)
+                self._active(cancel_event, judge_deadline)
                 unsupported = [asdict(claim) for claim in judgment.claims if not claim.supported]
                 if unsupported:
                     reason = json.dumps({'prompt_version': judgment.prompt_version, 'claims': unsupported},
