@@ -47,6 +47,28 @@ async def test_public_pilot_ready_is_readonly_and_uses_exact_gate(monkeypatch, t
     assert harness.calls == 1
 
 
+async def test_public_pilot_ready_stale_matching_checkpoint_does_not_repair_disk(monkeypatch, tmp_path):
+    """试运行资格读取实际完成条目，陈旧manifest在外来租约期间也不改写。"""
+    from tests.test_rag_store import stale_checkpoint
+    h = Harness(monkeypatch, tmp_path)
+    run_id = await h.manager.start(DATASET_ID, 'pilot')
+    await h.manager.wait(run_id)
+    row = (await h.store.records(run_id))[0]
+    row.update(status='judge_error', stage='judgment', point_verdicts=None, claim_verdicts=None,
+        error={'code': 'judge_failed', 'type': 'JudgeError', 'message': 'private'})
+    before = await stale_checkpoint(h.store, run_id, row, monkeypatch)
+    lease = RunLock(tmp_path).acquire()
+    try:
+        assert await h.manager.pilot_ready(DATASET_ID) is False
+        assert (tmp_path / run_id / 'manifest.json').read_bytes() == before
+        assert h.calls == 1 and h.cleanup_calls == 1
+    finally:
+        lease.close()
+    # 已有授权恢复语义保留，后续默认读取真实把陈旧计数落盘。
+    assert (await h.store.get(run_id))['counts']['judge_error'] == 1
+    assert (tmp_path / run_id / 'manifest.json').read_bytes() != before
+
+
 class Harness:
     """只替换收费与服务边界，记录和锁仍使用生产实现。"""
     def __init__(self, monkeypatch, tmp_path):

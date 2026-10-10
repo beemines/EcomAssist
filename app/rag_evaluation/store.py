@@ -59,13 +59,14 @@ class _RootState:
 class _RunState:
     """已经完整验证的运行快照与按计划键索引的逐题产物。"""
 
-    def __init__(self, manifest: dict, rows: list[dict], signature: tuple):
+    def __init__(self, manifest: dict, rows: list[dict], signature: tuple, *, counts_pending: bool = False):
         """一次恢复建立索引；正常检查点只更新单题及其计数差量。"""
         self.manifest = manifest
         self.rows = {(row["eval_id"], row["strategy"]): row for row in rows}
         self.identities = {row["eval_id"]: _identity(row) for row in rows}
         self.plan = {tuple(key) for key in manifest["case_keys"]}
         self.signature = signature
+        self.counts_pending = counts_pending
 
 
 class StoreError(ValueError):
@@ -451,32 +452,45 @@ class RunStore:
         except OSError as exc:
             raise StoreError("运行快照签名读取失败") from exc
 
-    def _remember(self, run_id: str, manifest: dict, rows: list[dict]) -> _RunState:
+    def _remember(self, run_id: str, manifest: dict, rows: list[dict], *, counts_pending: bool = False) -> _RunState:
         """完整恢复后共享索引；当前实例标记首次验证已完成。"""
-        cached = _RunState(manifest, rows, self._signature(run_id))
+        cached = _RunState(manifest, rows, self._signature(run_id), counts_pending=counts_pending)
         self._state().runs[run_id] = cached
         self._loaded.add((asyncio.get_running_loop(), run_id))
         return cached
 
-    def _load(self, run_id: str) -> _RunState:
-        """首次访问或签名变化完整恢复，稳定态复用共享已验证索引。"""
+    def _persist_counts(self, run_id: str, cached: _RunState) -> None:
+        """授权读取/写入者落盘待修复计数，成功发布后才清除共享缓存的待办。"""
+        manifest = copy.deepcopy(cached.manifest)
+        manifest['updated_at'] = _now()
+        self._write(self._path(run_id, 'manifest.json'), manifest)
+        cached.manifest = manifest
+        cached.signature = self._signature(run_id)
+        cached.counts_pending = False
+
+    def _load(self, run_id: str, *, persist_repair: bool = True) -> _RunState:
+        """完整校验并派生诚实计数；只读投影保留磁盘时钟，授权调用才落盘修复。"""
         shared = self._state()
         try:
             signature = self._signature(run_id)
             cached = shared.runs.get(run_id)
             if ((asyncio.get_running_loop(), run_id) in self._loaded and cached is not None and
                     signature == cached.signature):
+                if persist_repair and cached.counts_pending:
+                    self._persist_counts(run_id, cached)
                 return cached
             shared.runs.pop(run_id, None)
             manifest = validate_manifest(self._read(self._path(run_id, "manifest.json")))
             _require(manifest["run_id"] == run_id, "manifest 运行身份不匹配")
             rows = self._records(manifest)
             counts = self._counts(manifest, rows)
-            if manifest["counts"] != counts:
+            pending = manifest["counts"] != counts
+            if pending:
                 manifest["counts"] = counts
-                manifest["updated_at"] = _now()
-                self._write(self._path(run_id, "manifest.json"), manifest)
-            return self._remember(run_id, manifest, rows)
+            cached = self._remember(run_id, manifest, rows, counts_pending=pending)
+            if persist_repair and pending:
+                self._persist_counts(run_id, cached)
+            return cached
         except StoreError:
             shared.runs.pop(run_id, None)
             raise
@@ -545,20 +559,20 @@ class RunStore:
             cached.rows[key] = row
             cached.identities[row["eval_id"]] = identity
 
-    async def get(self, run_id: str) -> dict[str, object]:
-        """返回独立本地 manifest 快照，自动修复逐题计数而不续跑模型。"""
+    async def get(self, run_id: str, *, persist_repair: bool = True) -> dict[str, object]:
+        """独立manifest快照；False仅派生计数不写文件，默认保留授权恢复兼容。"""
         async with self._writer():
-            return copy.deepcopy(self._load(run_id).manifest)
+            return copy.deepcopy(self._load(run_id, persist_repair=persist_repair).manifest)
 
-    async def records(self, run_id: str) -> list[dict[str, object]]:
-        """按冻结计划顺序返回已有本地完整记录，包括私有裁判原文。"""
+    async def records(self, run_id: str, *, persist_repair: bool = True) -> list[dict[str, object]]:
+        """按计划返回实际完整记录；False禁用计数修复写入但不降低验证。"""
         async with self._writer():
-            cached = self._load(run_id)
+            cached = self._load(run_id, persist_repair=persist_repair)
             return copy.deepcopy([cached.rows[tuple(key)] for key in cached.manifest["case_keys"]
                                   if tuple(key) in cached.rows])
 
-    async def list_runs(self, offset: int = 0, limit: int = 20) -> list[dict[str, object]]:
-        """按创建时间倒序分页本地历史，隐藏半创建目录但拒绝损坏 manifest。"""
+    async def list_runs(self, offset: int = 0, limit: int = 20, *, persist_repair: bool = True) -> list[dict[str, object]]:
+        """倒序分页真实历史；False保证陈旧检查点也不改写任何manifest或时钟。"""
         _require(_integer(offset, 0, 1000000) and _integer(limit, 1, 100), "分页参数非法")
         async with self._writer():
             if not self.root.exists():
@@ -569,6 +583,6 @@ class RunStore:
                 if re.fullmatch(r"[0-9a-f]{32}", path.name):
                     manifest_path = self._path(path.name, "manifest.json")
                     if manifest_path.exists():
-                        result.append(copy.deepcopy(self._load(path.name).manifest))
+                        result.append(copy.deepcopy(self._load(path.name, persist_repair=persist_repair).manifest))
             result.sort(key=_history_key, reverse=True)
             return result[offset:offset + limit]

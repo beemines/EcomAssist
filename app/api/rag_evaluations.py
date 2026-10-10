@@ -157,7 +157,7 @@ async def _manifest(store: RunStore, run_id: str) -> dict:
     """只访问严格 UUID 固定 manifest，不存在与损坏文件分别给出安全错误。"""
     if not guarded_path(store.root, run_id, 'manifest.json').is_file():
         raise PublicError('not_found')
-    return await store.get(run_id)
+    return await store.get(run_id, persist_repair=False)
 
 
 async def _snapshot(store: RunStore, run_id: str) -> dict:
@@ -165,9 +165,9 @@ async def _snapshot(store: RunStore, run_id: str) -> dict:
     if run_id == LEGACY_ID:
         return _legacy()
     manifest = await _manifest(store, run_id)
-    records = await store.records(run_id)
+    records = await store.records(run_id, persist_repair=False)
     # 两个 store 方法内部有同步临界区；重复读使跨进程检查点变更体现在计数中。
-    manifest = await store.get(run_id)
+    manifest = await store.get(run_id, persist_repair=False)
     return report_envelope(manifest, records)
 
 
@@ -245,7 +245,7 @@ def create_router(manager: RunManager, store: RunStore, settings: Settings) -> A
         """运行历史包含固定只读旧报告，分页不会触发模型或启动恢复。"""
         values, offset = [], 0
         while True:
-            rows = await store.list_runs(offset, 100)
+            rows = await store.list_runs(offset, 100, persist_repair=False)
             values.extend(dict(public_run_metadata(row), read_only=False) for row in rows)
             if len(rows) < 100:
                 break
@@ -290,7 +290,7 @@ def create_router(manager: RunManager, store: RunStore, settings: Settings) -> A
             raise PublicError('legacy_readonly')
         await _manifest(store, run_id)
         await manager.cancel(run_id)
-        return public_run_metadata(await store.get(run_id))
+        return public_run_metadata(await store.get(run_id, persist_repair=False))
 
     @router.get(PREFIX + '/runs/{run_id}/export')
     async def export(run_id: RunId, params: Annotated[ExportParams, Query()]):

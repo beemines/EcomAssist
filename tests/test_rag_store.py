@@ -103,6 +103,81 @@ async def test_case_checkpoint_reconciles_counts_after_restart(tmp_path, monkeyp
     assert json.loads((tmp_path / run_id / "manifest.json").read_text("utf-8"))["counts"] == manifest["counts"]
 
 
+async def stale_checkpoint(store, run_id, row, monkeypatch):
+    """真实逐题发布成功而manifest失败，留下合法但计数陈旧的崩溃边界。"""
+    module = api()
+    path = store.root / run_id / 'manifest.json'
+    before = path.read_bytes()
+    original = module.os.replace
+    def fail_manifest(src, dst):
+        """仅阻止派生manifest替换，不伪造检查点内容或读取结果。"""
+        if Path(dst).name == 'manifest.json':
+            raise OSError('受控manifest发布失败')
+        return original(src, dst)
+    with monkeypatch.context() as patcher:
+        patcher.setattr(module.os, 'replace', fail_manifest)
+        with pytest.raises(module.StoreError):
+            await store.put_case(run_id, row)
+    assert path.read_bytes() == before
+    assert (store.root / run_id / 'records' / f"{row['eval_id']}--{row['strategy']}.json").is_file()
+    return before
+
+
+@pytest.mark.parametrize('operation', ['get', 'records', 'list_runs', 'update', 'put_case'])
+async def test_readonly_reconciliation_preserves_bytes_and_later_writer_durability(tmp_path, monkeypatch, operation):
+    """只读缓存诚实派生计数但不写盘，同实例/共享实例后续授权操作仍修复。"""
+    import inspect
+    module = api()
+    store, other = module.RunStore(tmp_path), module.RunStore(tmp_path)
+    run_id = await store.create(config(), [('E1', 'dense'), ('E2', 'bm25')])
+    before = await stale_checkpoint(store, run_id, record(status='rewrite_error'), monkeypatch)
+    assert 'persist_repair' in inspect.signature(store.get).parameters, '缺少非持久化读取接口'
+    view = await store.get(run_id, persist_repair=False)
+    assert view['counts']['errors'] == 1 and view['counts']['not_attempted'] == 1
+    assert view['updated_at'] == json.loads(before)['updated_at']
+    assert len(await store.records(run_id, persist_repair=False)) == 1
+    assert (await other.list_runs(persist_repair=False))[0]['counts']['errors'] == 1
+    view['counts']['errors'] = 999
+    assert (await store.get(run_id, persist_repair=False))['counts']['errors'] == 1
+    path = tmp_path / run_id / 'manifest.json'
+    assert path.read_bytes() == before
+    # 默认恢复API和写入者必须消费pending修复，不能把只读共享缓存当已持久化。
+    if operation == 'update':
+        await other.update(run_id, {'state': 'running'})
+    elif operation == 'put_case':
+        await store.put_case(run_id, record('E2', 'bm25', status='rewrite_error'))
+    elif operation == 'list_runs':
+        await other.list_runs()
+    else:
+        await getattr(store, operation)(run_id)
+    persisted = json.loads(path.read_bytes())
+    assert persisted['counts']['errors'] == (2 if operation == 'put_case' else 1)
+    assert persisted['counts']['not_attempted'] == (0 if operation == 'put_case' else 1)
+    assert path.read_bytes() != before
+    assert (await module.RunStore(tmp_path).get(run_id))['counts'] == persisted['counts']
+
+
+async def test_pending_readonly_cache_survives_failed_authorized_repair(tmp_path, monkeypatch):
+    """只读待修复缓存遇到授权发布失败必须失效，重读不写盘且后续可恢复。"""
+    module = api()
+    store = module.RunStore(tmp_path)
+    run_id = await store.create(config(), [('E1', 'dense')])
+    before = await stale_checkpoint(store, run_id, record(status='rewrite_error'), monkeypatch)
+    assert (await store.get(run_id, persist_repair=False))['counts']['errors'] == 1
+    def failed_replace(src, dst):
+        """只制造实际修复文件替换失败，不模拟缓存或JSON读取。"""
+        raise OSError('受控修复发布失败')
+    with monkeypatch.context() as patcher:
+        patcher.setattr(module.os, 'replace', failed_replace)
+        with pytest.raises(module.StoreError):
+            await store.get(run_id)
+    assert (tmp_path / run_id / 'manifest.json').read_bytes() == before
+    assert (await store.get(run_id, persist_repair=False))['counts']['errors'] == 1
+    assert (tmp_path / run_id / 'manifest.json').read_bytes() == before
+    assert (await store.get(run_id))['counts']['errors'] == 1
+    assert json.loads((tmp_path / run_id / 'manifest.json').read_bytes())['counts']['errors'] == 1
+
+
 async def test_path_escape_and_unknown_fields_rejected(tmp_path):
     """路径逃逸、任意对象与扩展私有字段必须在写盘前拒绝。"""
     module = api()
