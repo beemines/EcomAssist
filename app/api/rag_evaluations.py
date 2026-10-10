@@ -22,7 +22,7 @@ from app.rag_evaluation.store import OUTCOMES, RunStore, StoreError, guarded_pat
 
 PREFIX = '/api/rag-evaluations'
 LEGACY_ID = 'legacy-30-v1'
-LEGACY_FILE = PROJECT_ROOT / 'app/static/rag-evaluation-history.json'
+LEGACY_FILE = PROJECT_ROOT / 'evals/legacy/rag-evaluation-history.json'
 Strategy = Literal['dense', 'bm25', 'hybrid', 'hybrid_rerank']
 RunId = Annotated[str, Path(pattern=r'^(?:[0-9a-f]{32}|legacy-30-v1)$')]
 EvalId = Annotated[str, Path(pattern=r'^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$')]
@@ -168,7 +168,7 @@ async def _snapshot(store: RunStore, run_id: str) -> dict:
     records = await store.records(run_id, persist_repair=False)
     # 两个 store 方法内部有同步临界区；重复读使跨进程检查点变更体现在计数中。
     manifest = await store.get(run_id, persist_repair=False)
-    return report_envelope(manifest, records)
+    return report_envelope(manifest, records, await store.source_map(run_id))
 
 
 def _export_paths(store: RunStore, run_id: str, current: dict) -> dict[str, FilePath]:
@@ -278,9 +278,10 @@ def create_router(manager: RunManager, store: RunStore, settings: Settings) -> A
         """单条严格公开记录包含实际证据与判定，缺席计划详情返回404。"""
         if '--' in eval_id:
             raise PublicError('invalid_request')
-        for row in (await _snapshot(store, run_id))['records']:
+        snapshot = await _snapshot(store, run_id)
+        for row in snapshot['records']:
             if row['eval_id'] == eval_id and row['strategy'] == strategy:
-                return row
+                return dict(row, source_map=snapshot['source_map'])
         raise PublicError('not_found')
 
     @router.post(PREFIX + '/runs/{run_id}/cancel')

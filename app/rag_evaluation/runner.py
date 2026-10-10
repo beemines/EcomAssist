@@ -16,6 +16,7 @@ from app.core.prompts import build_grounded_answer_system_prompt
 from app.core.sufficiency import SufficiencyService
 from app.quality.types import FaithCaseInput
 from app.rag_evaluation.contracts import EvalCase, FrozenDataset
+from app.rag_evaluation.audit import build_source_map
 from app.rag_evaluation.judgment import GenerationJudge, JudgeError
 from app.rag_evaluation.report import CASE_FIELDS, STRATEGIES, case_metrics
 from app.rag_evaluation.resources import OwnedResources
@@ -24,7 +25,7 @@ from app.retrieval.service import RetrievalService, faq_payload
 from app.retrieval.types import validate_category
 
 
-def _seed(case: EvalCase, strategy: str, id_map: Mapping[str, int]) -> dict:
+def _seed(case: EvalCase, strategy: str, id_map: Mapping[str, int], source_map_id: str | None = None) -> dict:
     """复制完整元数据并映射金标，生成与检索只取得题面及实际证据。"""
     row = dict.fromkeys(CASE_FIELDS)
     row.update(eval_id=case.eval_id, strategy=strategy, bucket=case.bucket, difficulty=case.difficulty,
@@ -33,6 +34,11 @@ def _seed(case: EvalCase, strategy: str, id_map: Mapping[str, int]) -> dict:
             'group_id': group.group_id,
             'alternatives': [[id_map[key] for key in bundle] for bundle in group.alternatives]
         } for group in case.groups])
+    row['audit'] = None if source_map_id is None else dict(audit_version=1, source_map_id=source_map_id,
+        gold_groups=[{'group_id': group.group_id, 'alternatives': [list(bundle) for bundle in group.alternatives]}
+            for group in case.groups],
+        answer_points=[dict(point_id=point.point_id, text=point.text, condition=point.condition,
+            aliases=list(point.aliases)) for point in case.points], candidate_ranking=None, final_ranking=None)
     return row
 
 
@@ -85,7 +91,8 @@ class EvaluationRunner:
         if len(set(selected)) != len(selected) or any(key not in by_id for key in selected):
             raise ValueError('invalid evaluation case selection')
         cases = tuple(by_id[key] for key in selected)
-        rows = {(case.eval_id, strategy): _seed(case, strategy, id_map)
+        source_map = build_source_map(dataset, id_map)
+        rows = {(case.eval_id, strategy): _seed(case, strategy, id_map, source_map['source_map_id'])
                 for case in cases for strategy in STRATEGIES}
         # 在任何收费阶段前核验全部计划，不能悄悄覆盖旧完成记录或续跑。
         manifest = await self.store.get(self.run_id)
@@ -93,6 +100,7 @@ class EvaluationRunner:
             raise ValueError('evaluation plan is not a fresh matching run')
         for case in cases:
             validate_category(case.category)
+        await self.store.put_source_map(self.run_id, source_map)
         for row in rows.values():
             await self.store.put_case(self.run_id, row)
         if cancel_event.is_set():
@@ -211,6 +219,11 @@ class EvaluationRunner:
                 row.update(candidate_ids=[hit.id for hit in bundle.candidates],
                     final_ids=[item.chunk.id for item in bundle.matches],
                     prompt_citations=[asdict(citation) for citation in packet.citations], stage='self_check')
+                candidate_kind = {'dense': 'cosine', 'bm25': 'bm25', 'hybrid': 'rrf', 'hybrid_rerank': 'rrf'}[row['strategy']]
+                row['audit'].update(candidate_ranking=[dict(chunk_id=hit.id, score=hit.score,
+                    score_kind=candidate_kind) for hit in bundle.candidates],
+                    final_ranking=[dict(chunk_id=item.chunk.id, score=item.score, score_kind=item.score_kind)
+                        for item in bundle.matches])
                 await self._publish(row)
                 self_check_deadline = min(deadline, loop.time() + self.settings.sufficiency_timeout_seconds)
                 self._active(cancel_event, self_check_deadline)

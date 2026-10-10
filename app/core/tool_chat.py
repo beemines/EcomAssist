@@ -18,7 +18,7 @@ from app.core.errors import ServiceError
 from app.core.prompts import build_grounded_answer_system_prompt, build_tool_chat_system_prompt
 from app.core.evidence import build_evidence
 from app.core.sufficiency import SufficiencyService
-from app.core.answer_validation import REFUSAL_TEXT, FinalAnswerStream, close_answer_stream, validate_answer
+from app.core.answer_validation import REFUSAL_TEXT, FinalAnswerStream, close_answer_stream, ensure_answer_active, validate_answer
 from app.quality.repository import QualityRepository
 from app.retrieval.types import validate_category
 from app.core.tool_history import build_tool_messages, completed_turns
@@ -179,15 +179,16 @@ class ToolChatService:
                     prepared.messages = evidence.messages
                     yield StreamEvent('citations', {'citations': [asdict(item) for item in evidence.citations]})
                     if not decision.useful:
+                        ensure_answer_active(prepared.deadline)
                         yield StreamEvent('status', {'phase': 'answering'})
+                        ensure_answer_active(prepared.deadline)
                         yield StreamEvent('delta', {'delta': REFUSAL_TEXT})
-                        task = asyncio.current_task()
-                        if task is not None and task.cancelling():
-                            raise asyncio.CancelledError()
+                        ensure_answer_active(prepared.deadline)
                         if self.quality_repository is None:
                             raise ServiceError('quality_unavailable', '质量记录暂时不可用，请稍后重试。', 503)
                         message_id = await self.quality_repository.commit_refusal(prepared.conversation_id, AIMessage(REFUSAL_TEXT),
                             raw_question=prepared.current.content, source=decision.source, reason=decision.reason)
+                        ensure_answer_active(prepared.deadline)
                         yield StreamEvent('done', {'conversation_id': prepared.conversation_id, 'message_id': str(message_id)})
                         return
                 else:

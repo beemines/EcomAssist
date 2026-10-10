@@ -128,11 +128,15 @@ class Harness:
                 if cancel_event.is_set():
                     return 'cancelled'
                 selected = [case for case in dataset.cases if case.eval_id in case_ids]
+                from app.rag_evaluation.audit import build_source_map
+                source_map = build_source_map(dataset, id_map)
+                await self.store.put_source_map(self.run_id, source_map)
                 for case in selected:
                     for strategy in STRATEGIES:
                         if owner.omit_last and case == selected[-1] and strategy == STRATEGIES[-1]:
                             continue
-                        row = _seed(case, strategy, id_map)
+                        row = _seed(case, strategy, id_map, source_map['source_map_id'])
+                        row['audit'].update(candidate_ranking=[], final_ranking=[])
                         row.update(status='completed', stage='complete', refused=True,
                             query_plan={'standard': case.query, 'expansions': []}, candidate_ids=[],
                             final_ids=[], prompt_citations=[], decision={'useful': False,
@@ -273,6 +277,11 @@ async def test_partial_pilot_and_legacy_config_cannot_authorize_full(tmp_path, m
         manifest = json.loads(path.read_text('utf-8'))
         manifest['config'].pop('provenance')
         path.write_text(json.dumps(manifest), encoding='utf-8')
+        (tmp_path / run_id / 'source-map.json').unlink()
+        for record_path in (tmp_path / run_id / 'records').glob('*.json'):
+            historical = json.loads(record_path.read_text('utf-8'))
+            historical.pop('audit')
+            record_path.write_text(json.dumps(historical), encoding='utf-8')
     elif invalid == 'error':
         row = (await h.store.records(run_id))[-1]
         row.update(status='judge_error', stage='judgment', point_verdicts=None, claim_verdicts=None,
@@ -531,10 +540,11 @@ async def test_export_atomic_failure_and_cap_preserve_previous(tmp_path, monkeyp
     paths = [tmp_path / run_id / name for name in ('report.json', 'report.md')]
     before = [path.read_bytes() for path in paths]
     manifest, rows = await h.store.get(run_id), await h.store.records(run_id)
+    source_map = await h.store.source_map(run_id)
     with monkeypatch.context() as patcher:
         patcher.setattr(export, 'MAX_EXPORT_BYTES', 1024)
         with pytest.raises(StoreError):
-            export.publish_reports(tmp_path, manifest, rows)
+            export.publish_reports(tmp_path, manifest, rows, source_map)
     assert [path.read_bytes() for path in paths] == before
     def broken(src, dst):
         """只破坏最终文件替换，让真实临时文件写入及清理执行。"""
@@ -542,7 +552,7 @@ async def test_export_atomic_failure_and_cap_preserve_previous(tmp_path, monkeyp
     with monkeypatch.context() as patcher:
         patcher.setattr(export.os, 'replace', broken)
         with pytest.raises(StoreError):
-            export.publish_reports(tmp_path, manifest, rows)
+            export.publish_reports(tmp_path, manifest, rows, source_map)
     assert [path.read_bytes() for path in paths] == before
     assert not list((tmp_path / run_id).glob('.report-*.tmp'))
 

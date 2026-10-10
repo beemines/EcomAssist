@@ -110,6 +110,7 @@ def safe_error(value: object) -> dict[str, str] | None:
 def validate_case_record(record: Mapping[str, object]) -> dict[str, object]:
     """返回独立本地白名单副本；严格验证阶段产物、元数据和裁判，不修改输入。"""
     row = _object(record, CASE_FIELDS)
+    from app.rag_evaluation.audit import validate_audit
     for key in ("eval_id", "bucket", "difficulty", "query"):
         _require(_text(row[key]), f"{key} 须为非空文本")
     _require(row["bucket"] in BUCKETS, "bucket 未登记")
@@ -171,6 +172,7 @@ def validate_case_record(record: Mapping[str, object]) -> dict[str, object]:
         _require(all(value is None or (type(value) in (int, float) and math.isfinite(value) and 0 <= value <= 1)
                      for value in row["metrics"].values()), "metrics 值非法")
     _validate_stages(row)
+    row['audit'] = validate_audit(record.get('audit'), row)
     if row["metrics"] is not None:
         expected, _ = _score(row)
         _require(all(value == expected[name] for name, value in row["metrics"].items()), "metrics 与阶段产物不一致")
@@ -293,12 +295,16 @@ def public_report(report: Mapping[str, object]) -> dict[str, object]:
     _require(type(report.get("schema_version")) is int and report["schema_version"] == 2, "未知报告版本")
     _require(isinstance(report.get("records"), list), "records 须为列表")
     rows = [validate_case_record(row) for row in report["records"]]
+    from app.rag_evaluation.audit import validate_source_map, validate_audit_sources
+    source_map = validate_source_map(report['source_map']) if report.get('source_map') is not None else None
+    for row in rows:
+        validate_audit_sources(row, source_map)
     summary = summarize_records(rows)
     for row in rows:
         row["metrics"] = _score(row)[0]
         if row["judge_snapshot"] is not None:
             row["judge_snapshot"].pop("raw_response", None)
-    result = {"schema_version": 2, "records": rows, "summary": summary}
+    result = {"schema_version": 2, "records": rows, "summary": summary, "source_map": source_map}
     for key in ("run_id", "dataset_id", "fingerprint", "scope"):
         if key in report:
             _require(_text(report[key]), f"{key} 须为文本")
@@ -342,8 +348,9 @@ def adapt_legacy(report: Mapping[str, object]) -> dict[str, object]:
                 value = original[key]
                 _require(value is None or (type(value) in (int, float) and math.isfinite(value) and 0 <= value <= 1), "旧指标非法")
                 row["legacy_metrics"][key] = value
+        row['audit'] = None
         records.append(row)
     counts = Counter(row["status"] for row in records)
-    return {"schema_version": 1, "records": records, "summary": summaries,
+    return {"schema_version": 1, "records": records, "summary": summaries, "source_map": None,
             "counts": {"total": len(records), "completed": counts["ok"], "errors": counts["error"],
                        "not_attempted": counts["not_attempted"]}}

@@ -152,6 +152,8 @@ async function openDetail(record,trigger) {
   el("detail-title").textContent=data.eval_id+" · "+names[data.strategy]+" · "+(buckets[bucketName(data.bucket)]||"未知桶");el("detail-body").replaceChildren();
   const sections=[["问题",data.query],["共享改写",data.query_plan],["金标组完整组合 · 同组合全部满足 / 替代组合任选其一",data.mapped_groups],["候选 Top-50 与最终前十 · 不是 Prompt",{candidate_ids:data.candidate_ids,final_ids:data.final_ids}],["实际 Prompt 引用完整原文快照",data.prompt_citations],["充分性自评",data.decision],["实际回答",data.answer],["逐点覆盖 · 全部要点与理由",data.point_verdicts],["全部断言 · 支持判定与理由",data.claim_verdicts],["指标",data.metrics],["裁判版本与结束标识",data.judge_snapshot],["状态、错误与耗时",{status:data.status,stage:data.stage,error:data.error,elapsed_ms:data.elapsed_ms,should_refuse:data.should_refuse,refused:data.refused}]];
   if(state.snapshot.schema_version===1)sections.unshift(["旧版只读说明","v1 API 没有公开新金标组合、引用快照和逐点裁判；这些字段 N/A，不从其他运行补齐。"],["历史指标 · 原口径",data.legacy_metrics]);
+  if(data.audit)sections.splice(3,0,["稳定金标来源 · 同组合全部满足 / 替代组合任选其一",data.audit.gold_groups],["标准要点原文 · 条件与同义表达",data.audit.answer_points],["实际排序分数 · 不同分数类型不可直接比较",{candidate_ranking:data.audit.candidate_ranking,final_ranking:data.audit.final_ranking}],["本轮完整来源映射 · 清理后仍可核对原文",data.source_map]);
+  else sections.unshift(["来源与排序审计","N/A：此历史记录未采集稳定来源映射、标准要点原文或排序分数。"]);
   for(const [title,value]of sections){const section=node("section",undefined,"detail-section");section.append(node("h3",title),node("pre",value===undefined||value===null?"N/A：阶段未完成、缺失或不适用。":typeof value==="string"?value:JSON.stringify(value,null,2)));el("detail-body").append(section);}
   dialog.showModal();el("detail-close").focus();
  }catch(error){if(error.name!=="AbortError")notice(error.message);}

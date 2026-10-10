@@ -11,11 +11,14 @@ from app.rag_evaluation.store import StoreError, canonical_root, guarded_path, p
 MAX_EXPORT_BYTES = 128 * 1024 * 1024
 
 
-def report_envelope(manifest: dict, records: list[dict]) -> dict:
+def report_envelope(manifest: dict, records: list[dict], source_map: dict | None = None) -> dict:
     """公开报告与独立安全运行元数据组合，私有原文和资源归属从不进入导出。"""
     checked = validate_manifest(manifest)
     config = checked['config']
-    result = public_report(dict(schema_version=2, records=records, run_id=checked['run_id'],
+    if source_map is not None:
+        from app.rag_evaluation.audit import validate_source_map
+        source_map = validate_source_map(source_map, config)
+    result = public_report(dict(schema_version=2, records=records, source_map=source_map, run_id=checked['run_id'],
         dataset_id=config['dataset_id'], fingerprint=config['fingerprint'], scope=config['scope']))
     result['run'] = public_run_metadata(checked)
     return result
@@ -34,10 +37,10 @@ def render_markdown(report: dict) -> str:
     return '\n'.join(lines) + '\n'
 
 
-def publish_reports(root: Path, manifest: dict, records: list[dict]) -> None:
+def publish_reports(root: Path, manifest: dict, records: list[dict], source_map: dict | None = None) -> None:
     """两种完整文件分别同目录fsync/replace，任一失败阻止后续终态发布。"""
     root = canonical_root(root)
-    report = report_envelope(manifest, records)
+    report = report_envelope(manifest, records, source_map)
     run_id = report['run_id']
     contents = {'report.json': json.dumps(report, ensure_ascii=False, separators=(',', ':'), allow_nan=False),
                 'report.md': render_markdown(report)}

@@ -326,8 +326,13 @@ class OwnedResources:
             raise ValueError('resources already used')
         self._started = True
         manifest = await self.store.get(self.run_id)
+        provenance = manifest['config'].get('provenance')
         if (manifest['ownership'] is not None or dataset.dataset_id != manifest['config']['dataset_id']
-                or dataset.fingerprint != manifest['config']['fingerprint'] or not dataset.chunks
+                or not isinstance(provenance, dict)
+                or any(provenance.get(key) != value for key, value in {
+                    'dataset_fingerprint': dataset.fingerprint, 'corpus_hash': dataset.corpus_hash,
+                    'cases_hash': dataset.cases_hash, 'annotation_hash': dataset.annotation_hash}.items())
+                or not dataset.chunks
                 or len({chunk.chunk_key for chunk in dataset.chunks}) != len(dataset.chunks)):
             raise ValueError('dataset or resource ownership mismatch')
         self.requests = RequestCounter(self.store, self.run_id, manifest['request_counts'])
