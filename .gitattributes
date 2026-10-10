@@ -1,2 +1,12 @@
 # 控制 Git 的文本换行处理：Docker 入口脚本在 Windows checkout 后也必须保持 LF。
 *.sh text eol=lf
+# 冻结评估资产按原始 LF 字节保存，避免 Windows checkout 改写 SHA-256。
+/evals/datasets/merchant-rag-300/** text eol=lf
+/knowledge-docs/evaluation-drafts/after-sales-manual.md text eol=lf
+/knowledge-docs/evaluation-drafts/product-faq.md text eol=lf
+/knowledge-docs/evaluation-drafts/product-specs.md text eol=lf
+/knowledge-docs/evaluation-drafts/returns-policy.md text eol=lf
+/knowledge-docs/evaluation-drafts/membership-benefits.md text eol=lf
+/knowledge-docs/evaluation-drafts/integral-rules.md text eol=lf
+/knowledge-docs/evaluation-drafts/invoice-policy.md text eol=lf
+/knowledge-docs/evaluation-drafts/cat-bed-care.md text eol=lf
