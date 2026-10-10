@@ -454,6 +454,45 @@ async def test_expired_checkpoint_does_not_start_next_model_stage(tmp_path, monk
         await http.aclose()
 
 
+@pytest.mark.parametrize('stage,budget_field,expected_status', [
+    ('rewrite', 'query_timeout_seconds', 'rewrite_error'),
+    ('self_check', 'sufficiency_timeout_seconds', 'self_check_error'),
+    ('judge', 'llm_timeout_seconds', 'judge_error'),
+])
+async def test_swallowed_internal_stage_timeout_cannot_advance(tmp_path, stage, budget_field, expected_status):
+    """服务内部timeout取消被吞并uncancel后，独立绝对阶段期限仍拒绝后续成功链路。"""
+    runner, resources, store, data, run_id, http = await setup(tmp_path)
+    runner.settings = settings().model_copy(update={budget_field: .05})
+    resources.planner.timeout = runner.settings.query_timeout_seconds
+    resources.model.cancel_stage, resources.model.unsupported = stage, True
+    assert runner.settings.faq_timeout_seconds == 90 and runner.settings.chat_timeout_seconds == 240
+    try:
+        outcome = await asyncio.wait_for(runner.run_cases(data, {'one': 1, 'two': 2},
+            data.pilot_ids, asyncio.Event()), 8)
+        assert outcome == 'completed_with_errors'
+        rows = await store.records(run_id)
+        assert {row['status'] for row in rows} == {expected_status}
+        assert all(row['error']['type'] == 'TimeoutError' for row in rows)
+        counts = (await store.get(run_id))['request_counts']
+        assert counts['rewrite'] == 1
+        assert counts['self_check'] == (0 if stage == 'rewrite' else 4)
+        assert counts['answer'] == (4 if stage == 'judge' else 0)
+        assert counts['judge'] == (4 if stage == 'judge' else 0)
+        assert resources.quality.rows == []
+        if stage == 'rewrite':
+            assert all(row['query_plan'] is None and row['candidate_ids'] is None for row in rows)
+        else:
+            assert all(row['candidate_ids'] == [1, 2] and row['final_ids'] == [1]
+                and len(row['prompt_citations']) == 1 for row in rows)
+        if stage == 'self_check':
+            assert all(row['decision'] is None and row['answer'] is None for row in rows)
+        elif stage == 'judge':
+            assert all(row['decision']['useful'] and row['answer'] and row['refused'] is False
+                and row['point_verdicts'] is None and row['claim_verdicts'] is None for row in rows)
+    finally:
+        await http.aclose()
+
+
 class OfflineModel(Model):
     """真实检索集成中的确定性模型，不拥有客户端且不发任何 HTTP 请求。"""
     def __init__(self, http):
