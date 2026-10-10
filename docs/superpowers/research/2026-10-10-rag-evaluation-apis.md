@@ -52,3 +52,13 @@
 - [fcntl.flock](https://github.com/python/cpython/blob/main/Doc/library/fcntl.rst) 的 `LOCK_EX | LOCK_NB` 提供 Unix 对应分支。当前验收以 Windows 安装运行时为准。
 
 冻结接口衔接：隔离导入取得物理主键前，只在 manifest 保存计划 case keys；缺少的计划记录计为未执行。取得 id_map 后执行器再保存严格完整的 CaseRecord，不伪造金标主键。初始化失败保留计划数和错误；公共运行配置与清理结果单独白名单投影，不能绕过 report.py 的裁判快照过滤。
+
+## 隔离向量资源实现前预查
+
+控制端提前经 Context7 `/milvus-io/milvus-docs` 查询集合生命周期、显式主键upsert与原生BM25，结果在 `.cache/context7-workbench-resource-milvus.txt` 和 `-milvus-lifecycle.txt`。锁文件及项目依赖为 SQLAlchemy2.0.54 / PyMilvus3.0.2 / HTTPX0.28.1；实现者仍需核对安装的 AsyncMilvusClient 方法签名，不照搬不适用示例。
+
+- [BM25混合RAG集合](https://github.com/milvus-io/milvus-docs/blob/v3.0.x/site/en/aiTools/rag_pipeline.md)在建集合时声明文本分析器、BM25函数和稀疏索引；本项目复用既有chinese analyzer集合实现，不替换成示例standard。
+- [upsert](https://github.com/milvus-io/milvus-docs/blob/v3.0.x/site/en/userGuide/insert-and-delete/upsert-entities.md)按显式主键幂等写入；[drop_collection](https://github.com/milvus-io/milvus-docs/blob/v3.0.x/site/en/userGuide/collections/drop-collection.md)接收精确collection_name。不能按前缀批删或调用旧query_data/delete_by_pk示例。
+- 回包混有旧客户端API和同步示例，另有连接超时单位表述；这些不证明当前异步客户端签名或单位。沿用既有5秒服务期限并读取安装实现核对；真实哨兵和中断测试仍是后续验收。
+
+资源事务与清理追加预查 `.cache/context7-workbench-resource-sqlalchemy.txt` / `-cancellation.txt`：SQLAlchemy官方事务说明flush不提交、异常必须rollback/close；本次回包主要是同步示例，异步用法结合前面已保存的官方AsyncSession文档和安装签名核对。CPython官方说明CancelledError须在清理后传播、后台Task保留强引用、timeout取消内层等待；shield本身不代表所有资源清理已经结束。后续资源owner逐项限时清理并汇总错误，manager持锁至清理和终态持久化完成。
