@@ -1,34 +1,23 @@
 <!doctype html>
-<!-- 评估报告预览只读取保存的真实结果；新任务入口在材料与后端就绪前保持禁用。 -->
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MewHelp · RAG 评估</title>
-  <link rel="stylesheet" href="/static/rag-evaluation.css">
-  <script src="/static/rag-evaluation.js" defer></script>
-</head>
-<body>
-  <aside class="nav"><a class="brand" href="/">MewHelp<span>客服工作台</span></a><a href="/">客服对话</a><a class="current" href="/static/rag-evaluation.html" aria-current="page">▦ RAG 评估</a><p>检索与生成<br>分别核验，逐题追溯。</p></aside>
-  <main>
-    <header><div><p class="eyebrow">质量与评估</p><h1>RAG 评估</h1><p class="muted">比较四条检索策略，查看证据如何影响回答。</p></div><button disabled title="新的材料和评估口径尚待确认">新建评估 · 材料待确认</button></header>
-    <section class="run-selector"><label for="report-select">评估记录</label><select id="report-select"><option>正在加载…</option></select><span id="run-status" class="pill">读取报告</span></section>
-    <p id="load-error" class="notice warning" role="alert" hidden></p>
-    <div id="report" hidden>
-      <section class="notice" id="scope-note"></section>
-      <section class="cards" aria-label="评估概览" id="cards"></section>
-      <section class="panel">
-        <div class="panel-heading"><div><h2>四策略分桶对比</h2><p id="metric-description" class="muted"></p></div><label>评估指标<select id="metric-select"><option value="mrr_at_10">MRR@10 · 检索排名</option><option value="recall_at_10">Recall@10 · 物理块召回</option><option value="recall_at_50">Recall@50 · 候选召回</option><option value="prompt_recall">Prompt 证据覆盖</option><option value="faithfulness">Faithfulness · 答案忠实度</option></select></label></div>
-        <div id="legend" class="legend"></div>
-        <div class="table-scroll"><table class="matrix"><caption class="sr-only">各桶四策略指标及有效样本数</caption><thead><tr><th scope="col">问题类型</th><th scope="col">vector</th><th scope="col">bm25</th><th scope="col">hybrid</th><th scope="col">hybrid_rerank</th></tr></thead><tbody id="metric-table"></tbody></table></div>
-        <p class="footnote">每格显示指标 / 有效样本数。— 表示不适用。MRR 的首条命中不能代表跨文档证据已齐全；本历史报告没有 Recall@5 或答案要点覆盖指标。</p>
-      </section>
-      <section class="panel"><div class="panel-heading"><div><h2>生成与拒答</h2><p class="muted">完整成功、调用错误和有依据的拒答分开显示。</p></div></div><div class="table-scroll"><table><thead><tr><th>策略</th><th>完整完成</th><th>错误</th><th>Faithfulness / n</th><th>库外拒答率 / n</th></tr></thead><tbody id="quality-table"></tbody></table></div><p class="footnote" id="policy-note"></p></section>
-      <section class="panel"><div class="panel-heading"><div><h2>逐题查看</h2><p class="muted">点击题目查看本次召回、真实答案、证据和裁判理由。</p></div></div><div class="filters"><label>问题桶<select id="bucket-filter"><option value="all">全部</option></select></label><label>策略<select id="strategy-filter"><option value="all">全部</option></select></label><label>运行状态<select id="status-filter"><option value="all">全部</option><option value="ok">完整完成</option><option value="error">错误</option></select></label><label class="search-label">搜索问题<input id="query-filter" type="search" placeholder="题号或问题关键词"></label></div><p id="result-count" class="muted" aria-live="polite"></p><div class="table-scroll"><table><thead><tr><th>题号</th><th>问题</th><th>策略</th><th>MRR@10</th><th>状态</th><th>详情</th></tr></thead><tbody id="cases-table"></tbody></table></div></section>
-      <section class="notice draft"><strong>新一轮 · 喵喵优选 300 题</strong><p id="draft-note"></p><p>原评估集的年消费、纸质发票拒答及部分跨文档必命中标注需要修订。材料冻结、后台执行与新指标完成后，才会产生这一轮的真实分数。</p></section>
-    </div>
-    <footer>报告保留本轮错误与分母，不预设哪条策略获胜。</footer>
-  </main>
-  <dialog id="detail-dialog"><div class="dialog-header"><div><p class="eyebrow">逐题追溯</p><h2 id="detail-title"></h2></div><button id="detail-close" aria-label="关闭评估详情">×</button></div><div id="detail-body"></div></dialog>
-</body>
-</html>
+<!-- 本机工作台只消费公开 API，试运行资格与全量门槛由后端决定。 -->
+<html lang="zh-CN"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MewHelp · RAG 评估</title><link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/rag-evaluation.css"><script src="/static/rag-evaluation.js" defer></script>
+</head><body>
+<aside class="nav"><a class="brand" href="/">MewHelp<span>客服工作台</span></a><a href="/">客服对话</a><a class="current" href="/rag-eval" aria-current="page">▦ RAG 评估</a><p>检索与生成<br>分别核验，逐题追溯。</p></aside>
+<main><header><div><p class="eyebrow">质量与评估</p><h1>RAG 评估</h1><p class="muted">比较四条检索策略，查看证据如何影响回答。</p></div><span class="pill">本机评估工作台</span></header>
+<section class="panel setup"><label>冻结数据集<select id="dataset-select" disabled><option>正在加载…</option></select></label><div class="actions"><button id="pilot-start" disabled>试运行 · 10 题</button><button id="full-start" disabled>全量评估 · 300 题</button></div><p id="gate-note" class="muted" aria-live="polite">正在核验配置与试运行资格…</p></section>
+<section class="run-selector"><label for="report-select">评估记录</label><select id="report-select" disabled><option>正在加载…</option></select><button id="history-refresh">刷新历史</button><span id="run-status" class="pill">读取报告</span></section>
+<p id="load-error" class="notice warning" role="alert" hidden></p>
+<div id="report" hidden>
+<section class="notice" id="scope-note"></section>
+<section class="panel progress-panel"><div class="panel-heading"><div><h2>运行进度</h2><p id="progress-text" aria-live="polite"></p></div><div class="actions"><button id="cancel-run" disabled>取消运行</button><button id="rerun" disabled>按本次范围重跑</button><button id="export-json" disabled>导出 JSON</button><button id="export-markdown" disabled>导出 Markdown</button></div></div><progress id="run-progress" max="1" value="0" aria-label="已结束的策略记录比例"></progress><p id="cleanup-note" class="muted"></p><details><summary>冻结配置与实际请求数</summary><pre id="run-config"></pre></details></section>
+<section class="cards" aria-label="评估概览" id="cards"></section>
+<section class="panel"><div class="panel-heading"><div><h2>四策略分桶对比</h2><p id="metric-description" class="muted"></p></div><label>评估指标<select id="metric-select"></select></label></div><div id="legend" class="legend"></div><div class="table-scroll"><table class="matrix"><caption class="sr-only">四策略指标、有效样本及并列领先</caption><thead><tr><th>问题类型</th><th>vector</th><th>bm25</th><th>hybrid</th><th>hybrid_rerank</th></tr></thead><tbody id="metric-table"></tbody></table></div><p class="footnote">每格显示指标、有效分母和排除原因。N/A 表示缺失或不适用；领先仅针对当前指标，分母可能不同。误拒答率越低越好，其余指标越高越好；并列全部标注，不设总体冠军。</p></section>
+<section class="panel"><h2>生成与拒答 · 各策略有效样本</h2><div class="table-scroll"><table><thead><tr><th>策略</th><th>完整完成 / 实际记录</th><th>错误</th><th>要点覆盖 / n</th><th>忠实度 / n</th><th>库外拒答 / n</th><th>可回答误拒答 / n</th></tr></thead><tbody id="quality-table"></tbody></table></div><p id="policy-note" class="footnote"></p></section>
+<section class="panel"><h2>生成 · 四路共同有效子集</h2><p id="common-note" class="muted"></p><div class="table-scroll"><table><thead><tr><th>策略</th><th>要点覆盖 / n</th><th>忠实度 / n</th><th>库外拒答 / n</th><th>可回答误拒答 / n</th></tr></thead><tbody id="common-table"></tbody></table></div><details><summary>共同题号</summary><pre id="common-ids"></pre></details></section>
+<section class="panel"><h2>逐题查看</h2><p class="muted">分页与筛选只读取检查点；缺席计划仅计未执行，不编造题目记录。</p><div class="filters"><label>问题桶<select id="bucket-filter"><option value="">全部</option></select></label><label>策略<select id="strategy-filter"><option value="">全部</option></select></label><label>运行状态<select id="status-filter"><option value="">全部</option></select></label><label class="search-label">搜索问题<input id="query-filter" type="search" maxlength="512" placeholder="题号或问题关键词"></label></div><p id="result-count" class="muted" aria-live="polite"></p><div class="table-scroll"><table><thead><tr><th>题号</th><th>问题</th><th>策略</th><th>MRR@10</th><th>状态</th><th>详情</th></tr></thead><tbody id="cases-table"></tbody></table></div><div class="pager"><button id="cases-prev" disabled>上一页</button><span id="page-number"></span><button id="cases-next" disabled>下一页</button></div></section>
+</div><footer>报告保留本轮错误与分母，不预设哪条策略获胜。</footer></main>
+<dialog id="detail-dialog" aria-labelledby="detail-title"><div class="dialog-header"><div><p class="eyebrow">逐题追溯</p><h2 id="detail-title"></h2></div><button id="detail-close" aria-label="关闭评估详情">×</button></div><div id="detail-body"></div></dialog>
+</body></html>
