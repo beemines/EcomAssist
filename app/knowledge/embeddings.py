@@ -7,6 +7,9 @@ import httpx
 
 from app.config import Settings
 
+# 实际请求与评估出处共享同一个地址，路径变更会使旧试运行指纹失效。
+EMBEDDING_ENDPOINT = 'https://api.siliconflow.cn/v1/embeddings'
+
 
 # 要求列表恰有 1024 个有限数值，排除布尔、NaN 和无穷后转换为 float。
 def validate_vector(vector: list[float]) -> list[float]:
@@ -43,7 +46,7 @@ class SiliconFlowEmbedder:
         if not texts:
             return []
         response = await self._client.post(
-            'https://api.siliconflow.cn/v1/embeddings',
+            EMBEDDING_ENDPOINT,
             headers={'Authorization': f'Bearer {key.get_secret_value()}'},
             json={'model': self.settings.embedding_model, 'input': texts, 'encoding_format': 'float'},
             timeout=self.settings.embedding_timeout_seconds,

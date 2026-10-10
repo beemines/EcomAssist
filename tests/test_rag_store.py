@@ -43,6 +43,24 @@ def record(eval_id="E1", strategy="dense", *, status="not_attempted"):
     return result
 
 
+def test_explicit_provenance_is_strict_and_legacy_remains_readable():
+    """新出处仅接受摘要及安全协议字段，历史缺失出处仍可读取。"""
+    module = api()
+    value = config()
+    assert 'provenance' not in module.validate_config(value)
+    value['provenance'] = dict(dataset_fingerprint='a' * 64, corpus_hash='b' * 64,
+        cases_hash='c' * 64, annotation_hash='d' * 64,
+        prompt_hashes={key: 'e' * 64 for key in ('rewrite', 'self_check', 'answer', 'judge')},
+        endpoint_hashes={key: 'f' * 64 for key in ('llm', 'embedding', 'rerank', 'milvus')},
+        llm_timeout_s=60, llm_token_limit_field='max_tokens')
+    assert module.validate_config(value)['provenance'] == value['provenance']
+    for key, bad in [('corpus_hash', 'https://private/?key=secret'), ('llm_timeout_s', True),
+                     ('llm_token_limit_field', 'secret')]:
+        invalid = dict(value, provenance=dict(value['provenance'], **{key: bad}))
+        with pytest.raises(module.StoreError):
+            module.validate_config(invalid)
+
+
 async def test_atomic_snapshot_failure_preserves_previous(tmp_path, monkeypatch):
     """替换失败不能截断已有 manifest，失败前的状态仍是有效 JSON。"""
     module = api()
