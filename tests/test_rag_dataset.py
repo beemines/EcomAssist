@@ -115,6 +115,7 @@ def test_freeze_rejects_bad_hash_empty_gold_unknown_category_and_missing_reason(
                 rows[0]["point_sources"]["p1"][0]["quote"] = "资料里不存在的承诺"
             elif damage == "duplicate":
                 rows[1]["eval_id"] = rows[0]["eval_id"]
+                rows[1]["ledger_eval_id"] = mod.ledger_key(rows[1]["eval_id"], rows[1]["query"])
             elif damage == "e_duplicate":
                 row = next(row for row in rows if row["eval_id"] == "E1")
                 row["groups"][1]["alternatives"] = row["groups"][0]["alternatives"]
@@ -125,7 +126,7 @@ def test_freeze_rejects_bad_hash_empty_gold_unknown_category_and_missing_reason(
         mutate_jsonl(folder, filename, damage_row)
     reasons = {
         "hash": "哈希不匹配", "gold": "正例金标为空", "category": "非法品类条件",
-        "reason": "理由缺失", "source": "引文无法映射", "duplicate": "台账题面键不一致",
+        "reason": "理由缺失", "source": "引文无法映射", "duplicate": "题数、题号或唯一性错误",
         "e_duplicate": "重复使用同一小节", "refusal": "库外题含正例金标", "utf8": "UnicodeDecodeError",
     }
     with pytest.raises(mod.DatasetError, match=reasons[damage]):
@@ -158,3 +159,45 @@ def test_audited_scope_regressions_are_preserved():
     regressions = [json.loads(line) for line in (ROOT / "merchant-rag-300" / "regressions.jsonl").read_text(encoding="utf-8").splitlines()]
     assert {row["original_eval_id"] for row in regressions} == {"D3", "D30"}
     assert all(not row["case"]["should_refuse"] and row["case"]["groups"] for row in regressions)
+
+
+@pytest.mark.parametrize("eval_id,point_id,required,forbidden", [
+    ("A32", "p1", "超过30天", "30天内"),
+    ("E39", "p2", "超过30天", "30天内"),
+    ("E39", "p1", "填写错误", "30天"),
+    ("C24", "p1", "审核通过", "30天内"),
+    ("E8", "p2", "可开票类型", "企业账户"),
+])
+def test_invoice_point_conditions_do_not_exclude_the_question(eval_id, point_id, required, forbidden):
+    """逾期、填错与类型查询分别适用，不能被整节模板错误加上期限或企业资格。"""
+    dataset = api().load_dataset("merchant-rag-300-v1", root=ROOT)
+    case = next(case for case in dataset.cases if case.eval_id == eval_id)
+    point = next(point for point in case.points if point.point_id == point_id)
+    condition = point.condition.replace(" ", "")
+    assert required in condition
+    assert forbidden not in condition
+
+
+@pytest.mark.parametrize("eval_id,documents", [
+    ("A1", (("returns-policy.md", 1),)),
+    ("C1", (("returns-policy.md", 1),)),
+    ("C7", (("returns-policy.md", 8),)),
+    ("C12", (("integral-rules.md", 2),)),
+    ("E50", (("integral-rules.md", 2), ("membership-benefits.md", 1))),
+    ("A12", (("membership-benefits.md", 1), ("integral-rules.md", 1), ("integral-rules.md", 2))),
+])
+def test_complete_policy_alternatives_satisfy_mapped_gold(eval_id, documents):
+    """仅召回已人工核实的完整替代来源也须算全组命中，不偏袒FAQ措辞。"""
+    mod = api()
+    dataset = mod.load_dataset("merchant-rag-300-v1", root=ROOT)
+    physical = {chunk.chunk_key: index for index, chunk in enumerate(dataset.chunks, 1)}
+    lookup = {(chunk.document, chunk.ordinal): physical[chunk.chunk_key] for chunk in dataset.chunks}
+    case = next(case for case in dataset.cases if case.eval_id == eval_id)
+    groups = mod.map_groups(case, physical)
+    retrieved = {lookup[source] for source in documents}
+    assert all(any(set(bundle) <= retrieved for bundle in group.alternatives) for group in groups)
+    if eval_id in {"E50", "A12"}:
+        # 多节/多块组合缺少任一必需来源，都不得因OR替代误判为完整。
+        for physical_id in retrieved:
+            partial = retrieved - {physical_id}
+            assert not all(any(set(bundle) <= partial for bundle in group.alternatives) for group in groups)
