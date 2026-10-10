@@ -1,5 +1,6 @@
 # 知识仓储：管理原文、邻块指针、待向量化状态及抽取问答的暂存与提升。
 from dataclasses import asdict
+from collections.abc import Awaitable, Callable
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,9 +50,14 @@ class KnowledgeRepository:
         self.database = database
 
     # 用独立短事务保存分块，并返回按输入顺序排列的主键。
-    async def add_chunks(self, drafts: list[ChunkDraft], link_neighbors: bool = False) -> list[int]:
+    async def add_chunks(self, drafts: list[ChunkDraft], link_neighbors: bool = False, *,
+                         before_commit: Callable[[list[int]], Awaitable[None]] | None = None) -> list[int]:
+        """flush 后在同一短事务内登记归属，回调失败使本批整体回滚。"""
         async with self.database.session() as session, session.begin():
-            return await _insert(session, drafts, link_neighbors)
+            ids = await _insert(session, drafts, link_neighbors)
+            if before_commit is not None:
+                await before_commit(ids)
+            return ids
 
     # 按主键读取有限批次的待向量化分块。
     async def pending(self, limit: int = 20) -> list[ChunkRecord]:
