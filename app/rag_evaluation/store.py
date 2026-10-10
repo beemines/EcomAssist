@@ -21,6 +21,7 @@ from uuid import uuid4
 from weakref import WeakValueDictionary
 
 from app.rag_evaluation.contracts import Strategy
+from app.rag_evaluation.audit import validate_source_map, validate_audit_sources
 from app.rag_evaluation.report import CASE_FIELDS, STATUSES, STRATEGIES, safe_error, validate_case_record
 
 CONFIG_FIELDS = ("dataset_id", "scope", "fingerprint", "mode", "models", "budgets", "prompt_versions", "upstream_summary")
@@ -308,7 +309,7 @@ def public_run_metadata(manifest: Mapping[str, object]) -> dict[str, object]:
 
 def _case(record: Mapping[str, object]) -> dict[str, object]:
     """存储边界拒绝嵌套扩展字段，再复用报告的完整阶段与金标契约。"""
-    value = _object(record, CASE_FIELDS)
+    value = _object(record, CASE_FIELDS + (('audit',) if 'audit' in record else ()))
     _require(_identifier(value["eval_id"], 64) and "--" not in value["eval_id"], "题号不适合作为检查点文件名")
     nested = {"query_plan": ("standard", "expansions"), "decision": ("useful", "reason", "response_kind", "source"),
               "error": ("code", "type", "message")}
@@ -338,7 +339,9 @@ def _case(record: Mapping[str, object]) -> dict[str, object]:
 
 def _identity(row: dict) -> list:
     """同题所有策略共享完整题面和物理金标，缓存不降低冻结元数据校验。"""
-    return [row[field] for field in ("bucket", "difficulty", "category", "should_refuse", "query", "mapped_groups")]
+    audit = row.get('audit')
+    return [row[field] for field in ("bucket", "difficulty", "category", "should_refuse", "query", "mapped_groups")] + [
+        None if audit is None else {key: audit[key] for key in ('audit_version', 'source_map_id', 'gold_groups', 'answer_points')}]
 
 
 class RunStore:
@@ -418,11 +421,13 @@ class RunStore:
                 if path.name.startswith(".snapshot-") and path.suffix == ".tmp":
                     continue
                 _require(path.name in expected and path.is_file(), "存在非计划检查点")
+            source_map = self._source_map(manifest)
             rows, identities = [], {}
             for name, key in expected.items():
                 path = self._path(run_id, "records", name)
                 if path.exists():
                     row = _case(self._read(path))
+                    validate_audit_sources(row, source_map)
                     _require((row["eval_id"], row["strategy"]) == key, "检查点身份不匹配")
                     identity = _identity(row)
                     _require(row["eval_id"] not in identities or identities[row["eval_id"]] == identity,
@@ -540,6 +545,7 @@ class RunStore:
         async with self._writer():
             cached = self._load(run_id)
             manifest = copy.deepcopy(cached.manifest)
+            validate_audit_sources(row, self._source_map(manifest))
             key = (row["eval_id"], row["strategy"])
             _require(key in cached.plan, "题目策略不在冻结计划内")
             identity = _identity(row)
@@ -563,6 +569,34 @@ class RunStore:
         """独立manifest快照；False仅派生计数不写文件，默认保留授权恢复兼容。"""
         async with self._writer():
             return copy.deepcopy(self._load(run_id, persist_repair=persist_repair).manifest)
+
+    def _source_map(self, manifest: dict) -> dict | None:
+        """只读固定来源落点；历史缺文件保持null，任何存在的坏文件失败关闭。"""
+        path = self._path(manifest['run_id'], 'source-map.json')
+        if not path.exists():
+            return None
+        try:
+            return validate_source_map(self._read(path), manifest['config'])
+        except (ValueError, TypeError, KeyError) as exc:
+            raise StoreError('来源映射校验失败') from exc
+
+    async def put_source_map(self, run_id: str, source_map: Mapping[str, object]) -> None:
+        """收费阶段前一次原子发布全部原文；仅完全相同重试可幂等返回。"""
+        async with self._writer():
+            cached = self._load(run_id)
+            value = validate_source_map(source_map, cached.manifest['config'])
+            existing = self._source_map(cached.manifest)
+            if existing is not None:
+                _require(existing == value, '来源映射不可改变')
+                return
+            _require(not cached.rows, '逐题捕获后不可补造来源映射')
+            self._write(self._path(run_id, 'source-map.json'), value)
+
+    async def source_map(self, run_id: str) -> dict | None:
+        """来源只读读取不修复manifest，也不依赖尚未清理的外部资源。"""
+        async with self._writer():
+            manifest = self._load(run_id, persist_repair=False).manifest
+            return self._source_map(manifest)
 
     async def records(self, run_id: str, *, persist_repair: bool = True) -> list[dict[str, object]]:
         """按计划返回实际完整记录；False禁用计数修复写入但不降低验证。"""

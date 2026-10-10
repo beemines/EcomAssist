@@ -26,6 +26,7 @@ from app.knowledge.types import ChunkDraft, ChunkRecord
 from app.rag_evaluation.contracts import CorpusChunk, FrozenDataset
 from app.rag_evaluation.store import RunStore
 from app.rag_evaluation.locking import RunLock
+from app.rag_evaluation.manager import build_run_config
 from app.repositories.knowledge import KnowledgeRepository
 from tests.test_rag_store import config
 
@@ -202,7 +203,7 @@ async def local_owner(module, tmp_path, monkeypatch):
     """保留真实存储、仓储与模型构造，仅隔离外部服务。"""
     database = LocalDatabase()
     store = RunStore(tmp_path)
-    run_id = await store.create(config(), [('E1', 'dense')])
+    run_id = await store.create(build_run_config(dataset(), settings(), 'pilot'), [('E1', 'dense')])
     monkeypatch.setattr(module, 'Database', lambda url: database)
     monkeypatch.setattr(module, 'HybridMilvusIndex', MemoryIndex)
     monkeypatch.setattr(module, 'SiliconFlowEmbedder', DeterministicEmbedder)
@@ -423,7 +424,7 @@ async def test_real_prepare_cleanup_preserves_sentinels(mysql_database, milvus_c
     current_settings = load_settings()
     frozen = load_dataset('merchant-rag-300-v1', root=Path('evals/datasets'))
     store = RunStore(tmp_path)
-    frozen_config = config() | {'fingerprint': frozen.fingerprint}
+    frozen_config = build_run_config(frozen, current_settings, 'pilot')
     run_id = await store.create(frozen_config, [('E1', 'dense')])
     owner = module.OwnedResources(current_settings, store, run_id)
     monkeypatch.setattr(module, 'SiliconFlowEmbedder', DeterministicEmbedder)
@@ -526,7 +527,7 @@ async def test_real_mysql_child_death_recovers_each_commit_window(mysql_database
     """真实子进程死亡后仅靠持久归属恢复，回滚主键缺行可安全视为无残留。"""
     module = api()
     store = RunStore(tmp_path)
-    run_id = await store.create(config(), [('E1', 'dense')])
+    run_id = await store.create(build_run_config(dataset(), load_settings(), 'pilot'), [('E1', 'dense')])
     before = await database_snapshot(mysql_database)
     collections_before = set(await milvus_collection.client.list_collections(timeout=5))
     ready = tmp_path / 'ready.json'

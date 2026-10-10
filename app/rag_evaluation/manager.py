@@ -161,7 +161,16 @@ class RunManager:
                     or set(map(tuple, manifest['case_keys'])) != expected or len(expected) != 40):
                 continue
             rows = await self.store.records(manifest['run_id'], persist_repair=persist_repair)
-            if len(rows) == 40 and all(row['status'] == 'completed' for row in rows):
+            source_map = await self.store.source_map(manifest['run_id'])
+            if len(rows) == 40 and source_map is not None and all(row['status'] == 'completed' and
+                    row.get('audit') is not None and row['audit']['audit_version'] == 1 and
+                    row['audit']['source_map_id'] == source_map['source_map_id'] for row in rows):
+                from app.rag_evaluation.audit import build_source_map, validate_audit_sources
+                mapping = {source['chunk_key']: source['chunk_id'] for source in source_map['sources']}
+                if set(mapping) != {chunk.chunk_key for chunk in dataset.chunks} or source_map != build_source_map(dataset, mapping):
+                    continue
+                for row in rows:
+                    validate_audit_sources(row, source_map)
                 return True
         return False
 
@@ -258,7 +267,7 @@ class RunManager:
             error=None if error is None and cleanup.ok else {'code': error or 'cleanup_failed',
                 'type': 'RuntimeError', 'message': '该阶段执行失败'})
         manifest = dict(await self.store.get(run_id), **patch)
-        publish_reports(self.store.root, manifest, await self.store.records(run_id))
+        publish_reports(self.store.root, manifest, await self.store.records(run_id), await self.store.source_map(run_id))
         await self.store.update(run_id, patch)
 
     async def cancel(self, run_id: str) -> dict[str, object]:

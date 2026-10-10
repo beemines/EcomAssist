@@ -128,7 +128,7 @@ class Retrieval:
         await asyncio.sleep(self.delay)
         chunk = ChunkRecord('测试', 'HX-600退货规则', '七天退货', id=1, vectorize_status='done')
         return RetrievalBundle(query_plan, strategy, [VectorHit(1, .9), VectorHit(2, .8)],
-            [ScoredChunk(chunk, .9, 'rerank' if strategy == 'hybrid_rerank' else 'cosine')])
+            [ScoredChunk(chunk, .9, {'dense': 'cosine', 'bm25': 'bm25', 'hybrid': 'rrf', 'hybrid_rerank': 'rerank'}[strategy])])
 
 
 class Quality:
@@ -147,7 +147,8 @@ async def setup(tmp_path, count=1):
     module = api()
     from app.retrieval.query import QueryPlanner
     store, data = RunStore(tmp_path), frozen(count)
-    run_id = await store.create(config(), [(c.eval_id, s) for c in data.cases for s in STRATEGIES])
+    from app.rag_evaluation.manager import build_run_config
+    run_id = await store.create(build_run_config(data, settings(), 'pilot'), [(c.eval_id, s) for c in data.cases for s in STRATEGIES])
     counter = RequestCounter(store, run_id, (await store.get(run_id))['request_counts'])
     async def dispatch(request):
         """实际 HTTP dispatch 只返回本机响应，保留 request hook 行为。"""
@@ -543,7 +544,8 @@ async def test_real_four_strategies_mysql_milvus_preserve_other_resources(mysql_
     data = load_dataset('merchant-rag-300-v1', root=Path('evals/datasets'))
     case_ids = ('B1', 'E5')
     store = RunStore(tmp_path)
-    run_id = await store.create(config() | {'fingerprint': data.fingerprint},
+    from app.rag_evaluation.manager import build_run_config
+    run_id = await store.create(build_run_config(data, current, 'pilot'),
         [(case_id, strategy) for case_id in case_ids for strategy in STRATEGIES])
     models = []
     def offline_model(*args, **kwargs):
@@ -592,6 +594,15 @@ async def test_real_four_strategies_mysql_milvus_preserve_other_resources(mysql_
             assert counts['milvus'] > 0 and all(counts[k] == 0 for k in counts if k != 'milvus')
             cleanup = await owner.cleanup()
             assert cleanup.ok, cleanup
+            from app.rag_evaluation.export import report_envelope
+            report = report_envelope(await store.get(run_id), await store.records(run_id), await store.source_map(run_id))
+            source_ids = {source['chunk_id'] for source in report['source_map']['sources']}
+            assert source_ids == set(mapping.values())
+            for public_row in report['records']:
+                assert [hit['chunk_id'] for hit in public_row['audit']['candidate_ranking']] == public_row['candidate_ids']
+                assert [hit['chunk_id'] for hit in public_row['audit']['final_ranking']] == public_row['final_ids']
+                assert set(public_row['candidate_ids']) <= source_ids
+            assert set(dense['candidate_ids']) - {int(c['chunk_id']) for c in dense['prompt_citations']}
         assert await database_snapshot(mysql_database) == before
         assert await database_snapshot(business) == business_before
         assert set(await milvus_collection.client.list_collections(timeout=5)) == collections_before
@@ -601,7 +612,7 @@ async def test_real_four_strategies_mysql_milvus_preserve_other_resources(mysql_
             'other_collections_preserved': True, 'request_counts': (await store.get(run_id))['request_counts'],
             'candidate_ids': {r['eval_id'] + '--' + r['strategy']: r['candidate_ids'] for r in rows},
             'mapped_cross_section_ids': sorted(expected_ids)}
-        Path('.cache/task6-service-proof.json').write_text(json.dumps(proof, ensure_ascii=False, indent=2), encoding='utf-8')
+        Path('.cache/final-fix-service-proof.json').write_text(json.dumps(proof, ensure_ascii=False, indent=2), encoding='utf-8')
     finally:
         await owner.cleanup()
         await business.dispose()

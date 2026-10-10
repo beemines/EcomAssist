@@ -16,13 +16,13 @@ async def _command(args) -> dict:
     """历史展示只投影真实检查点，新运行则由相同 manager 拥有锁和清理。"""
     store = RunStore(lifecycle.RUNTIME_ROOT)
     if args.command == 'show':
-        return report_envelope(await store.get(args.run_id), await store.records(args.run_id))
+        return report_envelope(await store.get(args.run_id), await store.records(args.run_id), await store.source_map(args.run_id))
     manager = lifecycle.RunManager(store, load_settings(), lifecycle.DATASET_ROOT)
     try:
         await manager.startup()
         run_id = await manager.start(args.dataset, args.scope)
         await manager.wait(run_id)
-        return report_envelope(await store.get(run_id), await store.records(run_id))
+        return report_envelope(await store.get(run_id), await store.records(run_id), await store.source_map(run_id))
     finally:
         await manager.shutdown()
 
