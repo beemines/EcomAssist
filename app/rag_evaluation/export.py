@@ -21,7 +21,7 @@ def report_envelope(manifest: dict, records: list[dict]) -> dict:
     return result
 
 
-def _markdown(report: dict) -> str:
+def render_markdown(report: dict) -> str:
     """Markdown包含汇总及全部公开逐题产物，不用省略号替代真实证据。"""
     lines = ['# RAG 评估报告', '', f"运行：{report['run_id']}", '',
              f"状态：{report['run']['state']}；范围：{report['scope']}", '',
@@ -40,7 +40,7 @@ def publish_reports(root: Path, manifest: dict, records: list[dict]) -> None:
     report = report_envelope(manifest, records)
     run_id = report['run_id']
     contents = {'report.json': json.dumps(report, ensure_ascii=False, separators=(',', ':'), allow_nan=False),
-                'report.md': _markdown(report)}
+                'report.md': render_markdown(report)}
     encoded = {name: value.encode('utf-8') for name, value in contents.items()}
     if any(len(value) > MAX_EXPORT_BYTES for value in encoded.values()):
         raise StoreError('完整聚合报告超过128MiB上限')

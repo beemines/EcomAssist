@@ -30,6 +30,23 @@ def api():
     return importlib.import_module('app.rag_evaluation.manager')
 
 
+async def test_public_pilot_ready_is_readonly_and_uses_exact_gate(monkeypatch, tmp_path):
+    """公开只读门槛复用已批准校验，未知 ID 拒绝且不执行或获取资源。"""
+    harness = Harness(monkeypatch, tmp_path)
+    manager = harness.manager
+    assert hasattr(manager, 'pilot_ready'), '尚未提供公开只读试运行门槛'
+    assert await manager.pilot_ready(DATASET_ID) is False
+    assert harness.calls == harness.cleanup_calls == harness.recover_calls == 0
+    # 成功低分合法试运行仍放行；公开门槛不会产生第二次运行。
+    run_id = await manager.start(DATASET_ID, 'pilot')
+    await manager.wait(run_id)
+    assert await manager.pilot_ready(DATASET_ID) is True
+    assert harness.calls == 1 and harness.cleanup_calls == 1
+    with pytest.raises(DatasetError):
+        await manager.pilot_ready('../PRIVATE-SECRET')
+    assert harness.calls == 1
+
+
 class Harness:
     """只替换收费与服务边界，记录和锁仍使用生产实现。"""
     def __init__(self, monkeypatch, tmp_path):

@@ -1,6 +1,7 @@
 # 统一读取环境变量和 UTF-8 的 .env，校验模型、工具、MySQL 与 Milvus 配置。
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, HttpUrl, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -62,6 +63,27 @@ class Settings(BaseSettings):
     tool_max_retries: int = Field(default=1, ge=0, le=1, validation_alias="TOOL_MAX_RETRIES")
     faq_timeout_seconds: float = Field(default=90, gt=0, le=90, validation_alias='FAQ_TIMEOUT_SECONDS')
     chat_timeout_seconds: float = Field(default=240, gt=0, le=240, validation_alias='CHAT_TIMEOUT_SECONDS')
+    # 工作台默认只读；换本机端口时由启动环境显式配置 JSON 来源数组。
+    rag_evaluation_enabled: bool = Field(default=False, validation_alias='RAG_EVALUATION_ENABLED')
+    rag_evaluation_allowed_origins: tuple[str, ...] = Field(
+        default=('http://127.0.0.1:8001', 'http://localhost:8001'),
+        validation_alias='RAG_EVALUATION_ALLOWED_ORIGINS')
+
+    @field_validator('rag_evaluation_allowed_origins')
+    @classmethod
+    def evaluation_origins_are_loopback(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        """来源仅为显式本机 origin，拒绝通配符、凭据、路径和非本机绑定。"""
+        if not values:
+            raise ValueError('evaluation origins require an explicit loopback whitelist')
+        for value in values:
+            parsed = urlsplit(value)
+            if (parsed.scheme not in ('http', 'https') or parsed.hostname not in ('127.0.0.1', 'localhost')
+                    or parsed.username is not None or parsed.password is not None
+                    or parsed.path or parsed.query or parsed.fragment
+                    or parsed.port is None or not 1 <= parsed.port <= 65535
+                    or value != f'{parsed.scheme}://{parsed.hostname}:{parsed.port}'):
+                raise ValueError('evaluation origins must be canonical explicit loopback origins')
+        return tuple(dict.fromkeys(values))
 
     # 校验数据库密码并构造保留特殊字符的异步 MySQL 连接地址。
     @property
