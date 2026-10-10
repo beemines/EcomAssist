@@ -165,6 +165,12 @@ class RunManager:
                 return True
         return False
 
+    async def pilot_ready(self, dataset_id: str) -> bool:
+        """只读公开匹配门槛，复用完整出处检查且不持锁、建资源或调用模型。"""
+        dataset = load_dataset(dataset_id, root=self.dataset_root)
+        configuration = self.settings.model_copy(deep=True)
+        return await self._pilot(dataset, build_run_config(dataset, configuration, 'full'))
+
     async def start(self, dataset_id: str, scope: Scope) -> str:
         """任何收费前全量离线预检，随后非排队取得跨进程锁并冻结新计划。"""
         if scope not in ('pilot', 'full'):

@@ -11,6 +11,9 @@ from fastapi.staticfiles import StaticFiles
 from app.api.chat import router as chat_router
 from app.api.conversations import router as conversations_router
 from app.api.extract import router as extract_router
+from app.api.rag_evaluations import create_router as evaluation_router
+from app.rag_evaluation.manager import DATASET_ROOT, RUNTIME_ROOT, RunManager
+from app.rag_evaluation.store import RunStore
 from app.config import Settings, load_settings
 from app.core.tool_chat import ToolChatService
 from app.core.conversation_locks import ConversationLocks
@@ -49,6 +52,7 @@ def create_app(
     faq_repository: FAQRepository | None = None,
     sufficiency_service: SufficiencyService | None = None,
     quality_repository: QualityRepository | None = None,
+    evaluation_manager: RunManager | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
     owns_database = database is None and repository is None
@@ -57,6 +61,10 @@ def create_app(
         if database is None:
             database = _UnavailableDatabase()
     owns_model = model is None
+    owns_evaluation_manager = evaluation_manager is None
+    evaluation_settings = settings.model_copy(deep=True)
+    if evaluation_manager is None:
+        evaluation_manager = RunManager(RunStore(RUNTIME_ROOT), evaluation_settings, DATASET_ROOT)
 
     # 将仓储、工具对话服务和结构化抽取服务注入应用状态。
     def configure(app: FastAPI):
@@ -111,10 +119,17 @@ def create_app(
             # 真实数据库即使注入仍核验；纯仓储注入不凭空创建连接池。
             if getattr(database, 'engine', None) is not None:
                 await verify_quality(database)
+            # 默认禁用不恢复或写历史；注入管理器与注入模型一样由调用方持有。
+            if owns_evaluation_manager and evaluation_settings.rag_evaluation_enabled:
+                resources.push_async_callback(evaluation_manager.shutdown)
+                await evaluation_manager.startup()
             configure(app)
             yield
 
     app = FastAPI(lifespan=lifespan)
+    app.state.rag_evaluation_settings = evaluation_settings
+    app.state.evaluation_manager = evaluation_manager
+    app.include_router(evaluation_router(evaluation_manager, evaluation_manager.store, evaluation_settings))
     # 支持已注入依赖但刻意不启动 lifespan 的 HTTPX 调用方。
     if repository is None and database is not None:
         repository = ConversationRepository(database)
