@@ -62,3 +62,15 @@
 - 回包混有旧客户端API和同步示例，另有连接超时单位表述；这些不证明当前异步客户端签名或单位。沿用既有5秒服务期限并读取安装实现核对；真实哨兵和中断测试仍是后续验收。
 
 资源事务与清理追加预查 `.cache/context7-workbench-resource-sqlalchemy.txt` / `-cancellation.txt`：SQLAlchemy官方事务说明flush不提交、异常必须rollback/close；本次回包主要是同步示例，异步用法结合前面已保存的官方AsyncSession文档和安装签名核对。CPython官方说明CancelledError须在清理后传播、后台Task保留强引用、timeout取消内层等待；shield本身不代表所有资源清理已经结束。后续资源owner逐项限时清理并汇总错误，manager持锁至清理和终态持久化完成。
+
+## 实际请求计数与流实现前预查
+
+Context7先resolve HTTPX得到支持0.28.1的 `/encode/httpx`，再查询 `/encode/httpx/0.28.1`，保存 `.cache/context7-workbench-httpx-{resolve,hooks}.txt`。官方[事件钩子](https://github.com/encode/httpx/blob/0.28.1/docs/advanced/event-hooks.md)说明request在请求准备后、网络发出前运行，AsyncClient的hook必须async；[异步文档](https://github.com/encode/httpx/blob/0.28.1/docs/async.md)说明手动创建客户端最终await aclose。采用资源owner单一序列化计数器，执行器借用stage上下文，不由各题get再update推算。
+
+Context7 `/websites/reference_langchain` 的ainvoke/astream结束元数据预查保存在 `.cache/context7-workbench-runner-stream.txt`。官方API定义astream返回AsyncIterator[AIMessageChunk]、末块response_metadata.finish_reason为stop；回包另混有await astream示例，必须以安装1.6.x形状及现有FinalAnswerStream调用核对，不能凭示例引入错误await。正常结束守卫继续复用，length/缺stop不视为有效回答。
+
+任务5只读核对发现PyMilvus3.0.2单次方法包含握手、DescribeCollection/Upsert和可能的schema刷新重放，方法层次数不能冒充RPC次数。资源owner采用本客户端专属的最小固定版本连接/handler适配，在初始及重连channel安装grpc.aio拦截器；不全局patch或升级依赖。实现者须另查官方grpc接口并核对安装签名、验证实际本地RPC计数；固定版本私有接缝的维护约束会在实现报告披露。
+
+补充gRPC预查与版本边界：任务5在实现前使用Context7定向查询grpc Python aio，缓存为context7-workbench-grpc-{resolve,interceptor,aio,python-resolve,python-aio}.txt。回包仍混有同步/Go片段，没有拿它们替代异步接口定义；结合安装官方grpc1.84.0的aio channel/continuation/close源码、PyMilvus3.0.2的连接/重放/重连接缝核对，并用本机真实gRPC服务观察实际RPC序列。局部适配严格固定3.0.2，不升级或全局补丁；若SDK变化须复核。官方[Python AsyncIO文档](https://github.com/grpc/grpc/blob/master/doc/python/sphinx/grpc_asyncio.rst)确认aio生命周期体系，不能把sync intercept_channel范例套入aio。
+
+独立审查针对已安装重连代码发现：新channel在握手及发布锁等待前创建，外部CancelledError可能先于SDK发布到当前channel。资源拥有者必须追踪所有新建/退休/未发布通道，关闭不能只看当前通道或假设shield已结束。局部修复以真实channel两处取消和失败回归验证，所有close任务由同一owner强引用并等待，清理失败纳入结果；这一固定版本维护约束与审查结论保存在实施记录中。
