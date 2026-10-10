@@ -53,6 +53,30 @@ async def test_missing_group_and_nonprompt_candidate_resolve_after_cleanup(tmp_p
     assert all(item['chunk_id'] != '2' for item in row['prompt_citations'])
 
 
+async def test_captured_audit_cannot_be_hidden_as_preaudit_export(tmp_path):
+    """新记录已经捕获审计时，删除导出字段不能冒充历史未采集以绕过一致性检查。"""
+    from app.rag_evaluation.export import render_markdown
+    runner, _, store, data, run_id, http = await setup(tmp_path)
+    try:
+        await runner.run_cases(data, {'one': 1, 'two': 2}, data.pilot_ids, asyncio.Event())
+    finally:
+        await http.aclose()
+    await store.update(run_id, dict(state='completed', outcome='completed', stage='complete',
+        cleanup=dict(ok=True, errors=[], unverified=[])))
+    saved = report_envelope(await store.get(run_id), await store.records(run_id), await store.source_map(run_id))
+    saved.pop('source_map')
+    for row in saved['records']:
+        row.pop('audit')
+    (tmp_path/run_id/'report.json').write_bytes(json.dumps(saved, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
+    (tmp_path/run_id/'report.md').write_bytes(render_markdown(saved).encode('utf-8'))
+    app, _ = application(tmp_path, manager=ManagerDouble(RunStore(tmp_path)))
+    before = {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in (tmp_path/run_id).rglob('*') if path.is_file()}
+    async with client_for(app) as client:
+        responses = [await client.get(f'/api/rag-evaluations/runs/{run_id}/export?format={kind}') for kind in ('json', 'markdown')]
+    assert [response.status_code for response in responses] == [409, 409]
+    assert before == {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in (tmp_path/run_id).rglob('*') if path.is_file()}
+
+
 async def test_audit_map_immutable_and_bad_ranking_rejected(tmp_path):
     """换源、重复分数、非有限分数与错映射均不能落盘成为审计事实。"""
     runner, _, store, data, run_id, http = await setup(tmp_path)
