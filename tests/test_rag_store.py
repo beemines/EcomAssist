@@ -3,6 +3,7 @@
 import asyncio
 import importlib
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -74,6 +75,7 @@ async def test_case_checkpoint_reconciles_counts_after_restart(tmp_path, monkeyp
         patcher.setattr(module.os, "replace", fail_manifest)
         with pytest.raises(module.StoreError):
             await store.put_case(run_id, record(status="rewrite_error"))
+    assert (await store.get(run_id))["counts"]["errors"] == 1
     resumed = module.RunStore(tmp_path)
     manifest = await resumed.get(run_id)
     assert manifest["counts"]["total"] == 2
@@ -284,5 +286,88 @@ async def test_cumulative_ownership_requests_and_tampered_manifest(tmp_path):
     manifest = json.loads(path.read_text("utf-8"))
     manifest["model_requests"] = "SECRET"
     path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(module.StoreError):
+        await module.RunStore(tmp_path).get(run_id)
+
+
+async def test_repeated_checkpoints_do_not_reload_all_case_json(tmp_path, monkeypatch):
+    """稳定态小批量更新必须避免累计重读所有逐题JSON，两个实例共享最新快照。"""
+    module = api()
+    store = module.RunStore(tmp_path)
+    other = module.RunStore(tmp_path / ".")
+    keys = [(f"E{index}", "dense") for index in range(1, 9)]
+    run_id = await store.create(config(), keys)
+    for eval_id, strategy in keys:
+        await store.put_case(run_id, record(eval_id, strategy))
+    await other.get(run_id)
+    await store.get(run_id)
+    reads = []
+    real_open = Path.open
+    def count_case_reads(path, mode="r", *args, **kwargs):
+        """记录真实文件打开次数，保持文件内容、JSON解析和发布行为完整。"""
+        if "records" in path.parts and path.suffix == ".json" and "r" in mode:
+            reads.append(path)
+        return real_open(path, mode, *args, **kwargs)
+    monkeypatch.setattr(Path, "open", count_case_reads)
+    for index, (eval_id, strategy) in enumerate(keys):
+        writer = store if index % 2 == 0 else other
+        await writer.update(run_id, {"state": "preparing"})
+        await writer.put_case(run_id, record(eval_id, strategy, status="rewrite_error"))
+        assert (await other.get(run_id))["counts"]["errors"] == index + 1
+    assert len(await store.records(run_id)) == 8
+    assert len(await other.list_runs()) == 1
+    assert reads == []
+
+
+@pytest.mark.skipif(os.name != "nt", reason="本用例核验Windows大小写不敏感文件名")
+async def test_windows_planned_filename_case_alias_is_rejected(tmp_path):
+    """语义不同的题号大小写别名不能在Windows成为同一个检查点文件。"""
+    module = api()
+    with pytest.raises(module.StoreError):
+        await module.RunStore(tmp_path).create(config(), [("E1", "dense"), ("e1", "dense")])
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_shared_cache_keeps_ownership_counters_and_returned_copies_independent(tmp_path):
+    """旧实例不得撤回其他实例新增归属或请求数，返回值修改不污染缓存。"""
+    module = api()
+    store = module.RunStore(tmp_path)
+    other = module.RunStore(tmp_path)
+    run_id = await store.create(config(), [("E1", "dense")])
+    await other.get(run_id)
+    first = dict(database={"host": "127.0.0.1", "port": 3308, "name": "customer_service_test"},
+        collection="knowledge_test_" + run_id, owned_ids=[1], pending_ids=[1], content_hashes={"1": "a" * 64})
+    await store.update(run_id, {"ownership": first})
+    await other.update(run_id, {"ownership": dict(first, owned_ids=[1, 2], pending_ids=[2],
+        content_hashes={"1": "a" * 64, "2": "b" * 64})})
+    with pytest.raises(module.StoreError):
+        await store.update(run_id, {"ownership": first})
+    requests = (await other.get(run_id))["request_counts"]
+    requests["milvus"] = 5
+    await other.update(run_id, {"request_counts": requests})
+    requests["milvus"] = 4
+    with pytest.raises(module.StoreError):
+        await store.update(run_id, {"request_counts": requests})
+    view = await store.get(run_id)
+    view["ownership"]["owned_ids"].clear()
+    view["request_counts"]["milvus"] = 0
+    assert (await other.get(run_id))["ownership"]["owned_ids"] == [1, 2]
+    assert (await other.get(run_id))["request_counts"]["milvus"] == 5
+    await store.put_case(run_id, record())
+    rows = await store.records(run_id)
+    rows[0]["query"] = "调用方改动的副本"
+    assert (await other.records(run_id))[0]["query"] == "退货规则"
+
+
+async def test_new_instance_revalidates_in_place_corrupted_case_despite_shared_cache(tmp_path):
+    """新实例必须重新校验磁盘，不能沿用其他实例缓存而遗漏原位文件损坏。"""
+    module = api()
+    store = module.RunStore(tmp_path)
+    run_id = await store.create(config(), [("E1", "dense")])
+    await store.put_case(run_id, record())
+    await store.get(run_id)
+    damaged = record()
+    damaged["answer"] = "尚未生成的伪造答案"
+    (tmp_path / run_id / "records" / "E1--dense.json").write_text(json.dumps(damaged), encoding="utf-8")
     with pytest.raises(module.StoreError):
         await module.RunStore(tmp_path).get(run_id)

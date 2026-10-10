@@ -44,7 +44,28 @@ MANIFEST_FIELDS = ("schema_version", "run_id", "config", "case_keys", "state", "
 PUBLIC_FIELDS = tuple(field for field in MANIFEST_FIELDS if field not in ("ownership", "case_keys"))
 COUNT_FIELDS = tuple(dict.fromkeys(("total", "attempted", "completed", "errors", "not_attempted") + STATUSES))
 MAX_JSON_BYTES = 2 * 1024 * 1024
-_WRITERS = WeakValueDictionary()
+_ROOT_STATES = WeakValueDictionary()
+
+
+class _RootState:
+    """同根同循环实例共同持有发布锁及最新运行缓存，防止实例间旧状态覆盖。"""
+
+    def __init__(self):
+        """缓存生命周期由存活的 RunStore 强引用限定，不创建后台任务。"""
+        self.lock = asyncio.Lock()
+        self.runs = {}
+
+
+class _RunState:
+    """已经完整验证的运行快照与按计划键索引的逐题产物。"""
+
+    def __init__(self, manifest: dict, rows: list[dict], signature: tuple):
+        """一次恢复建立索引；正常检查点只更新单题及其计数差量。"""
+        self.manifest = manifest
+        self.rows = {(row["eval_id"], row["strategy"]): row for row in rows}
+        self.identities = {row["eval_id"]: _identity(row) for row in rows}
+        self.plan = {tuple(key) for key in manifest["case_keys"]}
+        self.signature = signature
 
 
 class StoreError(ValueError):
@@ -145,12 +166,15 @@ def _plan(case_keys: object) -> list[list[str]]:
     """最多1200条唯一计划键，题号不含用于文件名分隔的双连字符。"""
     _require(isinstance(case_keys, Sequence) and not isinstance(case_keys, (str, bytes)) and 0 < len(case_keys) <= 1200,
              "计划记录数非法")
-    result, seen = [], set()
+    result, seen, filenames = [], set(), set()
     for key in case_keys:
         _require(isinstance(key, (list, tuple)) and len(key) == 2 and _identifier(key[0], 64) and
                  "--" not in key[0] and key[1] in STRATEGIES, "计划题号或策略非法")
         _require(tuple(key) not in seen, "计划题号策略重复")
+        filename = os.path.normcase(f"{key[0]}--{key[1]}.json")
+        _require(filename not in filenames, "计划检查点文件名冲突")
         seen.add(tuple(key))
+        filenames.add(filename)
         result.append(list(key))
     return result
 
@@ -292,21 +316,35 @@ def _case(record: Mapping[str, object]) -> dict[str, object]:
         raise StoreError("逐题阶段契约非法") from exc
 
 
+def _identity(row: dict) -> list:
+    """同题所有策略共享完整题面和物理金标，缓存不降低冻结元数据校验。"""
+    return [row[field] for field in ("bucket", "difficulty", "category", "should_refuse", "query", "mapped_groups")]
+
+
 class RunStore:
     """单事件循环内同根实例共用异步发布锁，跨进程运行由 RunLock 排他。"""
 
     def __init__(self, root: Path):
         """只规范化根目录；无效 create 不提前产生运行文件。"""
         self.root = canonical_root(root)
+        self._states = {}
+        self._loaded = set()
+
+    def _state(self) -> _RootState:
+        """各实例强持有同根同循环共享状态，弱注册表不积累已释放的根缓存。"""
+        loop = asyncio.get_running_loop()
+        if loop not in self._states:
+            key = (os.path.normcase(str(self.root)), loop)
+            shared = _ROOT_STATES.get(key)
+            if shared is None:
+                shared = _RootState()
+                _ROOT_STATES[key] = shared
+            self._states[loop] = shared
+        return self._states[loop]
 
     def _writer(self) -> asyncio.Lock:
         """同规范根与事件循环共享锁，避免实例间检查点计数覆盖。"""
-        key = (os.path.normcase(str(self.root)), asyncio.get_running_loop())
-        lock = _WRITERS.get(key)
-        if lock is None:
-            lock = asyncio.Lock()
-            _WRITERS[key] = lock
-        return lock
+        return self._state().lock
 
     def _path(self, run_id: str, *parts: str) -> Path:
         """运行 ID 必须是 UUID32hex，其后只接收内部固定文件名。"""
@@ -330,6 +368,7 @@ class RunStore:
             guarded_path(self.root, *relative.parts)
             os.replace(temporary, path)
         except (OSError, ValueError, TypeError) as exc:
+            self._state().runs.pop(path.relative_to(self.root).parts[0], None)
             raise StoreError("快照原子发布失败") from exc
         finally:
             if temporary is not None and temporary.exists():
@@ -365,8 +404,7 @@ class RunStore:
                 if path.exists():
                     row = _case(self._read(path))
                     _require((row["eval_id"], row["strategy"]) == key, "检查点身份不匹配")
-                    identity = [row[field] for field in
-                        ("bucket", "difficulty", "category", "should_refuse", "query", "mapped_groups")]
+                    identity = _identity(row)
                     _require(row["eval_id"] not in identities or identities[row["eval_id"]] == identity,
                              "四路检查点题面与金标不一致")
                     identities[row["eval_id"]] = identity
@@ -384,17 +422,45 @@ class RunStore:
                       errors=sum(counts[status] for status in STATUSES if status.endswith("_error")))
         return result
 
-    def _load(self, run_id: str) -> tuple[dict, list[dict]]:
-        """每次读取验证持久计划并修复检查点先于 manifest 发布的计数差异。"""
-        manifest = validate_manifest(self._read(self._path(run_id, "manifest.json")))
-        _require(manifest["run_id"] == run_id, "manifest 运行身份不匹配")
-        rows = self._records(manifest)
-        counts = self._counts(manifest, rows)
-        if manifest["counts"] != counts:
-            manifest["counts"] = counts
-            manifest["updated_at"] = _now()
-            self._write(self._path(run_id, "manifest.json"), manifest)
-        return manifest, rows
+    def _signature(self, run_id: str) -> tuple:
+        """每次访问仍守卫关键落点，仅比较manifest与记录目录的常数次stat。"""
+        try:
+            manifest = self._path(run_id, "manifest.json").stat()
+            records = self._path(run_id, "records").stat()
+            return (manifest.st_dev, manifest.st_ino, manifest.st_size, manifest.st_mtime_ns,
+                    records.st_dev, records.st_ino, records.st_mtime_ns)
+        except OSError as exc:
+            raise StoreError("运行快照签名读取失败") from exc
+
+    def _remember(self, run_id: str, manifest: dict, rows: list[dict]) -> _RunState:
+        """完整恢复后共享索引；当前实例标记首次验证已完成。"""
+        cached = _RunState(manifest, rows, self._signature(run_id))
+        self._state().runs[run_id] = cached
+        self._loaded.add((asyncio.get_running_loop(), run_id))
+        return cached
+
+    def _load(self, run_id: str) -> _RunState:
+        """首次访问或签名变化完整恢复，稳定态复用共享已验证索引。"""
+        shared = self._state()
+        try:
+            signature = self._signature(run_id)
+            cached = shared.runs.get(run_id)
+            if ((asyncio.get_running_loop(), run_id) in self._loaded and cached is not None and
+                    signature == cached.signature):
+                return cached
+            shared.runs.pop(run_id, None)
+            manifest = validate_manifest(self._read(self._path(run_id, "manifest.json")))
+            _require(manifest["run_id"] == run_id, "manifest 运行身份不匹配")
+            rows = self._records(manifest)
+            counts = self._counts(manifest, rows)
+            if manifest["counts"] != counts:
+                manifest["counts"] = counts
+                manifest["updated_at"] = _now()
+                self._write(self._path(run_id, "manifest.json"), manifest)
+            return self._remember(run_id, manifest, rows)
+        except StoreError:
+            shared.runs.pop(run_id, None)
+            raise
 
     async def create(self, config: dict[str, object], case_keys: Sequence[tuple[str, Strategy]]) -> str:
         """冻结配置与计划；准备完成前不创建任何金标题目记录。"""
@@ -413,13 +479,15 @@ class RunStore:
             except OSError as exc:
                 raise StoreError("运行目录创建失败") from exc
             self._write(self._path(run_id, "manifest.json"), manifest)
+            self._remember(run_id, manifest, [])
             return run_id
 
     async def update(self, run_id: str, patch: Mapping[str, object]) -> None:
         """仅更新明确可变字段；归属累积登记不可撤销，实际请求数不可倒退。"""
         _require(isinstance(patch, Mapping) and set(patch) <= set(MUTABLE_FIELDS), "运行更新含未知或冻结字段")
         async with self._writer():
-            before, _ = self._load(run_id)
+            cached = self._load(run_id)
+            before = cached.manifest
             manifest = dict(before, **copy.deepcopy(dict(patch)))
             manifest["updated_at"] = _now()
             checked = validate_manifest(manifest)
@@ -430,33 +498,45 @@ class RunStore:
                          all(new["content_hashes"].get(key) == digest for key, digest in old["content_hashes"].items()),
                          "已登记归属与摘要不可撤销")
             self._write(self._path(run_id, "manifest.json"), checked)
+            cached.signature = self._signature(run_id)
+            cached.manifest = checked
 
     async def put_case(self, run_id: str, record: Mapping[str, object]) -> None:
         """逐题原子发布，再发布派生计数；取消只能发生在进入发布锁之前。"""
         row = _case(record)
         async with self._writer():
-            manifest, rows = self._load(run_id)
-            key = [row["eval_id"], row["strategy"]]
-            _require(key in manifest["case_keys"], "题目策略不在冻结计划内")
-            for previous in rows:
-                if previous["eval_id"] == row["eval_id"]:
-                    _require(all(previous[field] == row[field] for field in
-                        ("bucket", "difficulty", "category", "should_refuse", "query", "mapped_groups")), "题面与金标不得改变")
+            cached = self._load(run_id)
+            manifest = copy.deepcopy(cached.manifest)
+            key = (row["eval_id"], row["strategy"])
+            _require(key in cached.plan, "题目策略不在冻结计划内")
+            identity = _identity(row)
+            _require(row["eval_id"] not in cached.identities or cached.identities[row["eval_id"]] == identity,
+                     "题面与金标不得改变")
             self._write(self._path(run_id, "records", f"{row['eval_id']}--{row['strategy']}.json"), row)
-            rows = [previous for previous in rows if [previous["eval_id"], previous["strategy"]] != key] + [row]
-            manifest["counts"] = self._counts(manifest, rows)
+            previous = cached.rows.get(key)
+            counts = manifest["counts"]
+            counts[previous["status"] if previous is not None else "not_attempted"] -= 1
+            counts[row["status"]] += 1
+            counts["attempted"] = counts["total"] - counts["not_attempted"]
+            counts["errors"] = sum(counts[status] for status in STATUSES if status.endswith("_error"))
             manifest["updated_at"] = _now()
             self._write(self._path(run_id, "manifest.json"), manifest)
+            cached.signature = self._signature(run_id)
+            cached.manifest = manifest
+            cached.rows[key] = row
+            cached.identities[row["eval_id"]] = identity
 
     async def get(self, run_id: str) -> dict[str, object]:
         """返回独立本地 manifest 快照，自动修复逐题计数而不续跑模型。"""
         async with self._writer():
-            return self._load(run_id)[0]
+            return copy.deepcopy(self._load(run_id).manifest)
 
     async def records(self, run_id: str) -> list[dict[str, object]]:
         """按冻结计划顺序返回已有本地完整记录，包括私有裁判原文。"""
         async with self._writer():
-            return self._load(run_id)[1]
+            cached = self._load(run_id)
+            return copy.deepcopy([cached.rows[tuple(key)] for key in cached.manifest["case_keys"]
+                                  if tuple(key) in cached.rows])
 
     async def list_runs(self, offset: int = 0, limit: int = 20) -> list[dict[str, object]]:
         """按创建时间倒序分页本地历史，隐藏半创建目录但拒绝损坏 manifest。"""
@@ -470,6 +550,6 @@ class RunStore:
                 if re.fullmatch(r"[0-9a-f]{32}", path.name):
                     manifest_path = self._path(path.name, "manifest.json")
                     if manifest_path.exists():
-                        result.append(self._load(path.name)[0])
+                        result.append(copy.deepcopy(self._load(path.name).manifest))
             result.sort(key=_history_key, reverse=True)
             return result[offset:offset + limit]
