@@ -261,7 +261,12 @@ def validate_manifest(manifest: Mapping[str, object]) -> dict[str, object]:
         _require(type(result[field]) is int and result[field] == count, "计划计数不一致")
     _require(result["state"] in STATES and result["outcome"] in (None, *OUTCOMES) and result["stage"] in RUN_STAGES,
              "运行状态非法")
-    counts = _object(result["counts"], COUNT_FIELDS)
+    # 旧 v2 快照没有 in-flight 计数；只有该单个缺字段允许按零补齐。
+    original_counts = result["counts"]
+    if isinstance(original_counts, Mapping) and "running" not in original_counts:
+        original_counts = dict(original_counts, running=0)
+    counts = _object(original_counts, COUNT_FIELDS)
+    result["counts"] = counts
     _require(all(_integer(count, 0, 1200) for count in counts.values()) and counts["total"] == len(plan) and
              sum(counts[status] for status in STATUSES) == len(plan) and
              counts["attempted"] == len(plan) - counts["not_attempted"] and
