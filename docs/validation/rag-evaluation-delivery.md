@@ -1,21 +1,56 @@
 # 冻结 300 题 RAG 评估交付状态
 
-2026-10-10：**N1/N2 最小修复与专项验证进行中；真实 pilot/full 未运行，收费门禁关闭。Task10 尚未完成。** 本文交付当前工程证据、已知限制与复现命令，不包含模型质量分数或策略胜者。
+2026-10-10：**真实固定pilot仅运行一次，40条全部尝试，9条完整完成、31条错误，终态completed_with_errors，清理成功。服务端matching_pilot=false，全量未运行；Task10尚未完成。** N1/N2在源码42bd812的唯一额外定点复核已解决。用户已批准后续评估专用low思考参数及有界验证，但该新配置尚未实施/复核/调用，本阶段停止在PILOT_BLOCKED_DOCS_READY，不预设策略胜者。
 
-本文采用已复核生产提交 `77d7d02ef1fb500e3ae00f069c368fd204135b3a` 的接口与测试证据；初次文档读取 checkout 为 root 文档提交 `2bdb84c43c39b8934a4bfb36c9aa92ecf91d1806`，未改变其生产源码。后续最小修复的源码、专项结果与放行结论须由控制端补齐后，才能恢复真实阶段。本次仅写文档，没有启动应用、数据库生命周期、模型或重复回归。
+本文保留生产提交 `77d7d02ef1fb500e3ae00f069c368fd204135b3a` 的原始完整回归，再追加已复核源码 `42bd8126a7377b021af8e9d0365e33cfb922808e` 的N1/N2最小修复与真实阶段。仅文档阶段最初checkout为 `2bdb84c43c39b8934a4bfb36c9aa92ecf91d1806`；本次真实阶段启动checkout为root文档提交 `bfd6d3a5917fcb9f585e1920f13a5c956767f492`，生产源码与已复核42bd812相同。原阶段无服务/模型调用的记录是历史事实；本阶段已按明确授权启动当前真实服务及固定pilot，未重跑工程套件。
 
 ## 实际运行与待交付内容
 
 | 阶段 | 冻结计划规模 | 本次实际状态 | 实际运行 ID / 新质量结果 |
 | --- | --- | --- | --- |
-| Pilot | 固定10题 × 4策略 = 40条 | 未启动 | 未生成 |
-| Full | 300题 × 4策略 = 1200条 | 未启动，门禁关闭 | 未生成 |
+| Pilot | 固定10题 × 4策略 = 40条 | 单次真实运行completed_with_errors；9完成/31错误/0未执行，清理成功 | `52678f9492114f1789466442e575c168`；[JSON](merchant-rag-pilot.json)、[Markdown](merchant-rag-pilot.md) |
+| Full | 300题 × 4策略 = 1200条 | 未运行；同配置40条合法门槛未满足 | 无run、无比较报告或虚构分母 |
 
-这里的计划规模不是已持久化记录数。没有新运行 manifest，不能将尚未启动的计划写成1200条 `not_attempted` 或虚构有效分母。没有生成 `merchant-rag-pilot.json/.md` 或 `merchant-rag-comparison.json/.md`；Task9受控页面夹具、1200条受控规模报告和真实服务检索测试都不计收费试运行，也不授权全量。
+这里的40条是实际终态记录数，完整完成仅9条。公共成对报告直接来自实际服务HTTP导出，包含schema-v2/audit-v1、单份50来源map、冻结配置、实际请求数、24行总体/分桶统计及共同子集。full没有manifest，不能将尚未运行的计划写成1200条 `not_attempted` 或虚构分母；没有生成 `merchant-rag-comparison.json/.md`。Task9夹具与受控规模/检索证明不计真实收费运行。
 
-后续获准真实运行后，公共交付文件位于本目录，保留同一真实run的JSON/Markdown、指纹、请求数、完成/错误/未执行阶段、逐桶/总体和四路共同有效子集；原始裁判及归属快照只留本地忽略目录。部分错误如实交付，禁止重复收费全量洗分。若pilot出错，保存公共pilot报告并保持full锁定，不用空白或控制数据填成比较分数。
+原始裁判及归属快照仍只在忽略的runtime目录，公共报告没有raw_response或连接凭据。JSON SHA-256为 `b2865bbd127305bf2436b28c69fc1bdd35ac14a39f065f42bb5a9b9028725501`，Markdown为 `48e5eeee19f0a20c0470fa90da92c28b3e12b96e66ef3ef84d20742bf72bc352`。错误如实交付，未重跑原pilot或启动full。
 
-## 工程证据与仍关闭的门禁
+## 本次真实结果与有效分母
+
+自有服务为[8002工作台](http://127.0.0.1:8002/rag-eval)，真实create_app、单worker、显式同源，启动时PID95580；旧8000/8001未操作。开始 `2026-10-10T09:55:18.784424+00:00`，结束 `2026-10-10T10:44:44.941180+00:00`，跨度2966.156756秒。**用户确认期间休眠或合盖过。** E2/hybrid与E19/bm25的TimeoutError原elapsed为2280022.236999823/2271110.8348001726ms；主机暂停是合理环境解释，不代表期限调高，也不能证明全部错误均由休眠造成。原始时钟、错误和分母全部保留。
+
+实际请求计数：改写10、自评38、最终回答29、联合裁判36、嵌入33、重排9、Milvus RPC73（含prepare/cleanup）。固定配置指纹 `b2e8fd23ff18b012e363ee7ccb25d995b1435040ea60d5f4a6b732003350317b`，模型/预算/期限/零重试均保持下方原契约。错误为检索2、回答2、裁判27；改写/自评/取消/未执行均0。
+
+| 策略 | 完整完成 / 错误 | Recall@5 / n | Recall@10 / n | MRR@10 / n | Prompt覆盖 / n | 要点覆盖 / n | Faith / n | 库外拒答 / n | 可答误拒答 / n |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| dense（页面vector） | 2 / 8 | 1.000 / 8 | 1.000 / 8 | 1.000 / 8 | 1.000 / 8 | N/A / 0 | N/A / 0 | 1.000 / 2 | 0.000 / 8 |
+| bm25 | 3 / 7 | 0.917 / 8 | 0.958 / 8 | 0.917 / 8 | 0.958 / 8 | 1.000 / 1 | 1.000 / 1 | 1.000 / 2 | 0.143 / 7 |
+| hybrid | 2 / 8 | 0.952 / 7 | 1.000 / 7 | 0.929 / 7 | 1.000 / 7 | N/A / 0 | N/A / 0 | 1.000 / 2 | 0.000 / 6 |
+| hybrid_rerank | 2 / 8 | 1.000 / 7 | 1.000 / 7 | 1.000 / 7 | 1.000 / 7 | N/A / 0 | N/A / 0 | 1.000 / 2 | 0.000 / 7 |
+
+这是不同有效分母的pilot描述，不能评选总体胜者。检索指标排除每策略2道库外题，hybrid与hybrid_rerank另各排除1个retrieval_error；裁判失败/回答失败仍保留已完成检索指标。要点覆盖仅B54/bm25合法：dense排除2expected_refusal+8judge_error；bm25排除2expected_refusal+6judge_error+1answer_error；hybrid排除2expected_refusal+6judge_error+1answer_error+1retrieval_error；hybrid_rerank排除2expected_refusal+7judge_error+1retrieval_error。Faith相应将2expected_refusal换为2zero_claims，纯拒答没有事实断言，不填满分。可答误拒答排除库外2题，并按各策略再排除answer/retrieval错误；库外拒答排除8道可答题。全部逐桶、每指标精确excluded及未舍入数值以公开报告为准。
+
+四路共同合法题号仅 **D1、D3（valid_n=2）**，各策略在该子集库外拒答率1.000/n=2，生成要点n=0（expected_refusal2）、Faith n=0（zero_claims2）；不能据此比较可答题生成。9条合法完成为8条库外纯拒答及B54/bm25，未发现需写入台账的unsupported断言，faith台账没有新增。
+
+具体型号B3“MH-LP50和Pro区别”的BM25金标Lite块首位，B54“MH-W20和MH-W60滤芯周期”的BM25两块分别第2/1位，最终与Prompt均保留；后者两要点、七断言合法完成且全部支持。口语C35金标故障自查在BM25第3位、hybrid第2位、dense/重排第1位；各路Prompt覆盖完整，生成裁判均失败，不能称语义质量相同。跨节E2的BM25运费组第1位、退货适用范围第6位（替代FAQ第11位），退款时效第17位未进最终前十/Prompt，三组Recall@5=1/3、@10与Prompt=2/3，自评判证据不足后拒答；hybrid退款时效第8位，@5=2/3、@10与Prompt完整。这是实际排序遗漏证据；E2/重排和E19/hybrid为ConnectError，未补造排序。
+
+## 失败诊断与后续授权边界
+
+25条裁判JudgeError均结束为length：22条正文空，另C5/dense491字符、C5/hybrid297字符、E19/hybrid_rerank209字符；前两条能解析为points/claims且IDs为p1,p2，第三条只有points缺claims。即使JSON可解析，length仍不合法，verdicts保持null。另2条裁判TimeoutError没有裁判快照。B3/bm25与hybrid为答案阶段ServiceError，未保存流正文/结束标识，无法断言是预算截断还是引用等验证失败。E2/hybrid_rerank与E19/hybrid为检索阶段ConnectError；安全记录不保存底层连接异常体，不能精确归因DNS/TLS/远端或断定休眠因果。
+
+真实客户端仅发送原max_tokens，没有reasoning_effort/thinking参数。[Z.ai官方Flash云文档](https://docs.z.ai/guides/vlm/glm-5.3-flash)明确thinking只能enabled、不能关闭；[官方模型卡](https://huggingface.co/zai-org/GLM-5.3-Flash)列出low/high/max及未传时默认max。默认思考消耗输出预算是候选解释，私有快照缺reasoning/usage，空正文不能证明实际token分配。没有追加付费诊断调用或弱化stop/JSON/ID契约。
+
+用户随后明确批准**仅评估reasoning_effort=low**，保留同模型、512答案/2048改写自评裁判、所有期限、重试0和冻结资料，并要求新参数进入新指纹；失败judge和answer各一次（最多2调用），均合法后才固定10题一次，新配置40条全部合法且映射/清理门槛通过才full一次。控制端要求当前代理先完成原失败交付，随后另派配置增量/TDD/独立复核；**该配置尚未实施，探针/新pilot/full均未运行**。原失败报告保持，不改写旧分母。后续运行须保持主机清醒。
+
+## 实际页面与资源证据
+
+页面读取同run终态40/9/31/0、cleanup成功、full disabled；GET datasets为matching_pilot=false/available_scopes=[pilot]。指标选择显示N/A、valid_n和排除原因，分页真实第1/2至第2/2，E2筛选4条；B54与E2详情显示稳定gold、完整rubric、score/kind、50来源map及实际Prompt。JSON/Markdown按钮各点击一次，服务日志均GET200；浏览器download事件等待超时，未声称取得浏览器下载路径，公共文件已由HTTP200下载并核对。没有点击重跑/full或终态取消；原取消/新ID边界保留Task9受控证据，不以重复收费验证。当前聊天页只读入口另验证，不发送新模型请求。
+
+![真实终态与全量锁定](images/rag-evaluation-actual/pilot-final-gate.jpg)
+
+只读前后[公共资源证据](merchant-rag-pilot-resource-proof.json)逐表比较：3307全部8表SHA一致，业务knowledge84及向量84不变；3308全部8表SHA一致，外来knowledge7及faith4不变；原3个Milvus集合名/统计一致、业务向量完整hash一致、校准0.8201608061790466不变。其他集合仅核对名字/统计，没有虚称全量向量hash；本run UUID资源已清理，原map仍可读。原CSV及legacy SHA保持下表。第一版前快照主键错误、后快照遗漏PYTHONPATH的导入失败均留原日志；更正辅助启动/只读摘要后验证成功，没有资源写入。更完整的[实际页面证据](rag-evaluation-actual-ui.md)保留进行中与终态截图及自动化限制。
+
+## 工程证据与全量门禁
 
 | 验证范围 | 已存在的原始结果 | 解释 |
 | --- | --- | --- |
@@ -33,7 +68,7 @@
 - **N1：合法裁判要点逆序导致发布失败。** 裁判接受完整唯一的point-ID集合，但新审计校验误要求返回列表与rubric同序。多要点题合法的 `[p2,p1]` 会在保存时抛错，可能丢失已完成判定并使run失败。需要最小ID关联修复及“逆序合法判定实际持久化完成”的专项证明，仍严格拒绝缺失/重复/未知ID。
 - **N2：审计升级前v2报告下载409。** 旧公开JSON没有新 `audit:null` / `source_map:null` 字段，当前严格导出比较将合法旧成对报告判为不一致。需要限定旧缺省字段的兼容，以及两个格式HTTP下载成功、所有原文件SHA/mtime不变的专项证明；保留canonical字节、Markdown一致性、终态与白名单要求，不在GET中补写历史审计。
 
-两项最小修复与专项验证正在进行。已有套件绿色不覆盖这两个组合触发点，不能证明收费门禁已解除。修复、定点复核及控制端明确放行均完成后，才可启动真实pilot；本交付文档不授权模型调用、另起审查、合并或推送。
+两项最小修复已完成，专门RED为2failed/24passed，GREEN为27passed，最终七文件定向回归242passed/1skip；单个既有真实服务集成开关跳过保留。旧真实40条历史报告恢复200/200下载、44文件SHA/mtime保持。唯一独立额外定点复核确认N1/N2均ADDRESSED，规格/质量PASS且无新问题；控制端已据此明确放行当前固定真实pilot一次。上方N1/N2说明保留原问题与最小修复边界，现不再是开放缺陷。full仍依赖该真实pilot全部40条合法、当前audit/map/配置匹配且清理成功。
 
 ## 冻结资料与解释边界
 
@@ -49,11 +84,11 @@
 
 详细审标与六个联合裁判人工样例见[材料审计](rag-evaluation-materials-audit.md)及[标注样例](joint-generation-v2.1-labeled.json)。材料参考同一金标题库构造，结果仅支持这版合成语料的受控比较。candidate_k=50恰好覆盖全部50块，候选覆盖饱和不证明检索泛化；实际报告还需分别核对首命中、Top-5/10完整组、Prompt引用覆盖、生成要点、忠实度、拒答和每指标valid_n/excluded。四策略生成共同子集须四条都合法完成，不能用单路分母替代。
 
-当前没有新真实逐题数据，无法给出具体型号BM25排名、口语/跨节遗漏或某策略优势；不能套用教程分数。历史30题的120条、101完成/19错误和原指标保留，与新300题分开。原始历史字节移至 `evals/legacy/rag-evaluation-history.json`，SHA为 `4fcbf4d3d6ffbd7957caecbbbe0fce8efaffd3aebf0286ba67fabe846c2f1bcd`，安全历史API继续展示，静态原raw不再公开。
+本次真实固定pilot的具体型号、口语与跨节排序见前文；大量生成错误与很小合法分母使总体优势尚无法确立，不能套用教程分数。历史30题的120条、101完成/19错误和原指标保留，与新300题分开。原始历史字节移至 `evals/legacy/rag-evaluation-history.json`，SHA为 `4fcbf4d3d6ffbd7957caecbbbe0fce8efaffd3aebf0286ba67fabe846c2f1bcd`，安全历史API继续展示，静态原raw不再公开。
 
 ## PowerShell复现命令
 
-命令在当前checkout根目录执行，沿用本地 `.env` 的实际模型、密钥、校准值与预算。只读配置参考如下，本阶段未执行启动命令；已有8000/8001服务保留。换端口时来源也须显式匹配。
+命令在当前checkout根目录执行，沿用本地 `.env` 的实际模型、密钥、校准值与预算。以下展示默认只读配置；实际已获准的自有8002单worker将开关设为true，来源显式匹配，旧8000/8001未操作。换端口时来源也须显式匹配。
 
 ```powershell
 $env:PYTHONUTF8 = '1'
