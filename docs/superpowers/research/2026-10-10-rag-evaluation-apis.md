@@ -74,3 +74,6 @@ Context7 `/websites/reference_langchain` 的ainvoke/astream结束元数据预查
 补充gRPC预查与版本边界：任务5在实现前使用Context7定向查询grpc Python aio，缓存为context7-workbench-grpc-{resolve,interceptor,aio,python-resolve,python-aio}.txt。回包仍混有同步/Go片段，没有拿它们替代异步接口定义；结合安装官方grpc1.84.0的aio channel/continuation/close源码、PyMilvus3.0.2的连接/重放/重连接缝核对，并用本机真实gRPC服务观察实际RPC序列。局部适配严格固定3.0.2，不升级或全局补丁；若SDK变化须复核。官方[Python AsyncIO文档](https://github.com/grpc/grpc/blob/master/doc/python/sphinx/grpc_asyncio.rst)确认aio生命周期体系，不能把sync intercept_channel范例套入aio。
 
 独立审查针对已安装重连代码发现：新channel在握手及发布锁等待前创建，外部CancelledError可能先于SDK发布到当前channel。资源拥有者必须追踪所有新建/退休/未发布通道，关闭不能只看当前通道或假设shield已结束。局部修复以真实channel两处取消和失败回归验证，所有close任务由同一owner强引用并等待，清理失败纳入结果；这一固定版本维护约束与审查结论保存在实施记录中。
+## 运行管理与API后续实现前预查
+
+任务6执行时，控制端提前通过Context7保存workbench-manager-task-lifecycle、workbench-api-lifespan、workbench-api-download原回包。CPython官方明确create_task须保留强引用、取消是协作式、CancelledError继承BaseException；最新签名包含更新版本选项，后续必须按安装3.13.5核对，不能跨版本照搬。FastAPI官方[lifespan](https://fastapi.tiangolo.com/advanced/events)由异步上下文拥有startup/shutdown，TestClient上下文验证全生命周期；不以请求BackgroundTasks持有评估资源。[FileResponse接口](https://fastapi.tiangolo.com/reference/responses)提供path、filename、media_type等参数，导出仍只采用固定受控路径和白名单内容。uv.lock为FastAPI0.142.2/Starlette1.7.0/Uvicorn0.54.0，具体使用前须查安装版本及缺少的参数校验资料。没有提前写Task7/8生产代码。
