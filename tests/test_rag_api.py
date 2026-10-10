@@ -11,7 +11,7 @@ import pytest
 from app.rag_evaluation.locking import RunBusy, RunLock
 from app.rag_evaluation.store import RunStore
 from tests.fakes import ConversationStore, FAQStub, StreamingModel, fake_settings
-from tests.test_rag_store import config, record
+from tests.test_rag_store import config, record, stale_checkpoint
 
 PREFIX = '/api/rag-evaluations'
 PAYLOAD = {'dataset_id': 'merchant-rag-300-v1', 'scope': 'pilot'}
@@ -495,3 +495,50 @@ async def test_export_cannot_hide_secret_in_ignored_clock_or_duplicate_keys(tmp_
         result = await client.get(f'{PREFIX}/runs/{run_id}/export')
     assert result.status_code == 409
     assert 'PRIVATE-SECRET' not in result.text
+
+
+@pytest.mark.parametrize('endpoint', ['detail', 'history', 'datasets', 'cases', 'case', 'export'])
+async def test_disabled_get_stale_checkpoint_never_repairs_foreign_manifest(tmp_path, monkeypatch, endpoint):
+    """禁用工作台读取真实陈旧计数并保持磁盘字节，外来租约不授予HTTP写权限。"""
+    app, manager = application(tmp_path)
+    run_id = await manager.store.create(config(), [('E1', 'dense')])
+    before = await stale_checkpoint(manager.store, run_id, record(status='rewrite_error'), monkeypatch)
+    paths = {'detail': f'/runs/{run_id}', 'history': '/runs', 'datasets': '/datasets',
+        'cases': f'/runs/{run_id}/cases', 'case': f'/runs/{run_id}/cases/E1/dense',
+        'export': f'/runs/{run_id}/export'}
+    lease = RunLock(tmp_path).acquire()
+    try:
+        async with client_for(app) as client:
+            value = await client.get(PREFIX + paths[endpoint])
+        assert value.status_code == (409 if endpoint == 'export' else 200)
+        if endpoint == 'detail':
+            assert value.json()['run']['counts']['errors'] == 1
+            assert value.json()['run']['updated_at'] == json.loads(before)['updated_at']
+        elif endpoint == 'history':
+            assert value.json()['items'][0]['counts']['errors'] == 1
+        elif endpoint == 'datasets':
+            assert value.json()['items'][0]['matching_pilot'] is False
+        assert (tmp_path / run_id / 'manifest.json').read_bytes() == before
+        assert manager.starts == manager.cancels == []
+    finally:
+        lease.close()
+
+
+async def test_actual_manager_foreign_cancel_reads_stale_counts_without_repair(tmp_path, monkeypatch):
+    """启用后的取消请求也不能仅因读取另一个运行而修复对方manifest。"""
+    from app.rag_evaluation.manager import DATASET_ROOT, RunManager
+    store = RunStore(tmp_path)
+    manager = RunManager(store, fake_settings(), DATASET_ROOT)
+    run_id = await store.create(config(), [('E1', 'dense')])
+    before = await stale_checkpoint(store, run_id, record(status='rewrite_error'), monkeypatch)
+    app, _ = application(tmp_path, enabled=True, manager=manager)
+    lease = RunLock(tmp_path).acquire()
+    try:
+        async with client_for(app) as client:
+            result = await client.post(f'{PREFIX}/runs/{run_id}/cancel', json={})
+        assert result.status_code == 200
+        assert result.json()['counts']['errors'] == 1 and result.json()['state'] == 'queued'
+        assert (tmp_path / run_id / 'manifest.json').read_bytes() == before
+        assert manager._lease is None and manager._task is None
+    finally:
+        lease.close()

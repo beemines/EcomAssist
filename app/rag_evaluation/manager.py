@@ -121,11 +121,11 @@ class RunManager:
         if not task.cancelled():
             task.exception()
 
-    async def _history(self) -> list[dict]:
+    async def _history(self, *, persist_repair: bool = True) -> list[dict]:
         """分页遍历完整历史，不因第一页没有匹配试运行而错判。"""
         result, offset = [], 0
         while True:
-            page = await self.store.list_runs(offset, 100)
+            page = await self.store.list_runs(offset, 100, persist_repair=persist_repair)
             result.extend(page)
             if len(page) < 100:
                 return result
@@ -148,11 +148,11 @@ class RunManager:
         self._lease.close()
         self._lease = None
 
-    async def _pilot(self, dataset: FrozenDataset, config: dict) -> bool:
+    async def _pilot(self, dataset: FrozenDataset, config: dict, *, persist_repair: bool = True) -> bool:
         """固定十题四路必须全部合法完成，分数高低不参与放行。"""
         expected = {(key, strategy) for key in dataset.pilot_ids for strategy in STRATEGIES}
         identity = {key: value for key, value in config.items() if key != 'scope'}
-        for manifest in await self._history():
+        for manifest in await self._history(persist_repair=persist_repair):
             previous = manifest['config']
             if (previous.get('provenance') is None or previous['scope'] != 'pilot'
                     or {key: value for key, value in previous.items() if key != 'scope'} != identity
@@ -160,7 +160,7 @@ class RunManager:
                     or manifest['cleanup'] != {'ok': True, 'errors': [], 'unverified': []}
                     or set(map(tuple, manifest['case_keys'])) != expected or len(expected) != 40):
                 continue
-            rows = await self.store.records(manifest['run_id'])
+            rows = await self.store.records(manifest['run_id'], persist_repair=persist_repair)
             if len(rows) == 40 and all(row['status'] == 'completed' for row in rows):
                 return True
         return False
@@ -169,7 +169,7 @@ class RunManager:
         """只读公开匹配门槛，复用完整出处检查且不持锁、建资源或调用模型。"""
         dataset = load_dataset(dataset_id, root=self.dataset_root)
         configuration = self.settings.model_copy(deep=True)
-        return await self._pilot(dataset, build_run_config(dataset, configuration, 'full'))
+        return await self._pilot(dataset, build_run_config(dataset, configuration, 'full'), persist_repair=False)
 
     async def start(self, dataset_id: str, scope: Scope) -> str:
         """任何收费前全量离线预检，随后非排队取得跨进程锁并冻结新计划。"""
@@ -266,10 +266,10 @@ class RunManager:
         async with self._guard:
             if self._run_id == run_id and self._lease is not None:
                 self._signal_cancel()
-            manifest = await self.store.get(run_id)
+            manifest = await self.store.get(run_id, persist_repair=False)
             if manifest['state'] not in OUTCOMES and self._run_id == run_id and self._lease is not None:
                 await self.store.update(run_id, {'state': 'cancelling'})
-                manifest = await self.store.get(run_id)
+                manifest = await self.store.get(run_id, persist_repair=False)
             return public_run_metadata(manifest)
 
     def _signal_cancel(self) -> None:
