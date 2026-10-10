@@ -39,7 +39,7 @@ from app.rag_evaluation.metrics import RETRIEVAL_METRICS, retrieval_metrics, uni
 STRATEGIES = ("dense", "bm25", "hybrid", "hybrid_rerank")
 BUCKETS = ("A_policy", "B_model", "C_colloquial", "E_multi", "D_unanswerable", "D_absent")
 STATUSES = ("completed", "rewrite_error", "retrieval_error", "self_check_error", "answer_error",
-            "judge_error", "cancelled", "not_attempted")
+            "judge_error", "cancelled", "not_attempted", "running")
 STAGES = ("rewrite", "retrieval", "self_check", "answer", "judgment", "complete")
 METRIC_NAMES = RETRIEVAL_METRICS + ("answer_point_coverage", "faithfulness", "absent_refusal_rate",
                                      "answerable_false_refusal_rate")
@@ -182,7 +182,10 @@ def _validate_stages(row: dict) -> None:
     status, stage = row["status"], row["stage"]
     failure_stage = {"rewrite_error": "rewrite", "retrieval_error": "retrieval", "self_check_error": "self_check",
                      "answer_error": "answer", "judge_error": "judgment", "not_attempted": "rewrite", "completed": "complete"}
-    _require(status == "cancelled" or stage == failure_stage[status], "status/stage 不一致")
+    _require(status in ("cancelled", "running") or stage == failure_stage[status], "status/stage 不一致")
+    if status == "running":
+        _require(stage != "complete" and row["error"] is None and row["judge_snapshot"] is None,
+                 "运行阶段不得包含完成或失败产物")
     products = (("query_plan",), ("candidate_ids", "final_ids", "prompt_citations"), ("decision",),
                 ("answer", "refused"), ("point_verdicts", "claim_verdicts", "judge_snapshot"))
     limit = STAGES.index(stage)
