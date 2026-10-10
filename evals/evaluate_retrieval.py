@@ -463,7 +463,18 @@ def main(argv=None):
     cases = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
     if len({c['eval_id'] for c in cases}) != len(cases):
         parser.error('duplicate eval_id')
-    report = asyncio.run(evaluate(cases, mode=args.mode, database_mode=args.database, output=args.output))
+    from app.rag_evaluation import manager as lifecycle
+    from app.rag_evaluation.locking import RunBusy, RunLock
+    # 旧入口与工作台共用固定系统锁，整段算法及其原有 finally 清理都在租约内。
+    try:
+        lease = RunLock(lifecycle.RUNTIME_ROOT).acquire()
+    except RunBusy:
+        print(json.dumps({'error_code': 'run_busy'}, ensure_ascii=False))
+        return 2
+    try:
+        report = asyncio.run(evaluate(cases, mode=args.mode, database_mode=args.database, output=args.output))
+    finally:
+        lease.close()
     print(json.dumps({key:report.get(key) for key in ('passed','attempted','not_attempted','errors','model_request_count','calibration','error_code')}, ensure_ascii=False))
     return 0 if report['passed'] else 1
 

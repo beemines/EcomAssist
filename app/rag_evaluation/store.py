@@ -134,7 +134,21 @@ def guarded_path(root: Path, *parts: str) -> Path:
 
 def validate_config(config: Mapping[str, object]) -> dict[str, object]:
     """冻结模型、预算和安全 origin 摘要，禁止密钥与完整连接地址。"""
-    value = _object(config, CONFIG_FIELDS)
+    fields = CONFIG_FIELDS + (('provenance',) if isinstance(config, Mapping) and 'provenance' in config else ())
+    value = _object(config, fields)
+    if 'provenance' in value:
+        provenance = _object(value['provenance'], ('dataset_fingerprint', 'corpus_hash', 'cases_hash',
+            'annotation_hash', 'prompt_hashes', 'endpoint_hashes', 'llm_timeout_s', 'llm_token_limit_field'))
+        _require(all(_hash(provenance[key]) for key in
+                     ('dataset_fingerprint', 'corpus_hash', 'cases_hash', 'annotation_hash')), '数据出处摘要非法')
+        _require(all(_hash(digest) for digest in _object(provenance['prompt_hashes'], PROMPT_FIELDS).values()),
+                 'Prompt 内容摘要非法')
+        _require(all(_hash(digest) for digest in
+                     _object(provenance['endpoint_hashes'], (*UPSTREAM_FIELDS, 'milvus')).values()), '端点摘要非法')
+        timeout = provenance['llm_timeout_s']
+        _require(type(timeout) in (int, float) and math.isfinite(timeout) and 0 < timeout <= 3600,
+                 '模型传输期限非法')
+        _require(provenance['llm_token_limit_field'] in ('max_tokens', 'max_completion_tokens'), '输出协议字段非法')
     _require(value["dataset_id"] == "merchant-rag-300-v1" and value["scope"] in ("pilot", "full") and
              value["mode"] == "content_ablation" and _hash(value["fingerprint"]), "数据集配置非法")
     models = _object(value["models"], MODEL_FIELDS)

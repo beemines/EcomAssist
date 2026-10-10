@@ -7,6 +7,9 @@ import httpx
 from app.config import Settings
 from app.retrieval.types import RerankHit
 
+# 实际请求与评估出处共享同一个地址，避免报告摘要遗漏有效路径变更。
+RERANK_ENDPOINT = 'https://api.siliconflow.cn/v1/rerank'
+
 
 class SiliconFlowReranker:
     # 记录重排配置及HTTP客户端归属，注入客户端由调用方负责关闭。
@@ -31,7 +34,7 @@ class SiliconFlowReranker:
         # 外层绝对期限也约束慢速分块响应，HTTP 各阶段超时不能延长本次调用。
         async with asyncio.timeout(self.settings.rerank_timeout_seconds):
             response = await self._client.post(
-                'https://api.siliconflow.cn/v1/rerank',
+                RERANK_ENDPOINT,
                 headers={'Authorization': f'Bearer {key.get_secret_value()}'},
                 json={'model': self.settings.rerank_model, 'query': query, 'documents': documents,
                       'top_n': top_n, 'return_documents': False},
