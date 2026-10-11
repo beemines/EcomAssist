@@ -1,6 +1,24 @@
 # 冻结 300 题 RAG 评估交付状态
 
-2026-10-11 当前：**另行授权的B54单次改写诊断合法，仅rewrite1、其余六阶段0且清理成功，收费已停止，不授予新pilot/full资格。用户此前另行授权的C5/dense单次诊断合法、仅answer1且清理成功；随后新固定pilot `b1af9aadc0094141aa5df5ae0ec91bd1` 从真实8002浏览器仅启动一次并已结束：40尝试、32完整完成、8改写错误（B54/E19各一次共享失败影响四路），清理成功。实际服务matching_pilot=false，全量保持未运行，Task10尚未完成。** 原9/40、前一low39/40及其各自错误/指纹/分母完整保留，不预设策略胜者。
+2026-10-11 当前：**本轮透明观测固定pilot `7d421bf017ff4c02afec385178848fde` 已完成40尝试、32完整完成、8改写错误（B3/B54各一次共享失败投影四路），清理成功。新捕获显示两题HTTP200/stop，但分别返回根列表及answer包裹对象，生产严格QueryPlan拒绝；服务器matching_pilot=false，full未运行，收费停止，Task10仍开放。** 前三轮与独立诊断原字节/错误/分母保留，不预设策略胜者。
+
+## 2026-10-11 原参数透明观测试跑（当前终态）
+
+用户明确“继续”，root依Ruling23完整读取ignored observer及最小fake对象身份验证后放行。生产源码仍`cfc65fdb99e44de68c2727e05743a384bba6e89e`，当前启动checkout为root文档`a4573b5`；唯一观测方法`.cache/task10_observed_service.py`，SHA `0f12595c000e8c84bcfa7f0182b2b2350fc5e04dd491504b1122400e8474cd8c`单列声明。透传原plan/structured ainvoke请求、返回对象和异常，只在改写旁路私存；原严格JSON/finish/safe-plan/期限、计数、归属、OS锁及cleanup保留，观测IO在原期限内。输入无gold；GLM/low/512回答/其他2048/8000与16000输入/所有期限/retry0及191d53…完整配置与前轮相等，冻结300/five60/50chunks不变。准备model/client/owner/manager构造和upstream均0，fake证明不冒充真实结果。
+
+已核验原PID12624的精确命令行及loopback8002归属，仅停该进程，在同8002启动actual factory、单worker及显式origins；新PID61224/exec77788，旧8000/8001未动。前基线与C5-afterpilot逐字节SHA `9e995a18933deefa8d4e4e12e50bf6300ebd866b97df964acb11516013ac254f`一致。Chrome同tab664075742“试运行·10题”仅点击一次，新run `7d421bf017ff4c02afec385178848fde`，created05:09:43.999488Z、finished05:12:34.318289Z；completed_with_errors/complete，40attempted/32completed/8rewrite_error，其他errors/running/not_attempted/cancelled均0。实际计数rewrite10/self_check32/answer23/judge32/embedding27/rerank8/Milvus67；cleanup={ok:true,errors:[],unverified:[]}。
+
+本轮独立[实际JSON](merchant-rag-observed-pilot.json)/[Markdown](merchant-rag-observed-pilot.md)来自HTTP200，416610/602479字节，SHA `a5d035e203c1367ffc7318f4ac9cb195c3caa2e04817380bc0602dd500bf48e8` / `eb69ecf393e1ead68254a96f2d4ea98dca70bbd4ab2479100f7dd8dc25c93a19`，与runtime发布字节相等。40条audit-v1、50实际来源1881–1930、map `3897a4e4fcbc6dd389e75bb5292976d61985ae1f9f1b05348850dd63afac33ee`与冻结来源重建相等，完整当前配置与生产文件SHA保持。actual GET matching_pilot=false/scopes=[pilot]，full按钮disabled，未运行full或生成comparison文件。
+
+[独立安全观测JSON](merchant-rag-observed-rewrite-evidence.json)/[Markdown](merchant-rag-observed-rewrite-evidence.md)不补入质量记录。十次改写实际出站10、观测错误0，HTTP/LC均stop；B3原JSON为两项list（第一项answer包裹、第二项standard/expansions），B54根仅answer包裹standard/expansions。两题parsed=NoneType/parsing_error=OutputParserException，生产ServiceError.code=invalid_structured_output；各一次共享失败影响四路。其余八题严格校验与safe-plan通过，E19本轮合法，不能用上一轮E19错误代替本轮。root独立离线核对十份HTTP正文与AIMessage逐字相等、输入hash、失败raw JSON严格拒绝及合法最终plan一致，核验上游0。完整正文/异常cause仅私有，不反推旧未捕获失败根因，不称增加预算可解决或bugfixed。
+
+[精确分析](merchant-rag-observed-analysis.md)/[JSON](merchant-rag-observed-analysis.json)保存24行/264指标value/valid_n/excluded及全部合法可答排名。共同四路合法8题A21,A43,C35,C5,D1,D3,E19,E2；共同可答6题A21,A43,C35,C5,E19,E2。各策略8完成/2错误，Recall5=1/.8888888888888888/.9444444444444445/1，Recall10与Prompt=1/.9444444444444445/1/1，MRR=1/.8888888888888888/.9166666666666666/1，均n6；要点1/.9444444444444445/1/.75，均n6。总体Faith=1/n7、1/n6、.9523809523809524/n7、.9642857142857143/n7；库外拒答1/n2各路，可答误拒答0/0/0/.16666666666666666，n6各。共同可答Faith=1/n6、1/n6、.9444444444444445/n6、.95/n5。rerank本轮E19误拒答与Faith的zero_claims不重标；候选50/语料50饱和局限保持，不设总体赢家或300题泛化。D1四路相同固定拒答claims分别0/0/0/1，D3为2/0/2/2，unsupported均0；保留模型裁判断言拆分噪声，不当人工真值。
+
+[只读资源归因](merchant-rag-observed-resource-proof.json)：15无关表摘要、业务84知识/完整向量hash、foreign7知识和旧foreign4faith、三个既有集合名/stats及校准值保持；只有C35 ID25合法faith upsert2次，seen_count2→4，最终hybrid_rerank字段/引用/unsupported理由/模型匹配实际记录，faith总9→9，无新增行。run UUID资源cleanup成功；其他集合只核对名/统计，不冒称完整vectorhash。
+
+![本轮真实终态及全量锁定](images/rag-evaluation-observed/pilot-final-gate.jpg)
+
+实际进行中/错误详情与导出操作见[UI新增记录](rag-evaluation-actual-ui.md)。收费已停止，无第二pilot、独立probe、调参/源修改、工程suite/review或merge/push。状态PILOT_BLOCKED_DOCS_READY，Task10 OPEN，真实300交付未完成；后续变更仍需新明确范围。
 
 ## 2026-10-11 B54独立单次诊断（收费已停止）
 
@@ -38,13 +56,14 @@ C5本轮四路均真实completed/useful=true/refused=false、point2/2、Faith1�
 
 本文保留生产提交 `77d7d02ef1fb500e3ae00f069c368fd204135b3a` 的原始完整回归，再追加已复核源码 `42bd8126a7377b021af8e9d0365e33cfb922808e` 的N1/N2最小修复与真实阶段。仅文档阶段最初checkout为 `2bdb84c43c39b8934a4bfb36c9aa92ecf91d1806`；本次真实阶段启动checkout为root文档提交 `bfd6d3a5917fcb9f585e1920f13a5c956767f492`，生产源码与已复核42bd812相同。原阶段无服务/模型调用的记录是历史事实；本阶段已按明确授权启动当前真实服务及固定pilot，未重跑工程套件。
 
-## 实际运行与待交付内容（三轮报告分开）
+## 实际运行与待交付内容（四轮报告分开）
 
 | 阶段 | 冻结计划规模 | 本次实际状态 | 实际运行 ID / 新质量结果 |
 | --- | --- | --- | --- |
 | 原Pilot（未捕获effort） | 固定10题 × 4策略 = 40条 | 单次真实运行completed_with_errors；9完成/31错误/0未执行，清理成功 | `52678f9492114f1789466442e575c168`；[JSON](merchant-rag-pilot.json)、[Markdown](merchant-rag-pilot.md) |
 | Low Pilot | 同固定10题 × 4策略 = 40条 | 单次真实运行completed_with_errors；39完成/1回答错误/0未执行，清理成功 | `201215b02b874feea7e866db10ee23db`；[JSON](merchant-rag-low-effort-pilot.json)、[Markdown](merchant-rag-low-effort-pilot.md) |
 | C5诊断后新Pilot | 同固定10题 × 4策略 = 40条 | 新范围仅一次completed_with_errors；32完成/8改写错误/0未执行，清理成功 | `b1af9aadc0094141aa5df5ae0ec91bd1`；[JSON](merchant-rag-c5-followup-pilot.json)、[Markdown](merchant-rag-c5-followup-pilot.md) |
+| 透明观测新Pilot | 同固定10题 × 4策略 = 40条 | 新范围仅一次completed_with_errors；32完成/8改写错误，清理成功 | `7d421bf017ff4c02afec385178848fde`；[JSON](merchant-rag-observed-pilot.json)、[Markdown](merchant-rag-observed-pilot.md) |
 | Full | 300题 × 4策略 = 1200条 | 未运行；同配置40条合法门槛未满足 | 无run、无比较报告或虚构分母 |
 
 原轮40条是实际终态记录数，完整完成仅9条；新低思考轮39/40的全部指标与共同子集另见[派生分析](merchant-rag-low-effort-analysis.md)，不覆盖原轮。公共成对报告直接来自实际服务HTTP导出，包含schema-v2/audit-v1、单份50来源map、冻结配置、实际请求数、24行总体/分桶统计及共同子集。full没有manifest，不能将尚未运行的计划写成1200条 `not_attempted` 或虚构分母；没有生成 `merchant-rag-comparison.json/.md`。Task9夹具与受控规模/检索证明不计真实收费运行。
