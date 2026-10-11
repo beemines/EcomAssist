@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     chat_timeout_seconds: float = Field(default=240, gt=0, le=240, validation_alias='CHAT_TIMEOUT_SECONDS')
     # 工作台默认只读；换本机端口时由启动环境显式配置 JSON 来源数组。
     rag_evaluation_enabled: bool = Field(default=False, validation_alias='RAG_EVALUATION_ENABLED')
+    # 仅评估资源显式使用；缺省不发送新参数，空白及非提供商枚举由 Literal 拒绝。
+    rag_evaluation_reasoning_effort: Literal['low', 'high', 'max'] | None = Field(
+        default=None, validation_alias='RAG_EVALUATION_REASONING_EFFORT')
     rag_evaluation_allowed_origins: tuple[str, ...] = Field(
         default=('http://127.0.0.1:8001', 'http://localhost:8001'),
         validation_alias='RAG_EVALUATION_ALLOWED_ORIGINS')

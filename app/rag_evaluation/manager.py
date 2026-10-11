@@ -80,7 +80,9 @@ def build_run_config(dataset: FrozenDataset, settings: Settings, scope: Scope) -
                 self_check=_digest(prompts.build_sufficiency_messages('', {})[0].content),
                 answer=_digest(prompts.build_grounded_answer_system_prompt()), judge=_digest(judgment.JUDGE_PROMPT)),
             endpoint_hashes={key: address[1] for key, address in addresses.items()},
-            llm_timeout_s=settings.llm_timeout_seconds, llm_token_limit_field=settings.llm_token_limit_field))
+            llm_timeout_s=settings.llm_timeout_seconds, llm_token_limit_field=settings.llm_token_limit_field,
+            # 新运行捕获实际等级（含显式未设置），并自然参与除 scope 外的完整指纹。
+            llm_reasoning_effort=settings.rag_evaluation_reasoning_effort))
     config['fingerprint'] = _digest({key: value for key, value in config.items() if key != 'scope'})
     return validate_config(config)
 
