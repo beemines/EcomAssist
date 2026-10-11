@@ -5,12 +5,17 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 import json
 
+import httpx
+from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from openai import APITimeoutError, ContentFilterFinishReasonError, LengthFinishReasonError
+from pydantic import ValidationError
 
 from app.config import Settings
 from app.core.answer_validation import (REFUSAL_TEXT, FinalAnswerStream, close_answer_stream,
                                         ensure_answer_active, validate_answer)
 from app.core.evidence import build_evidence
+from app.core.errors import ServiceError
 from app.core.llm import model_with_output_budget
 from app.core.prompts import build_grounded_answer_system_prompt
 from app.core.sufficiency import SufficiencyService
@@ -18,11 +23,11 @@ from app.quality.types import FaithCaseInput
 from app.rag_evaluation.contracts import EvalCase, FrozenDataset
 from app.rag_evaluation.audit import build_source_map
 from app.rag_evaluation.judgment import GenerationJudge, JudgeError
-from app.rag_evaluation.report import CASE_FIELDS, STRATEGIES, case_metrics
+from app.rag_evaluation.report import CASE_FIELDS, REWRITE_FAILURE_POLICY, STRATEGIES, case_metrics
 from app.rag_evaluation.resources import OwnedResources
 from app.rag_evaluation.store import RunStore, StoreError
 from app.retrieval.service import RetrievalService, faq_payload
-from app.retrieval.types import validate_category
+from app.retrieval.types import QueryPlan, validate_category
 
 
 def _seed(case: EvalCase, strategy: str, id_map: Mapping[str, int], source_map_id: str | None = None) -> dict:
@@ -47,18 +52,48 @@ def _failure(exc: Exception, stage: str) -> dict:
     return {'code': stage + '_error', 'type': type(exc).__name__, 'message': '该阶段执行失败'}
 
 
-def _storage_failure(exc: BaseException) -> StoreError | None:
-    """穿过 SDK/服务异常包装定位计数发布故障，避免把本地写盘故障当模型错误。"""
+def _exception_chain(exc: BaseException):
+    """遍历原因和上下文并防止环引用，供存储、取消和降级共同检查同一异常事实。"""
     pending, seen = [exc], set()
     while pending:
         current = pending.pop()
         if id(current) in seen:
             continue
         seen.add(id(current))
+        yield current
+        pending.extend(link for link in (current.__cause__, current.__context__) if link is not None)
+
+
+def _storage_failure(exc: BaseException) -> StoreError | None:
+    """穿过 SDK/服务异常包装定位计数发布故障，避免把本地写盘故障当模型错误。"""
+    for current in _exception_chain(exc):
         if isinstance(current, StoreError):
             return current
-        pending.extend(link for link in (current.__cause__, current.__context__) if link is not None)
     return None
+
+
+def _rewrite_error(exc: Exception) -> dict:
+    """独立保留已登记服务错误码，未知异常只公开固定改写阶段标识。"""
+    error = _failure(exc, 'rewrite')
+    if isinstance(exc, ServiceError) and exc.code in (
+            'invalid_structured_output', 'upstream_timeout', 'upstream_error', 'input_too_long'):
+        error['code'] = exc.code
+    return error
+
+
+def _can_degrade_rewrite(exc: Exception) -> bool:
+    """只接收明确无效结构；异常链中的取消、期限、输入预算和存储故障优先拒绝。"""
+    if not isinstance(exc, ServiceError) or exc.code != 'invalid_structured_output':
+        return False
+    for current in _exception_chain(exc):
+        if isinstance(current, (asyncio.CancelledError, StoreError, TimeoutError, httpx.TimeoutException, APITimeoutError)):
+            return False
+        if isinstance(current, ServiceError) and current.code != 'invalid_structured_output':
+            return False
+        if not isinstance(current, (ServiceError, ValidationError, OutputParserException, json.JSONDecodeError,
+                                    LengthFinishReasonError, ContentFilterFinishReasonError)):
+            return False
+    return True
 
 
 class EvaluationRunner:
@@ -150,6 +185,8 @@ class EvaluationRunner:
             row = rows[(case.eval_id, 'dense')]
             row.update(status='running', stage='rewrite')
             rewrite_start = asyncio.get_running_loop().time()
+            rewrite_deadline = None
+            rewrite = dict(policy_version=REWRITE_FAILURE_POLICY, status='success', error=None)
             try:
                 await self._publish(row)
                 # 阶段期限与借用服务同时开始；已发布检查点之后才作最后出站前复查。
@@ -174,23 +211,33 @@ class EvaluationRunner:
                 if storage_error is not None:
                     raise storage_error from exc
                 try:
-                    self._active(cancel_event)
+                    self._active(cancel_event, rewrite_deadline)
+                    if any(isinstance(link, asyncio.CancelledError) for link in _exception_chain(exc)):
+                        raise asyncio.CancelledError()
                 except asyncio.CancelledError:
                     row.update(status='cancelled',
                         elapsed_ms=(asyncio.get_running_loop().time() - rewrite_start) * 1000)
                     await self._publish(row)
                     raise
+                except TimeoutError as deadline_error:
+                    exc = deadline_error
                 elapsed = (asyncio.get_running_loop().time() - rewrite_start) * 1000
-                for strategy in STRATEGIES:
-                    failed = rows[(case.eval_id, strategy)]
-                    failed.update(status='rewrite_error', error=_failure(exc, 'rewrite'), elapsed_ms=elapsed)
-                    await self._publish(failed)
-                return
+                rewrite = dict(policy_version=REWRITE_FAILURE_POLICY, status='error', error=_rewrite_error(exc))
+                if _can_degrade_rewrite(exc):
+                    plan = QueryPlan(standard=case.query, expansions=[])
+                    rewrite['status'] = 'degraded'
+                else:
+                    for strategy in STRATEGIES:
+                        failed = rows[(case.eval_id, strategy)]
+                        failed.update(status='rewrite_error', error=_failure(exc, 'rewrite'), elapsed_ms=elapsed,
+                                      rewrite=rewrite)
+                        await self._publish(failed)
+                    return
             rewrite_elapsed = asyncio.get_running_loop().time() - rewrite_start
             for strategy in STRATEGIES:
                 self._active(cancel_event)
                 row = rows[(case.eval_id, strategy)]
-                row.update(status='running', stage='retrieval', query_plan=plan.model_dump())
+                row.update(status='running', stage='retrieval', query_plan=plan.model_dump(), rewrite=rewrite)
                 await self._route(case, row, plan, rewrite_elapsed, sufficiency, judge, cancel_event)
 
     async def _route(self, case: EvalCase, row: dict, plan, rewrite_elapsed: float,

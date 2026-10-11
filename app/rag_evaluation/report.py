@@ -1,6 +1,6 @@
 """CaseRecord 校验、逐题宏平均与白名单公开报告；所有函数均无文件写入。
 
-本地 CaseRecord 固定字段见 CASE_FIELDS，全部必填；未完成产物为 null。
+本地 CaseRecord 固定字段见 CASE_FIELDS，旧记录可缺 rewrite；未完成产物为 null。
 query_plan={standard:str, expansions:list[str]}；mapped_groups 为
 [{group_id:str, alternatives:list[list[positive_int64]]}]；prompt_citations
 为 [{n:positive_int, chunk_id:decimal_str, section_path:str|null,
@@ -43,11 +43,13 @@ STATUSES = ("completed", "rewrite_error", "retrieval_error", "self_check_error",
 STAGES = ("rewrite", "retrieval", "self_check", "answer", "judgment", "complete")
 METRIC_NAMES = RETRIEVAL_METRICS + ("answer_point_coverage", "faithfulness", "absent_refusal_rate",
                                      "answerable_false_refusal_rate")
-CASE_FIELDS = (
+REWRITE_FAILURE_POLICY = 'original-query-on-invalid-v1'
+LEGACY_CASE_FIELDS = (
     "eval_id", "strategy", "bucket", "difficulty", "category", "should_refuse", "refused", "status",
     "stage", "query", "query_plan", "mapped_groups", "candidate_ids", "final_ids", "prompt_citations",
     "decision", "answer", "point_verdicts", "claim_verdicts", "metrics", "error", "elapsed_ms", "judge_snapshot",
 )
+CASE_FIELDS = LEGACY_CASE_FIELDS + ('rewrite',)
 
 
 def _require(condition: bool, message: str) -> None:
@@ -109,7 +111,7 @@ def safe_error(value: object) -> dict[str, str] | None:
 
 def validate_case_record(record: Mapping[str, object]) -> dict[str, object]:
     """返回独立本地白名单副本；严格验证阶段产物、元数据和裁判，不修改输入。"""
-    row = _object(record, CASE_FIELDS)
+    row = _object(record, CASE_FIELDS if 'rewrite' in record else LEGACY_CASE_FIELDS)
     from app.rag_evaluation.audit import validate_audit
     for key in ("eval_id", "bucket", "difficulty", "query"):
         _require(_text(row[key]), f"{key} 须为非空文本")
@@ -165,6 +167,8 @@ def validate_case_record(record: Mapping[str, object]) -> dict[str, object]:
             snapshot["raw_response"] = raw
         row["judge_snapshot"] = snapshot
     row["error"] = safe_error(row["error"])
+    if 'rewrite' in row:
+        row['rewrite'] = _validate_rewrite(row)
     elapsed = row["elapsed_ms"]
     _require(elapsed is None or (type(elapsed) in (int, float) and math.isfinite(elapsed) and elapsed >= 0), "elapsed_ms 非法")
     if row["metrics"] is not None:
@@ -177,6 +181,36 @@ def validate_case_record(record: Mapping[str, object]) -> dict[str, object]:
         expected, _ = _score(row)
         _require(all(value == expected[name] for name, value in row["metrics"].items()), "metrics 与阶段产物不一致")
     return row
+
+
+def _validate_rewrite(row: dict) -> dict | None:
+    """严格区分无结果、成功、原话降级与失败，保留独立安全错误而不伪造改写成功。"""
+    value = row['rewrite']
+    if value is None:
+        _require(row['stage'] == 'rewrite' and row['status'] in ('not_attempted', 'running', 'cancelled'),
+                 '改写有结果阶段缺少声明')
+        return None
+    _require(isinstance(value, Mapping) and set(value) == {'policy_version', 'status', 'error'},
+             '改写声明字段非法')
+    result = _object(value, ('policy_version', 'status', 'error'))
+    _require(result['policy_version'] == REWRITE_FAILURE_POLICY and
+             result['status'] in ('success', 'degraded', 'error'), '改写策略或状态非法')
+    if result['error'] is not None:
+        _require(isinstance(result['error'], Mapping) and set(result['error']) == {'code', 'type', 'message'},
+                 '改写错误字段非法')
+    result['error'] = safe_error(result['error'])
+    if result['status'] == 'error':
+        _require(row['status'] == 'rewrite_error' and row['query_plan'] is None and result['error'] is not None,
+                 '改写失败声明与阶段不一致')
+    else:
+        _require(row['query_plan'] is not None and row['stage'] != 'rewrite', '改写完成声明缺少计划')
+        if result['status'] == 'success':
+            _require(result['error'] is None, '改写成功仍有改写错误')
+        else:
+            _require(result['error'] is not None and result['error']['code'] == 'invalid_structured_output' and
+                     row['query_plan'] == {'standard': row['query'], 'expansions': []},
+                     '降级必须保留原话、空扩展及无效结构错误')
+    return result
 
 
 def _validate_stages(row: dict) -> None:
@@ -272,7 +306,7 @@ def summarize_records(records: Sequence[dict[str, object]]) -> dict[str, object]
     """验证记录唯一性和四路题面一致性后，返回全量及共同合法生成集合统计。"""
     _require(isinstance(records, Sequence) and not isinstance(records, (str, bytes)), "records 须为序列")
     rows = [validate_case_record(record) for record in records]
-    keyed, identities = {}, {}
+    keyed, identities, rewrites = {}, {}, {}
     for row in rows:
         key = (row["eval_id"], row["strategy"])
         _require(key not in keyed, "重复题号策略记录")
@@ -280,11 +314,23 @@ def summarize_records(records: Sequence[dict[str, object]]) -> dict[str, object]
         identity = [row[field] for field in ("bucket", "difficulty", "category", "should_refuse", "query", "mapped_groups")]
         _require(row["eval_id"] not in identities or identities[row["eval_id"]] == identity, "四路题目元数据不一致")
         identities[row["eval_id"]] = identity
+        if row.get('rewrite') is not None:
+            shared = (row['rewrite'], row['query_plan'])
+            _require(row['eval_id'] not in rewrites or rewrites[row['eval_id']] == shared,
+                     '四路改写声明或共享计划不一致')
+            rewrites[row['eval_id']] = shared
     common_ids = sorted(eval_id for eval_id in identities if all(
         (eval_id, strategy) in keyed and keyed[(eval_id, strategy)]["status"] == "completed" for strategy in STRATEGIES))
     common = [row for row in rows if row["eval_id"] in common_ids]
-    return {"rows": _summary_rows(rows), "common_generation": {
+    result = {"rows": _summary_rows(rows), "common_generation": {
         "eval_ids": common_ids, "valid_n": len(common_ids), "rows": _summary_rows(common)}}
+    if any('rewrite' in row for row in rows):
+        counts = Counter(value[0]['status'] for value in rewrites.values())
+        missing = {row['eval_id'] for row in rows if 'rewrite' not in row} - set(rewrites)
+        result['rewrite'] = dict(attempted_n=len(rewrites), success_n=counts['success'],
+            degraded_n=counts['degraded'], error_n=counts['error'],
+            success_rate=counts['success'] / len(rewrites) if rewrites else None, unreported_n=len(missing))
+    return result
 
 
 def public_report(report: Mapping[str, object]) -> dict[str, object]:
