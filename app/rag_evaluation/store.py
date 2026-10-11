@@ -139,8 +139,15 @@ def validate_config(config: Mapping[str, object]) -> dict[str, object]:
     fields = CONFIG_FIELDS + (('provenance',) if isinstance(config, Mapping) and 'provenance' in config else ())
     value = _object(config, fields)
     if 'provenance' in value:
+        # 历史缺失表示未捕获，读取及导出不补字段；新可选字段仍走严格白名单。
+        effort_fields = (('llm_reasoning_effort',) if isinstance(value['provenance'], Mapping)
+            and 'llm_reasoning_effort' in value['provenance'] else ())
         provenance = _object(value['provenance'], ('dataset_fingerprint', 'corpus_hash', 'cases_hash',
-            'annotation_hash', 'prompt_hashes', 'endpoint_hashes', 'llm_timeout_s', 'llm_token_limit_field'))
+            'annotation_hash', 'prompt_hashes', 'endpoint_hashes', 'llm_timeout_s', 'llm_token_limit_field') + effort_fields)
+        if effort_fields:
+            effort = provenance['llm_reasoning_effort']
+            _require(effort is None or (type(effort) is str and effort in ('low', 'high', 'max')),
+                     '模型思考等级非法')
         _require(all(_hash(provenance[key]) for key in
                      ('dataset_fingerprint', 'corpus_hash', 'cases_hash', 'annotation_hash')), '数据出处摘要非法')
         _require(all(_hash(digest) for digest in _object(provenance['prompt_hashes'], PROMPT_FIELDS).values()),

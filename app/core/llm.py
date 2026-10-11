@@ -1,4 +1,6 @@
 # 模型客户端工厂，按配置直连上游并统一使用 Chat Completions 请求格式。
+from typing import Literal
+
 import httpx
 from langchain_openai import ChatOpenAI
 
@@ -20,8 +22,9 @@ def model_with_output_budget(model, settings: Settings, budget: int):
 # 依据配置创建 Chat Completions 客户端，设置超时和输出上限。
 def create_model(
     settings: Settings, *, http_async_client: httpx.AsyncClient | None = None,
+    reasoning_effort: Literal['low', 'high', 'max'] | None = None,
 ) -> ChatOpenAI:
-    """创建直连上游的 Chat Completions 客户端，并按配置设置请求中的输出上限。"""
+    """创建直连客户端；努力等级仅由评估调用方显式传入，普通调用保留省略行为。"""
     return ChatOpenAI(
         model=settings.llm_model,
         base_url=str(settings.llm_base_url),
@@ -35,4 +38,6 @@ def create_model(
         # 按配置发送上游接受的输出上限字段，允许切换模型而不改业务接口。
         extra_body={settings.llm_token_limit_field: settings.max_output_tokens},
         http_async_client=http_async_client,
+        # None 时连构造参数也省略，不从在线 Settings 自动读取评估专属值。
+        **({'reasoning_effort': reasoning_effort} if reasoning_effort is not None else {}),
     )

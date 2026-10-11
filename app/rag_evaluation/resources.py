@@ -301,10 +301,12 @@ class OwnedResources:
     def _models(self):
         """回答与裁判各自经工厂创建；预算副本不拥有新客户端。"""
         http = self._http(self.requests.model_hook)
-        self.model = create_model(self.settings, http_async_client=http)
+        self.model = create_model(self.settings, http_async_client=http,
+            reasoning_effort=self.settings.rag_evaluation_reasoning_effort)
         self._register_model(self.model)
         self.judge_model = create_model(self.settings.model_copy(update={
-            'max_output_tokens': self.settings.faith_judge_max_output_tokens}), http_async_client=http)
+            'max_output_tokens': self.settings.faith_judge_max_output_tokens}), http_async_client=http,
+            reasoning_effort=self.settings.rag_evaluation_reasoning_effort)
         self._register_model(self.judge_model)
         self.planner = QueryPlanner(model_with_output_budget(self.model, self.settings,
             self.settings.query_max_output_tokens), self.settings.tool_input_token_budget,
