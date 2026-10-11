@@ -82,7 +82,7 @@ async function refreshRun(epoch) {
  try{
   const snapshot=await request("/runs/"+encodeURIComponent(state.selected));if(state.unloaded||epoch!==state.epoch)return;
   state.snapshot=snapshot;state.active=activeStates.has(snapshot.run.state)?snapshot.run.run_id:"";
-  renderRun();renderMatrix();renderQuality();await loadCases();if(epoch!==state.epoch||state.unloaded)return;
+  renderRun();renderRewrite();renderMatrix();renderQuality();await loadCases();if(epoch!==state.epoch||state.unloaded)return;
   if(!state.active){await loadDatasets();await loadHistory();if(state.active&&state.active!==state.selected){await selectRun(state.active);return;}}
  }catch(error){if(epoch===state.epoch&&error.name!=="AbortError")notice(error.message+" 状态尚未确认，未自动重跑。可刷新历史重试读取。");}
  if(!state.unloaded&&epoch===state.epoch&&state.active)state.timer=setTimeout(()=>refreshRun(epoch),2000);
@@ -100,6 +100,19 @@ function renderRun() {
  el("cards").replaceChildren();for(const [label,value,sub]of data){const card=node("article",undefined,"card");card.append(node("div",label,"label"),node("div",value,"value"),node("div",sub,"sub"));el("cards").append(card);}
  for(const option of el("metric-select").options)option.disabled=option.value.startsWith("legacy_")&&version!==1;
  if(version!==1&&el("metric-select").value.startsWith("legacy_"))el("metric-select").value="recall_at_5";controls();
+}
+// 改写按唯一题目统计，直接使用服务端汇总，旧报告缺失时保持未记录。
+function renderRewrite() {
+ const rewrite=state.snapshot.schema_version===2?state.snapshot.summary?.rewrite:null;el("rewrite-cards").replaceChildren();
+ if(!rewrite){el("rewrite-note").textContent="N/A：此历史报告未采集共享改写状态，不能补算成功率或降级次数。";return;}
+ el("rewrite-note").textContent="已有结果的改写 "+rewrite.attempted_n+" 题；未记录 "+rewrite.unreported_n+" 题。"+(rewrite.degraded_n?"其中 "+rewrite.degraded_n+" 题结构无效，四种策略统一使用原问题继续检索；错误原因保留在逐题详情。":"本轮尚无原问题降级记录。");
+ const values=[["已有结果的题数",rewrite.attempted_n,"四种策略只计一次"],["改写成功率",score(rewrite.success_rate),"成功 "+rewrite.success_n+" / 已有结果 "+rewrite.attempted_n],["原问题降级",rewrite.degraded_n,"结构无效，保留失败原因"],["改写失败",rewrite.error_n,"超时或其他调用错误"]];
+ for(const [label,value,sub]of values){const card=node("article",undefined,"card");card.append(node("div",label,"label"),node("div",value,"value"),node("div",sub,"sub"));el("rewrite-cards").append(card);}
+}
+// 单题降级独立于最终完成状态，避免把完成的检索误当成成功改写。
+function rewriteLabel(record) {
+ if(!record.rewrite)return record.status==="not_attempted"?"未执行":record.status==="running"&&record.stage==="rewrite"?"进行中":"未记录";
+ return {success:"成功",degraded:"原问题降级",error:"失败"}[record.rewrite.status]||"未知";
 }
 // 严格消费 v2 对象；v1 原值只在明确历史指标入口显示。
 function metric(row,key) {
@@ -138,8 +151,8 @@ async function loadCases() {
  el("cases-table").setAttribute("aria-busy","true");
  try{const page=await request("/runs/"+runId+"/cases?"+params);if(token!==state.casesEpoch||runId!==state.selected||state.unloaded)return;
   state.total=page.total;el("cases-table").replaceChildren();
-  for(const record of page.items){const row=node("tr");for(const value of [record.eval_id,record.query??"未保存问题",names[record.strategy],score(record.metrics?.mrr_at_10),labels[record.status]||record.status])row.append(node("td",value));const cell=node("td");const button=node("button","查看","detail-link");button.setAttribute("aria-label","查看 "+record.eval_id+" "+names[record.strategy]+" 的评估详情");button.addEventListener("click",()=>openDetail(record,button));cell.append(button);row.append(cell);el("cases-table").append(row);}
-  if(!page.items.length){const cell=node("td","没有匹配的实际检查点记录。");cell.colSpan=6;const row=node("tr");row.append(cell);el("cases-table").append(row);}
+  for(const record of page.items){const row=node("tr");for(const value of [record.eval_id,record.query??"未保存问题",names[record.strategy],score(record.metrics?.mrr_at_10),labels[record.status]||record.status])row.append(node("td",value));const rewriteCell=node("td");rewriteCell.append(node("span",rewriteLabel(record),record.rewrite?.status==="degraded"?"pill warning":"pill"));row.append(rewriteCell);const cell=node("td");const button=node("button","查看","detail-link");button.setAttribute("aria-label","查看 "+record.eval_id+" "+names[record.strategy]+" 的评估详情");button.addEventListener("click",()=>openDetail(record,button));cell.append(button);row.append(cell);el("cases-table").append(row);}
+  if(!page.items.length){const cell=node("td","没有匹配的实际检查点记录。");cell.colSpan=7;const row=node("tr");row.append(cell);el("cases-table").append(row);}
   el("result-count").textContent="匹配 "+page.total+" 条策略结果 · 本页 "+page.items.length+" 条；计划未执行数见进度。";
   el("page-number").textContent="第 "+(Math.floor(state.offset/20)+1)+" / "+Math.max(1,Math.ceil(page.total/20))+" 页";el("cases-prev").disabled=!state.offset;el("cases-next").disabled=state.offset+20>=page.total;
  }catch(error){if(token===state.casesEpoch&&error.name!=="AbortError")notice(error.message);}
@@ -151,6 +164,7 @@ async function openDetail(record,trigger) {
  try{const data=await request("/runs/"+runId+"/cases/"+encodeURIComponent(record.eval_id)+"/"+record.strategy);if(token!==state.detailEpoch||runId!==state.selected||state.unloaded)return;
   el("detail-title").textContent=data.eval_id+" · "+names[data.strategy]+" · "+(buckets[bucketName(data.bucket)]||"未知桶");el("detail-body").replaceChildren();
   const sections=[["问题",data.query],["共享改写",data.query_plan],["金标组完整组合 · 同组合全部满足 / 替代组合任选其一",data.mapped_groups],["候选 Top-50 与最终前十 · 不是 Prompt",{candidate_ids:data.candidate_ids,final_ids:data.final_ids}],["实际 Prompt 引用完整原文快照",data.prompt_citations],["充分性自评",data.decision],["实际回答",data.answer],["逐点覆盖 · 全部要点与理由",data.point_verdicts],["全部断言 · 支持判定与理由",data.claim_verdicts],["指标",data.metrics],["裁判版本与结束标识",data.judge_snapshot],["状态、错误与耗时",{status:data.status,stage:data.stage,error:data.error,elapsed_ms:data.elapsed_ms,should_refuse:data.should_refuse,refused:data.refused}]];
+  sections.push(["共享改写状态与降级原因",data.rewrite??"N/A：未采集改写状态。历史缺失不代表成功。"]);
   if(state.snapshot.schema_version===1)sections.unshift(["旧版只读说明","v1 API 没有公开新金标组合、引用快照和逐点裁判；这些字段 N/A，不从其他运行补齐。"],["历史指标 · 原口径",data.legacy_metrics]);
   if(data.audit)sections.splice(3,0,["稳定金标来源 · 同组合全部满足 / 替代组合任选其一",data.audit.gold_groups],["标准要点原文 · 条件与同义表达",data.audit.answer_points],["实际排序分数 · 不同分数类型不可直接比较",{candidate_ranking:data.audit.candidate_ranking,final_ranking:data.audit.final_ranking}],["本轮完整来源映射 · 清理后仍可核对原文",data.source_map]);
   else sections.unshift(["来源与排序审计","N/A：此历史记录未采集稳定来源映射、标准要点原文或排序分数。"]);
