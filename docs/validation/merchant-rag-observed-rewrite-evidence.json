@@ -1,0 +1,722 @@
+{
+  "run_id": "7d421bf017ff4c02afec385178848fde",
+  "kind": "actual-rewrite-observation-sidecar-not-quality-records",
+  "method_file": ".cache/task10_observed_service.py",
+  "method_sha256": "0f12595c000e8c84bcfa7f0182b2b2350fc5e04dd491504b1122400e8474cd8c",
+  "config_fingerprint": "191d53c027323fa8005327336e6ec0e737f7d196eebd6ad05f2dea7258f60913",
+  "strict_production_validation_unchanged": true,
+  "original_request_and_return_objects_transparent": true,
+  "captured_before_production_validation": true,
+  "actual_rewrite_outgoing": 10,
+  "observation_errors": 0,
+  "observations": [
+    {
+      "run_id": "7d421bf017ff4c02afec385178848fde",
+      "eval_id": "A21",
+      "started_at": "2026-10-11T05:09:51.532345+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "252f41e845bf55097c249452b470d1f1fdb3aecb47be12bc0ef247496920a936",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 572,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 73,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T05:09:53.565039+00:00",
+      "elapsed_s": 2.0326878000050783,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 2,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "7d421bf017ff4c02afec385178848fde",
+      "eval_id": "A43",
+      "started_at": "2026-10-11T05:09:51.624683+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "dc741f08f23831d8260b889db96838eae95617625fabd7f0f8bbc5981f71fd9a",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 576,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 75,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T05:09:53.365232+00:00",
+      "elapsed_s": 1.740546900080517,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 2,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "7d421bf017ff4c02afec385178848fde",
+      "eval_id": "B3",
+      "started_at": "2026-10-11T05:10:24.759057+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "9d0724be07bd29bf184a3a1c045060f83deb4a51bf889dbc0257046e5a811fd4",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 633,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "NoneType",
+      "parsing_error_type": "OutputParserException",
+      "finish_reason": "stop",
+      "body_characters": 156,
+      "raw_json_valid": true,
+      "raw_json_object": false,
+      "production_plan_validated": false,
+      "planner_exception_type": "ServiceError",
+      "service_error_code": "invalid_structured_output",
+      "finished_at": "2026-10-11T05:10:26.292451+00:00",
+      "elapsed_s": 1.533391400007531,
+      "raw_json_shape": {
+        "type": "list",
+        "length": 2,
+        "item_shapes": [
+          {
+            "type": "dict",
+            "fields": {
+              "answer": {
+                "type": "dict",
+                "fields": {
+                  "standard": {
+                    "type": "str"
+                  },
+                  "expansions": {
+                    "type": "list"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "dict",
+            "fields": {
+              "standard": {
+                "type": "str"
+              },
+              "expansions": {
+                "type": "list",
+                "length": 1
+              }
+            }
+          }
+        ]
+      },
+      "affected_strategies": [
+        "dense",
+        "bm25",
+        "hybrid",
+        "hybrid_rerank"
+      ],
+      "published_elapsed_ms": {
+        "dense": 1584.4322999473661,
+        "bm25": 1584.4322999473661,
+        "hybrid": 1584.4322999473661,
+        "hybrid_rerank": 1584.4322999473661
+      }
+    },
+    {
+      "run_id": "7d421bf017ff4c02afec385178848fde",
+      "eval_id": "B54",
+      "started_at": "2026-10-11T05:10:26.548852+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "55ae7e897ce1ff76c387325ce61f41394263af55487f90905a2d1fab02a75538",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 600,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "NoneType",
+      "parsing_error_type": "OutputParserException",
+      "finish_reason": "stop",
+      "body_characters": 115,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 1,
+      "standard_type": "NoneType",
+      "expansions_type": "NoneType",
+      "production_plan_validated": false,
+      "planner_exception_type": "ServiceError",
+      "service_error_code": "invalid_structured_output",
+      "finished_at": "2026-10-11T05:10:28.207326+00:00",
+      "elapsed_s": 1.65847669984214,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "answer": {
+            "type": "dict",
+            "fields": {
+              "standard": {
+                "type": "str"
+              },
+              "expansions": {
+                "type": "list",
+                "length": 3
+              }
+            }
+          }
+        }
+      },
+      "affected_strategies": [
+        "dense",
+        "bm25",
+        "hybrid",
+        "hybrid_rerank"
+      ],
+      "published_elapsed_ms": {
+        "dense": 1710.1466997992247,
+        "bm25": 1710.1466997992247,
+        "hybrid": 1710.1466997992247,
+        "hybrid_rerank": 1710.1466997992247
+      }
+    },
+    {
+      "run_id": "7d421bf017ff4c02afec385178848fde",
+      "eval_id": "C35",
+      "started_at": "2026-10-11T05:11:00.888416+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "5666f6071ecba335317b5188e03f3a254501f32d138390ea13769935c9014734",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 641,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 71,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T05:11:02.471462+00:00",
+      "elapsed_s": 1.5830304000992328,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 2,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "7d421bf017ff4c02afec385178848fde",
+      "eval_id": "C5",
+      "started_at": "2026-10-11T05:10:28.471733+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "7394e768740d897298ad133d3b08dc0d76501d81ca6c4eb64b997d2309e2661a",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 518,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 55,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T05:10:29.622020+00:00",
+      "elapsed_s": 1.1502890000119805,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 2,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "7d421bf017ff4c02afec385178848fde",
+      "eval_id": "D1",
+      "started_at": "2026-10-11T05:11:03.091535+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "7a399c5402f1890e6951dac82eced8cb88b953e0b3220281b2cd09496d02d622",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 581,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 78,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T05:11:04.613984+00:00",
+      "elapsed_s": 1.5224462999030948,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 3,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "7d421bf017ff4c02afec385178848fde",
+      "eval_id": "D3",
+      "started_at": "2026-10-11T05:11:17.465801+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "5a85c4ef29567fdd247204a7906ad3b11cbc8898f78b340cd5f72294fb44949c",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 578,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 75,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T05:11:18.710192+00:00",
+      "elapsed_s": 1.2443878999911249,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 2,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "7d421bf017ff4c02afec385178848fde",
+      "eval_id": "E19",
+      "started_at": "2026-10-11T05:11:50.503888+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "033ba4067feadc548e19fda1290ae8a4ff13df0edb155a1bf21d05e2c4b65374",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 751,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 131,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T05:11:52.351795+00:00",
+      "elapsed_s": 1.847901500063017,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 3,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "7d421bf017ff4c02afec385178848fde",
+      "eval_id": "E2",
+      "started_at": "2026-10-11T05:11:37.521130+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "37e6ca05948ebad1d23f6f91261f28a7a63b1e7e40ae7bccbf1a59731a8ef86d",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 616,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 89,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T05:11:38.419041+00:00",
+      "elapsed_s": 0.8979080999270082,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 3,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "request_counts": {
+    "rewrite": 10,
+    "self_check": 32,
+    "answer": 23,
+    "judge": 32,
+    "embedding": 27,
+    "rerank": 8,
+    "milvus": 67
+  },
+  "cleanup": {
+    "ok": true,
+    "errors": [],
+    "unverified": []
+  },
+  "old_public_hashes_unchanged": true,
+  "full_not_run": true,
+  "limitations": "Only new observed responses establish these specific structure failures; no inference about earlier uncaptured failures; private body values omitted; no repair/retry/new probe."
+}

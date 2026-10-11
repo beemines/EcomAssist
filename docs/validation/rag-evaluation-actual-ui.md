@@ -1,6 +1,22 @@
 # 单次真实pilot页面证据
 
-## 2026-10-11 C5单次诊断后新固定pilot（当前实际终态）
+## 2026-10-11 透明观测fixed10（当前实际终态）
+
+root完成脚本FULL读/离线透传证明并明确放行后，核验原PID12624精确命令/8002归属和基线，只停该进程；当前observer factory实际PID61224/exec77788，single-worker/loopback8002/显式origins，生产与固定配置保持。原8000/8001未动。Chrome既有tab664075742刷新当前服务后，“试运行·10题”仅点击一次，新run7d421bf017ff4c02afec385178848fde；观测方法SHA0f12595c…，不是旧响应或源码修改。
+
+![同一次实际试跑进行中](images/rag-evaluation-observed/pilot-running.jpg)
+
+同run终态completed_with_errors/complete：40attempted/32completed/8rewrite_error/0未执行，清理成功，全量按钮disabled。实际GET matching_pilot=false/scopes=[pilot]，没有点击full/重跑/取消或追加收费。JSON与Markdown导出按钮各点击一次，独立HTTP200文件与runtime原发布字节相等；不声明浏览器下载路径。
+
+![本轮真实终态与全量锁定](images/rag-evaluation-observed/pilot-final-gate.jpg)
+
+B3/B54当前各四路rewrite_error；B54/vector详情显示候选/Prompt/生成/判定N/A、ServiceError通用公开错误、原elapsed1710.1466997992247ms。点击实际“状态、错误与耗时”标题定位，截图能核验当前状态，旁路具体invalid_structured_output/HTTPstop/schema形状另存[安全证据](merchant-rag-observed-rewrite-evidence.md)，不在UI公开私有正文。关闭详情并回到RAG评估标题，tab标记deliverable；无新UI测试套件/前端源码改动。
+
+![本轮B54实际错误状态与耗时](images/rag-evaluation-observed/b54-rewrite-error.jpg)
+
+[精确指标分母](merchant-rag-observed-analysis.md)/[资源归因](merchant-rag-observed-resource-proof.json)分开保存，台账仅C35合法2次upsert、15无关表与业务/foreign保持。Task10 OPEN/PILOT_BLOCKED_DOCS_READY，full未运行。以下前阶段截图/数字完整保留。
+
+## 2026-10-11 C5单次诊断后固定pilot（此前实际终态）
 
 用户新明确授权单次C5/dense诊断合法后，在既有真实8002服务/Chrome tab664075742点击“试运行·10题”一次，产生新run `b1af9aadc0094141aa5df5ae0ec91bd1`，created04:06:05.071221Z/finished04:08:59.360426Z。40尝试/32completed/8rewrite_error/0未执行，cleanup成功，actual GET matching_pilot=false，full按钮disabled；无full/重跑/终态取消或进一步收费探针。
 

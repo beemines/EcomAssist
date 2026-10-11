@@ -1,6 +1,12 @@
 # 300 题 RAG 评估材料审计
 
-## 2026-10-11 当前 C5 单次诊断与新的条件试跑
+## 2026-10-11 当前原参数透明观测试跑
+
+固定材料仍300题/五桶各60/50块，全部资料/Prompt/模型/预算/期限/retry0保持191d53…配置；生产仍cfc65fd。ignored observer方法SHA0f12595c…单列声明，root FULL读与fake参数/返回/异常身份及非rewrite不读正文证明后放行，准备构造/上游0。真实同8002 fixed10一次run7d421bf017ff4c02afec385178848fde：40attempted/32completed/8rewrite_error（B3/B54各共享一次），cleanup成功；actual matching_pilot=false、full未运行、收费STOP。旧三pilot六文件及C5/B54两诊断pair原字节保持，不用独立诊断补质量分母。
+
+[真实报告](merchant-rag-observed-pilot.json)/[精确分析](merchant-rag-observed-analysis.md)保存所有指标n/excluded，共同合法8题/共同可答6题，原失败不删除。40audit-v1/实际50来源1881–1930/map3897a4e4…与冻结重建相等；[安全观测](merchant-rag-observed-rewrite-evidence.md)留存新B3根list、B54根answer对象，HTTP200/stop但严格QueryPlan拒绝，原正文只私有、不反推旧根因。[只读资源证据](merchant-rag-observed-resource-proof.json)证明15无关表/业务84完整向量/foreign/原集合与校准保持，只有C35 ID25合法2次upsert使seen2→4，faith9→9；不虚称全部16表不变。实际UI/截图见[页面记录](rag-evaluation-actual-ui.md)。没有工程suite/review/源修复或新探针/第二pilot，Task10 OPEN。
+
+## 2026-10-11 此前 C5 单次诊断与条件试跑
 
 用户另行明确授权后，C5/dense单次真实回答诊断合法stop/158字符，answer1、其他收费与资源请求0、客户端清理成功。输入5726/8000、10实际引用和prompt/source-map逐值一致、无gold；固定GLM-5.3-Flash/low/512/期限/重试0和191d53…配置保持。[安全诊断报告](merchant-rag-c5-diagnostic.md)不替代固定试跑，也不解释旧未捕获失败根因。
 
