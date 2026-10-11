@@ -1,6 +1,12 @@
 # 冻结 300 题 RAG 评估交付状态
 
-2026-10-11 当前：**用户另行授权的C5/dense单次诊断合法、仅answer1且清理成功；随后新固定pilot `b1af9aadc0094141aa5df5ae0ec91bd1` 从真实8002浏览器仅启动一次并已结束：40尝试、32完整完成、8改写错误（B54/E19各一次共享失败影响四路），清理成功。实际服务matching_pilot=false，全量保持未运行，Task10尚未完成。** 原9/40、前一low39/40及其各自错误/指纹/分母完整保留，不预设策略胜者。
+2026-10-11 当前：**另行授权的B54单次改写诊断合法，仅rewrite1、其余六阶段0且清理成功，收费已停止，不授予新pilot/full资格。用户此前另行授权的C5/dense单次诊断合法、仅answer1且清理成功；随后新固定pilot `b1af9aadc0094141aa5df5ae0ec91bd1` 从真实8002浏览器仅启动一次并已结束：40尝试、32完整完成、8改写错误（B54/E19各一次共享失败影响四路），清理成功。实际服务matching_pilot=false，全量保持未运行，Task10尚未完成。** 原9/40、前一low39/40及其各自错误/指纹/分母完整保留，不预设策略胜者。
+
+## 2026-10-11 B54独立单次诊断（收费已停止）
+
+用户新批准B54改写一次，root完整读取脚本并明确放行后执行probe `59e4d535ec0c4471bbe2538e2c18a39d`。真实耗时2.889186199987307秒，HTTP200/finish=stop，原AIMessage108字符；原JSON三条expansions通过生产严格校验，现有safe-plan保护返回原问句/expansions0。模型GLM-5.3-Flash、low、2048输出、847/8000输入、SDK/改写60秒、retry0及完整191d53…配置保持。实际HTTP1/rewrite1，self_check、answer、judge、embedding、rerank、Milvus六阶段均0，cleanup={ok:true,errors:[],unverified:[]}。无数据库/Milvus、浏览器或服务重启操作，8000/8001未动。
+
+独立[安全JSON](merchant-rag-b54-diagnostic.json)/[Markdown](merchant-rag-b54-diagnostic.md)保存捕获边界及完整安全计数；原输入/正文仅私有。执行前离线构造器/proof消息摘要一致、无gold；原请求字节未保存，不声明原字节相等。root独立离线复核生产strict validator/safe-plan、计数、cleanup和原六个公开报告SHA通过，额外请求0。旧B54失败具体finish/code/raw缺失，本次成功不能确定旧根因或称bug修复，旧报告不覆盖、不补行。诊断不进入pilot资格或质量分母。当前最新pilot仍32/40、full未运行、Task10 OPEN；该范围仅一次诊断，成功也不授权新pilot/full或其他探针，收费已经停止。
 
 ## 2026-10-11 C5单次诊断与条件继续的实际终态
 
