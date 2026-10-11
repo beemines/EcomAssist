@@ -148,7 +148,7 @@ curl.exe -N --max-time 260 -H 'Content-Type: application/json' --data-binary '@.
 
 ## 冻结 300 题评估工作台
 
-N1/N2已在源码 `42bd812` 的唯一额外定点复核通过。自有真实工作台 [127.0.0.1:8002/rag-eval](http://127.0.0.1:8002/rag-eval) 单次固定pilot `52678f9492114f1789466442e575c168` 已结束：40条尝试、9完整完成、31错误、清理成功；服务端matching_pilot=false，full未运行。用户确认运行期间休眠/合盖，原时钟与错误保留；后续评估专用low思考参数及有界验证已获授权但尚未实施/复核/运行，Task10未完成。详见[交付状态](docs/validation/rag-evaluation-delivery.md)。
+N1/N2已在源码 `42bd812` 的唯一额外定点复核通过。原固定pilot `52678f9492114f1789466442e575c168` 保留40条尝试、9完整完成、31错误及清理成功的原报告；用户确认期间休眠/合盖，原时钟与错误不变。2026-10-11，评估专用low配置 `cfc65fd` 已独立复核通过，两条获准真实单调用探针均合法，实际裁判1次/回答1次、其他阶段0次、客户端清理成功。依赖最初停机导致8002启动失败，随后按明确授权恢复原容器/卷，资源摘要与原记录完全相等；新pilot201215b02b874feea7e866db10ee23db已从真实8002页面仅启动一次并结束：40尝试、39完成、1条C5/dense回答错误、清理成功；实际matching_pilot=false，full仍未运行。Task10未完成，详见[交付状态](docs/validation/rag-evaluation-delivery.md)及[有界探针](docs/validation/merchant-rag-low-effort-probes.md)。
 
 工作台入口为 `/rag-eval`，聊天入口为 `/`。默认 `RAG_EVALUATION_ENABLED=false`，页面可读取资料、历史与合法已提交报告；启动和取消需要显式启用，旧 pre-audit v2 下载已由 N2 最小兼容修复恢复。新评估固定使用 `merchant-rag-300-v1`：五桶各 60 题、八篇 50 块、固定 pilot 10 题 / 40 条策略记录；全部40条合法完成、当前 audit-v1/source-map 与冻结资料及配置匹配、清理成功后才能运行 full 300 题 / 1200 条。线上原有 `calibrated_score` 门槛保持，新评估采用共同内容充分性门槛 `content_ablation`。
 
@@ -193,6 +193,8 @@ git diff --check
 ```
 
 2026-10-10，生产修复提交 `77d7d02ef1fb500e3ae00f069c368fd204135b3a` 的默认完整回归 **1386 passed、116 skipped（250.03秒）**；最后显式 MySQL/Milvus完整回归 **1502 passed、0 failed、0 skipped（388.30秒）**。显式首轮的四个子进程fixture接线失败已保留，最小fixture修正后才得到该绿色结果。原I1–I4与随后N1/N2均已关闭；`42bd812` 最终七文件定向回归 **242 passed、1 skipped（229.84秒）**，唯一额外定点复核规格/质量PASS，无新问题。上述均为已读取的原始证据，本次真实阶段没有重复套件。
+
+2026-10-11，评估专用low配置 `cfc65fd` 的已保存工程证据为确认RED **17 failed、8 passed（16.49秒）**，GREEN **25 passed（24.08秒）**，最终受影响套件 **262 passed、7 skipped（170.03秒）**，最终默认完整套件 **1438 passed、116 skipped（260.94秒）**。规格PASS、质量Approved，无Critical/Important；真实调用阶段读取已有日志，未重复套件。专用设置 `RAG_EVALUATION_REASONING_EFFORT=low` 只传给评估拥有的模型，在线实例保持原参数；新字段参与配置指纹，旧pilot不能授权新配置full。
 
 此前 Task10 工程提交 `ab25215` 的 **1358 passed、116 skipped / 显式1474 passed** 及累计期限诊断仍为历史证据。受控测试与真实服务检索均不等于真实模型质量。
 

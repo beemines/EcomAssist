@@ -1,21 +1,50 @@
 # 冻结 300 题 RAG 评估交付状态
 
-2026-10-10：**真实固定pilot仅运行一次，40条全部尝试，9条完整完成、31条错误，终态completed_with_errors，清理成功。服务端matching_pilot=false，全量未运行；Task10尚未完成。** N1/N2在源码42bd812的唯一额外定点复核已解决。用户已批准后续评估专用low思考参数及有界验证，但该新配置尚未实施/复核/调用，本阶段停止在PILOT_BLOCKED_DOCS_READY，不预设策略胜者。
+2026-10-11：**已复核的评估专用low配置完成两条获准真实单调用探针，两条均合法，实际裁判1/回答1、其他阶段0、客户端清理成功。既有依赖已按另行授权恢复且原资源摘要完全相等，新固定pilot201215b02b874feea7e866db10ee23db仅从真实浏览器启动一次并已结束：40尝试、39完整完成、C5/dense回答错误1、清理成功；实际服务matching_pilot=false，全量保持未运行，Task10尚未完成。** 原固定pilot仅运行一次，40尝试、9完整完成、31错误、清理成功和原matching_pilot=false完整保留，不预设策略胜者。
+
+## 2026-10-11 低思考有界真实验证与当前环境
+
+评估专用配置生产提交 `cfc65fdb99e44de68c2727e05743a384bba6e89e`，本阶段checkout为仅追加root文档的 `51edf90120010ceaa7ca0a5fa35c6954d3a25b1a`；独立规格PASS/质量Approved，Critical/Important均0。已读取原始RED17failed/8passed、GREEN25passed、最终受影响262passed/7skip以及默认完整1438passed/116skip（260.94秒），没有重复工程套件。只增加评估专用 `reasoning_effort=low` 与指纹出处，在线模型参数不变。新指纹 `191d53c027323fa8005327336e6ec0e737f7d196eebd6ad05f2dea7258f60913`；剔除这一新增字段和fingerprint后，与原实际pilot配置逐值相等，所有模型、512/2048输出、输入预算、期限、Prompt、端点和重试0不变。
+
+两条请求先离线重建：A21/bm25使用原224字符回答、7条实际引用、p1/p2两项完整rubric；B3/bm25使用原source-map草稿、实际final ranking/score/kind及candidate_count，通过生产grounded-answer/build_evidence、空历史和eval-faq工具消息重建，10条Citation与原值完全相等，生成输入无gold/rubric。原生成消息没有独立保存，这证明同生产者/证据重建，不宣称原消息字节hash相等。原公开JSON/Markdown摘要均核对保持。
+
+真实探针ID `abcfea557efd4b62a5741fd65bfafa12`：裁判6.8016秒、stop、严格JSON与完整唯一p1/p2通过，2项覆盖、5个断言均有证据支持；回答4.3092秒、stop、449字符及严格引用通过。实际HTTP请求逐条捕获顶层low及裁判2048/回答512，计数judge1/answer1，其余0，重试0。裁判实际usage为prompt1454/completion430（其中reasoning111）/total1884；回答未请求额外usage帧，未推算其token消费。客户端cleanup成功，没有准备/写入数据库或Milvus，没有进行重标或将两条探针补入原40条结果。公开[JSON](merchant-rag-low-effort-probes.json)/[Markdown](merchant-rag-low-effort-probes.md)只含安全验证元数据，完整输入与模型正文仍私有。
+
+继续新固定pilot前，只读资源基线返回OperationalError；明确探测3307/3308/19530均ConnectionRefusedError（10061）。原拥有PID95580已不存在，8002也拒绝连接。新固定解释器single-worker/显式origins/评估low启动attempt（exec80376）因Milvus不可连接而启动失败并退出；没有运行pilot/full，未取得新资源对比，不能复用旧资源摘要宣称本次环境已验证。没有操作8000/8001、启动依赖、重建数据或追加付费调用。Root随后明确授权只恢复既有Docker Desktop/精确原容器与卷；已核对原身份/端口/项目/6挂载卷，启动5个原依赖且全部healthy，foreign/init容器未操作。启动途中一条只读快照MilvusException保留，健康后的新只读基线与原afterpilot完全一致（全部16表SHA、业务84向量、三个原集合名/统计、校准值）。新实际8002 PID12624/exec54829已启动，原失败日志不覆盖；新pilot201215b02b874feea7e866db10ee23db在2026-10-11T03:40:40.721281Z从真实浏览器仅启动一次，两条合法探针没有重复。只有新低思考pilot40条全部合法、audit/map/配置匹配及cleanup通过后，服务端matching_pilot才可授权full一次。
 
 本文保留生产提交 `77d7d02ef1fb500e3ae00f069c368fd204135b3a` 的原始完整回归，再追加已复核源码 `42bd8126a7377b021af8e9d0365e33cfb922808e` 的N1/N2最小修复与真实阶段。仅文档阶段最初checkout为 `2bdb84c43c39b8934a4bfb36c9aa92ecf91d1806`；本次真实阶段启动checkout为root文档提交 `bfd6d3a5917fcb9f585e1920f13a5c956767f492`，生产源码与已复核42bd812相同。原阶段无服务/模型调用的记录是历史事实；本阶段已按明确授权启动当前真实服务及固定pilot，未重跑工程套件。
 
-## 实际运行与待交付内容
+## 实际运行与待交付内容（两轮报告分开）
 
 | 阶段 | 冻结计划规模 | 本次实际状态 | 实际运行 ID / 新质量结果 |
 | --- | --- | --- | --- |
-| Pilot | 固定10题 × 4策略 = 40条 | 单次真实运行completed_with_errors；9完成/31错误/0未执行，清理成功 | `52678f9492114f1789466442e575c168`；[JSON](merchant-rag-pilot.json)、[Markdown](merchant-rag-pilot.md) |
+| 原Pilot（未捕获effort） | 固定10题 × 4策略 = 40条 | 单次真实运行completed_with_errors；9完成/31错误/0未执行，清理成功 | `52678f9492114f1789466442e575c168`；[JSON](merchant-rag-pilot.json)、[Markdown](merchant-rag-pilot.md) |
+| Low Pilot | 同固定10题 × 4策略 = 40条 | 单次真实运行completed_with_errors；39完成/1回答错误/0未执行，清理成功 | `201215b02b874feea7e866db10ee23db`；[JSON](merchant-rag-low-effort-pilot.json)、[Markdown](merchant-rag-low-effort-pilot.md) |
 | Full | 300题 × 4策略 = 1200条 | 未运行；同配置40条合法门槛未满足 | 无run、无比较报告或虚构分母 |
 
-这里的40条是实际终态记录数，完整完成仅9条。公共成对报告直接来自实际服务HTTP导出，包含schema-v2/audit-v1、单份50来源map、冻结配置、实际请求数、24行总体/分桶统计及共同子集。full没有manifest，不能将尚未运行的计划写成1200条 `not_attempted` 或虚构分母；没有生成 `merchant-rag-comparison.json/.md`。Task9夹具与受控规模/检索证明不计真实收费运行。
+原轮40条是实际终态记录数，完整完成仅9条；新低思考轮39/40的全部指标与共同子集另见[派生分析](merchant-rag-low-effort-analysis.md)，不覆盖原轮。公共成对报告直接来自实际服务HTTP导出，包含schema-v2/audit-v1、单份50来源map、冻结配置、实际请求数、24行总体/分桶统计及共同子集。full没有manifest，不能将尚未运行的计划写成1200条 `not_attempted` 或虚构分母；没有生成 `merchant-rag-comparison.json/.md`。Task9夹具与受控规模/检索证明不计真实收费运行。
 
 原始裁判及归属快照仍只在忽略的runtime目录，公共报告没有raw_response或连接凭据。JSON SHA-256为 `b2865bbd127305bf2436b28c69fc1bdd35ac14a39f065f42bb5a9b9028725501`，Markdown为 `48e5eeee19f0a20c0470fa90da92c28b3e12b96e66ef3ef84d20742bf72bc352`。错误如实交付，未重跑原pilot或启动full。
 
-## 本次真实结果与有效分母
+## 2026-10-11 新low pilot终态与完整交付
+
+实际开始 `2026-10-11T03:40:40.750357+00:00`，结束 `2026-10-11T03:44:02.195475+00:00`，201.445118秒；state/outcome=completed_with_errors、stage=complete、40尝试/39completed/1answer_error、running/not_attempted/cancelled均0。改写10、自评40、回答30、裁判39、嵌入33、重排10、Milvus74（含prepare/cleanup）；配置为上方专属low指纹，同模型预算期限与retry0。全部40条audit-v1与实际50来源map `bd42c33a64d0de65feee52807ae8153f7f6935c4bbd2b32ee77ba496aa6d3973`，由冻结资料与实际IDs重建逐值相等；cleanup={ok:true,errors:[],unverified:[]}。actual GET datasets仍matching_pilot=false/available_scopes=[pilot]，full一次也未启动。
+
+公共对报告直接HTTP200下载，JSON496307字节/SHA `d0c97061a1b62c85378a44e3f8ed95b693ed3dcd4e5242ef846a23facfd9e8ee`，Markdown712461字节/SHA `c0bf7930537e0c78a469c8f9d3176f00cbce96d02df304b80e764b31e17c9b9e`，与runtime发布字节完全相同。浏览器导出按钮各点击一次；无浏览器下载path声明，以实际HTTP文件为准。原9/40报告原SHA不变。
+
+[实际指标与解释](merchant-rag-low-effort-analysis.md) / [精确派生JSON](merchant-rag-low-effort-analysis.json)列出四策略/五桶的所有valid_n与excluded、总体Recall@5/10、MRR、Prompt、要点/Faith/拒答及四路共同9题，另明确其中可答7题的生产聚合结果。总体dense/bm25/hybrid/rerank的Recall@5分别1/.9166667/.9583333/1（各n8）、@10为1/.9583333/1/1；要点覆盖1/n7、.75/n8、1/n8、.8333333/n8；Faith .90625/n8、.8761905/n7、1/n8、.952381/n7；库外拒答.5/1/1/1（各n2）、可答误拒答0/n7、.25/n8、0/n8、.125/n8。共同9题要点/Faith：hybrid1/n7、1/n7；rerank .8095238/n7、.9444444/n6，不能据检索单项领先认定重排赢家。C5错误不从整体删除，仅整题不能进入四路共同集合；可答共同7题包含真实误拒答，预先按should_refuse划分，不按分数挑样本。
+
+C5/dense answer阶段ServiceError，原记录仅generic answer_error/固定消息，elapsed5446.778299752623ms；self-check useful=true、运费金标在10条实际引用中。答案/拒答标识/判定/裁判快照均null，流finish/body和底层ServiceError.code未捕获，不推断length或引用/网络原因。39个合法裁判全部stop；无新judge/timeout错误。没有新paid诊断/重试/调参/全量。
+
+D1/dense的自评理由明确无活体证据但useful=true，正文语气表达不确定仍协议refused=false，不能重标为固定拒答。D3四路完全相同固定拒答被bm25裁判提3断言（2不支持），其他路claims为空；这说明模型裁判有语义噪声，原verdicts与分母不改，不能当成人工真值。A43/rerank少发漏发归类、C35/bm25人工工单建议、D1/dense与D3/bm25断言构成四个合法质量台账快照。
+
+[新只读资源证据](merchant-rag-low-effort-resource-proof.json)证明3307全部8表、3308除faith之外7表SHA不变，业务84知识/向量、外来7知识、原4faith逐hash保持、三个原集合名/统计与完整业务向量hash/校准值保持；只有3308 faith4→8新增四条，每条query/answer/strategy/citations/unsupported理由/模型与本run实际判定逐字段相等、seen_count1。合法台账持久化与未经授权资源写入分别说明；run UUID资源已清理，原map保留，不虚称其他集合完整vectorhash。
+
+![新实际终态及全量锁定](images/rag-evaluation-low-effort/pilot-final-gate.jpg)
+
+新进行中和C5错误页面截图见[实际UI证据](rag-evaluation-actual-ui.md)。当前owned8002 PID12624/exec54829继续提供实际报告；原8000/8001未操作。主机时钟正常推进，未观察新休眠事实；仅为本轮观察，旧睡眠事实和错误保持。Task10状态PILOT_BLOCKED_DOCS_READY，真实300交付仍开放。
+
+## 2026-10-10 原失败pilot结果与有效分母
 
 自有服务为[8002工作台](http://127.0.0.1:8002/rag-eval)，真实create_app、单worker、显式同源，启动时PID95580；旧8000/8001未操作。开始 `2026-10-10T09:55:18.784424+00:00`，结束 `2026-10-10T10:44:44.941180+00:00`，跨度2966.156756秒。**用户确认期间休眠或合盖过。** E2/hybrid与E19/bm25的TimeoutError原elapsed为2280022.236999823/2271110.8348001726ms；主机暂停是合理环境解释，不代表期限调高，也不能证明全部错误均由休眠造成。原始时钟、错误和分母全部保留。
 
@@ -40,7 +69,7 @@
 
 真实客户端仅发送原max_tokens，没有reasoning_effort/thinking参数。[Z.ai官方Flash云文档](https://docs.z.ai/guides/vlm/glm-5.3-flash)明确thinking只能enabled、不能关闭；[官方模型卡](https://huggingface.co/zai-org/GLM-5.3-Flash)列出low/high/max及未传时默认max。默认思考消耗输出预算是候选解释，私有快照缺reasoning/usage，空正文不能证明实际token分配。没有追加付费诊断调用或弱化stop/JSON/ID契约。
 
-用户随后明确批准**仅评估reasoning_effort=low**，保留同模型、512答案/2048改写自评裁判、所有期限、重试0和冻结资料，并要求新参数进入新指纹；失败judge和answer各一次（最多2调用），均合法后才固定10题一次，新配置40条全部合法且映射/清理门槛通过才full一次。控制端要求当前代理先完成原失败交付，随后另派配置增量/TDD/独立复核；**该配置尚未实施，探针/新pilot/full均未运行**。原失败报告保持，不改写旧分母。后续运行须保持主机清醒。
+用户随后明确批准**仅评估reasoning_effort=low**，保留同模型、512答案/2048改写自评裁判、所有期限、重试0和冻结资料，并要求新参数进入新指纹；失败judge和answer各一次（最多2调用），均合法后才固定10题一次，新配置40条全部合法且映射/清理门槛通过才full一次。原失败交付完成后，配置增量已通过独立复核，两条探针已按授权各运行一次且合法；既有依赖恢复后，新pilot已完成39/40、full仍未运行。原失败报告保持，不改写旧分母，后续运行须保持主机清醒。
 
 ## 实际页面与资源证据
 
@@ -94,6 +123,7 @@
 $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
 $env:RAG_EVALUATION_ENABLED = 'false'
+$env:RAG_EVALUATION_REASONING_EFFORT = 'low'
 $env:RAG_EVALUATION_ALLOWED_ORIGINS = '["http://127.0.0.1:8002","http://localhost:8002"]'
 uv run --locked uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8002 --workers 1
 ```

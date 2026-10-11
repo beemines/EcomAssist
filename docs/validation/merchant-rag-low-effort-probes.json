@@ -1,0 +1,209 @@
+{
+  "kind": "bounded-real-probes-not-pilot",
+  "probe_id": "abcfea557efd4b62a5741fd65bfafa12",
+  "proof": {
+    "offline_validated_at": "2026-10-11T03:33:07.250005+00:00",
+    "original_run_id": "52678f9492114f1789466442e575c168",
+    "reviewed_source": "cfc65fdb99e44de68c2727e05743a384bba6e89e",
+    "config": {
+      "dataset_id": "merchant-rag-300-v1",
+      "scope": "pilot",
+      "mode": "content_ablation",
+      "models": {
+        "answer": "glm-5.3-flash",
+        "rewrite": "glm-5.3-flash",
+        "self_check": "glm-5.3-flash",
+        "judge": "glm-5.3-flash",
+        "embedding": "BAAI/bge-m3",
+        "rerank": "BAAI/bge-reranker-v2-m3"
+      },
+      "budgets": {
+        "candidate_k": 50,
+        "final_k": 10,
+        "chunk_target_chars": 1200,
+        "chunk_overlap_chars": 120,
+        "case_concurrency": 2,
+        "answer_output_tokens": 512,
+        "rewrite_output_tokens": 2048,
+        "self_check_output_tokens": 2048,
+        "judge_input_tokens": 16000,
+        "judge_output_tokens": 2048,
+        "tool_input_tokens": 8000,
+        "model_retries": 0,
+        "rewrite_timeout_s": 60.0,
+        "self_check_timeout_s": 20.0,
+        "faq_timeout_s": 90.0,
+        "chat_timeout_s": 240.0,
+        "judge_timeout_s": 60.0,
+        "embedding_timeout_s": 20.0,
+        "rerank_timeout_s": 20.0,
+        "milvus_timeout_s": 5.0
+      },
+      "prompt_versions": {
+        "rewrite": "query-v1",
+        "self_check": "sufficiency-v1",
+        "answer": "grounded-answer-v1",
+        "judge": "joint-generation-v2.1"
+      },
+      "upstream_summary": {
+        "llm": "https://open.bigmodel.cn",
+        "embedding": "https://api.siliconflow.cn",
+        "rerank": "https://api.siliconflow.cn"
+      },
+      "provenance": {
+        "dataset_fingerprint": "d4da3bd7b61c85bf236de955fadc0dcb806f2384c417dfe2b3dd686372f7476e",
+        "corpus_hash": "c188bcabb1b3fa6a5e4e72284d0726f96e2b2cff6e0a1c48245dea85e792ef10",
+        "cases_hash": "3b2901de79f80c54453805038e354aea9cadabf024fafe2802c78ce7a75c4f96",
+        "annotation_hash": "b4015c5d11675137634fb8c0e186796aa3be94744c9081b9a661f9962e840925",
+        "prompt_hashes": {
+          "rewrite": "fb42af25925e21c523733a82c014bd6d2306bc6de1f92cb49e736354ff807a41",
+          "self_check": "875f1a5e961ea425f2f38d5b7ed9f7adcc6174fdd9778916edcbef68bcfc5823",
+          "answer": "9116e2a564bb6324cffddd4ed75dd161ebc7e9624cf52b69471e24750580b6de",
+          "judge": "98e9edbee690224ef938a57c7b0678b86bc3ccf9646b3fe773ceb38af06f2b16"
+        },
+        "endpoint_hashes": {
+          "llm": "2092337b5f19a5366b55f7ee7181d19dcf8a01e5bc332cd1a3c7aa5312dd9e19",
+          "embedding": "2db45fecf782ae40de986dcec63be1e5ea701683e83799f7c047866de6cdf7b9",
+          "rerank": "f42220d941061413c5aa874586c5219fbd905cfcf2c67a3b73c1127fd6d0a5a8",
+          "milvus": "24a529ee666ff3935dd961bafc1b479bce137ec2b123a2ce92f314a9eb0243c8"
+        },
+        "llm_timeout_s": 60.0,
+        "llm_token_limit_field": "max_tokens",
+        "llm_reasoning_effort": "low"
+      },
+      "fingerprint": "191d53c027323fa8005327336e6ec0e737f7d196eebd6ad05f2dea7258f60913"
+    },
+    "non_effort_config_equal": true,
+    "original_public_hashes_equal": true,
+    "source_map_id": "378ae65f4ee735c6a8079070fbfcb5c21800c93f3318029e5f19836c32b5c2b4",
+    "source_count": 50,
+    "judge": {
+      "eval_id": "A21",
+      "strategy": "bm25",
+      "answer_characters": 224,
+      "citations": 7,
+      "point_ids": [
+        "p1",
+        "p2"
+      ],
+      "input_tokens_estimate": 5638,
+      "messages_sha256": "72a040ee59bfdfa6751f2fbea9e9df9454f5d2578e157202670b532baaa1d65e"
+    },
+    "answer": {
+      "eval_id": "B3",
+      "strategy": "bm25",
+      "citations": 10,
+      "citation_values_equal": true,
+      "builder": "production build_evidence / grounded-answer-v1",
+      "original_message_bytes_saved": false,
+      "input_tokens_estimate": 6666,
+      "messages_sha256": "c4506378b884e29dbf8c8b350979f022c9c4e81d9f52b2c23a9a1ac96ce6ff9f",
+      "gold_in_generation": false
+    }
+  },
+  "results": [
+    {
+      "stage": "judge",
+      "legal": true,
+      "finish_reason": "stop",
+      "point_ids": [
+        "p1",
+        "p2"
+      ],
+      "covered_points": 2,
+      "claims": 5,
+      "supported_claims": 5,
+      "started_at": "2026-10-11T03:33:12.503903+00:00",
+      "finished_at": "2026-10-11T03:33:19.305494+00:00",
+      "elapsed_s": 6.801586699904874
+    },
+    {
+      "stage": "answer",
+      "legal": true,
+      "finish_reason": "stop",
+      "answer_characters": 449,
+      "citations_validated": true,
+      "started_at": "2026-10-11T03:33:19.307060+00:00",
+      "finished_at": "2026-10-11T03:33:23.616220+00:00",
+      "elapsed_s": 4.309168600011617
+    }
+  ],
+  "outgoing": [
+    {
+      "stage": "judge",
+      "model": "glm-5.3-flash",
+      "reasoning_effort": "low",
+      "token_limit_field": "max_tokens",
+      "output_tokens": 2048,
+      "stream": false,
+      "response_format": {
+        "type": "json_object"
+      },
+      "sent_at": "2026-10-11T03:33:12.725348+00:00"
+    },
+    {
+      "stage": "answer",
+      "model": "glm-5.3-flash",
+      "reasoning_effort": "low",
+      "token_limit_field": "max_tokens",
+      "output_tokens": 512,
+      "stream": true,
+      "response_format": null,
+      "sent_at": "2026-10-11T03:33:19.337961+00:00"
+    }
+  ],
+  "response_metadata": [
+    {
+      "stage": "judge",
+      "http_status": 200,
+      "usage": {
+        "completion_tokens": 430,
+        "completion_tokens_details": {
+          "reasoning_tokens": 111
+        },
+        "prompt_tokens": 1454,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "total_tokens": 1884
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "request_counts": {
+    "rewrite": 0,
+    "self_check": 0,
+    "answer": 1,
+    "judge": 1,
+    "embedding": 0,
+    "rerank": 0,
+    "milvus": 0
+  },
+  "cleanup": {
+    "ok": true,
+    "errors": [],
+    "unverified": []
+  },
+  "both_legal": true,
+  "pilot_started": false,
+  "full_started": false,
+  "environment_attempt": {
+    "mysql_3307": "ConnectionRefusedError10061",
+    "mysql_3308": "ConnectionRefusedError10061",
+    "milvus_19530": "ConnectionRefusedError10061",
+    "readonly_baseline": "OperationalError",
+    "owned_service_8002": "startup_failed_MilvusException2",
+    "no_pilot_charged": true,
+    "restoration": "existing_verified_containers_restored_healthy_original_resource_hashes_equal"
+  },
+  "subsequent_pilot": {
+    "run_id": "201215b02b874feea7e866db10ee23db",
+    "actual_starts": 1,
+    "attempted": 40,
+    "completed": 39,
+    "answer_error": 1,
+    "cleanup_ok": true,
+    "matching_pilot": false,
+    "full_started": false
+  }
+}
