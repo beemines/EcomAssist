@@ -1,5 +1,13 @@
 # 300 题 RAG 评估材料审计
 
+## 2026-10-11 当前 C5 单次诊断与新的条件试跑
+
+用户另行明确授权后，C5/dense单次真实回答诊断合法stop/158字符，answer1、其他收费与资源请求0、客户端清理成功。输入5726/8000、10实际引用和prompt/source-map逐值一致、无gold；固定GLM-5.3-Flash/low/512/期限/重试0和191d53…配置保持。[安全诊断报告](merchant-rag-c5-diagnostic.md)不替代固定试跑，也不解释旧未捕获失败根因。
+
+随后从既有真实8002浏览器仅启动一次新的同固定10题pilot `b1af9aadc0094141aa5df5ae0ec91bd1`：40尝试/32完成/8改写错误/0未执行，清理成功。B54/E19各一次共享失败影响四路，原具体code/finish/raw未捕获；full实际matching_pilot=false，仍未运行，不造300/1200分母。新[真实报告](merchant-rag-c5-followup-pilot.json)、[完整分析](merchant-rag-c5-followup-analysis.md)及[资源证明](merchant-rag-c5-followup-resource-proof.json)分开保存，不覆盖前两轮。实际50来源1831–1880与冻结资料重建相等，40条audit-v1/配置匹配；旧四个公开报告摘要保持。
+
+共同四路合法8题含C5本轮四路真实合法完成，明确共同可答6题按should_refuse划分、保留bm25误拒答；所有24行每指标valid_n/excluded完整保存。D1/D3相同固定拒答被各路模型裁判拆分不同断言，原判定和合法质量台账保持，不称人工真值或总体赢家。资源只增加/更新5个实际unsupported upsert：faith8→9、新A21 ID28，C35/D1/D3既有seen_count累计；业务/foreign资源和15无关表摘要不变。原300题、五桶各60、50块/gold/Prompt均未改，未重跑工程套件。Task10仍开放，后续付费或修复需要新的明确范围。
+
 ## 2026-10-11 低思考有界验证与单次新pilot
 
 评估专用low配置源码 `cfc65fdb99e44de68c2727e05743a384bba6e89e` 已独立规格/质量复核通过；已有最终受影响262passed/7skip、默认完整1438passed/116skip，真实阶段未重复套件。原冻结300题、五桶各60、八篇50块、所有gold/Prompt/预算/期限与重试0完全保留，只有评估专用effort与新配置指纹改变。新指纹 `191d53c027323fa8005327336e6ec0e737f7d196eebd6ad05f2dea7258f60913`。

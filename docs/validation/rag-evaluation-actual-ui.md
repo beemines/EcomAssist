@@ -1,5 +1,21 @@
 # 单次真实pilot页面证据
 
+## 2026-10-11 C5单次诊断后新固定pilot（当前实际终态）
+
+用户新明确授权单次C5/dense诊断合法后，在既有真实8002服务/Chrome tab664075742点击“试运行·10题”一次，产生新run `b1af9aadc0094141aa5df5ae0ec91bd1`，created04:06:05.071221Z/finished04:08:59.360426Z。40尝试/32completed/8rewrite_error/0未执行，cleanup成功，actual GET matching_pilot=false，full按钮disabled；无full/重跑/终态取消或进一步收费探针。
+
+![当前真实终态与全量锁定](images/rag-evaluation-c5-followup/pilot-final-gate.jpg)
+
+JSON/Markdown导出按钮各点击一次，已有新成对公开文件来自同一actual服务HTTP200，与runtime已发布字节相等。B54实际详情显示共享改写/排序/生成/判定N/A、rewrite_error/ServiceError与原elapsed1422.989800106734ms；E19另一次共享改写失败同样影响四路，全部8条原记录保留，不能算作8次改写请求或推断底层具体code/finish。
+
+![B54实际共享改写错误](images/rag-evaluation-c5-followup/b54-rewrite-error.jpg)
+
+C5本轮四路全部真实completed，实际dense详情point/Faith1、judge stop、error null、refused=false；与独立单次诊断分开保存，不补回旧失败。
+
+![C5本轮真实合法完成](images/rag-evaluation-c5-followup/c5-completed.jpg)
+
+一次heading Control+Home因CDP deadline报告超时；随后新状态/截图已确认页面顶端终态，没有重复收费按钮。B54/C5使用实际详情按钮与状态标题定位截图，全部视觉核验后保存；无前端代码/测试改动。页面标记deliverable，15无关表/业务向量与foreign保持、合法faith更新归属见[资源证据](merchant-rag-c5-followup-resource-proof.json)，精确分母/共同8题/可答6题与裁判噪声见[分析](merchant-rag-c5-followup-analysis.md)。当前Task10未完成，full保持未运行。
+
 ## 2026-10-11 新low单次pilot（原轮见下方）
 
 已复核源码cfc65fd，评估专用low；恢复原依赖后的自有真实8002 PID12624/exec54829，单worker/显式同源，不操作8000/8001。两条有界真实探针各一次均合法后，Chrome新真实tab664075742仅点击一次固定“试运行·10题”，run `201215b02b874feea7e866db10ee23db`。开始03:40:40.750357Z、结束03:44:02.195475Z，40尝试/39完整完成/1回答错误/0未执行、cleanup成功；actual GET matching_pilot=false/full按钮disabled。没有点击full/重跑/终态取消，没有新模型诊断。

@@ -148,7 +148,7 @@ curl.exe -N --max-time 260 -H 'Content-Type: application/json' --data-binary '@.
 
 ## 冻结 300 题评估工作台
 
-N1/N2已在源码 `42bd812` 的唯一额外定点复核通过。原固定pilot `52678f9492114f1789466442e575c168` 保留40条尝试、9完整完成、31错误及清理成功的原报告；用户确认期间休眠/合盖，原时钟与错误不变。2026-10-11，评估专用low配置 `cfc65fd` 已独立复核通过，两条获准真实单调用探针均合法，实际裁判1次/回答1次、其他阶段0次、客户端清理成功。依赖最初停机导致8002启动失败，随后按明确授权恢复原容器/卷，资源摘要与原记录完全相等；新pilot201215b02b874feea7e866db10ee23db已从真实8002页面仅启动一次并结束：40尝试、39完成、1条C5/dense回答错误、清理成功；实际matching_pilot=false，full仍未运行。Task10未完成，详见[交付状态](docs/validation/rag-evaluation-delivery.md)及[有界探针](docs/validation/merchant-rag-low-effort-probes.md)。
+N1/N2已在源码 `42bd812` 的唯一额外定点复核通过。原固定pilot `52678f9492114f1789466442e575c168` 的9/40和前一low pilot `201215b02b874feea7e866db10ee23db` 的39/40、全部错误及原时钟完整保留。评估专用low源码 `cfc65fd` 已独立复核；原两条真实单调用探针均合法，依赖按明确授权恢复。用户另行批准C5/dense单次诊断及条件继续：诊断仅answer1、stop/引用合法且清理成功；随后真实8002页面仅启动一次新固定pilot `b1af9aadc0094141aa5df5ae0ec91bd1`，40尝试/32完成/8改写错误（B54/E19各一次共享失败影响四路）、清理成功。实际matching_pilot=false，full仍未运行。Task10未完成，详见[交付状态](docs/validation/rag-evaluation-delivery.md)、[新实际报告](docs/validation/merchant-rag-c5-followup-pilot.json)、[精确分析](docs/validation/merchant-rag-c5-followup-analysis.md)及[单次诊断](docs/validation/merchant-rag-c5-diagnostic.md)；未调参、重标或通过重复试跑洗分。
 
 工作台入口为 `/rag-eval`，聊天入口为 `/`。默认 `RAG_EVALUATION_ENABLED=false`，页面可读取资料、历史与合法已提交报告；启动和取消需要显式启用，旧 pre-audit v2 下载已由 N2 最小兼容修复恢复。新评估固定使用 `merchant-rag-300-v1`：五桶各 60 题、八篇 50 块、固定 pilot 10 题 / 40 条策略记录；全部40条合法完成、当前 audit-v1/source-map 与冻结资料及配置匹配、清理成功后才能运行 full 300 题 / 1200 条。线上原有 `calibrated_score` 门槛保持，新评估采用共同内容充分性门槛 `content_ablation`。
 
