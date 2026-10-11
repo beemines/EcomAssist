@@ -1,0 +1,78 @@
+{
+  "kind": "actual-bounded-single-answer-diagnostic-not-pilot",
+  "source_run_id": "201215b02b874feea7e866db10ee23db",
+  "reviewed_source": "cfc65fdb99e44de68c2727e05743a384bba6e89e",
+  "reconstruction": {
+    "kind": "offline-next-scope-preparation-not-paid",
+    "source_run_id": "201215b02b874feea7e866db10ee23db",
+    "case": "C5",
+    "strategy": "dense",
+    "prepared_at": "2026-10-11T04:04:40.962850+00:00",
+    "config_equal_captured": true,
+    "config_fingerprint": "191d53c027323fa8005327336e6ec0e737f7d196eebd6ad05f2dea7258f60913",
+    "reasoning_effort": "low",
+    "model": "glm-5.3-flash",
+    "answer_output_tokens": 512,
+    "retries": 0,
+    "sdk_timeout_s": 60.0,
+    "chat_timeout_s": 240.0,
+    "input_budget": 8000,
+    "input_tokens_estimate": 5726,
+    "citations": 10,
+    "citations_equal_captured": true,
+    "source_map_matches_frozen": true,
+    "source_map_id": "bd42c33a64d0de65feee52807ae8153f7f6935c4bbd2b32ee77ba496aa6d3973",
+    "prompt_version": "grounded-answer-v1",
+    "prompt_hash_equal_captured": true,
+    "prompt_hash": "9116e2a564bb6324cffddd4ed75dd161ebc7e9624cf52b69471e24750580b6de",
+    "gold_in_generation": false,
+    "original_message_bytes_saved": false,
+    "reconstructed_messages_sha256": "380fb113db4fe6ead9512acf762c81a394b408610fda259591ca990b23f5a86c",
+    "no_models_constructed": true,
+    "actual_paid_requests": 0
+  },
+  "result": {
+    "kind": "bounded-single-answer-diagnostic-not-pilot",
+    "probe_id": "5e6b712636684cd1bd3c5ec469192050",
+    "source_run_id": "201215b02b874feea7e866db10ee23db",
+    "case": "C5",
+    "strategy": "dense",
+    "started_at": "2026-10-11T04:04:41.002853+00:00",
+    "legal": true,
+    "answer_characters": 158,
+    "finish_reasons": [
+      "stop"
+    ],
+    "citations_validated": true,
+    "finished_at": "2026-10-11T04:04:45.648592+00:00",
+    "elapsed_s": 4.645734999794513,
+    "request_counts": {
+      "rewrite": 0,
+      "self_check": 0,
+      "answer": 1,
+      "judge": 0,
+      "embedding": 0,
+      "rerank": 0,
+      "milvus": 0
+    },
+    "cleanup": {
+      "ok": true,
+      "errors": [],
+      "unverified": []
+    }
+  },
+  "outgoing": [
+    {
+      "stage": "answer",
+      "sent_at": "2026-10-11T04:04:42.767188+00:00",
+      "model": "glm-5.3-flash",
+      "reasoning_effort": "low",
+      "output_tokens": 512
+    }
+  ],
+  "limitations": [
+    "原失败未保存原始finish/code，本次成功不说明旧失败根因。",
+    "原完整消息字节未保存；离线验证同production builder/证据/prompt/config一致。",
+    "诊断不进入runtime/full资格，不替代新固定pilot。"
+  ]
+}

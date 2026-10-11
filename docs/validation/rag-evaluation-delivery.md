@@ -1,8 +1,26 @@
 # 冻结 300 题 RAG 评估交付状态
 
-2026-10-11：**已复核的评估专用low配置完成两条获准真实单调用探针，两条均合法，实际裁判1/回答1、其他阶段0、客户端清理成功。既有依赖已按另行授权恢复且原资源摘要完全相等，新固定pilot201215b02b874feea7e866db10ee23db仅从真实浏览器启动一次并已结束：40尝试、39完整完成、C5/dense回答错误1、清理成功；实际服务matching_pilot=false，全量保持未运行，Task10尚未完成。** 原固定pilot仅运行一次，40尝试、9完整完成、31错误、清理成功和原matching_pilot=false完整保留，不预设策略胜者。
+2026-10-11 当前：**用户另行授权的C5/dense单次诊断合法、仅answer1且清理成功；随后新固定pilot `b1af9aadc0094141aa5df5ae0ec91bd1` 从真实8002浏览器仅启动一次并已结束：40尝试、32完整完成、8改写错误（B54/E19各一次共享失败影响四路），清理成功。实际服务matching_pilot=false，全量保持未运行，Task10尚未完成。** 原9/40、前一low39/40及其各自错误/指纹/分母完整保留，不预设策略胜者。
 
-## 2026-10-11 低思考有界真实验证与当前环境
+## 2026-10-11 C5单次诊断与条件继续的实际终态
+
+用户明确批准“允许单次诊断并有条件继续”后，使用root完整审阅的ignored单次保护脚本，仅执行C5/dense回答一次。诊断 `5e6b712636684cd1bd3c5ec469192050` 在04:04:41.002853Z至04:04:45.648592Z，4.645735秒、158字符、stop及严格引用/完整性验证通过；真实计数answer1，其余所有收费/资源阶段0，cleanup成功。原10引用逐值相等，输入估算5726/8000，无gold，prompt/source-map与当时捕获一致；GLM-5.3-Flash/low/512/retry0/SDK60秒/chat240秒与配置指纹191d53…保持。完整输入和流事件仅私有，安全[JSON](merchant-rag-c5-diagnostic.json)/[Markdown](merchant-rag-c5-diagnostic.md)分开保存。成功不能解释旧失败的未捕获finish/code，也不补入原pilot或授予full资格。
+
+在真实资源新前基线与上一轮afterpilot完整相等后，既有8002单worker服务/Chrome tab664075742仅点击一次固定试跑，run `b1af9aadc0094141aa5df5ae0ec91bd1`，created04:06:05.071221Z，finished04:08:59.360426Z，completed_with_errors/complete。40attempted/32completed/8rewrite_error；其他错误、running/not_attempted/cancelled均0。实际计数rewrite10/self_check32/answer22/judge32/embedding27/rerank8/Milvus67；cleanup={ok:true,errors:[],unverified:[]}。B54/E19的改写elapsed分别1422.989800106734/1839.666800107807ms，生产共享失败各投影4路；原具体ServiceError.code、finish/raw没有保存，不能按通用rewrite_error确定原因或当作8次改写调用。失败后没有重跑、调参或追加探针。
+
+新[真实JSON](merchant-rag-c5-followup-pilot.json)/[Markdown](merchant-rag-c5-followup-pilot.md)由HTTP200导出，420915/611745字节，SHA分别 `37020a3058913b3e7454023aab58603c27393654f1e6ee8a76337c941dc1b47a` / `84da91d9adbc19250a5c24f0119d318d9163649dd6cfdb9a7397bb7bf5ea0167`，与runtime发布字节相等。全部40audit-v1、实际50来源1831–1880、map `d2dd350d860b8141e52306cbbcafb22f97d091194eb1cdc839a528c2990715eb`经冻结资料重建相等，当前/前一low完整配置相等。GET datasets仍matching_pilot=false/scopes=[pilot]；full按钮disabled，full没有run或1200条虚构记录。
+
+[精确派生分析](merchant-rag-c5-followup-analysis.md)/[JSON](merchant-rag-c5-followup-analysis.json)保留全部24行总体/五桶的每项value/valid_n/excluded和实际排名；错误不从40总体删除。共同四路合法8题为A21,A43,B3,C35,C5,D1,D3,E2，其中明确可答6题为A21,A43,B3,C35,C5,E2。总体dense/bm25/hybrid/rerank各completed8/error2，Recall5=1/.8888888888888888/.9444444444444445/1（n6各），Recall10及Prompt=1/.9444444444444445/1/1，MRR=1/.8888888888888888/.9166666666666666/1。要点1/.6666666666666666/1/.8611111111111112（n6各），Faith .8571428571428571/n7、1/n5、.7/n8、.9821428571428571/n7；库外拒答1/n2各路、可答误拒答0/.3333333333333333/0/0（n6各）。共同可答6题Faith=1/n6、1/n4、.9333333333333332/n6、.9791666666666666/n6；bm25的两条误拒答仍在要点/误拒答分母，仅zero_claims不进Faith。候选50/语料50的饱和局限保持，不宣称赢家或300题泛化。
+
+C5本轮四路均真实completed/useful=true/refused=false、point2/2、Faith1；dense5claims、其他3claims，裁判stop。D1/D3四路协议refused=true且固定回答逐字相同，但D1各路裁判claims/unsupported为2/2、1/0、1/1、2/0，D3为0/0、0/0、2/2、0/0。保留模型裁判噪声与原verdicts，不重标人工真值。其他unsupported为A21/rerank1/8和C35/hybrid2/5。
+
+[本轮只读资源归因](merchant-rag-c5-followup-resource-proof.json)：3307全部8表和3308除faith之外7表SHA不变，业务84知识/向量、foreign7知识及旧foreign4faith保持，三个原Milvus集合名/stats、业务完整向量hash/校准值保持；本run UUID资料清理成功。faith8→9，新增ID28/A21 seen1，合法更新ID25/C35 seen1→2、26/D1 seen1→3、27/D3 seen1→2，共5个实际unsupported upsert。最终query/answer/strategy/citations/reason/model逐字段匹配本轮实际记录、次数等于既有1加本轮次数；不能把合法质量台账更新称为全部16表不变。其他集合只核对名/统计，不冒称完整vectorhash。
+
+![当前试跑终态及全量锁定](images/rag-evaluation-c5-followup/pilot-final-gate.jpg)
+
+更多真实详情与控件证据见[UI追加记录](rag-evaluation-actual-ui.md)。源码仍为已复核cfc65fd；诊断开始checkout51c6306、root后续41cfe4d只记录文档，未改源码/工程套件。状态PILOT_BLOCKED_DOCS_READY，真实300交付仍开放；后续付费或修复需要新的明确范围。
+
+## 2026-10-11 前一低思考有界验证与依赖恢复记录
 
 评估专用配置生产提交 `cfc65fdb99e44de68c2727e05743a384bba6e89e`，本阶段checkout为仅追加root文档的 `51edf90120010ceaa7ca0a5fa35c6954d3a25b1a`；独立规格PASS/质量Approved，Critical/Important均0。已读取原始RED17failed/8passed、GREEN25passed、最终受影响262passed/7skip以及默认完整1438passed/116skip（260.94秒），没有重复工程套件。只增加评估专用 `reasoning_effort=low` 与指纹出处，在线模型参数不变。新指纹 `191d53c027323fa8005327336e6ec0e737f7d196eebd6ad05f2dea7258f60913`；剔除这一新增字段和fingerprint后，与原实际pilot配置逐值相等，所有模型、512/2048输出、输入预算、期限、Prompt、端点和重试0不变。
 
@@ -14,19 +32,20 @@
 
 本文保留生产提交 `77d7d02ef1fb500e3ae00f069c368fd204135b3a` 的原始完整回归，再追加已复核源码 `42bd8126a7377b021af8e9d0365e33cfb922808e` 的N1/N2最小修复与真实阶段。仅文档阶段最初checkout为 `2bdb84c43c39b8934a4bfb36c9aa92ecf91d1806`；本次真实阶段启动checkout为root文档提交 `bfd6d3a5917fcb9f585e1920f13a5c956767f492`，生产源码与已复核42bd812相同。原阶段无服务/模型调用的记录是历史事实；本阶段已按明确授权启动当前真实服务及固定pilot，未重跑工程套件。
 
-## 实际运行与待交付内容（两轮报告分开）
+## 实际运行与待交付内容（三轮报告分开）
 
 | 阶段 | 冻结计划规模 | 本次实际状态 | 实际运行 ID / 新质量结果 |
 | --- | --- | --- | --- |
 | 原Pilot（未捕获effort） | 固定10题 × 4策略 = 40条 | 单次真实运行completed_with_errors；9完成/31错误/0未执行，清理成功 | `52678f9492114f1789466442e575c168`；[JSON](merchant-rag-pilot.json)、[Markdown](merchant-rag-pilot.md) |
 | Low Pilot | 同固定10题 × 4策略 = 40条 | 单次真实运行completed_with_errors；39完成/1回答错误/0未执行，清理成功 | `201215b02b874feea7e866db10ee23db`；[JSON](merchant-rag-low-effort-pilot.json)、[Markdown](merchant-rag-low-effort-pilot.md) |
+| C5诊断后新Pilot | 同固定10题 × 4策略 = 40条 | 新范围仅一次completed_with_errors；32完成/8改写错误/0未执行，清理成功 | `b1af9aadc0094141aa5df5ae0ec91bd1`；[JSON](merchant-rag-c5-followup-pilot.json)、[Markdown](merchant-rag-c5-followup-pilot.md) |
 | Full | 300题 × 4策略 = 1200条 | 未运行；同配置40条合法门槛未满足 | 无run、无比较报告或虚构分母 |
 
 原轮40条是实际终态记录数，完整完成仅9条；新低思考轮39/40的全部指标与共同子集另见[派生分析](merchant-rag-low-effort-analysis.md)，不覆盖原轮。公共成对报告直接来自实际服务HTTP导出，包含schema-v2/audit-v1、单份50来源map、冻结配置、实际请求数、24行总体/分桶统计及共同子集。full没有manifest，不能将尚未运行的计划写成1200条 `not_attempted` 或虚构分母；没有生成 `merchant-rag-comparison.json/.md`。Task9夹具与受控规模/检索证明不计真实收费运行。
 
 原始裁判及归属快照仍只在忽略的runtime目录，公共报告没有raw_response或连接凭据。JSON SHA-256为 `b2865bbd127305bf2436b28c69fc1bdd35ac14a39f065f42bb5a9b9028725501`，Markdown为 `48e5eeee19f0a20c0470fa90da92c28b3e12b96e66ef3ef84d20742bf72bc352`。错误如实交付，未重跑原pilot或启动full。
 
-## 2026-10-11 新low pilot终态与完整交付
+## 2026-10-11 前一low pilot终态与完整交付
 
 实际开始 `2026-10-11T03:40:40.750357+00:00`，结束 `2026-10-11T03:44:02.195475+00:00`，201.445118秒；state/outcome=completed_with_errors、stage=complete、40尝试/39completed/1answer_error、running/not_attempted/cancelled均0。改写10、自评40、回答30、裁判39、嵌入33、重排10、Milvus74（含prepare/cleanup）；配置为上方专属low指纹，同模型预算期限与retry0。全部40条audit-v1与实际50来源map `bd42c33a64d0de65feee52807ae8153f7f6935c4bbd2b32ee77ba496aa6d3973`，由冻结资料与实际IDs重建逐值相等；cleanup={ok:true,errors:[],unverified:[]}。actual GET datasets仍matching_pilot=false/available_scopes=[pilot]，full一次也未启动。
 
@@ -63,13 +82,13 @@ D1/dense的自评理由明确无活体证据但useful=true，正文语气表达�
 
 具体型号B3“MH-LP50和Pro区别”的BM25金标Lite块首位，B54“MH-W20和MH-W60滤芯周期”的BM25两块分别第2/1位，最终与Prompt均保留；后者两要点、七断言合法完成且全部支持。口语C35金标故障自查在BM25第3位、hybrid第2位、dense/重排第1位；各路Prompt覆盖完整，生成裁判均失败，不能称语义质量相同。跨节E2的BM25运费组第1位、退货适用范围第6位（替代FAQ第11位），退款时效第17位未进最终前十/Prompt，三组Recall@5=1/3、@10与Prompt=2/3，自评判证据不足后拒答；hybrid退款时效第8位，@5=2/3、@10与Prompt完整。这是实际排序遗漏证据；E2/重排和E19/hybrid为ConnectError，未补造排序。
 
-## 失败诊断与后续授权边界
+## 原失败诊断与后续授权历史
 
 25条裁判JudgeError均结束为length：22条正文空，另C5/dense491字符、C5/hybrid297字符、E19/hybrid_rerank209字符；前两条能解析为points/claims且IDs为p1,p2，第三条只有points缺claims。即使JSON可解析，length仍不合法，verdicts保持null。另2条裁判TimeoutError没有裁判快照。B3/bm25与hybrid为答案阶段ServiceError，未保存流正文/结束标识，无法断言是预算截断还是引用等验证失败。E2/hybrid_rerank与E19/hybrid为检索阶段ConnectError；安全记录不保存底层连接异常体，不能精确归因DNS/TLS/远端或断定休眠因果。
 
 真实客户端仅发送原max_tokens，没有reasoning_effort/thinking参数。[Z.ai官方Flash云文档](https://docs.z.ai/guides/vlm/glm-5.3-flash)明确thinking只能enabled、不能关闭；[官方模型卡](https://huggingface.co/zai-org/GLM-5.3-Flash)列出low/high/max及未传时默认max。默认思考消耗输出预算是候选解释，私有快照缺reasoning/usage，空正文不能证明实际token分配。没有追加付费诊断调用或弱化stop/JSON/ID契约。
 
-用户随后明确批准**仅评估reasoning_effort=low**，保留同模型、512答案/2048改写自评裁判、所有期限、重试0和冻结资料，并要求新参数进入新指纹；失败judge和answer各一次（最多2调用），均合法后才固定10题一次，新配置40条全部合法且映射/清理门槛通过才full一次。原失败交付完成后，配置增量已通过独立复核，两条探针已按授权各运行一次且合法；既有依赖恢复后，新pilot已完成39/40、full仍未运行。原失败报告保持，不改写旧分母，后续运行须保持主机清醒。
+用户随后明确批准**仅评估reasoning_effort=low**，保留同模型、512答案/2048改写自评裁判、所有期限、重试0和冻结资料，并要求新参数进入新指纹；失败judge和answer各一次（最多2调用），均合法后才固定10题一次，新配置40条全部合法且映射/清理门槛通过才full一次。原失败交付完成后，配置增量已通过独立复核，两条探针已按授权各运行一次且合法；既有依赖恢复后，当时low pilot完成39/40、full未运行。后续另行批准C5单次诊断和新的条件pilot，最新32/40终态见本文开头，未覆盖本历史阶段。原失败报告保持，不改写旧分母，后续运行须保持主机清醒。
 
 ## 实际页面与资源证据
 
