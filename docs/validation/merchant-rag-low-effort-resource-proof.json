@@ -1,0 +1,241 @@
+{
+  "run_id": "201215b02b874feea7e866db10ee23db",
+  "reviewed_source": "cfc65fdb99e44de68c2727e05743a384bba6e89e",
+  "method": "Read-only ordered SELECT for all16tables plus full business vector hash; four new faith rows matched exact actual unsupported records; no raw body/credentials",
+  "tables": [
+    {
+      "port": 3307,
+      "table": "conversations",
+      "before_count": 13,
+      "after_count": 13,
+      "before_sha256": "43d0c759fb5b20b4447dcafbc3acdd719e357b98a5bfcce1bb10ce8dbc835005",
+      "after_sha256": "43d0c759fb5b20b4447dcafbc3acdd719e357b98a5bfcce1bb10ce8dbc835005",
+      "unchanged": true
+    },
+    {
+      "port": 3307,
+      "table": "faith_cases",
+      "before_count": 0,
+      "after_count": 0,
+      "before_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "after_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "unchanged": true
+    },
+    {
+      "port": 3307,
+      "table": "faq",
+      "before_count": 2,
+      "after_count": 2,
+      "before_sha256": "7bbdebf624f5f8c23de7a9953708a10ee1cabc917811276dca6b68acd2f99ff3",
+      "after_sha256": "7bbdebf624f5f8c23de7a9953708a10ee1cabc917811276dca6b68acd2f99ff3",
+      "unchanged": true
+    },
+    {
+      "port": 3307,
+      "table": "knowledge_chunks",
+      "before_count": 84,
+      "after_count": 84,
+      "before_sha256": "31863fd469ec229c04491f40f252a47a729fc6d72a02b25744c0931accc479a6",
+      "after_sha256": "31863fd469ec229c04491f40f252a47a729fc6d72a02b25744c0931accc479a6",
+      "unchanged": true
+    },
+    {
+      "port": 3307,
+      "table": "qa_extraction_staging",
+      "before_count": 0,
+      "after_count": 0,
+      "before_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "after_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "unchanged": true
+    },
+    {
+      "port": 3307,
+      "table": "low_confidence_questions",
+      "before_count": 1,
+      "after_count": 1,
+      "before_sha256": "1b12ebb3dfcf64861cfa3e459aa22cb87f555ba4cd06f84d14c14e05c4b29bf3",
+      "after_sha256": "1b12ebb3dfcf64861cfa3e459aa22cb87f555ba4cd06f84d14c14e05c4b29bf3",
+      "unchanged": true
+    },
+    {
+      "port": 3307,
+      "table": "messages",
+      "before_count": 77,
+      "after_count": 77,
+      "before_sha256": "a46bdd476dd8b3ef315291e547883d19e039e6a4e5c498be4e9670b964b361ce",
+      "after_sha256": "a46bdd476dd8b3ef315291e547883d19e039e6a4e5c498be4e9670b964b361ce",
+      "unchanged": true
+    },
+    {
+      "port": 3307,
+      "table": "tickets",
+      "before_count": 1,
+      "after_count": 1,
+      "before_sha256": "70212ed7534af90fa3bb593def8e06ba79c8ca4b0917289d3495f9d6c032fe4e",
+      "after_sha256": "70212ed7534af90fa3bb593def8e06ba79c8ca4b0917289d3495f9d6c032fe4e",
+      "unchanged": true
+    },
+    {
+      "port": 3308,
+      "table": "conversations",
+      "before_count": 6,
+      "after_count": 6,
+      "before_sha256": "7c532f40a50b0d1f45ba6bff2d914ab1cab63522b88a033845c515632a9e8600",
+      "after_sha256": "7c532f40a50b0d1f45ba6bff2d914ab1cab63522b88a033845c515632a9e8600",
+      "unchanged": true
+    },
+    {
+      "port": 3308,
+      "table": "faith_cases",
+      "before_count": 4,
+      "after_count": 8,
+      "before_sha256": "a0f8c6c21b0173ed1fc24d97f39885e19413999b736ec9c824943dddd5b58e8f",
+      "after_sha256": "f28e4235ccac40911f4123c3e430a1af9ed1a93a6cf4947f5ca1e319997672c8",
+      "unchanged": false
+    },
+    {
+      "port": 3308,
+      "table": "faq",
+      "before_count": 2,
+      "after_count": 2,
+      "before_sha256": "7bbdebf624f5f8c23de7a9953708a10ee1cabc917811276dca6b68acd2f99ff3",
+      "after_sha256": "7bbdebf624f5f8c23de7a9953708a10ee1cabc917811276dca6b68acd2f99ff3",
+      "unchanged": true
+    },
+    {
+      "port": 3308,
+      "table": "knowledge_chunks",
+      "before_count": 7,
+      "after_count": 7,
+      "before_sha256": "82e9337c2514f26e9011b92d56dbff01d59b88fd8c5b71ea78099fce2f106dc0",
+      "after_sha256": "82e9337c2514f26e9011b92d56dbff01d59b88fd8c5b71ea78099fce2f106dc0",
+      "unchanged": true
+    },
+    {
+      "port": 3308,
+      "table": "qa_extraction_staging",
+      "before_count": 0,
+      "after_count": 0,
+      "before_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "after_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "unchanged": true
+    },
+    {
+      "port": 3308,
+      "table": "low_confidence_questions",
+      "before_count": 0,
+      "after_count": 0,
+      "before_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "after_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "unchanged": true
+    },
+    {
+      "port": 3308,
+      "table": "messages",
+      "before_count": 49,
+      "after_count": 49,
+      "before_sha256": "89a8d8f8dcbc5b876df8392f2c3f40d43a23424969327f2865f28d255a826ce4",
+      "after_sha256": "89a8d8f8dcbc5b876df8392f2c3f40d43a23424969327f2865f28d255a826ce4",
+      "unchanged": true
+    },
+    {
+      "port": 3308,
+      "table": "tickets",
+      "before_count": 2,
+      "after_count": 2,
+      "before_sha256": "293bda478814f0f78aef1d312041410c6b3189d2b52f8cb41f87d0bc4376cc34",
+      "after_sha256": "293bda478814f0f78aef1d312041410c6b3189d2b52f8cb41f87d0bc4376cc34",
+      "unchanged": true
+    }
+  ],
+  "existing_foreign_rows_preserved": true,
+  "legitimate_faith_additions": [
+    {
+      "id": 24,
+      "eval_id": "A43-6178f1fda1",
+      "case": "A43",
+      "strategy": "hybrid_rerank",
+      "unsupported_claims": 1,
+      "matches_actual_record": true
+    },
+    {
+      "id": 25,
+      "eval_id": "C35-ab8d51ef31",
+      "case": "C35",
+      "strategy": "bm25",
+      "unsupported_claims": 1,
+      "matches_actual_record": true
+    },
+    {
+      "id": 26,
+      "eval_id": "D1-c39358dbea",
+      "case": "D1",
+      "strategy": "dense",
+      "unsupported_claims": 3,
+      "matches_actual_record": true
+    },
+    {
+      "id": 27,
+      "eval_id": "D3-ae284bef0a",
+      "case": "D3",
+      "strategy": "bm25",
+      "unsupported_claims": 2,
+      "matches_actual_record": true
+    }
+  ],
+  "unrelated_tables_unchanged": true,
+  "milvus_before": {
+    "collections": [
+      "knowledge",
+      "knowledge_demo_c4940c574e634ebd80efda360a4bf26f",
+      "knowledge_hybrid"
+    ],
+    "stats": {
+      "knowledge": {
+        "row_count": 0
+      },
+      "knowledge_demo_c4940c574e634ebd80efda360a4bf26f": {
+        "row_count": 7
+      },
+      "knowledge_hybrid": {
+        "row_count": 84
+      }
+    },
+    "business_collection": "knowledge_hybrid",
+    "business_rows": 84,
+    "business_sha256": "f9dff1dde178d8b3d73dc4230465602bc4db75a8ec9f9ebb06c81468faa09d82"
+  },
+  "milvus_after": {
+    "collections": [
+      "knowledge",
+      "knowledge_demo_c4940c574e634ebd80efda360a4bf26f",
+      "knowledge_hybrid"
+    ],
+    "stats": {
+      "knowledge": {
+        "row_count": 0
+      },
+      "knowledge_demo_c4940c574e634ebd80efda360a4bf26f": {
+        "row_count": 7
+      },
+      "knowledge_hybrid": {
+        "row_count": 84
+      }
+    },
+    "business_collection": "knowledge_hybrid",
+    "business_rows": 84,
+    "business_sha256": "f9dff1dde178d8b3d73dc4230465602bc4db75a8ec9f9ebb06c81468faa09d82"
+  },
+  "milvus_unchanged": true,
+  "calibration_before": 0.8201608061790466,
+  "calibration_after": 0.8201608061790466,
+  "source_map_matches_frozen_dataset": true,
+  "source_map_id": "bd42c33a64d0de65feee52807ae8153f7f6935c4bbd2b32ee77ba496aa6d3973",
+  "source_count": 50,
+  "cleanup": {
+    "ok": true,
+    "errors": [],
+    "unverified": []
+  },
+  "original_report_hashes_unchanged": true
+}

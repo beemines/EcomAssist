@@ -1,5 +1,21 @@
 # 单次真实pilot页面证据
 
+## 2026-10-11 新low单次pilot（原轮见下方）
+
+已复核源码cfc65fd，评估专用low；恢复原依赖后的自有真实8002 PID12624/exec54829，单worker/显式同源，不操作8000/8001。两条有界真实探针各一次均合法后，Chrome新真实tab664075742仅点击一次固定“试运行·10题”，run `201215b02b874feea7e866db10ee23db`。开始03:40:40.750357Z、结束03:44:02.195475Z，40尝试/39完整完成/1回答错误/0未执行、cleanup成功；actual GET matching_pilot=false/full按钮disabled。没有点击full/重跑/终态取消，没有新模型诊断。
+
+![新pilot进行中3尝试1完成0错误](images/rag-evaluation-low-effort/pilot-running.jpg)
+
+![新pilot终态39完成1错误、清理成功及全量锁定](images/rag-evaluation-low-effort/pilot-final-gate.jpg)
+
+JSON/Markdown按钮各点击一次，实际服务GET200；独立HTTP下载的成对文件与runtime已发布字节逐hash相同，没有声称浏览器下载路径。唯一错误C5/vector实际详情保留answer_error/answer阶段/ServiceError/通用消息，答案、生成判定及裁判结束标识N/A；原finish/body未捕获，不能称length错误。
+
+![C5实际错误及未捕获结束标识](images/rag-evaluation-low-effort/c5-answer-error.jpg)
+
+自动化限制保留：旧tab已不存在，创建本轮实际tab；getByLabel运行状态因无匹配一次超时，未重复收费按钮，直接用已显示C5详情按钮；Control+End滚动主页面而非modal，截图未能显示错误，随后点击实际“状态、错误与耗时”标题自动定位并保存上方正确详情截图。没有前端回归/受控fixture或修改页面代码。只读UI不能补回原没有捕获的ServiceError底层code/流结束。完整指标分母和模型裁判语义噪声见[本轮分析](merchant-rag-low-effort-analysis.md)，资源见[只读证明](merchant-rag-low-effort-resource-proof.json)。保持当前实际终态标签为deliverable，Task10真实full交付仍开放。
+
+## 2026-10-10 原单次失败pilot
+
 2026-10-10，已复核生产源码42bd812；自有真实单worker服务 http://127.0.0.1:8002/rag-eval，启动PID95580，原8000/8001未操作。Chrome实际页面启动固定pilot按钮一次，run `52678f9492114f1789466442e575c168`；无控制夹具、无模型替身、无重跑/full/额外聊天调用。实际结果与限制见[交付状态](rag-evaluation-delivery.md)。
 
 ![原pilot进行中2/40](images/rag-evaluation-actual/pilot-running.jpg)

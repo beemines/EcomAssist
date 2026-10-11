@@ -1,12 +1,20 @@
 # 300 题 RAG 评估材料审计
 
+## 2026-10-11 低思考有界验证与单次新pilot
+
+评估专用low配置源码 `cfc65fdb99e44de68c2727e05743a384bba6e89e` 已独立规格/质量复核通过；已有最终受影响262passed/7skip、默认完整1438passed/116skip，真实阶段未重复套件。原冻结300题、五桶各60、八篇50块、所有gold/Prompt/预算/期限与重试0完全保留，只有评估专用effort与新配置指纹改变。新指纹 `191d53c027323fa8005327336e6ec0e737f7d196eebd6ad05f2dea7258f60913`。
+
+两条输入先离线核对原报告SHA及生产者/来源：A21/bm25裁判复用原224字符回答、7引用、2标准要点，B3/bm25回答重建10引用与原值逐项相等且不含gold/rubric。真实探针 `abcfea557efd4b62a5741fd65bfafa12` 实际judge1/answer1、其他请求0、均stop并通过严格契约、客户端清理成功；详见[安全探针结果](merchant-rag-low-effort-probes.md)。该两条不是新pilot/共同四路子集，未补入原失败报告分母，不能据此评价策略优劣。
+
+依赖最初停止导致新基线与8002启动失败，原失败保留；Root明确授权恢复原容器/卷后，五个已有依赖全部healthy，当前基线与原afterpilot全部16表及Milvus/校准摘要相等。新实际8002 PID12624/exec54829、固定pilot201215b02b874feea7e866db10ee23db已在03:40:40.721281Z从真实浏览器仅启动一次，终态40尝试/39完成/1回答错误且清理成功，201.445118秒；服务matching_pilot=false，full仍未运行。没有pull/rebuild/migrate/reseed/原卷移除或旧8000/8001操作，旧原40条报告与下方材料历史保持。新[实际报告](merchant-rag-low-effort-pilot.json)与[完整分母分析](merchant-rag-low-effort-analysis.md)另存，共同合法9题/可答7题。D1/dense协议refused=false、D3相同固定拒答的裁判断言差异保留，模型判定不是人工真值。资源只增加4条合法faith快照，外来旧4条保持，见[逐字段归属证据](merchant-rag-low-effort-resource-proof.json)。Task10尚未完成。
+
 ## 2026-10-10 单次真实pilot交付（全量仍锁定）
 
 N1/N2在源码 `42bd8126a7377b021af8e9d0365e33cfb922808e` 的唯一额外定点复核已ADDRESSED，规格/质量PASS；最终专项242passed/1skip，没有重跑全套。自有真实单worker工作台8002固定pilot `52678f9492114f1789466442e575c168` 仅运行一次，终态completed_with_errors：40尝试、9完整完成、31错误（检索2/回答2/裁判27），cleanup成功。实际请求改写10/自评38/回答29/裁判36/嵌入33/重排9/Milvus73；全量服务门禁仍关闭，无full运行或比较报告。公开[JSON](merchant-rag-pilot.json)/[Markdown](merchant-rag-pilot.md)及[交付状态](rag-evaluation-delivery.md)保留精确分母、排除、排序与审计。以下文档与初次工程阶段按历史保留，不用受控证据填实际质量。
 
 五桶各2题、四策略各10条；共同合法题仅D1/D3，valid_n=2且均纯拒答，生成要点/Faith分母0，不能宣称可答生成胜者。B54/bm25为唯一合法可答生成（2要点/7断言，全支持），其余可答裁判失败保留null。具体型号B3的BM25相关Lite块第1，B54两块第2/1；口语C35的BM25首相关第3、hybrid第2。跨节E2的BM25退款时效候选第17、未进最终前十/Prompt，组覆盖@5=1/3、@10及Prompt=2/3；hybrid退款时效第8、@10/Prompt完整。材料同gold参考构造与50块/candidate50的饱和局限仍在，不外推泛化。
 
-用户确认17:55–18:44运行期间休眠/合盖；原跨度2966.156756秒、两条超长TimeoutError与全部错误未删除，环境暂停不能解释全部25条裁判length。原预算、模型、期限和重试0保持。用户随后批准评估专用reasoning_effort=low、新指纹及最多2次单调用验证后有条件固定pilot/full；控制端要求先交付本次原失败，再另行实现/复核配置，当前新配置/探针/新pilot/full均未运行。Task10尚未完成。
+用户确认17:55–18:44运行期间休眠/合盖；原跨度2966.156756秒、两条超长TimeoutError与全部错误未删除，环境暂停不能解释全部25条裁判length。原预算、模型、期限和重试0保持。该节记录原失败交付，后续配置与有界验证最新状态见上方2026-10-11节，原分母不变；Task10尚未完成。
 
 只读前后核对3307/3308各8表SHA完全一致，业务84知识/向量、外来7知识/4faith、三个既有Milvus集合名/统计、业务向量hash及校准值不变；其他集合不冒称完整向量hash。冻结资料及原CSV/legacy原字节保持，未根据本次结果重标或选题。
 
