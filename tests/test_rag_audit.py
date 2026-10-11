@@ -146,6 +146,7 @@ async def test_full_public_1200_records_preserve_complete_sources_within_bounds(
             row['audit'].update(candidate_ranking=[dict(chunk_id=i, score=1/i, score_kind=candidate_kind) for i in range(1, 51)],
                 final_ranking=[dict(chunk_id=i, score=1/i, score_kind='rerank' if strategy == 'hybrid_rerank' else candidate_kind) for i in range(1, 11)])
             row.update(status='completed', stage='complete', refused=True,
+                rewrite={'policy_version': 'original-query-on-invalid-v1', 'status': 'success', 'error': None},
                 query_plan={'standard': case.query, 'expansions': []}, candidate_ids=list(range(1, 51)),
                 final_ids=list(range(1, 11)), prompt_citations=[dict(n=i, chunk_id=str(i),
                     section_path=chunk.draft.section_path, question=chunk.draft.questions, answer=chunk.draft.answer)

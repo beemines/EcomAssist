@@ -138,6 +138,7 @@ class Harness:
                         row = _seed(case, strategy, id_map, source_map['source_map_id'])
                         row['audit'].update(candidate_ranking=[], final_ranking=[])
                         row.update(status='completed', stage='complete', refused=True,
+                            rewrite={'policy_version': 'original-query-on-invalid-v1', 'status': 'success', 'error': None},
                             query_plan={'standard': case.query, 'expansions': []}, candidate_ids=[],
                             final_ids=[], prompt_citations=[], decision={'useful': False,
                             'reason': '无证据', 'response_kind': 'knowledge', 'source': 'self_check'},
@@ -208,7 +209,8 @@ async def test_restart_interrupted_never_resumes_model(tmp_path, monkeypatch):
     case = h.dataset.cases[0]
     run_id = await h.store.create(config, [(case.eval_id, s) for s in STRATEGIES])
     row = _seed(case, 'dense', {c.chunk_key: i + 1 for i, c in enumerate(h.dataset.chunks)})
-    row.update(status='running', stage='retrieval', query_plan={'standard': case.query, 'expansions': []})
+    row.update(status='running', stage='retrieval', query_plan={'standard': case.query, 'expansions': []},
+        rewrite={'policy_version': 'original-query-on-invalid-v1', 'status': 'success', 'error': None})
     await h.store.put_case(run_id, row)
     await h.store.update(run_id, {'state': 'running'})
     await h.manager.startup()

@@ -16,7 +16,7 @@ from app.rag_evaluation.contracts import CleanupResult, FrozenDataset, Scope
 from app.rag_evaluation.dataset import DatasetError, load_dataset
 from app.rag_evaluation.export import publish_reports
 from app.rag_evaluation.locking import RunBusy, RunLock
-from app.rag_evaluation.report import STRATEGIES
+from app.rag_evaluation.report import REWRITE_FAILURE_POLICY, STRATEGIES, summarize_records
 from app.rag_evaluation.resources import OwnedResources
 from app.rag_evaluation.runner import EvaluationRunner
 from app.rag_evaluation.store import OUTCOMES, RunStore, StoreError, public_run_metadata, validate_config
@@ -82,7 +82,8 @@ def build_run_config(dataset: FrozenDataset, settings: Settings, scope: Scope) -
             endpoint_hashes={key: address[1] for key, address in addresses.items()},
             llm_timeout_s=settings.llm_timeout_seconds, llm_token_limit_field=settings.llm_token_limit_field,
             # 新运行捕获实际等级（含显式未设置），并自然参与除 scope 外的完整指纹。
-            llm_reasoning_effort=settings.rag_evaluation_reasoning_effort))
+            llm_reasoning_effort=settings.rag_evaluation_reasoning_effort,
+            rewrite_failure_policy=REWRITE_FAILURE_POLICY))
     config['fingerprint'] = _digest({key: value for key, value in config.items() if key != 'scope'})
     return validate_config(config)
 
@@ -153,6 +154,7 @@ class RunManager:
     async def _pilot(self, dataset: FrozenDataset, config: dict, *, persist_repair: bool = True) -> bool:
         """固定十题四路必须全部合法完成，分数高低不参与放行。"""
         expected = {(key, strategy) for key in dataset.pilot_ids for strategy in STRATEGIES}
+        by_id = {case.eval_id: case for case in dataset.cases}
         identity = {key: value for key, value in config.items() if key != 'scope'}
         for manifest in await self._history(persist_repair=persist_repair):
             previous = manifest['config']
@@ -165,8 +167,16 @@ class RunManager:
             rows = await self.store.records(manifest['run_id'], persist_repair=persist_repair)
             source_map = await self.store.source_map(manifest['run_id'])
             if len(rows) == 40 and source_map is not None and all(row['status'] == 'completed' and
+                    row.get('rewrite') is not None and row['rewrite']['policy_version'] == REWRITE_FAILURE_POLICY and
+                    row['rewrite']['status'] in ('success', 'degraded') and
+                    all(row[field] == getattr(by_id[row['eval_id']], field)
+                        for field in ('query', 'bucket', 'difficulty', 'category', 'should_refuse')) and
                     row.get('audit') is not None and row['audit']['audit_version'] == 1 and
                     row['audit']['source_map_id'] == source_map['source_map_id'] for row in rows):
+                try:
+                    summarize_records(rows)
+                except ValueError:
+                    continue
                 from app.rag_evaluation.audit import build_source_map, validate_audit_sources
                 mapping = {source['chunk_key']: source['chunk_id'] for source in source_map['sources']}
                 if set(mapping) != {chunk.chunk_key for chunk in dataset.chunks} or source_map != build_source_map(dataset, mapping):

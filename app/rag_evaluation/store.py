@@ -22,7 +22,8 @@ from weakref import WeakValueDictionary
 
 from app.rag_evaluation.contracts import Strategy
 from app.rag_evaluation.audit import validate_source_map, validate_audit_sources
-from app.rag_evaluation.report import CASE_FIELDS, STATUSES, STRATEGIES, safe_error, validate_case_record
+from app.rag_evaluation.report import (CASE_FIELDS, LEGACY_CASE_FIELDS, REWRITE_FAILURE_POLICY,
+    STATUSES, STRATEGIES, safe_error, validate_case_record)
 
 CONFIG_FIELDS = ("dataset_id", "scope", "fingerprint", "mode", "models", "budgets", "prompt_versions", "upstream_summary")
 MODEL_FIELDS = ("answer", "rewrite", "self_check", "judge", "embedding", "rerank")
@@ -142,8 +143,12 @@ def validate_config(config: Mapping[str, object]) -> dict[str, object]:
         # 历史缺失表示未捕获，读取及导出不补字段；新可选字段仍走严格白名单。
         effort_fields = (('llm_reasoning_effort',) if isinstance(value['provenance'], Mapping)
             and 'llm_reasoning_effort' in value['provenance'] else ())
+        policy_fields = (('rewrite_failure_policy',) if isinstance(value['provenance'], Mapping)
+            and 'rewrite_failure_policy' in value['provenance'] else ())
         provenance = _object(value['provenance'], ('dataset_fingerprint', 'corpus_hash', 'cases_hash',
-            'annotation_hash', 'prompt_hashes', 'endpoint_hashes', 'llm_timeout_s', 'llm_token_limit_field') + effort_fields)
+            'annotation_hash', 'prompt_hashes', 'endpoint_hashes', 'llm_timeout_s', 'llm_token_limit_field') + effort_fields + policy_fields)
+        if policy_fields:
+            _require(provenance['rewrite_failure_policy'] == REWRITE_FAILURE_POLICY, '改写失败策略非法')
         if effort_fields:
             effort = provenance['llm_reasoning_effort']
             _require(effort is None or (type(effort) is str and effort in ('low', 'high', 'max')),
@@ -316,7 +321,8 @@ def public_run_metadata(manifest: Mapping[str, object]) -> dict[str, object]:
 
 def _case(record: Mapping[str, object]) -> dict[str, object]:
     """存储边界拒绝嵌套扩展字段，再复用报告的完整阶段与金标契约。"""
-    value = _object(record, CASE_FIELDS + (('audit',) if 'audit' in record else ()))
+    fields = CASE_FIELDS if 'rewrite' in record else LEGACY_CASE_FIELDS
+    value = _object(record, fields + (('audit',) if 'audit' in record else ()))
     _require(_identifier(value["eval_id"], 64) and "--" not in value["eval_id"], "题号不适合作为检查点文件名")
     nested = {"query_plan": ("standard", "expansions"), "decision": ("useful", "reason", "response_kind", "source"),
               "error": ("code", "type", "message")}
