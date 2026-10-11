@@ -298,6 +298,34 @@ async def test_invalid_output_arriving_after_absolute_deadline_stays_error(tmp_p
         await http.aclose()
 
 
+async def test_late_wrapped_rewrite_cancel_precedes_absolute_deadline(tmp_path):
+    """期限检查若先于原取消链，会将迟到的包装取消误记四路改写错误。"""
+    runner, resources, store, data, run_id, http = await setup(tmp_path)
+    runner.settings = settings().model_copy(update={'query_timeout_seconds': .01})
+    cancel_event = asyncio.Event()
+
+    class LateCancelledPlanner:
+        """保留真实请求计数，只在改写服务边界复现迟到的取消包装。"""
+        async def plan(self, query):
+            """一次改写超过原期限后携带取消原因；外部取消事件始终未设置。"""
+            await resources.model.request('rewrite', [])
+            await asyncio.sleep(.03)
+            raise ServiceError('invalid_structured_output', 'private', 502) from asyncio.CancelledError()
+
+    resources.planner = LateCancelledPlanner()
+    try:
+        outcome = await runner.run_cases(data, {'one': 1, 'two': 2}, data.pilot_ids, cancel_event)
+        assert outcome == 'cancelled'
+        rows = await store.records(run_id)
+        assert [row['status'] for row in rows] == ['cancelled', 'not_attempted', 'not_attempted', 'not_attempted']
+        assert all(row['rewrite'] is None and row['query_plan'] is None for row in rows)
+        assert cancel_event.is_set() is False
+        assert runner.retrieval.calls == []
+        assert (await store.get(run_id))['request_counts']['rewrite'] == 1
+    finally:
+        await http.aclose()
+
+
 async def test_known_json_decoder_failure_is_still_structured_output_degradation(tmp_path):
     """已知JSON解析链不能误判未知上游故障，改写仍仅一次且保留无效结构原因。"""
     runner, resources, store, data, run_id, http = await setup(tmp_path)

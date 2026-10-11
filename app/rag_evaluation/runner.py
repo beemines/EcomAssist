@@ -211,9 +211,9 @@ class EvaluationRunner:
                 if storage_error is not None:
                     raise storage_error from exc
                 try:
-                    self._active(cancel_event, rewrite_deadline)
                     if any(isinstance(link, asyncio.CancelledError) for link in _exception_chain(exc)):
                         raise asyncio.CancelledError()
+                    self._active(cancel_event, rewrite_deadline)
                 except asyncio.CancelledError:
                     row.update(status='cancelled',
                         elapsed_ms=(asyncio.get_running_loop().time() - rewrite_start) * 1000)
