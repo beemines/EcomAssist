@@ -10,6 +10,8 @@
 /knowledge-docs/evaluation-drafts/integral-rules.md text eol=lf
 /knowledge-docs/evaluation-drafts/invoice-policy.md text eol=lf
 /knowledge-docs/evaluation-drafts/cat-bed-care.md text eol=lf
-# 已发布报告含字节校验值，主分支 checkout 后仍保留原始 LF。
-/docs/validation/merchant-rag-*.json text eol=lf
-/docs/validation/merchant-rag-*.md text eol=lf
+# 本次已发布报告按原始字节保存，保留各产物实际换行及 SHA-256。
+/docs/validation/merchant-rag-interrupted.* -text
+/docs/validation/merchant-rag-completion-*.* -text
+/docs/validation/merchant-rag-comparison*.* -text
+/docs/validation/merchant-rag-degraded-*.* -text
