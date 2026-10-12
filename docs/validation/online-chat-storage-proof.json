@@ -1,0 +1,184 @@
+{
+  "verified_at": "2026-10-12T11:22:39.919029+00:00",
+  "status": "passed",
+  "method": "read-only SQL and Milvus; no model calls",
+  "cases": [
+    {
+      "id": "large-cat",
+      "conversation_id": 19,
+      "message_ids": [
+        98,
+        99,
+        100,
+        101
+      ],
+      "roles": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "effective_keyword": "大猫用的那款猫砂盆能装多少砂",
+      "matched_tool_call_id": true,
+      "evidence_ids": [
+        109,
+        108,
+        88,
+        113,
+        115,
+        114,
+        117,
+        116,
+        126,
+        107
+      ],
+      "refusal_pool": null,
+      "status": "passed"
+    },
+    {
+      "id": "water-model",
+      "conversation_id": 20,
+      "message_ids": [
+        102,
+        103,
+        104,
+        105
+      ],
+      "roles": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "effective_keyword": "MH-W40 水箱",
+      "matched_tool_call_id": true,
+      "evidence_ids": [
+        111,
+        110,
+        116,
+        108,
+        109,
+        114,
+        107,
+        117,
+        131,
+        112
+      ],
+      "refusal_pool": null,
+      "status": "passed"
+    },
+    {
+      "id": "shipping",
+      "conversation_id": 21,
+      "message_ids": [
+        106,
+        107,
+        108,
+        109
+      ],
+      "roles": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "effective_keyword": "普通地区买80元商品，邮费多少？",
+      "matched_tool_call_id": true,
+      "evidence_ids": [
+        96,
+        101,
+        128,
+        122,
+        91,
+        123,
+        132,
+        130,
+        105,
+        131
+      ],
+      "refusal_pool": null,
+      "status": "passed"
+    },
+    {
+      "id": "refund",
+      "conversation_id": 22,
+      "message_ids": [
+        110,
+        111,
+        112,
+        113
+      ],
+      "roles": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "effective_keyword": "退款怎么申请，钱退到哪里",
+      "matched_tool_call_id": true,
+      "evidence_ids": [
+        93,
+        125,
+        124,
+        92,
+        94,
+        127,
+        119,
+        121,
+        120,
+        104
+      ],
+      "refusal_pool": null,
+      "status": "passed"
+    },
+    {
+      "id": "absent",
+      "conversation_id": 23,
+      "message_ids": [
+        114,
+        115,
+        116,
+        117
+      ],
+      "roles": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "effective_keyword": "你们提供宠物洗澡美容服务吗，具体价格是多少？",
+      "matched_tool_call_id": true,
+      "evidence_ids": [
+        128,
+        134,
+        108,
+        87,
+        96,
+        131,
+        107,
+        101,
+        99,
+        91
+      ],
+      "refusal_pool": {
+        "id": 5,
+        "source": "retrieval_low_conf",
+        "raw_question": "你们提供宠物洗澡美容服务吗，具体价格是多少？",
+        "reason": "当前知识证据为空或低于已校准重排门槛。"
+      },
+      "status": "passed"
+    }
+  ],
+  "collection": "knowledge_merchant_live",
+  "online_chunks": 50,
+  "retained_old_chunks": 84,
+  "retained_old_sha256": "3c98707705e9d9e17515f8d67bf21ffffe48c1c201b29fd20df19983d9894b10",
+  "checks": [
+    "SSE final message IDs match committed answers",
+    "effective request matches tool result",
+    "citations restricted to published 50 chunks",
+    "absent refusal and raw question committed to pool",
+    "old 84 rows hash unchanged",
+    "50 Milvus text/category/done/vector_id checked"
+  ]
+}

@@ -48,6 +48,26 @@ uv run --locked python -m app.knowledge.cli init-vectors
 
 ## 建库、切换与恢复
 
+2026-10-12 在线聊天已发布八份商家演示资料（与 300 题评估共用的冻结语料）：[资料目录](evals/datasets/merchant-rag-300/corpus)。本机使用 `knowledge_merchant_live`，只索引这份资料的 50 块；MySQL 保留旧 84 块和全部会话。旧 XM 型号、普通配送 8 元等规则不再参与该集合的回答。发布范围、物理主键和保留数据校验见[发布记录](docs/validation/online-merchant-publication.json)。
+
+本机 `.env` 的 `RERANK_MIN_SCORE=0.3218679428100586` 来自这份语料的八道独立检索校准题，见[原始分数与选择过程](docs/validation/online-merchant-calibration.json)。该值只是当前演示语料的校准结果，不代表业务置信度概率；改写和生成另由聊天验收检查。`ONLINE_REASONING_EFFORT=low` 显式传给在线 GLM，保持回答 512、改写/自评 2048 和零重试；不填写则保持上游默认行为，评估专用参数仍独立。
+
+首次部署到**空知识表**时，可在 `.env` 设置独立 `MILVUS_COLLECTION=knowledge_merchant_live`，导入同一份资料，再运行下方既有双写/核验命令：
+
+```powershell
+$types = @{ 'after-sales-manual'='manual'; 'product-faq'='faq'; 'product-specs'='manual'; 'returns-policy'='policy'; 'membership-benefits'='policy'; 'integral-rules'='policy'; 'invoice-policy'='policy'; 'cat-bed-care'='manual' }
+foreach ($name in $types.Keys) {
+  uv run --locked python -m app.knowledge.cli import-document --path "evals/datasets/merchant-rag-300/corpus/$name.md" --type $types[$name]
+}
+uv run --locked python -m app.knowledge.cli vectorize-pending --batch-size 20
+uv run --locked python -m app.knowledge.cli rebuild-hybrid --batch-size 20
+uv run --locked python -m app.knowledge.cli verify-hybrid --batch-size 20
+```
+
+已有混合资料的数据库不能直接全库重建到这份集合，否则会重新混入旧规则。本机发布按 50 个已登记主键独立核验；全库 `verify-hybrid` 预期集合等于所有 done 主键，不能拿它核验这种资料子集。导入 CLI 不去重，请勿重复导入已经存在的资料。
+
+以下旧演示建库命令用于复现第三步/早期第四步，使用另一集合和隔离数据库：
+
 新集合默认名为 `knowledge_hybrid`，旧 Dense 集合不原地改 schema。已有 MySQL `done` 原文可重建新集合并核验；新文档先落 `pending`，向量 ACK 和读回核对后才回填为 `done`。
 
 ```powershell
@@ -110,7 +130,7 @@ SSE 的 `status` 包含工具与 `checking` 阶段，知识回答在第一段 `d
 
 ## curl 演示
 
-PowerShell 用 UTF-8 无 BOM 文件传 JSON，避免转义损坏。库外问题可以使用“XM-Z99支持卫星通信吗？”；型号知识为合成测试参数，不能作为真实商品规格。
+PowerShell 用 UTF-8 无 BOM 文件传 JSON，避免转义损坏。当前商家演示资料中，“给大猫用的那款猫砂盆能装多少砂”对应 MH-LP200 的 12L；普通地区 80 元商品配送费为 10 元，满 99 元包邮；库外问题可问宠物美容服务价格。资料只用于项目演示。
 
 ```powershell
 $utf8 = [System.Text.UTF8Encoding]::new($false)
@@ -118,13 +138,13 @@ New-Item -ItemType Directory -Force .cache | Out-Null
 [System.IO.File]::WriteAllText((Join-Path (Get-Location) '.cache/create.json'), '{"user_id":"demo-user"}', $utf8)
 $created = curl.exe --max-time 75 -sS -H 'Content-Type: application/json' --data-binary '@.cache/create.json' http://127.0.0.1:8000/api/conversations | ConvertFrom-Json
 $conversationId = $created.conversation_id
-foreach ($question in @('邮费是多少', 'XM-A17参数是什么？', 'XM-Z99支持卫星通信吗？')) {
+foreach ($question in @('给大猫用的那款猫砂盆能装多少砂', '普通地区买80元商品，邮费多少？', '你们提供宠物洗澡美容服务吗，具体价格是多少？')) {
   $payload = @{conversation_id=$conversationId; message=$question} | ConvertTo-Json -Compress
   [System.IO.File]::WriteAllText((Join-Path (Get-Location) '.cache/chat.json'), $payload, $utf8)
   curl.exe -N --max-time 260 -H 'Content-Type: application/json' --data-binary '@.cache/chat.json' http://127.0.0.1:8000/api/chat
 }
 # 分类过滤由可信请求字段提供，不让模型生成过滤表达式。
-$payload = @{conversation_id=$conversationId; message='普通小件配送费用是多少？'; category='合成型号与条件知识'} | ConvertTo-Json -Compress
+$payload = @{conversation_id=$conversationId; message='MH-W40水箱多大？'; category='商品规格手册'} | ConvertTo-Json -Compress
 [System.IO.File]::WriteAllText((Join-Path (Get-Location) '.cache/filtered.json'), $payload, $utf8)
 curl.exe -N --max-time 260 -H 'Content-Type: application/json' --data-binary '@.cache/filtered.json' http://127.0.0.1:8000/api/chat
 ```

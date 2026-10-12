@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     llm_base_url: HttpUrl = Field(validation_alias="LLM_BASE_URL")
     llm_model: str = Field(validation_alias="LLM_MODEL")
     llm_api_key: SecretStr = Field(validation_alias="LLM_API_KEY")
+    # 在线低思考由在线资源拥有者显式启用；缺省省略，与评估专属参数相互独立。
+    online_reasoning_effort: Literal['low'] | None = Field(
+        default=None, validation_alias='ONLINE_REASONING_EFFORT')
     # 知识库使用独立嵌入密钥，Dense 模型固定 BGE-M3，并分别设置 HTTP 与向量服务超时。
     siliconflow_api_key: SecretStr | None = Field(default=None, validation_alias="SILICONFLOW_API_KEY")
     embedding_model: Literal['BAAI/bge-m3'] = Field(default='BAAI/bge-m3', validation_alias='EMBEDDING_MODEL')

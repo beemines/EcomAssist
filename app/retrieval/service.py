@@ -1,13 +1,79 @@
 # 统一检索组合单轮查询理解、服务端召回、MySQL 权威回填和可选重排。
+import asyncio
+import json
+import logging
 from typing import Literal
 
-from app.core.errors import InputTooLong
+from langchain_core.exceptions import OutputParserException
+from openai import ContentFilterFinishReasonError, LengthFinishReasonError
+from pydantic import ValidationError
+
+from app.core.errors import InputTooLong, ServiceError
 from app.knowledge.types import Embedder, embedding_text
 from app.repositories.knowledge import KnowledgeRepository
 from app.retrieval.milvus import HybridMilvusIndex
 from app.retrieval.query import QueryPlanner
 from app.retrieval.rerank import SiliconFlowReranker
 from app.retrieval.types import QueryPlan, RetrievalBundle, ScoredChunk, validate_category
+
+
+logger = logging.getLogger(__name__)
+
+
+def _exception_chain(exc: BaseException):
+    """检查原因与上下文并防止环引用，不读取可能包含请求或密钥的异常正文。"""
+    pending, seen = [exc], set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        yield current
+        pending.extend(link for link in (current.__cause__, current.__context__) if link is not None)
+
+
+def _can_degrade_rewrite(exc: Exception) -> bool:
+    """仅无效结构及已知解析链可降级；超时、取消、输入与未知原因均拒绝。"""
+    if not isinstance(exc, ServiceError) or exc.code != 'invalid_structured_output':
+        return False
+    for current in _exception_chain(exc):
+        if isinstance(current, ServiceError) and current.code != 'invalid_structured_output':
+            return False
+        if not isinstance(current, (ServiceError, ValidationError, OutputParserException, json.JSONDecodeError,
+                                    LengthFinishReasonError, ContentFilterFinishReasonError)):
+            return False
+    return True
+
+
+def _caller_cancellation(exc: BaseException) -> asyncio.CancelledError | None:
+    """期限内部取消属于TimeoutError；仅传播没有期限祖先的调用方取消。"""
+    pending, seen = [(exc, False)], set()
+    while pending:
+        current, deadline_owned = pending.pop()
+        key = (id(current), deadline_owned)
+        if key in seen:
+            continue
+        seen.add(key)
+        if isinstance(current, asyncio.CancelledError) and not deadline_owned:
+            return current
+        deadline_owned = deadline_owned or isinstance(current, TimeoutError)
+        pending.extend((link, deadline_owned) for link in (current.__cause__, current.__context__)
+                       if link is not None)
+    return None
+
+
+def _log_rewrite_failure(exc: BaseException, *, degraded: bool = False) -> None:
+    """日志仅含固定阶段、白名单码、类型与可选降级标记，禁止正文与堆栈。"""
+    code = 'rewrite_error'
+    if isinstance(exc, ServiceError) and exc.code in (
+            'invalid_structured_output', 'upstream_timeout', 'upstream_error', 'input_too_long'):
+        code = exc.code
+    elif isinstance(exc, asyncio.CancelledError):
+        code = 'cancelled'
+    elif isinstance(exc, TimeoutError):
+        code = 'upstream_timeout'
+    message = 'stage=rewrite code=%s type=%s' + (' status=degraded' if degraded else '')
+    logger.warning(message, code, type(exc).__name__)
 
 
 class RetrievalService:
@@ -17,7 +83,7 @@ class RetrievalService:
         self.repository, self.embedder, self.index = repository, embedder, index
         self.planner, self.reranker = planner, reranker
 
-    # 单轮仅理解一次；冻结计划用于公平比较策略，任何依赖故障或取消直接传播。
+    # 单轮仅理解一次；结构无效时使用完整原话，其他依赖故障或取消直接传播。
     async def retrieve(self, raw_question: str, *, category: str | None = None,
                        strategy: Literal['dense', 'bm25', 'hybrid', 'hybrid_rerank'] = 'hybrid_rerank',
                        query_plan: QueryPlan | None = None) -> RetrievalBundle:
@@ -30,7 +96,39 @@ class RetrievalService:
         validate_category(category)
         if query_plan is not None and not isinstance(query_plan, QueryPlan):
             raise ValueError('query plan must be a QueryPlan')
-        plan = query_plan if query_plan is not None else await self.planner.plan(raw_question)
+        plan = query_plan
+        if plan is None:
+            # 保留规划器已有期限；下层吞掉计时器取消也不能让迟到结果进入检索。
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + getattr(self.planner, 'timeout', 60)
+            task = asyncio.current_task()
+            try:
+                plan = await self.planner.plan(raw_question)
+                if task is not None and task.cancelling():
+                    raise asyncio.CancelledError()
+                if loop.time() >= deadline:
+                    raise ServiceError('upstream_timeout', '模型响应超时，请稍后重试。', 504)
+            except asyncio.CancelledError as exc:
+                _log_rewrite_failure(exc)
+                raise
+            except Exception as exc:
+                # 下层包装或吞掉取消时，不能把取消归一为成功检索。
+                cancellation = _caller_cancellation(exc)
+                if cancellation is not None:
+                    _log_rewrite_failure(cancellation)
+                    raise cancellation
+                if task is not None and task.cancelling():
+                    _log_rewrite_failure(asyncio.CancelledError())
+                    raise asyncio.CancelledError() from None
+                degraded = _can_degrade_rewrite(exc)
+                if degraded and loop.time() >= deadline:
+                    timeout = ServiceError('upstream_timeout', '模型响应超时，请稍后重试。', 504)
+                    _log_rewrite_failure(timeout)
+                    raise timeout from exc
+                _log_rewrite_failure(exc, degraded=degraded)
+                if not degraded:
+                    raise
+                plan = QueryPlan(standard=raw_question, expansions=[])
         vector = None
         if strategy != 'bm25':
             vectors = await self.embedder.embed([plan.standard])

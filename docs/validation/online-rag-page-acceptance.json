@@ -1,0 +1,45 @@
+{
+  "started_at": "2026-10-12T07:39:52.638Z",
+  "method": "real Chromium browser; GET only",
+  "status": "passed",
+  "page_errors": [],
+  "responses": [
+    {
+      "path": "/api/rag-evaluations/datasets",
+      "status": 200
+    },
+    {
+      "path": "/api/rag-evaluations/runs",
+      "status": 200
+    },
+    {
+      "path": "/api/rag-evaluations/runs/7adfc4c7dc3a4750885c23c94f3be671",
+      "status": 200
+    },
+    {
+      "path": "/api/rag-evaluations/runs/7adfc4c7dc3a4750885c23c94f3be671/cases",
+      "status": 200
+    },
+    {
+      "path": "/api/rag-evaluations/datasets",
+      "status": 200
+    },
+    {
+      "path": "/api/rag-evaluations/runs",
+      "status": 200
+    }
+  ],
+  "load_seconds": 3.301,
+  "bars": 20,
+  "scope": "完整 300 题 · 50 块知识 · 两次运行合并（158 题 + 142 题） · 1188 完成 / 12 错误。图表使用四路共同完成的 289 题，各指标单独显示有效分母。",
+  "donut": "96.6%",
+  "checks": [
+    "real report loaded",
+    "20 actual strategy bars",
+    "1188 completed and 12 historical errors visible",
+    "Recall metric switch",
+    "quality strategy and donut switch",
+    "GET-only; no new evaluation"
+  ],
+  "finished_at": "2026-10-12T07:39:56.230Z"
+}

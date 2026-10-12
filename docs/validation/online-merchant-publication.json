@@ -1,0 +1,322 @@
+{
+  "created_at": "2026-10-12T07:05:02.226041+00:00",
+  "status": "verified",
+  "dataset_id": "merchant-rag-300-v1",
+  "corpus_hash": "c188bcabb1b3fa6a5e4e72284d0726f96e2b2cff6e0a1c48245dea85e792ef10",
+  "collection": "knowledge_merchant_live",
+  "database": "customer_service",
+  "scope": "only the 50 published merchant chunks; old chunks retained",
+  "chunks": [
+    {
+      "chunk_key": "after-sales-manual.md:001:7202cf4ca7d2a5ce03a53a41c48b8c77bfcbf5718aca1876b15e1d1b34819e17",
+      "document": "after-sales-manual.md",
+      "id": 85,
+      "section_path": "售后手册/常见问题处理时限"
+    },
+    {
+      "chunk_key": "after-sales-manual.md:002:0e26e68f417e9cddefe91d8cbf327ff579c57a44c5c6d7c6866eb6f5fcc5d525",
+      "document": "after-sales-manual.md",
+      "id": 86,
+      "section_path": "售后手册/保修说明"
+    },
+    {
+      "chunk_key": "after-sales-manual.md:003:46f8825077b34437b1fa75eaedfad7a4fb0c0326b80a276c5c30d3b88e221e13",
+      "document": "after-sales-manual.md",
+      "id": 87,
+      "section_path": "售后手册/设备安装与激活"
+    },
+    {
+      "chunk_key": "after-sales-manual.md:004:e6c60fd9c73733a64750b8c14a2181e06fd5d21821e61bd6c8f3a23f12876244",
+      "document": "after-sales-manual.md",
+      "id": 88,
+      "section_path": "售后手册/常见故障自查"
+    },
+    {
+      "chunk_key": "after-sales-manual.md:005:16e83da06b296764b24f5370aa6c3c5b447e7ada7eec424acb870e2fc137cd2a",
+      "document": "after-sales-manual.md",
+      "id": 89,
+      "section_path": "售后手册/人工客服入口与时间"
+    },
+    {
+      "chunk_key": "after-sales-manual.md:006:fc43f54cc8d385ae7519632591d2f82208c032cd97489b2bfbe565a6bb27a6ef",
+      "document": "after-sales-manual.md",
+      "id": 90,
+      "section_path": "售后手册/维修寄修流程"
+    },
+    {
+      "chunk_key": "after-sales-manual.md:007:03b647141d60a612d03736cb40cd2d3c0ca7f6125fd4054912d2880d562259c7",
+      "document": "after-sales-manual.md",
+      "id": 91,
+      "section_path": "售后手册/会员专属售后权益"
+    },
+    {
+      "chunk_key": "product-faq.md:001:0d1a353c26224e8102a070fbd4262c6a1d8145084acc659b03d48e443645b094",
+      "document": "product-faq.md",
+      "id": 92,
+      "section_path": "商品与购物 FAQ/退货政策是什么"
+    },
+    {
+      "chunk_key": "product-faq.md:002:b54c0327c0b8204d90a44f51c42ee808b8511313d05d3772a7192805a6959650",
+      "document": "product-faq.md",
+      "id": 93,
+      "section_path": "商品与购物 FAQ/如何申请退款"
+    },
+    {
+      "chunk_key": "product-faq.md:003:a1fed4fdf12d74a73079a3909678d91634df75f294328214f9f4798b6426e991",
+      "document": "product-faq.md",
+      "id": 94,
+      "section_path": "商品与购物 FAQ/换货流程怎么走"
+    },
+    {
+      "chunk_key": "product-faq.md:004:fd54dbe9fee3d150a2241a4656b26927771c5eba7f373670d869c0eb22bc2f27",
+      "document": "product-faq.md",
+      "id": 95,
+      "section_path": "商品与购物 FAQ/发货时效多久"
+    },
+    {
+      "chunk_key": "product-faq.md:005:a378cfa07513ed7b747b8870ef187c00e9e1ce815a4bac7cfd9bfda4c9e43805",
+      "document": "product-faq.md",
+      "id": 96,
+      "section_path": "商品与购物 FAQ/运费怎么算"
+    },
+    {
+      "chunk_key": "product-faq.md:006:9e6e422d50701b7ba2c3ccad183f67fc63cf0ce9caf42e2ef88b949a9f2ba840",
+      "document": "product-faq.md",
+      "id": 97,
+      "section_path": "商品与购物 FAQ/发票如何开具"
+    },
+    {
+      "chunk_key": "product-faq.md:007:6e08a30e41cf2d07ede67d7aa48422a28bda97ccc2fa74688fb872ca75142cba",
+      "document": "product-faq.md",
+      "id": 98,
+      "section_path": "商品与购物 FAQ/支持哪些支付方式"
+    },
+    {
+      "chunk_key": "product-faq.md:008:266e3eef703549a3fe871982bdd1ea054837ff75874d0cf398bdf9e987c6c9ac",
+      "document": "product-faq.md",
+      "id": 99,
+      "section_path": "商品与购物 FAQ/会员等级与积分规则"
+    },
+    {
+      "chunk_key": "product-faq.md:009:632d97ce603b91dde4d8665a543c5858312a82aa840cf61a898b9f94052c6a53",
+      "document": "product-faq.md",
+      "id": 100,
+      "section_path": "商品与购物 FAQ/优惠券和满减怎么用"
+    },
+    {
+      "chunk_key": "product-faq.md:010:c8e85d958ea046e515278627e795c27d9996a3c7cbf18e656b1778d31e29445f",
+      "document": "product-faq.md",
+      "id": 101,
+      "section_path": "商品与购物 FAQ/配送范围与偏远地区"
+    },
+    {
+      "chunk_key": "product-faq.md:011:10a8a7b8860e285b69f6994c8a087c2eae979eaf87846d9464780dbab56f8fa4",
+      "document": "product-faq.md",
+      "id": 102,
+      "section_path": "商品与购物 FAQ/订单可以修改或取消吗"
+    },
+    {
+      "chunk_key": "product-faq.md:012:fe027c833b6de9248ff56e77e7975d453b36934d2f6225ff19c07e0ac246a329",
+      "document": "product-faq.md",
+      "id": 103,
+      "section_path": "商品与购物 FAQ/商品缺货多久补货"
+    },
+    {
+      "chunk_key": "product-faq.md:013:811b7bf2a0e8f0814024553fc91eea0c9607267cde1fd3dd45b951b6b9017516",
+      "document": "product-faq.md",
+      "id": 104,
+      "section_path": "商品与购物 FAQ/价格保护怎么申请"
+    },
+    {
+      "chunk_key": "product-faq.md:014:2df0cfc67e100b58d106ae3d96fcdfcfcc6e61f9ceda22edec382ba9eba305e8",
+      "document": "product-faq.md",
+      "id": 105,
+      "section_path": "商品与购物 FAQ/会员运费权益"
+    },
+    {
+      "chunk_key": "product-specs.md:001:dc53084d66b22ac0b6b909e34a0e5b6f2c6ac35851c1722bd1e7f22b28b567e0",
+      "document": "product-specs.md",
+      "id": 106,
+      "section_path": "商品规格手册"
+    },
+    {
+      "chunk_key": "product-specs.md:002:4b03c1ddd6cde11c032f3b94e81066ec8227045d930d76ac7e1af8fd8e71fd23",
+      "document": "product-specs.md",
+      "id": 107,
+      "section_path": "商品规格手册/智能猫砂盆 Pro(型号 MH-LP100)"
+    },
+    {
+      "chunk_key": "product-specs.md:003:991276de42d44e06168ae7625057b9692cbc6be8149687ccf1a752da00b9f9f3",
+      "document": "product-specs.md",
+      "id": 108,
+      "section_path": "商品规格手册/智能猫砂盆 Lite(型号 MH-LP50)"
+    },
+    {
+      "chunk_key": "product-specs.md:004:3c911bcff026033058b5e3badaa187e7e3d87bf51b5471f70e40ea8089d63e8c",
+      "document": "product-specs.md",
+      "id": 109,
+      "section_path": "商品规格手册/智能猫砂盆 Max(型号 MH-LP200)"
+    },
+    {
+      "chunk_key": "product-specs.md:005:58f10003acf72bef5aa921d603dc1a58bb0332dcd7f8735057266e573f01e11b",
+      "document": "product-specs.md",
+      "id": 110,
+      "section_path": "商品规格手册/自动饮水机(型号 MH-W20)"
+    },
+    {
+      "chunk_key": "product-specs.md:006:7bc85cbc0961a7f65bb02095525245853068b6933a24a48b0b06e1344a686d7d",
+      "document": "product-specs.md",
+      "id": 111,
+      "section_path": "商品规格手册/自动饮水机 Plus(型号 MH-W40)"
+    },
+    {
+      "chunk_key": "product-specs.md:007:e9867a419061278a1bc0599bc3595ac01da4c561aea19bf0bf4c9bde5ba30e7f",
+      "document": "product-specs.md",
+      "id": 112,
+      "section_path": "商品规格手册/自动饮水机 Pro 不锈钢(型号 MH-W60)"
+    },
+    {
+      "chunk_key": "product-specs.md:008:1802857d937ad7bc2d80ab37efde2da586defc78bb6a00d73f8b5ed62601bc42",
+      "document": "product-specs.md",
+      "id": 113,
+      "section_path": "商品规格手册/大型猫爬架(型号 MH-CT30)"
+    },
+    {
+      "chunk_key": "product-specs.md:009:d696b670457f1d69b4d9e16d3c8efdd0defd0e53c1832c93a8fd85c560551699",
+      "document": "product-specs.md",
+      "id": 114,
+      "section_path": "商品规格手册/恒温加热垫(型号 MH-HP12)"
+    },
+    {
+      "chunk_key": "product-specs.md:010:1be9c972a5dd1efa00120aad837503c2c7b9ee14be4b23ad1cf50d789ba81506",
+      "document": "product-specs.md",
+      "id": 115,
+      "section_path": "商品规格手册/大号三档加热垫(型号 MH-HP20)"
+    },
+    {
+      "chunk_key": "product-specs.md:011:83f334c91d091c9c733956564d0d5fa24078df26b3553ae3461ffebb67e04538",
+      "document": "product-specs.md",
+      "id": 116,
+      "section_path": "商品规格手册/自动喂食器 基础版(型号 MH-FD10)"
+    },
+    {
+      "chunk_key": "product-specs.md:012:5a6c6a0399d4b5fff33062f2e79da99a7312aec4531707bd3da0255a835c22cc",
+      "document": "product-specs.md",
+      "id": 117,
+      "section_path": "商品规格手册/自动喂食器 摄像头版(型号 MH-FD30)"
+    },
+    {
+      "chunk_key": "product-specs.md:013:21004ee51514e767b4dc31e21841ba8ac9dc6bee54516311fdc99678210846f9",
+      "document": "product-specs.md",
+      "id": 118,
+      "section_path": "商品规格手册/全景看护摄像头(型号 MH-CAM1)"
+    },
+    {
+      "chunk_key": "returns-policy.md:001:49f98ddcaa9cc42419073cd7ac3a116b24bd3c537d004512b6c2daa596054c21",
+      "document": "returns-policy.md",
+      "id": 119,
+      "section_path": "退货退款政策/无理由退货/适用范围"
+    },
+    {
+      "chunk_key": "returns-policy.md:002:790d978e46084d3c89e96e1e75a4db8309b5d24c47b4be722652b8cc0facd375",
+      "document": "returns-policy.md",
+      "id": 120,
+      "section_path": "退货退款政策/无理由退货/退款时效"
+    },
+    {
+      "chunk_key": "returns-policy.md:003:c88e0b7d32913aef1b6c47a7438e8a665d0b24e4686691459641019fbc0aaa74",
+      "document": "returns-policy.md",
+      "id": 121,
+      "section_path": "退货退款政策/换货政策/换货条件"
+    },
+    {
+      "chunk_key": "returns-policy.md:004:0b4a2e6b1f20639b7f966a0bba31c735dc55faa1d51d6f29e9b0bb1be15603dc",
+      "document": "returns-policy.md",
+      "id": 122,
+      "section_path": "退货退款政策/换货政策/换货运费"
+    },
+    {
+      "chunk_key": "returns-policy.md:005:4d4b2ea9115f9f9c717e0b83cded75c9048bc1b04a4621131131a6e1d023f11c",
+      "document": "returns-policy.md",
+      "id": 123,
+      "section_path": "退货退款政策/退换货运费承担"
+    },
+    {
+      "chunk_key": "returns-policy.md:006:eea36146abe1a220cecf96e8c13d4ee748fcc98e1313aceb840b7ec2d1617423",
+      "document": "returns-policy.md",
+      "id": 124,
+      "section_path": "退货退款政策/质量问题与保修"
+    },
+    {
+      "chunk_key": "returns-policy.md:007:7996ea6d62a17336c125f1f473f9888754f548b63469d944b93b2203f20c2f1b",
+      "document": "returns-policy.md",
+      "id": 125,
+      "section_path": "退货退款政策/运输破损处理"
+    },
+    {
+      "chunk_key": "returns-policy.md:008:a6a014b5592a7c58f854c41e4e2d6ff189171b0bfb326db5dcd0c06f26c7fb6e",
+      "document": "returns-policy.md",
+      "id": 126,
+      "section_path": "退货退款政策/不支持退货的商品"
+    },
+    {
+      "chunk_key": "returns-policy.md:009:d5da6eaa37d40c190b7f5b7257c5da242285eb95e09b274aea29ef6f8dbe7f1c",
+      "document": "returns-policy.md",
+      "id": 127,
+      "section_path": "退货退款政策/预售与定金"
+    },
+    {
+      "chunk_key": "membership-benefits.md:001:0e401c77a9b672d13f8b19cff2c0db798e72167d869d0b9107819fa281fb34f3",
+      "document": "membership-benefits.md",
+      "id": 128,
+      "section_path": "会员权益/会员等级"
+    },
+    {
+      "chunk_key": "membership-benefits.md:002:c9a7d21f43bfd7f6a83ec9116841139c65e10365b0a347be54443c42fd024acc",
+      "document": "membership-benefits.md",
+      "id": 129,
+      "section_path": "会员权益/生日礼"
+    },
+    {
+      "chunk_key": "integral-rules.md:001:da14206bfa6e6c5f3eb7e3d050070d976a96002eece7dd3d430bb6609dac25f3",
+      "document": "integral-rules.md",
+      "id": 130,
+      "section_path": "积分规则/积分怎么攒"
+    },
+    {
+      "chunk_key": "integral-rules.md:002:3edab91392d486a8a56a372151878ef83573c16222740e3691e976b4afa9e383",
+      "document": "integral-rules.md",
+      "id": 131,
+      "section_path": "积分规则/积分怎么用"
+    },
+    {
+      "chunk_key": "invoice-policy.md:001:d1b6ab4da5b7eef835b5d40febf77279bccce3f21ea810a250d578acd4073bfd",
+      "document": "invoice-policy.md",
+      "id": 132,
+      "section_path": "开票细则/可开票类型"
+    },
+    {
+      "chunk_key": "invoice-policy.md:002:a0218d5877a9cff0bb861b79b48eec9d1195948dbac5f6cf30bec16516b4b051",
+      "document": "invoice-policy.md",
+      "id": 133,
+      "section_path": "开票细则/开票时效"
+    },
+    {
+      "chunk_key": "cat-bed-care.md:001:98b746ad8c2deace9e43237f16a81392acdb1dc8e895479cdd075ad6329de2ce",
+      "document": "cat-bed-care.md",
+      "id": 134,
+      "section_path": "猫窝清洗说明/猫窝是否可以机洗"
+    }
+  ],
+  "chunk_count": 50,
+  "mysql_total": 134,
+  "retained_old_count": 84,
+  "retained_old_sha256": "3c98707705e9d9e17515f8d67bf21ffffe48c1c201b29fd20df19983d9894b10",
+  "checks": [
+    "exact 50 IDs",
+    "MySQL draft identity",
+    "vector text/category",
+    "done/vector_id",
+    "old rows unchanged"
+  ]
+}

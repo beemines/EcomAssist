@@ -1,0 +1,577 @@
+{
+  "created_at": "2026-10-12T07:06:54.685165+00:00",
+  "scope": "independent retrieval-only calibration; original query, no LLM rewrite/judge",
+  "collection": "knowledge_merchant_live",
+  "corpus_hash": "c188bcabb1b3fa6a5e4e72284d0726f96e2b2cff6e0a1c48245dea85e792ef10",
+  "model": "BAAI/bge-reranker-v2-m3",
+  "records": [
+    {
+      "label": "P1",
+      "query": "大型猫用 Max 猫砂盆的装砂容量有多少升？",
+      "sufficient": true,
+      "score": 0.9959704875946045,
+      "positive_sections_covered": true,
+      "ranked": [
+        {
+          "id": 109,
+          "score": 0.9959704875946045,
+          "section_path": "商品规格手册/智能猫砂盆 Max(型号 MH-LP200)"
+        },
+        {
+          "id": 107,
+          "score": 0.9382662773132324,
+          "section_path": "商品规格手册/智能猫砂盆 Pro(型号 MH-LP100)"
+        },
+        {
+          "id": 108,
+          "score": 0.8409239053726196,
+          "section_path": "商品规格手册/智能猫砂盆 Lite(型号 MH-LP50)"
+        },
+        {
+          "id": 88,
+          "score": 0.007525937631726265,
+          "section_path": "售后手册/常见故障自查"
+        },
+        {
+          "id": 113,
+          "score": 0.0032012779265642166,
+          "section_path": "商品规格手册/大型猫爬架(型号 MH-CT30)"
+        },
+        {
+          "id": 116,
+          "score": 0.0019535080064088106,
+          "section_path": "商品规格手册/自动喂食器 基础版(型号 MH-FD10)"
+        },
+        {
+          "id": 117,
+          "score": 0.0010731590446084738,
+          "section_path": "商品规格手册/自动喂食器 摄像头版(型号 MH-FD30)"
+        },
+        {
+          "id": 126,
+          "score": 0.0008550606435164809,
+          "section_path": "退货退款政策/不支持退货的商品"
+        },
+        {
+          "id": 131,
+          "score": 0.00047046932741068304,
+          "section_path": "积分规则/积分怎么用"
+        },
+        {
+          "id": 115,
+          "score": 0.00038151934859342873,
+          "section_path": "商品规格手册/大号三档加热垫(型号 MH-HP20)"
+        }
+      ]
+    },
+    {
+      "label": "P2",
+      "query": "买了八十元商品，普通地区需要交多少运费？",
+      "sufficient": true,
+      "score": 0.5050069689750671,
+      "positive_sections_covered": true,
+      "ranked": [
+        {
+          "id": 96,
+          "score": 0.5050069689750671,
+          "section_path": "商品与购物 FAQ/运费怎么算"
+        },
+        {
+          "id": 131,
+          "score": 0.0749150812625885,
+          "section_path": "积分规则/积分怎么用"
+        },
+        {
+          "id": 101,
+          "score": 0.02397821471095085,
+          "section_path": "商品与购物 FAQ/配送范围与偏远地区"
+        },
+        {
+          "id": 105,
+          "score": 0.009025949984788895,
+          "section_path": "商品与购物 FAQ/会员运费权益"
+        },
+        {
+          "id": 128,
+          "score": 0.008327489718794823,
+          "section_path": "会员权益/会员等级"
+        },
+        {
+          "id": 123,
+          "score": 0.006051717326045036,
+          "section_path": "退货退款政策/退换货运费承担"
+        },
+        {
+          "id": 122,
+          "score": 0.005485618021339178,
+          "section_path": "退货退款政策/换货政策/换货运费"
+        },
+        {
+          "id": 132,
+          "score": 0.005197907332330942,
+          "section_path": "开票细则/可开票类型"
+        },
+        {
+          "id": 130,
+          "score": 0.004674735013395548,
+          "section_path": "积分规则/积分怎么攒"
+        },
+        {
+          "id": 91,
+          "score": 0.0029313259292393923,
+          "section_path": "售后手册/会员专属售后权益"
+        }
+      ]
+    },
+    {
+      "label": "P3",
+      "query": "无理由退货的钱按什么方式退还？",
+      "sufficient": true,
+      "score": 0.3218679428100586,
+      "positive_sections_covered": true,
+      "ranked": [
+        {
+          "id": 120,
+          "score": 0.3218679428100586,
+          "section_path": "退货退款政策/无理由退货/退款时效"
+        },
+        {
+          "id": 127,
+          "score": 0.25512897968292236,
+          "section_path": "退货退款政策/预售与定金"
+        },
+        {
+          "id": 119,
+          "score": 0.14918504655361176,
+          "section_path": "退货退款政策/无理由退货/适用范围"
+        },
+        {
+          "id": 123,
+          "score": 0.10853761434555054,
+          "section_path": "退货退款政策/退换货运费承担"
+        },
+        {
+          "id": 92,
+          "score": 0.07035819441080093,
+          "section_path": "商品与购物 FAQ/退货政策是什么"
+        },
+        {
+          "id": 126,
+          "score": 0.040629055351018906,
+          "section_path": "退货退款政策/不支持退货的商品"
+        },
+        {
+          "id": 93,
+          "score": 0.018150348216295242,
+          "section_path": "商品与购物 FAQ/如何申请退款"
+        },
+        {
+          "id": 125,
+          "score": 0.016056688502430916,
+          "section_path": "退货退款政策/运输破损处理"
+        },
+        {
+          "id": 128,
+          "score": 0.008268030360341072,
+          "section_path": "会员权益/会员等级"
+        },
+        {
+          "id": 124,
+          "score": 0.007605974096804857,
+          "section_path": "退货退款政策/质量问题与保修"
+        }
+      ]
+    },
+    {
+      "label": "P4",
+      "query": "电子设备保修期多久，保修期内如何寄回维修？",
+      "sufficient": true,
+      "score": 0.8847517371177673,
+      "positive_sections_covered": true,
+      "ranked": [
+        {
+          "id": 90,
+          "score": 0.8847517371177673,
+          "section_path": "售后手册/维修寄修流程"
+        },
+        {
+          "id": 124,
+          "score": 0.7794138789176941,
+          "section_path": "退货退款政策/质量问题与保修"
+        },
+        {
+          "id": 86,
+          "score": 0.5192679166793823,
+          "section_path": "售后手册/保修说明"
+        },
+        {
+          "id": 94,
+          "score": 0.009265881031751633,
+          "section_path": "商品与购物 FAQ/换货流程怎么走"
+        },
+        {
+          "id": 85,
+          "score": 0.009215014986693859,
+          "section_path": "售后手册/常见问题处理时限"
+        },
+        {
+          "id": 119,
+          "score": 0.00491946330294013,
+          "section_path": "退货退款政策/无理由退货/适用范围"
+        },
+        {
+          "id": 121,
+          "score": 0.00411346135661006,
+          "section_path": "退货退款政策/换货政策/换货条件"
+        },
+        {
+          "id": 120,
+          "score": 0.002273614052683115,
+          "section_path": "退货退款政策/无理由退货/退款时效"
+        },
+        {
+          "id": 134,
+          "score": 0.0019845282658934593,
+          "section_path": "猫窝清洗说明/猫窝是否可以机洗"
+        },
+        {
+          "id": 92,
+          "score": 0.0018906828481703997,
+          "section_path": "商品与购物 FAQ/退货政策是什么"
+        }
+      ]
+    },
+    {
+      "label": "N1",
+      "query": "你们提供宠物洗澡美容服务的价格是多少？",
+      "sufficient": false,
+      "score": 0.00016750206123106182,
+      "positive_sections_covered": true,
+      "ranked": [
+        {
+          "id": 128,
+          "score": 0.00016750206123106182,
+          "section_path": "会员权益/会员等级"
+        },
+        {
+          "id": 131,
+          "score": 6.255348125705495e-05,
+          "section_path": "积分规则/积分怎么用"
+        },
+        {
+          "id": 96,
+          "score": 4.801538307219744e-05,
+          "section_path": "商品与购物 FAQ/运费怎么算"
+        },
+        {
+          "id": 134,
+          "score": 3.5751927498495206e-05,
+          "section_path": "猫窝清洗说明/猫窝是否可以机洗"
+        },
+        {
+          "id": 130,
+          "score": 3.562861820682883e-05,
+          "section_path": "积分规则/积分怎么攒"
+        },
+        {
+          "id": 101,
+          "score": 3.0189170502126217e-05,
+          "section_path": "商品与购物 FAQ/配送范围与偏远地区"
+        },
+        {
+          "id": 99,
+          "score": 2.9072571123833768e-05,
+          "section_path": "商品与购物 FAQ/会员等级与积分规则"
+        },
+        {
+          "id": 108,
+          "score": 2.9029240977251902e-05,
+          "section_path": "商品规格手册/智能猫砂盆 Lite(型号 MH-LP50)"
+        },
+        {
+          "id": 87,
+          "score": 2.843695619958453e-05,
+          "section_path": "售后手册/设备安装与激活"
+        },
+        {
+          "id": 91,
+          "score": 2.7480682547320612e-05,
+          "section_path": "售后手册/会员专属售后权益"
+        }
+      ]
+    },
+    {
+      "label": "N2",
+      "query": "猫咪疫苗预约价格和医院地址是什么？",
+      "sufficient": false,
+      "score": 9.917154966387898e-05,
+      "positive_sections_covered": true,
+      "ranked": [
+        {
+          "id": 101,
+          "score": 9.917154966387898e-05,
+          "section_path": "商品与购物 FAQ/配送范围与偏远地区"
+        },
+        {
+          "id": 131,
+          "score": 6.816809036536142e-05,
+          "section_path": "积分规则/积分怎么用"
+        },
+        {
+          "id": 129,
+          "score": 6.157375173643231e-05,
+          "section_path": "会员权益/生日礼"
+        },
+        {
+          "id": 88,
+          "score": 5.865773346158676e-05,
+          "section_path": "售后手册/常见故障自查"
+        },
+        {
+          "id": 91,
+          "score": 5.527703615371138e-05,
+          "section_path": "售后手册/会员专属售后权益"
+        },
+        {
+          "id": 87,
+          "score": 4.7963760152924806e-05,
+          "section_path": "售后手册/设备安装与激活"
+        },
+        {
+          "id": 126,
+          "score": 4.219776383251883e-05,
+          "section_path": "退货退款政策/不支持退货的商品"
+        },
+        {
+          "id": 106,
+          "score": 4.1164363210555166e-05,
+          "section_path": "商品规格手册"
+        },
+        {
+          "id": 85,
+          "score": 4.0585633541923016e-05,
+          "section_path": "售后手册/常见问题处理时限"
+        },
+        {
+          "id": 134,
+          "score": 3.968696546507999e-05,
+          "section_path": "猫窝清洗说明/猫窝是否可以机洗"
+        }
+      ]
+    },
+    {
+      "label": "N3",
+      "query": "宠物保险的赔付比例是多少？",
+      "sufficient": false,
+      "score": 0.0009007250773720443,
+      "positive_sections_covered": true,
+      "ranked": [
+        {
+          "id": 86,
+          "score": 0.0009007250773720443,
+          "section_path": "售后手册/保修说明"
+        },
+        {
+          "id": 124,
+          "score": 0.0003025029436685145,
+          "section_path": "退货退款政策/质量问题与保修"
+        },
+        {
+          "id": 134,
+          "score": 0.0002897445228882134,
+          "section_path": "猫窝清洗说明/猫窝是否可以机洗"
+        },
+        {
+          "id": 90,
+          "score": 0.0001383681665174663,
+          "section_path": "售后手册/维修寄修流程"
+        },
+        {
+          "id": 128,
+          "score": 0.0001322208991041407,
+          "section_path": "会员权益/会员等级"
+        },
+        {
+          "id": 119,
+          "score": 9.85471997410059e-05,
+          "section_path": "退货退款政策/无理由退货/适用范围"
+        },
+        {
+          "id": 125,
+          "score": 9.25770727917552e-05,
+          "section_path": "退货退款政策/运输破损处理"
+        },
+        {
+          "id": 91,
+          "score": 8.383711247006431e-05,
+          "section_path": "售后手册/会员专属售后权益"
+        },
+        {
+          "id": 126,
+          "score": 7.67523524700664e-05,
+          "section_path": "退货退款政策/不支持退货的商品"
+        },
+        {
+          "id": 127,
+          "score": 7.472848665202036e-05,
+          "section_path": "退货退款政策/预售与定金"
+        }
+      ]
+    },
+    {
+      "label": "N4",
+      "query": "招加盟代理需要交多少保证金？",
+      "sufficient": false,
+      "score": 7.554363401141018e-05,
+      "positive_sections_covered": true,
+      "ranked": [
+        {
+          "id": 132,
+          "score": 7.554363401141018e-05,
+          "section_path": "开票细则/可开票类型"
+        },
+        {
+          "id": 127,
+          "score": 6.109227979322895e-05,
+          "section_path": "退货退款政策/预售与定金"
+        },
+        {
+          "id": 128,
+          "score": 5.086251621833071e-05,
+          "section_path": "会员权益/会员等级"
+        },
+        {
+          "id": 133,
+          "score": 5.031510954722762e-05,
+          "section_path": "开票细则/开票时效"
+        },
+        {
+          "id": 130,
+          "score": 4.256214378983714e-05,
+          "section_path": "积分规则/积分怎么攒"
+        },
+        {
+          "id": 99,
+          "score": 3.680813097162172e-05,
+          "section_path": "商品与购物 FAQ/会员等级与积分规则"
+        },
+        {
+          "id": 91,
+          "score": 2.5860921596176922e-05,
+          "section_path": "售后手册/会员专属售后权益"
+        },
+        {
+          "id": 129,
+          "score": 2.2753361918148585e-05,
+          "section_path": "会员权益/生日礼"
+        },
+        {
+          "id": 105,
+          "score": 1.954992148966994e-05,
+          "section_path": "商品与购物 FAQ/会员运费权益"
+        },
+        {
+          "id": 104,
+          "score": 1.929590325744357e-05,
+          "section_path": "商品与购物 FAQ/价格保护怎么申请"
+        }
+      ]
+    }
+  ],
+  "status": "verified",
+  "calibration": {
+    "threshold": 0.3218679428100586,
+    "refusal_f1": 1.0,
+    "confusion": {
+      "tp": 4,
+      "fp": 0,
+      "fn": 0,
+      "tn": 4
+    },
+    "samples": 8,
+    "candidates": [
+      {
+        "threshold": 7.554363401141018e-05,
+        "refusal_f1": 0.0,
+        "confusion": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 4,
+          "tn": 4
+        }
+      },
+      {
+        "threshold": 9.917154966387898e-05,
+        "refusal_f1": 0.4,
+        "confusion": {
+          "tp": 1,
+          "fp": 0,
+          "fn": 3,
+          "tn": 4
+        }
+      },
+      {
+        "threshold": 0.00016750206123106182,
+        "refusal_f1": 0.6666666666666666,
+        "confusion": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 2,
+          "tn": 4
+        }
+      },
+      {
+        "threshold": 0.0009007250773720443,
+        "refusal_f1": 0.8571428571428571,
+        "confusion": {
+          "tp": 3,
+          "fp": 0,
+          "fn": 1,
+          "tn": 4
+        }
+      },
+      {
+        "threshold": 0.3218679428100586,
+        "refusal_f1": 1.0,
+        "confusion": {
+          "tp": 4,
+          "fp": 0,
+          "fn": 0,
+          "tn": 4
+        }
+      },
+      {
+        "threshold": 0.5050069689750671,
+        "refusal_f1": 0.8888888888888888,
+        "confusion": {
+          "tp": 4,
+          "fp": 1,
+          "fn": 0,
+          "tn": 3
+        }
+      },
+      {
+        "threshold": 0.8847517371177673,
+        "refusal_f1": 0.8,
+        "confusion": {
+          "tp": 4,
+          "fp": 2,
+          "fn": 0,
+          "tn": 2
+        }
+      },
+      {
+        "threshold": 0.9959704875946045,
+        "refusal_f1": 0.7272727272727273,
+        "confusion": {
+          "tp": 4,
+          "fp": 3,
+          "fn": 0,
+          "tn": 1
+        }
+      }
+    ],
+    "method": "observed scores; refusal positive; score < threshold; ties choose higher threshold"
+  },
+  "limitation": "Eight independent calibration samples only; browser end-to-end acceptance is separate, not a population quality estimate."
+}

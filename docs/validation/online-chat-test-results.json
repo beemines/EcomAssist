@@ -1,0 +1,20 @@
+{
+  "reported_elapsed_seconds": 13412.96,
+  "focused_regression_passed": 383,
+  "verified_at": "2026-10-12T19:27:18.3307418+08:00",
+  "passed": 1531,
+  "skips": "Existing opt-in integration flags; not counted as passed",
+  "focused_regression_skipped": 2,
+  "previous_failed_run": {
+    "cause": "Default create_model(settings) call shape changed by explicit reasoning_effort=None; fixed without editing fakes",
+    "skipped": 116,
+    "failed": 15,
+    "passed": 1516
+  },
+  "failed": 0,
+  "command": "python -m pytest -q --tb=short",
+  "factory_regression_passed": 140,
+  "log": ".cache/online-chat-full-suite-final.log",
+  "exit_code": 0,
+  "skipped": 116
+}
