@@ -93,7 +93,9 @@ def create_app(
             if repository is None:
                 repository = ConversationRepository(database)
             if owns_model:
-                model = create_model(settings)
+                # 缺省保持原工厂调用形状；仅在线显式启用低思考时传入额外参数。
+                model = (create_model(settings) if settings.online_reasoning_effort is None else
+                         create_model(settings, reasoning_effort=settings.online_reasoning_effort))
                 # 资源按后进先出关闭：异步模型客户端、同步客户端，最后是数据库。
                 resources.callback(model.root_client.close)
                 resources.push_async_callback(model.root_async_client.close)

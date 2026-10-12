@@ -2,6 +2,7 @@
 import asyncio
 from copy import deepcopy
 import json
+import logging
 import math
 from collections.abc import Mapping
 
@@ -12,6 +13,9 @@ from sqlalchemy.exc import DBAPIError
 
 from app.core.errors import ServiceError
 from app.tools.types import ToolCall, ToolOutcome
+
+
+logger = logging.getLogger(__name__)
 
 
 _ERROR_MESSAGES = {
@@ -25,6 +29,10 @@ _ERROR_MESSAGES = {
     "tool_timeout": "工具执行超时，请稍后重试。",
     "tool_connection_error": "工具连接暂时不可用，请稍后重试。",
     "tool_execution_error": "工具执行失败。",
+    "upstream_timeout": "模型响应超时，请稍后重试。",
+    "upstream_error": "模型服务暂时不可用，请稍后重试。",
+    "invalid_structured_output": "模型返回的结构化结果无效，请稍后重试。",
+    "input_too_long": "Input exceeds the context budget.",
 }
 
 
@@ -114,6 +122,8 @@ class ToolExecutor:
                     code, retry = exc.code, False
                 else:
                     code, retry = "tool_execution_error", False
+                # 仅记录固定阶段、白名单错误码和类型，不记录工具参数或异常正文。
+                logger.warning('stage=tool code=%s type=%s', code, type(exc).__name__)
                 if not retry or attempt > max_retries:
                     return _error(code, attempt)
         raise AssertionError("Unreachable execution state.")

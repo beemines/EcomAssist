@@ -1,6 +1,7 @@
 # 单轮工具聊天服务：模型选工具、执行并回灌结果，最后流式输出回答。
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -10,6 +11,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langchain_core.tools import BaseTool
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from openai import APITimeoutError
+from pydantic import ValidationError
 
 from app.config import Settings
 from app.core.chat import StreamEvent
@@ -25,7 +27,11 @@ from app.core.tool_history import build_tool_messages, completed_turns
 from app.repositories.conversations import ConversationRepository
 from app.repositories.records import record_from_message
 from app.tools.executor import ToolExecutor
+from app.tools.schemas import FAQArgs
 from app.tools.types import ToolCall, ToolContext
+
+
+logger = logging.getLogger(__name__)
 
 
 # 将当前工具注册表转换为模型可见的 OpenAI 工具 Schema。
@@ -124,6 +130,30 @@ class ToolChatService:
             raise _protocol_error("模型返回了无效工具申请。") from None
         return ToolCall(call["id"], call["name"], call["args"])
 
+    def _normalize_faq_request(self, selected: AIMessage, call: ToolCall,
+                               current: HumanMessage) -> tuple[AIMessage, ToolCall]:
+        """仅归一合法FAQ申请；复制并持久化有效申请，原始模型消息保持不变。"""
+        if call.name != 'query_faq':
+            return selected, call
+        try:
+            arguments = FAQArgs.model_validate(call.args)
+        except ValidationError:
+            # 非法Schema继续交给既有执行器拒绝，不用可信原话修复非法参数。
+            return selected, call
+        if arguments.keyword in current.content:
+            return selected, call
+        # 片段只作为申请参数；工具闭包仍把完整原话与条件传给检索仓储。
+        args = {'keyword': current.content.lstrip()[:128]}
+        effective = selected.model_copy(deep=True)
+        effective.tool_calls[0]['args'] = args
+        if 'tool_calls' in effective.additional_kwargs:
+            # SDK原始申请镜像同步为有效参数，避免最终消息中出现两套申请正文。
+            effective.additional_kwargs['tool_calls'] = [{
+                'id': call.id, 'type': 'function', 'function': {
+                    'name': call.name, 'arguments': json.dumps(args, ensure_ascii=False)}}]
+        logger.warning('status=normalized code=faq_keyword_normalized tool=query_faq')
+        return effective, ToolCall(call.id, call.name, args)
+
     # 进行一次工具选择、至多一次逻辑调用，流式生成并保存正常完成的回答。
     async def stream(self, prepared: PreparedToolChat) -> AsyncIterator[StreamEvent]:
         try:
@@ -133,6 +163,8 @@ class ToolChatService:
                 bound = self.model.bind_tools(list(prepared.registry.values()), tool_choice="auto", parallel_tool_calls=False)
                 selected = await bound.ainvoke(prepared.messages)
                 call = self._validate_selection(selected, prepared.registry)
+                if call is not None:
+                    selected, call = self._normalize_faq_request(selected, call, prepared.current)
                 pending: list[BaseMessage] = []
                 knowledge_path = call is None or call.name == 'query_faq'
                 evidence = None
