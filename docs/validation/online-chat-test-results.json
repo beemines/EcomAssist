@@ -16,5 +16,13 @@
   "factory_regression_passed": 140,
   "log": ".cache/online-chat-full-suite-final.log",
   "exit_code": 0,
-  "skipped": 116
+  "skipped": 116,
+  "validated_commit": "fd22a1016015a6882d4150e5425817986b47614e",
+  "merged_regression": {
+    "reported_elapsed_seconds": 7.63,
+    "passed": 123,
+    "failed": 0,
+    "exit_code": 0,
+    "command": "python -m pytest tests/test_online_chat_reliability.py tests/test_faq_keyword_normalization.py tests/test_chat_api.py tests/test_conversation_api.py tests/test_hybrid_lifecycle.py tests/test_knowledge_lifecycle.py -q --tb=short"
+  }
 }
