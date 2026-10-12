@@ -1,0 +1,29 @@
+{
+  "url": "http://127.0.0.1:8001/rag-eval",
+  "selected_run": "7adfc4c7dc3a4750885c23c94f3be671",
+  "checks": [
+    "默认300题合并、两run来源明确、原汇总逐值一致、20个真实柱子、1188完成12错误保留",
+    "真实142题568条范围、缺失桶N/A、环形比例与API一致",
+    "指标切换、悬停样本、共同题目范围、BM25条形与环形切换",
+    "旧v1缺失分数N/A，历史原口径可选且真实绘制",
+    "原精确分数表、逐题详情入口保持可用",
+    "390px手机无整页横向溢出，图表内部可滚动"
+  ],
+  "page_errors": [],
+  "non_get_requests": 0,
+  "api_request_paths": [
+    "/api/rag-evaluations/datasets",
+    "/api/rag-evaluations/runs",
+    "/api/rag-evaluations/runs/7adfc4c7dc3a4750885c23c94f3be671",
+    "/api/rag-evaluations/runs/7adfc4c7dc3a4750885c23c94f3be671/cases",
+    "/api/rag-evaluations/runs/legacy-30-v1",
+    "/api/rag-evaluations/runs/legacy-30-v1/cases",
+    "/api/rag-evaluations/runs/7adfc4c7dc3a4750885c23c94f3be671/cases/C39/dense"
+  ],
+  "mobile_layout": {
+    "width": 390,
+    "scrollWidth": 390,
+    "svgWidth": 750,
+    "generationColumns": "322px"
+  }
+}

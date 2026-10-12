@@ -1,5 +1,7 @@
 # 电商智能客服
 
+300 题四策略已完成全部 1200 条尝试：1188 条成功、12 条失败，0 未执行。原 158 题保持，剩余 142 题以 8 题并发补跑约 11 分 22 秒。公平共同题集上，混合加重排的检索排名和答案要点覆盖最高。见[实际结果分析](docs/validation/merchant-rag-comparison-analysis.md)、[完整合并报告](docs/validation/merchant-rag-comparison.md)与[独立验收](docs/validation/merchant-rag-completion-proof.json)。错误及两次运行的真实来源均保留。
+
 基于 Python、FastAPI、LangChain、SQLAlchemy、MySQL 和 Milvus 的电商客服项目。开发按步骤推进：第一步跑通流式多轮对话与售后字段提取；第二步接入单轮 Function Calling 和持久化；第三步建立可恢复的知识库；第四步加入混合检索、重排、质量控制与评估。
 
 每轮一次工具选择、最多一个逻辑工具、一次最终流式回答，不运行 Agent Loop。订单、商品、物流工具使用随机模拟数据；人工工单真实写库。`query_faq` 保留原入参出参契约，内部使用 BGE-M3 Dense 与 Milvus 原生中文 BM25 各召回 Top-50，通过 RRF 融合，再由 `BAAI/bge-reranker-v2-m3` 重排为 Top-10。正文从 MySQL 已完成向量化的知识行读取。
@@ -148,7 +150,9 @@ curl.exe -N --max-time 260 -H 'Content-Type: application/json' --data-binary '@.
 
 ## 冻结 300 题评估工作台
 
-当前续行：用户“继续”获root执行前放行后，原参数透明观測pilot `7d421bf017ff4c02afec385178848fde` 从真实8002页面只启动一次，40尝试/32完成/8改写错误（B3/B54各一次共享结构失败影响四路），清理成功。HTTP200/stop仍因根list/answer包裹对象被生产严格QueryPlan拒绝；无参数或源码变更，191d53…配置保持。actual matching_pilot=false，full未运行，收费停止、Task10 OPEN。详见[本轮原报告](docs/validation/merchant-rag-observed-pilot.json)、[安全观测](docs/validation/merchant-rag-observed-rewrite-evidence.md)、[精确分母分析](docs/validation/merchant-rag-observed-analysis.md)、[资源归因](docs/validation/merchant-rag-observed-resource-proof.json)与[交付状态](docs/validation/rag-evaluation-delivery.md)。
+当前交付：合法固定pilot `aecdf615794d4ccdad984c9caeda979f` 通过后启动的全量 `2486afc8e62e4550bdfec6d676a27d84` 已中断，原报告保留。用户要求最快完成后，新run `7adfc4c7dc3a4750885c23c94f3be671` 只补142个未结束题组，568条全部尝试、562完成/6错误、清理成功；保留原158题后，300题1200条中1188完成/12错误。两次按整题四路合并，配置指纹`46d11df…`逐值相同，实际操作并发2→8另记；未改模型/预算/期限/retry/Prompt/冻结数据，也未重试原6条明确错误。共同四路完整题289，其中可答230、库外59；完整结论与真实分母见[结果分析](docs/validation/merchant-rag-comparison-analysis.md)、[合并报告](docs/validation/merchant-rag-comparison.md)及[当前交付](docs/validation/rag-evaluation-delivery.md)。原中断run的历史清理失败仍明示。
+
+前一透明观测阶段：用户“继续”获root执行前放行后，原参数透明观測pilot `7d421bf017ff4c02afec385178848fde` 从真实8002页面只启动一次，40尝试/32完成/8改写错误（B3/B54各一次共享结构失败影响四路），清理成功。HTTP200/stop仍因根list/answer包裹对象被生产严格QueryPlan拒绝；无参数或源码变更，191d53…配置保持。该轮actual matching_pilot=false、full未运行、收费停止。详见[该轮原报告](docs/validation/merchant-rag-observed-pilot.json)、[安全观测](docs/validation/merchant-rag-observed-rewrite-evidence.md)、[精确分母分析](docs/validation/merchant-rag-observed-analysis.md)与[资源归因](docs/validation/merchant-rag-observed-resource-proof.json)。
 
 此前阶段：N1/N2已在源码 `42bd812` 的唯一额外定点复核通过。原固定pilot `52678f9492114f1789466442e575c168` 的9/40和前一low pilot `201215b02b874feea7e866db10ee23db` 的39/40、全部错误及原时钟完整保留。评估专用low源码 `cfc65fd` 已独立复核；原两条真实单调用探针均合法，依赖按明确授权恢复。用户另行批准C5/dense单次诊断及条件继续：诊断仅answer1、stop/引用合法且清理成功；随后真实8002页面仅启动一次新固定pilot `b1af9aadc0094141aa5df5ae0ec91bd1`，40尝试/32完成/8改写错误（B54/E19各一次共享失败影响四路）、清理成功。实际matching_pilot=false，full仍未运行。Task10未完成，详见[交付状态](docs/validation/rag-evaluation-delivery.md)、[新实际报告](docs/validation/merchant-rag-c5-followup-pilot.json)、[精确分析](docs/validation/merchant-rag-c5-followup-analysis.md)及[单次诊断](docs/validation/merchant-rag-c5-diagnostic.md)；未调参、重标或通过重复试跑洗分。
 
@@ -182,7 +186,7 @@ API 基址 `/api/rag-evaluations` 提供 `GET /datasets`、`POST /runs`、`GET /
 
 新运行的本地文件位于 `runtime/rag-evaluation/{run_id}/`，该目录已忽略，原始裁判与归属快照不提交。单份不可变 `source-map.json` 保留完整50块来源和本轮主键，逐题 `audit` 保留稳定组、答案要点及实际候选/最终排序 score/kind；不同分数种类不可直接比较。公共 `report.json` / `report.md` 经白名单投影并一致发布后才可下载，缺少历史捕获的数据保持 null/N/A。旧原始报告已原字节移到 `evals/legacy/rag-evaluation-history.json`，静态URL不再公开原始字段，安全历史API仍提供原指标。
 
-材料与标注说明见[材料审计](docs/validation/rag-evaluation-materials-audit.md)，受控UI边界见[页面验证](docs/validation/rag-evaluation-ui.md)。实际失败pilot的[公开JSON](docs/validation/merchant-rag-pilot.json)与[Markdown](docs/validation/merchant-rag-pilot.md)保留所有阶段、指纹、计数、指标分母/排除原因与审计来源；共同合法题仅D1/D3，不足以比较可答生成。没有 `merchant-rag-comparison` 全量报告，不用受控夹具替代真实质量。
+材料与标注说明见[材料审计](docs/validation/rag-evaluation-materials-audit.md)，受控UI边界见[页面验证](docs/validation/rag-evaluation-ui.md)。初次实际失败pilot的[公开JSON](docs/validation/merchant-rag-pilot.json)与[Markdown](docs/validation/merchant-rag-pilot.md)保留所有阶段、指纹、计数、指标分母/排除原因与审计来源；该轮共同合法题仅D1/D3，不足以比较可答生成。Ruling25补跑及[终态比较](docs/validation/merchant-rag-comparison.md)已交付，真实失败保留，不用受控夹具替代模型质量。
 
 这版材料参考同一金标题库构造，只能支持项目内受控比较。候选 Top-50 等于全部 50 块，候选覆盖饱和不能证明泛化；实际比较还需看首命中、Top-5/10 完整组、Prompt 覆盖、回答要点与忠实度，并列出各指标有效分母、错误与四路共同有效子集。部分失败如实保留，不通过重复全量收费洗分。
 

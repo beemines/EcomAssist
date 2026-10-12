@@ -1,0 +1,904 @@
+{
+  "kind": "root-independent-fast-completion-verification",
+  "paid_requests_added": 0,
+  "source_run_id": "2486afc8e62e4550bdfec6d676a27d84",
+  "continuation_run_id": "7adfc4c7dc3a4750885c23c94f3be671",
+  "counts": {
+    "total": 1200,
+    "attempted": 1200,
+    "completed": 1188,
+    "errors": 12,
+    "status_counts": {
+      "completed": 1188,
+      "rewrite_error": 0,
+      "retrieval_error": 2,
+      "self_check_error": 2,
+      "answer_error": 6,
+      "judge_error": 2,
+      "cancelled": 0,
+      "not_attempted": 0,
+      "running": 0
+    }
+  },
+  "original_protected_files": 1218,
+  "original_files_unchanged": true,
+  "native_report_pairs_byte_equal": true,
+  "physical_maps_validated": true,
+  "frozen_cases": 300,
+  "frozen_chunks": 50,
+  "all_records_native_values_equal": true,
+  "summary_exactly_production": true,
+  "common_generation_valid_n": 289,
+  "rewrite": {
+    "attempted_n": 300,
+    "success_n": 285,
+    "degraded_n": 15,
+    "error_n": 0,
+    "success_rate": 0.95,
+    "unreported_n": 0
+  },
+  "continuation_elapsed_seconds": 682.101231,
+  "continuation_request_counts": {
+    "rewrite": 142,
+    "self_check": 568,
+    "answer": 319,
+    "judge": 564,
+    "embedding": 429,
+    "rerank": 142,
+    "milvus": 603
+  },
+  "continuation_cleanup": {
+    "ok": true,
+    "errors": [],
+    "unverified": []
+  },
+  "resource_table_changes": [
+    {
+      "port": "3308",
+      "table": "faith_cases",
+      "before_count": 41,
+      "after_count": 93
+    }
+  ],
+  "quality_changed_rows": 54,
+  "quality_changed_rows_have_actual_unsupported_records": true,
+  "quality_payload_fields_independently_compared": false,
+  "business_and_foreign_resource_hashes_equal": true,
+  "public_pair_sha256": [
+    {
+      "json": "0b6f697cff08de71f1dd1d3d6de0f7efc7c54a0c69976316f4bbcf29470d678d",
+      "md": "7e59f62c87476738ffe4e4442bed3f339805e1f038891af118a1faf5b327952c"
+    },
+    {
+      "json": "c39af1c8749f095b3cefa243c3954be6593e9e7100b6f929150eb68488899894",
+      "md": "e0aa0da2dbc22e184349dccc1a27286791d085a523d043adaf9d70eb3c45bb09"
+    }
+  ],
+  "overall": [
+    {
+      "bucket": "overall",
+      "strategy": "dense",
+      "total": 300,
+      "attempted": 300,
+      "completed": 299,
+      "errors": 1,
+      "not_attempted": 0,
+      "status_counts": {
+        "completed": 299,
+        "rewrite_error": 0,
+        "retrieval_error": 1,
+        "self_check_error": 0,
+        "answer_error": 0,
+        "judge_error": 0,
+        "cancelled": 0,
+        "not_attempted": 0,
+        "running": 0
+      },
+      "metrics": {
+        "recall_at_5": {
+          "value": 0.9762900976290098,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "recall_at_10": {
+          "value": 0.997907949790795,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "mrr_at_10": {
+          "value": 0.9366806136680614,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "all_groups_hit_at_5": {
+          "value": 0.9497907949790795,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "all_groups_hit_at_10": {
+          "value": 0.99581589958159,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "candidate_group_coverage": {
+          "value": 1.0,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "prompt_group_coverage": {
+          "value": 0.997907949790795,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "answer_point_coverage": {
+          "value": 0.9239888423988842,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "faithfulness": {
+          "value": 0.9378277153558052,
+          "valid_n": 267,
+          "excluded": {
+            "retrieval_error": 1,
+            "zero_claims": 32
+          }
+        },
+        "absent_refusal_rate": {
+          "value": 0.9666666666666667,
+          "valid_n": 60,
+          "excluded": {
+            "answerable": 240
+          }
+        },
+        "answerable_false_refusal_rate": {
+          "value": 0.02510460251046025,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        }
+      }
+    },
+    {
+      "bucket": "overall",
+      "strategy": "bm25",
+      "total": 300,
+      "attempted": 300,
+      "completed": 296,
+      "errors": 4,
+      "not_attempted": 0,
+      "status_counts": {
+        "completed": 296,
+        "rewrite_error": 0,
+        "retrieval_error": 0,
+        "self_check_error": 0,
+        "answer_error": 4,
+        "judge_error": 0,
+        "cancelled": 0,
+        "not_attempted": 0,
+        "running": 0
+      },
+      "metrics": {
+        "recall_at_5": {
+          "value": 0.9097222222222222,
+          "valid_n": 240,
+          "excluded": {
+            "expected_refusal": 60
+          }
+        },
+        "recall_at_10": {
+          "value": 0.9423611111111111,
+          "valid_n": 240,
+          "excluded": {
+            "expected_refusal": 60
+          }
+        },
+        "mrr_at_10": {
+          "value": 0.8818750000000001,
+          "valid_n": 240,
+          "excluded": {
+            "expected_refusal": 60
+          }
+        },
+        "all_groups_hit_at_5": {
+          "value": 0.8666666666666667,
+          "valid_n": 240,
+          "excluded": {
+            "expected_refusal": 60
+          }
+        },
+        "all_groups_hit_at_10": {
+          "value": 0.925,
+          "valid_n": 240,
+          "excluded": {
+            "expected_refusal": 60
+          }
+        },
+        "candidate_group_coverage": {
+          "value": 0.9645833333333333,
+          "valid_n": 240,
+          "excluded": {
+            "expected_refusal": 60
+          }
+        },
+        "prompt_group_coverage": {
+          "value": 0.9423611111111111,
+          "valid_n": 240,
+          "excluded": {
+            "expected_refusal": 60
+          }
+        },
+        "answer_point_coverage": {
+          "value": 0.8926553672316384,
+          "valid_n": 236,
+          "excluded": {
+            "answer_error": 4,
+            "expected_refusal": 60
+          }
+        },
+        "faithfulness": {
+          "value": 0.9570838252656435,
+          "valid_n": 242,
+          "excluded": {
+            "answer_error": 4,
+            "zero_claims": 54
+          }
+        },
+        "absent_refusal_rate": {
+          "value": 0.9833333333333333,
+          "valid_n": 60,
+          "excluded": {
+            "answerable": 240
+          }
+        },
+        "answerable_false_refusal_rate": {
+          "value": 0.07627118644067797,
+          "valid_n": 236,
+          "excluded": {
+            "answer_error": 4,
+            "expected_refusal": 60
+          }
+        }
+      }
+    },
+    {
+      "bucket": "overall",
+      "strategy": "hybrid",
+      "total": 300,
+      "attempted": 300,
+      "completed": 297,
+      "errors": 3,
+      "not_attempted": 0,
+      "status_counts": {
+        "completed": 297,
+        "rewrite_error": 0,
+        "retrieval_error": 1,
+        "self_check_error": 0,
+        "answer_error": 2,
+        "judge_error": 0,
+        "cancelled": 0,
+        "not_attempted": 0,
+        "running": 0
+      },
+      "metrics": {
+        "recall_at_5": {
+          "value": 0.9595536959553697,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "recall_at_10": {
+          "value": 0.9769874476987448,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "mrr_at_10": {
+          "value": 0.9277080427708043,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "all_groups_hit_at_5": {
+          "value": 0.9372384937238494,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "all_groups_hit_at_10": {
+          "value": 0.9665271966527197,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "candidate_group_coverage": {
+          "value": 1.0,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "prompt_group_coverage": {
+          "value": 0.9769874476987448,
+          "valid_n": 239,
+          "excluded": {
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "answer_point_coverage": {
+          "value": 0.919127988748242,
+          "valid_n": 237,
+          "excluded": {
+            "answer_error": 2,
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        },
+        "faithfulness": {
+          "value": 0.9420054945054945,
+          "valid_n": 260,
+          "excluded": {
+            "answer_error": 2,
+            "retrieval_error": 1,
+            "zero_claims": 37
+          }
+        },
+        "absent_refusal_rate": {
+          "value": 0.9666666666666667,
+          "valid_n": 60,
+          "excluded": {
+            "answerable": 240
+          }
+        },
+        "answerable_false_refusal_rate": {
+          "value": 0.0379746835443038,
+          "valid_n": 237,
+          "excluded": {
+            "answer_error": 2,
+            "expected_refusal": 60,
+            "retrieval_error": 1
+          }
+        }
+      }
+    },
+    {
+      "bucket": "overall",
+      "strategy": "hybrid_rerank",
+      "total": 300,
+      "attempted": 300,
+      "completed": 296,
+      "errors": 4,
+      "not_attempted": 0,
+      "status_counts": {
+        "completed": 296,
+        "rewrite_error": 0,
+        "retrieval_error": 0,
+        "self_check_error": 2,
+        "answer_error": 0,
+        "judge_error": 2,
+        "cancelled": 0,
+        "not_attempted": 0,
+        "running": 0
+      },
+      "metrics": {
+        "recall_at_5": {
+          "value": 0.992361111111111,
+          "valid_n": 240,
+          "excluded": {
+            "expected_refusal": 60
+          }
+        },
+        "recall_at_10": {
+          "value": 0.9958333333333333,
+          "valid_n": 240,
+          "excluded": {
+            "expected_refusal": 60
+          }
+        },
+        "mrr_at_10": {
+          "value": 0.982638888888889,
+          "valid_n": 240,
+          "excluded": {
+            "expected_refusal": 60
+          }
+        },
+        "all_groups_hit_at_5": {
+          "value": 0.9833333333333333,
+          "valid_n": 240,
+          "excluded": {
+            "expected_refusal": 60
+          }
+        },
+        "all_groups_hit_at_10": {
+          "value": 0.9916666666666667,
+          "valid_n": 240,
+          "excluded": {
+            "expected_refusal": 60
+          }
+        },
+        "candidate_group_coverage": {
+          "value": 1.0,
+          "valid_n": 240,
+          "excluded": {
+            "expected_refusal": 60
+          }
+        },
+        "prompt_group_coverage": {
+          "value": 0.9958333333333333,
+          "valid_n": 240,
+          "excluded": {
+            "expected_refusal": 60
+          }
+        },
+        "answer_point_coverage": {
+          "value": 0.9412798874824192,
+          "valid_n": 237,
+          "excluded": {
+            "expected_refusal": 59,
+            "judge_error": 2,
+            "self_check_error": 2
+          }
+        },
+        "faithfulness": {
+          "value": 0.964153152843629,
+          "valid_n": 252,
+          "excluded": {
+            "judge_error": 2,
+            "self_check_error": 2,
+            "zero_claims": 44
+          }
+        },
+        "absent_refusal_rate": {
+          "value": 0.9666666666666667,
+          "valid_n": 60,
+          "excluded": {
+            "answerable": 240
+          }
+        },
+        "answerable_false_refusal_rate": {
+          "value": 0.02100840336134454,
+          "valid_n": 238,
+          "excluded": {
+            "expected_refusal": 60,
+            "self_check_error": 2
+          }
+        }
+      }
+    }
+  ],
+  "common_overall": [
+    {
+      "bucket": "overall",
+      "strategy": "dense",
+      "total": 289,
+      "attempted": 289,
+      "completed": 289,
+      "errors": 0,
+      "not_attempted": 0,
+      "status_counts": {
+        "completed": 289,
+        "rewrite_error": 0,
+        "retrieval_error": 0,
+        "self_check_error": 0,
+        "answer_error": 0,
+        "judge_error": 0,
+        "cancelled": 0,
+        "not_attempted": 0,
+        "running": 0
+      },
+      "metrics": {
+        "recall_at_5": {
+          "value": 0.9753623188405798,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "recall_at_10": {
+          "value": 0.9978260869565218,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "mrr_at_10": {
+          "value": 0.9342028985507247,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "all_groups_hit_at_5": {
+          "value": 0.9478260869565217,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "all_groups_hit_at_10": {
+          "value": 0.9956521739130435,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "candidate_group_coverage": {
+          "value": 1.0,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "prompt_group_coverage": {
+          "value": 0.9978260869565218,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "answer_point_coverage": {
+          "value": 0.9210144927536232,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "faithfulness": {
+          "value": 0.9394293125810635,
+          "valid_n": 257,
+          "excluded": {
+            "zero_claims": 32
+          }
+        },
+        "absent_refusal_rate": {
+          "value": 0.9661016949152542,
+          "valid_n": 59,
+          "excluded": {
+            "answerable": 230
+          }
+        },
+        "answerable_false_refusal_rate": {
+          "value": 0.02608695652173913,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        }
+      }
+    },
+    {
+      "bucket": "overall",
+      "strategy": "bm25",
+      "total": 289,
+      "attempted": 289,
+      "completed": 289,
+      "errors": 0,
+      "not_attempted": 0,
+      "status_counts": {
+        "completed": 289,
+        "rewrite_error": 0,
+        "retrieval_error": 0,
+        "self_check_error": 0,
+        "answer_error": 0,
+        "judge_error": 0,
+        "cancelled": 0,
+        "not_attempted": 0,
+        "running": 0
+      },
+      "metrics": {
+        "recall_at_5": {
+          "value": 0.9123188405797101,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "recall_at_10": {
+          "value": 0.9463768115942028,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "mrr_at_10": {
+          "value": 0.8896376811594203,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "all_groups_hit_at_5": {
+          "value": 0.8695652173913043,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "all_groups_hit_at_10": {
+          "value": 0.9304347826086956,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "candidate_group_coverage": {
+          "value": 0.967391304347826,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "prompt_group_coverage": {
+          "value": 0.9463768115942028,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "answer_point_coverage": {
+          "value": 0.8942028985507245,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "faithfulness": {
+          "value": 0.9612893462469734,
+          "valid_n": 236,
+          "excluded": {
+            "zero_claims": 53
+          }
+        },
+        "absent_refusal_rate": {
+          "value": 0.9830508474576272,
+          "valid_n": 59,
+          "excluded": {
+            "answerable": 230
+          }
+        },
+        "answerable_false_refusal_rate": {
+          "value": 0.07391304347826087,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        }
+      }
+    },
+    {
+      "bucket": "overall",
+      "strategy": "hybrid",
+      "total": 289,
+      "attempted": 289,
+      "completed": 289,
+      "errors": 0,
+      "not_attempted": 0,
+      "status_counts": {
+        "completed": 289,
+        "rewrite_error": 0,
+        "retrieval_error": 0,
+        "self_check_error": 0,
+        "answer_error": 0,
+        "judge_error": 0,
+        "cancelled": 0,
+        "not_attempted": 0,
+        "running": 0
+      },
+      "metrics": {
+        "recall_at_5": {
+          "value": 0.9601449275362319,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "recall_at_10": {
+          "value": 0.9760869565217392,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "mrr_at_10": {
+          "value": 0.9292270531400967,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "all_groups_hit_at_5": {
+          "value": 0.9391304347826087,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "all_groups_hit_at_10": {
+          "value": 0.9652173913043478,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "candidate_group_coverage": {
+          "value": 1.0,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "prompt_group_coverage": {
+          "value": 0.9760869565217392,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "answer_point_coverage": {
+          "value": 0.9166666666666667,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "faithfulness": {
+          "value": 0.9438264633916807,
+          "valid_n": 253,
+          "excluded": {
+            "zero_claims": 36
+          }
+        },
+        "absent_refusal_rate": {
+          "value": 0.9661016949152542,
+          "valid_n": 59,
+          "excluded": {
+            "answerable": 230
+          }
+        },
+        "answerable_false_refusal_rate": {
+          "value": 0.0391304347826087,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        }
+      }
+    },
+    {
+      "bucket": "overall",
+      "strategy": "hybrid_rerank",
+      "total": 289,
+      "attempted": 289,
+      "completed": 289,
+      "errors": 0,
+      "not_attempted": 0,
+      "status_counts": {
+        "completed": 289,
+        "rewrite_error": 0,
+        "retrieval_error": 0,
+        "self_check_error": 0,
+        "answer_error": 0,
+        "judge_error": 0,
+        "cancelled": 0,
+        "not_attempted": 0,
+        "running": 0
+      },
+      "metrics": {
+        "recall_at_5": {
+          "value": 0.9920289855072464,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "recall_at_10": {
+          "value": 0.9956521739130435,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "mrr_at_10": {
+          "value": 0.9818840579710145,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "all_groups_hit_at_5": {
+          "value": 0.9826086956521739,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "all_groups_hit_at_10": {
+          "value": 0.991304347826087,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "candidate_group_coverage": {
+          "value": 1.0,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "prompt_group_coverage": {
+          "value": 0.9956521739130435,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "answer_point_coverage": {
+          "value": 0.9394927536231884,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        },
+        "faithfulness": {
+          "value": 0.9648782283476162,
+          "valid_n": 245,
+          "excluded": {
+            "zero_claims": 44
+          }
+        },
+        "absent_refusal_rate": {
+          "value": 0.9661016949152542,
+          "valid_n": 59,
+          "excluded": {
+            "answerable": 230
+          }
+        },
+        "answerable_false_refusal_rate": {
+          "value": 0.021739130434782608,
+          "valid_n": 230,
+          "excluded": {
+            "expected_refusal": 59
+          }
+        }
+      }
+    }
+  ]
+}
