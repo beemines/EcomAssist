@@ -1,6 +1,16 @@
 # 300 题 RAG 评估材料审计
 
-## 2026-10-11 当前原参数透明观测试跑
+2026-10-12最新：300题四策略1200条已全部尝试，1188完成/12错误，0未执行/中断。原158题保留，新UUID只补142题；新资源清理成功，旧中断历史仍保留。完整结果见[实际分析](merchant-rag-comparison-analysis.md)、[合并报告](merchant-rag-comparison.md)、[独立验收](merchant-rag-completion-proof.json)。8001页面可读取两次原生历史，300题汇总使用合并报告。下文截图与先前状态按历史证据保留。
+
+## 2026-10-11 当前显式降级试运行通过、全量运行中
+
+冻结300题/五桶各60/50chunks、原gold/Prompt/模型/预算/期限/retry0保持；新policy `original-query-on-invalid-v1`进入新指纹`46d11df…`，只在评估共享改写明确invalid_structured_output时显式degraded为原query/空扩展，降级不计改写成功。源码`05ca796`限定fix1复核通过，root另行放行新method2030d768…及最终binding。旧14公共pair文件与旧观测方法/目录hash保留，未用诊断补入质量分母。
+
+actual8002单worker/显式origin新pilot `aecdf615794d4ccdad984c9caeda979f` 完整40/40、0error、cleanup成功；rewrite按题10success/0degraded/0error。实际40audit-v1、50来源map af6590ab…与冻结重建相等、当前新配置完全匹配、GET matching_pilot=true，full gate全部通过。[原质量报告](merchant-rag-degraded-pilot.json)、[每指标n/excluded及排名](merchant-rag-degraded-analysis.md)、[原协议与runner声明安全留证](merchant-rag-degraded-rewrite-evidence.md)、[资源归因](merchant-rag-degraded-resource-proof.json)独立保存。15无关表/业务84完整向量及foreign/原集合统计/校准保持，只有C35 ID25合法dense一次upsert使seen4→5。
+
+前基线64e5988…等observed-after；full前基线c402991c…等新pilot-after。真实Chrome随后仅点击一次full，run`2486afc8e62e4550bdfec6d676a27d84`，计划300/1200正在运行；终态指标与资源归因尚待，未生成终态占位报告，Task10仍OPEN。8000/8001未动，无第二pilot/probe、模型调参、源修改或工程suite复跑。
+
+## 2026-10-11 原参数透明观测试跑（历史）
 
 固定材料仍300题/五桶各60/50块，全部资料/Prompt/模型/预算/期限/retry0保持191d53…配置；生产仍cfc65fd。ignored observer方法SHA0f12595c…单列声明，root FULL读与fake参数/返回/异常身份及非rewrite不读正文证明后放行，准备构造/上游0。真实同8002 fixed10一次run7d421bf017ff4c02afec385178848fde：40attempted/32completed/8rewrite_error（B3/B54各共享一次），cleanup成功；actual matching_pilot=false、full未运行、收费STOP。旧三pilot六文件及C5/B54两诊断pair原字节保持，不用独立诊断补质量分母。
 

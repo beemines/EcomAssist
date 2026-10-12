@@ -1,0 +1,865 @@
+{
+  "run_id": "aecdf615794d4ccdad984c9caeda979f",
+  "scope": "pilot",
+  "kind": "original-rewrite-protocol-and-explicit-runner-declaration-separate",
+  "method_file": ".cache/task10_degraded_service.py",
+  "method_sha256": "2030d7686f97bb7bc902dfc65c8e88c7ff23a24386de1267339d5845b86391dd",
+  "config_fingerprint": "46d11df092ca2b803030fb7e227d971ef7530552bb5d18b4939bfc0c7f186ee7",
+  "reviewed_source": "05ca796090ba1c0d2e3c5fff8ce310e3548bb941",
+  "strict_production_validation_unchanged": true,
+  "original_request_and_return_objects_transparent": true,
+  "captured_before_production_validation": true,
+  "actual_rewrite_outgoing": 10,
+  "observation_errors": 0,
+  "observations": [
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "A21",
+      "started_at": "2026-10-11T06:09:39.069005+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "252f41e845bf55097c249452b470d1f1fdb3aecb47be12bc0ef247496920a936",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 601,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 84,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T06:09:41.046462+00:00",
+      "elapsed_s": 1.9774346998892725,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 3,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "A43",
+      "started_at": "2026-10-11T06:09:39.166025+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "dc741f08f23831d8260b889db96838eae95617625fabd7f0f8bbc5981f71fd9a",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 595,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 82,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T06:09:41.165892+00:00",
+      "elapsed_s": 1.9998614001087844,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 3,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "B3",
+      "started_at": "2026-10-11T06:10:13.914296+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "9d0724be07bd29bf184a3a1c045060f83deb4a51bf889dbc0257046e5a811fd4",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 537,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 84,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T06:10:15.191672+00:00",
+      "elapsed_s": 1.2773746000602841,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 2,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "B54",
+      "started_at": "2026-10-11T06:10:38.537406+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "55ae7e897ce1ff76c387325ce61f41394263af55487f90905a2d1fab02a75538",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 586,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 107,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T06:10:40.029191+00:00",
+      "elapsed_s": 1.4917821001727134,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 2,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "C35",
+      "started_at": "2026-10-11T06:11:20.142936+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "5666f6071ecba335317b5188e03f3a254501f32d138390ea13769935c9014734",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 577,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 76,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T06:11:21.613255+00:00",
+      "elapsed_s": 1.470327700022608,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 3,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "C5",
+      "started_at": "2026-10-11T06:11:11.911992+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "7394e768740d897298ad133d3b08dc0d76501d81ca6c4eb64b997d2309e2661a",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 518,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 55,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T06:11:13.104372+00:00",
+      "elapsed_s": 1.1923827000427991,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 2,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "D1",
+      "started_at": "2026-10-11T06:11:50.259397+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "7a399c5402f1890e6951dac82eced8cb88b953e0b3220281b2cd09496d02d622",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 569,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 74,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T06:11:51.775062+00:00",
+      "elapsed_s": 1.5156620999332517,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 3,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "D3",
+      "started_at": "2026-10-11T06:11:59.154380+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "5a85c4ef29567fdd247204a7906ad3b11cbc8898f78b340cd5f72294fb44949c",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 534,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 59,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T06:12:00.544143+00:00",
+      "elapsed_s": 1.389760100049898,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 1,
+            "item_shapes": [
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "E19",
+      "started_at": "2026-10-11T06:12:13.640935+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "033ba4067feadc548e19fda1290ae8a4ff13df0edb155a1bf21d05e2c4b65374",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 621,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 118,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T06:12:14.641411+00:00",
+      "elapsed_s": 1.0004747998900712,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 2,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "E2",
+      "started_at": "2026-10-11T06:12:06.210158+00:00",
+      "observation_errors": [],
+      "actual_http_outgoing": 1,
+      "messages_sha256": "37e6ca05948ebad1d23f6f91261f28a7a63b1e7e40ae7bccbf1a59731a8ef86d",
+      "outgoing": [
+        {
+          "method": "POST",
+          "model": "glm-5.3-flash",
+          "reasoning_effort": "low",
+          "output_tokens": 2048,
+          "json_mode": true,
+          "stream": false
+        }
+      ],
+      "http": [
+        {
+          "status_code": 200,
+          "http_version": "HTTP/1.1",
+          "body_bytes": 603,
+          "json_parseable": true,
+          "choice_finish_reasons": [
+            "stop"
+          ]
+        }
+      ],
+      "structured_returned": true,
+      "raw_ai_message": true,
+      "parsed_type": "QueryPlan",
+      "parsing_error_type": null,
+      "finish_reason": "stop",
+      "body_characters": 86,
+      "raw_json_valid": true,
+      "raw_json_object": true,
+      "unexpected_field_count": 0,
+      "standard_type": "str",
+      "expansions_type": "list",
+      "production_plan_validated": true,
+      "standard_equals_question": true,
+      "final_expansions_count": 0,
+      "finished_at": "2026-10-11T06:12:07.749126+00:00",
+      "elapsed_s": 1.5389692999888211,
+      "raw_json_shape": {
+        "type": "dict",
+        "fields": {
+          "standard": {
+            "type": "str"
+          },
+          "expansions": {
+            "type": "list",
+            "length": 3,
+            "item_shapes": [
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              },
+              {
+                "type": "str"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "runner_associations": [
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "A21",
+      "original_planner_validated": true,
+      "original_planner_error_code": null,
+      "runner_rewrite_policy": "original-query-on-invalid-v1",
+      "runner_rewrite_status": "success",
+      "runner_rewrite_error_code": null,
+      "runner_rewrite_error_type": null,
+      "route_count": 4,
+      "four_routes_present": true,
+      "declarations_consistent": true,
+      "final_plans_consistent": true,
+      "final_plan_original_query_empty_expansions": true,
+      "degraded_supported_by_captured_invalid": false
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "A43",
+      "original_planner_validated": true,
+      "original_planner_error_code": null,
+      "runner_rewrite_policy": "original-query-on-invalid-v1",
+      "runner_rewrite_status": "success",
+      "runner_rewrite_error_code": null,
+      "runner_rewrite_error_type": null,
+      "route_count": 4,
+      "four_routes_present": true,
+      "declarations_consistent": true,
+      "final_plans_consistent": true,
+      "final_plan_original_query_empty_expansions": true,
+      "degraded_supported_by_captured_invalid": false
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "B3",
+      "original_planner_validated": true,
+      "original_planner_error_code": null,
+      "runner_rewrite_policy": "original-query-on-invalid-v1",
+      "runner_rewrite_status": "success",
+      "runner_rewrite_error_code": null,
+      "runner_rewrite_error_type": null,
+      "route_count": 4,
+      "four_routes_present": true,
+      "declarations_consistent": true,
+      "final_plans_consistent": true,
+      "final_plan_original_query_empty_expansions": true,
+      "degraded_supported_by_captured_invalid": false
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "B54",
+      "original_planner_validated": true,
+      "original_planner_error_code": null,
+      "runner_rewrite_policy": "original-query-on-invalid-v1",
+      "runner_rewrite_status": "success",
+      "runner_rewrite_error_code": null,
+      "runner_rewrite_error_type": null,
+      "route_count": 4,
+      "four_routes_present": true,
+      "declarations_consistent": true,
+      "final_plans_consistent": true,
+      "final_plan_original_query_empty_expansions": true,
+      "degraded_supported_by_captured_invalid": false
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "C35",
+      "original_planner_validated": true,
+      "original_planner_error_code": null,
+      "runner_rewrite_policy": "original-query-on-invalid-v1",
+      "runner_rewrite_status": "success",
+      "runner_rewrite_error_code": null,
+      "runner_rewrite_error_type": null,
+      "route_count": 4,
+      "four_routes_present": true,
+      "declarations_consistent": true,
+      "final_plans_consistent": true,
+      "final_plan_original_query_empty_expansions": true,
+      "degraded_supported_by_captured_invalid": false
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "C5",
+      "original_planner_validated": true,
+      "original_planner_error_code": null,
+      "runner_rewrite_policy": "original-query-on-invalid-v1",
+      "runner_rewrite_status": "success",
+      "runner_rewrite_error_code": null,
+      "runner_rewrite_error_type": null,
+      "route_count": 4,
+      "four_routes_present": true,
+      "declarations_consistent": true,
+      "final_plans_consistent": true,
+      "final_plan_original_query_empty_expansions": true,
+      "degraded_supported_by_captured_invalid": false
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "D1",
+      "original_planner_validated": true,
+      "original_planner_error_code": null,
+      "runner_rewrite_policy": "original-query-on-invalid-v1",
+      "runner_rewrite_status": "success",
+      "runner_rewrite_error_code": null,
+      "runner_rewrite_error_type": null,
+      "route_count": 4,
+      "four_routes_present": true,
+      "declarations_consistent": true,
+      "final_plans_consistent": true,
+      "final_plan_original_query_empty_expansions": true,
+      "degraded_supported_by_captured_invalid": false
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "D3",
+      "original_planner_validated": true,
+      "original_planner_error_code": null,
+      "runner_rewrite_policy": "original-query-on-invalid-v1",
+      "runner_rewrite_status": "success",
+      "runner_rewrite_error_code": null,
+      "runner_rewrite_error_type": null,
+      "route_count": 4,
+      "four_routes_present": true,
+      "declarations_consistent": true,
+      "final_plans_consistent": true,
+      "final_plan_original_query_empty_expansions": true,
+      "degraded_supported_by_captured_invalid": false
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "E19",
+      "original_planner_validated": true,
+      "original_planner_error_code": null,
+      "runner_rewrite_policy": "original-query-on-invalid-v1",
+      "runner_rewrite_status": "success",
+      "runner_rewrite_error_code": null,
+      "runner_rewrite_error_type": null,
+      "route_count": 4,
+      "four_routes_present": true,
+      "declarations_consistent": true,
+      "final_plans_consistent": true,
+      "final_plan_original_query_empty_expansions": true,
+      "degraded_supported_by_captured_invalid": false
+    },
+    {
+      "run_id": "aecdf615794d4ccdad984c9caeda979f",
+      "eval_id": "E2",
+      "original_planner_validated": true,
+      "original_planner_error_code": null,
+      "runner_rewrite_policy": "original-query-on-invalid-v1",
+      "runner_rewrite_status": "success",
+      "runner_rewrite_error_code": null,
+      "runner_rewrite_error_type": null,
+      "route_count": 4,
+      "four_routes_present": true,
+      "declarations_consistent": true,
+      "final_plans_consistent": true,
+      "final_plan_original_query_empty_expansions": true,
+      "degraded_supported_by_captured_invalid": false
+    }
+  ],
+  "rewrite_summary": {
+    "attempted_n": 10,
+    "success_n": 10,
+    "degraded_n": 0,
+    "error_n": 0,
+    "success_rate": 1.0,
+    "unreported_n": 0
+  },
+  "request_counts": {
+    "rewrite": 10,
+    "self_check": 40,
+    "answer": 31,
+    "judge": 40,
+    "embedding": 33,
+    "rerank": 10,
+    "milvus": 74
+  },
+  "cleanup": {
+    "ok": true,
+    "errors": [],
+    "unverified": []
+  },
+  "old_public_hashes_unchanged": true,
+  "full_gate_all_passed": true,
+  "limitations": "Original protocol failures remain distinct from explicit original-query fallback. No inference about uncaptured old causes, no budget/model/retry changes, no additional probe."
+}

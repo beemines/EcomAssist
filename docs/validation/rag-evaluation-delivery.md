@@ -1,8 +1,31 @@
 # 冻结 300 题 RAG 评估交付状态
 
-2026-10-11 当前：**本轮透明观测固定pilot `7d421bf017ff4c02afec385178848fde` 已完成40尝试、32完整完成、8改写错误（B3/B54各一次共享失败投影四路），清理成功。新捕获显示两题HTTP200/stop，但分别返回根列表及answer包裹对象，生产严格QueryPlan拒绝；服务器matching_pilot=false，full未运行，收费停止，Task10仍开放。** 前三轮与独立诊断原字节/错误/分母保留，不预设策略胜者。
+2026-10-12 当前：**300题四策略共1200条全部尝试，1188完成/12错误，0未执行/中断。新UUID只补142题568条，实际562完成/6错误，耗时682.10秒，生产清理成功；原158题及6条明确错误保持。** [实际分析](merchant-rag-comparison-analysis.md)、[合并Markdown](merchant-rag-comparison.md)、[合并JSON](merchant-rag-comparison.json)、[独立验收](merchant-rag-completion-proof.json)已保存。
 
-## 2026-10-11 原参数透明观测试跑（当前终态）
+公平共同题集为289题（可答230、库外59）：hybrid_rerank MRR@10=0.9819、Recall@5=0.9920、答案要点覆盖=0.9395，均n230，四路最高；库外拒答没有达到100%。生成Faith有零断言排除，真实n和所有错误另列，不能用成功样本代替全部1200条。300题改写285成功/15显式原问题降级/0错误。
+
+原run `2486afc8e62e4550bdfec6d676a27d84` 与新run `7adfc4c7dc3a4750885c23c94f3be671` 按整题四路合并，各用原生source-map，不改物理ID、答案或分数。配置46d11df逐值相同，实际操作并发原2/补8单列。原中断报告字节不变，新[原生JSON](merchant-rag-completion-remainder.json)/[Markdown](merchant-rag-completion-remainder.md)与生产文件字节一致。1218份保护文件、全部1200条原值、两份50来源map、生产summary与真实分母经控制端独立离线核对，新增模型调用0。
+
+本次补跑新UUID的50条知识与集合已清理。业务全部8表、测试库除faith_cases之外7表、业务84完整向量、既有集合/统计与校准值保持；质量台账41→93，54条新增/变更均按冻结ledger_eval_id关联本次实际unsupported记录，字段全文未另做独立逐值比较。原中断run历史cleanup失败及其资源仍保留，不能冒称其已清理。
+
+13项辅助专项通过，一项真实24行报告渲染专项通过；两次限定审核均通过，未重跑工程全套或收费试运行。原formatter误读Recall@50已通过独立60行adapter改为真实Recall@5，冻结helper未改，评估未重跑。记录见dev-notes/ch04.md。8001前端保持现有只读服务，历史可查看两份原生运行；300题汇总使用上述合并报告。Task10的全量尝试与报告交付完成，保留12条失败待后续明确范围处理，不自动重试或收费。
+
+## 2026-10-12 此前：中断恢复历史
+2026-10-12 当前：**唯一 full `2486afc8e62e4550bdfec6d676a27d84` 的进程已退出，最后执行检查点为北京时间 2026-10-11 15:28:59。已通过生产恢复入口发布中断报告：628 条完成、6 条失败、2 条中断、564 条未执行；`outcome=interrupted`，因临时资源清理遇到数据库和 Milvus 连接错误，`state=failed`、`cleanup.ok=false`。本次没有新增模型请求，原已完成及已失败记录保持。** [部分对比](rag-evaluation-current-results.md)、[完整 JSON](merchant-rag-interrupted.json)、[完整 Markdown](merchant-rag-interrupted.md)已保存。Task10仍开放，不能声称300题完成或总体最佳策略。以下保留此前各阶段的历史证据。
+
+## 2026-10-11 历史：显式降级试运行通过，全量启动
+
+新policy为`original-query-on-invalid-v1`，只在评估共享改写明确invalid_structured_output时记录degraded并使用原query/空expansions，四路共享同一计划；原QueryPlanner严格校验保持。新指纹`46d11df092ca2b803030fb7e227d971ef7530552bb5d18b4939bfc0c7f186ee7`，与旧191d53仅policy及自然指纹变化，GLM/low、512回答/其他2048、所有期限/retry0、Prompt及冻结资料保持。透明方法`.cache/task10_degraded_service.py` SHA`2030d7686f97bb7bc902dfc65c8e88c7ff23a24386de1267339d5845b86391dd`；root完整读取方法/fake身份验证、最终fix1复核及binding后明确执行放行。原planner合法性与保存的runner声明分别留证，不将degraded计作改写成功。
+
+fresh核验旧PID61224精确observer命令及8002监听后仅停止该owned进程，新factory在同loopback8002运行，单worker、显式origin，PID37788/exec37348；8000/8001未动。只读前基线SHA`64e5988b9a65c5000c2c085ffdf6443e67c2fca046c9a041bf79cf8effd1be95`逐字节等observed-after。实际Chrome固定10按钮仅点击一次；[新pilot原JSON](merchant-rag-degraded-pilot.json)/[Markdown](merchant-rag-degraded-pilot.md)与runtime字节相等，40audit-v1、50来源map`af6590ab401319d942bddff0b30213a4cd888b8cf115ebd5cdec3adb87687e55`与冻结重建一致，完整配置=current，实际GET门禁true。按题10success/0degraded是本pilot观察结果，不能冒称已出现真实降级样例。
+
+新pilot计数rewrite10/self40/answer31/judge40/embedding33/rerank10/Milvus74，cleanup={ok:true,errors:[],unverified:[]}。[分析](merchant-rag-degraded-analysis.md)/[安全观测](merchant-rag-degraded-rewrite-evidence.md)/[只读资源归因](merchant-rag-degraded-resource-proof.json)已独立保存：15无关表、业务84完整向量/foreign资源/原集合统计/校准保持；唯一合法faith变化C35 ID25、dense实际unsupported一次使seen4→5，不声称全部16表不变。
+
+full前新只读基线SHA`c402991c087577d6e69b1b0096da827eb67f855a1b868b37343bde8ae3325e5d`等pilot-after；真实full按钮仅点击一次，独占marker另存。当前仅同次全量继续，无探针、第二pilot、重试、调参或源修改；全量公共终态pair尚未生成，不使用1200计划分母冒称1200完成。实际门禁截图如下。
+
+![本次40条完整及真实full门禁](images/rag-evaluation-degraded/pilot-final-gate.jpg)
+
+## 2026-10-11 原参数透明观测试跑（历史终态）
 
 用户明确“继续”，root依Ruling23完整读取ignored observer及最小fake对象身份验证后放行。生产源码仍`cfc65fdb99e44de68c2727e05743a384bba6e89e`，当前启动checkout为root文档`a4573b5`；唯一观测方法`.cache/task10_observed_service.py`，SHA `0f12595c000e8c84bcfa7f0182b2b2350fc5e04dd491504b1122400e8474cd8c`单列声明。透传原plan/structured ainvoke请求、返回对象和异常，只在改写旁路私存；原严格JSON/finish/safe-plan/期限、计数、归属、OS锁及cleanup保留，观测IO在原期限内。输入无gold；GLM/low/512回答/其他2048/8000与16000输入/所有期限/retry0及191d53…完整配置与前轮相等，冻结300/five60/50chunks不变。准备model/client/owner/manager构造和upstream均0，fake证明不冒充真实结果。
 
