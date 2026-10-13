@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11–3.13、FastAPI 0.142.2、SQLAlchemy 2.0.54、现有 MySQL/Milvus/BGE、LangChain Core 1.6.6、LangGraph、官方 SQLite checkpointer、原生 HTML/CSS/JavaScript。
 
-**Spec:** [已批准设计](../specs/2026-10-13-workflow-agent-design.md)，用户于 2026-10-13 批准。计划状态：已完成自审，等待用户审阅；执行方式沿用已明确选择的 Subagent-Driven，不重新询问。
+**Spec:** [已批准设计](../specs/2026-10-13-workflow-agent-design.md)，用户于 2026-10-13 批准。计划状态：用户已选择“批准计划，开始实现（推荐）”，进入实施；执行方式沿用已明确选择的 Subagent-Driven，不重新询问。
 
 ## Global Constraints
 
