@@ -1,6 +1,6 @@
 "use strict";
 
-// 页面只保存当前会话身份和渲染状态；多轮历史由后端从数据库读取。
+// 页面保存当前会话及每条回复独立的渲染/动作快照；多轮历史由后端从数据库读取。
 // 缓存 HTML 中的交互节点，后续状态更新复用引用，避免反复查询 DOM。
 const form = document.querySelector("#chat-form");
 const input = document.querySelector("#message-input");
@@ -27,6 +27,8 @@ const toolLabels = {
   query_faq: "查询常见问题",
   create_ticket: "创建人工工单",
 };
+// 动作名称与展示文案由页面固定，不接受模型提供 URL、HTML 或任意工具名。
+const actionLabels = { handoff: "转人工", create_ticket: "建工单" };
 
 // 用户仍在底部跟随模式时滚到最新消息，避免打断向上翻阅历史。
 function scrollBottom() {
@@ -219,9 +221,11 @@ function addFeedback(state) {
 function finishVisual(state) {
   if (state.startedText) renderAnswer(state);
   state.bubble.classList.remove("typing", "waiting");
-  if (state.toolBadge?.dataset.status === "running") {
-    state.toolBadge.dataset.status = "interrupted";
-    state.toolBadge.textContent = toolLabels[state.toolName] + " · 结果未确认";
+  for (const trace of state.toolBadges.values()) {
+    if (trace.badge.dataset.status === "running") {
+      trace.badge.dataset.status = "interrupted";
+      trace.badge.textContent = trace.label + " · 结果未确认";
+    }
   }
   if (!state.visible && !state.queue.length) state.text.textContent = state.stopped ? "本轮已停止。" : "这次没有收到完整回复。";
   if (!state.error && !state.stopped) state.note.textContent = "";
@@ -232,6 +236,7 @@ function finishVisual(state) {
     state.note.textContent = state.done ? "已显示收到的完整回复" : "已停止 · 本轮未完整结束，请重新描述问题";
   }
   addFeedback(state);
+  addActions(state);
   active = null;
   busy(false);
   scrollBottom();
@@ -275,9 +280,14 @@ function stopReply() {
   }
 }
 
-// 将后端阶段状态显示为提示和工具徽章，同一轮只接受同一个工具调用身份。
+// 按本轮调用 ID 保存独立工具徽章，工具名称/来源与完成顺序不能被后续帧改写。
 function acceptStatus(payload, state) {
   const phase = payload.phase;
+  if (!["selecting", "answering", "checking", "tool_running", "tool_completed"].includes(phase) ||
+      Object.keys(payload).some((key) => !["phase", "tool_name", "tool_call_id", "status", "origin"].includes(key)) ||
+      (payload.origin !== undefined && !["workflow", "agent"].includes(payload.origin))) {
+    throw new Error("阶段状态格式异常，请重新尝试。");
+  }
   if (phase === "selecting") {
     state.note.textContent = "正在理解你的问题…";
     return;
@@ -299,24 +309,117 @@ function acceptStatus(payload, state) {
   if (phase === "tool_completed" && !["success", "error"].includes(payload.status)) {
     throw new Error("工具结果状态异常，请重新尝试。");
   }
-  if (!state.toolBadge) {
+  let trace = state.toolBadges.get(payload.tool_call_id);
+  if (!trace) {
+    if (phase !== "tool_running") throw new Error("工具结果顺序异常，请重新尝试。");
     const badge = document.createElement("span");
     badge.className = "tool-badge";
     state.tools.append(badge);
     state.tools.hidden = false;
-    state.toolBadge = badge;
-    state.toolCallId = payload.tool_call_id;
-    state.toolName = payload.tool_name;
+    const label = payload.origin === "workflow" ? "知识检索" : toolLabels[payload.tool_name];
+    trace = { badge, toolName: payload.tool_name, origin: payload.origin, label };
+    state.toolBadges.set(payload.tool_call_id, trace);
   }
-  if (state.toolCallId !== payload.tool_call_id || state.toolName !== payload.tool_name) {
-    throw new Error("这轮收到多个工具调用，请重新尝试。");
+  if (trace.toolName !== payload.tool_name || trace.origin !== payload.origin ||
+      ["success", "error"].includes(trace.badge.dataset.status)) {
+    throw new Error("工具调用身份或顺序异常，请重新尝试。");
   }
   const status = phase === "tool_running" ? "running" : payload.status;
   const suffix = status === "running" ? "执行中" : status === "success" ? "已完成" : "未完成";
-  state.toolBadge.dataset.status = status;
-  state.toolBadge.textContent = toolLabels[payload.tool_name] + " · " + suffix;
-  state.note.textContent = status === "running" ? "正在" + toolLabels[payload.tool_name].split(" · ")[0] + "…" : "";
+  trace.badge.dataset.status = status;
+  trace.badge.textContent = trace.label + " · " + suffix;
+  state.note.textContent = status === "running" ? "正在" + trace.label + "…" : "";
   scrollBottom();
+}
+
+// 完成建议只能出现一次且紧接终帧；回复身份、官方 UUID 和固定选项全部严格校验。
+function acceptActions(payload, state) {
+  if (state.actions || !state.hasDelta || !payload ||
+      Object.keys(payload).sort().join(",") !== "assistant_message_id,checkpoint_id,options" ||
+      !validId(payload.assistant_message_id) || typeof payload.checkpoint_id !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(payload.checkpoint_id) ||
+      !Array.isArray(payload.options) || payload.options.length > 2) {
+    throw new Error("回复操作格式异常，请重新尝试。");
+  }
+  const choices = new Set();
+  for (const option of payload.options) {
+    if (!option || Object.keys(option).sort().join(",") !== "action,label" ||
+        !Object.hasOwn(actionLabels, option.action) || option.label !== actionLabels[option.action] ||
+        choices.has(option.action)) throw new Error("回复操作选项异常，请重新尝试。");
+    choices.add(option.action);
+  }
+  state.actions = payload;
+}
+
+// 用户确认建工单后才 POST 两个定位字段，失败恢复自己的按钮，成功不触发转人工。
+async function confirmTicket(state, choice) {
+  if (choice.pending || choice.completed || !window.confirm("确认为这条回复创建工单吗？")) return;
+  choice.pending = true;
+  choice.button.disabled = true;
+  choice.result.textContent = "正在创建工单…";
+  try {
+    const response = await fetch("/api/conversations/" + state.conversationId + "/actions/ticket", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assistant_message_id: state.actions.assistant_message_id, checkpoint_id: state.actions.checkpoint_id }),
+    });
+    if (!response.ok) throw new Error("ticket_failed");
+    const result = await response.json();
+    if (!result || Object.keys(result).sort().join(",") !== "status,ticket_no" ||
+        typeof result.ticket_no !== "string" || !result.ticket_no.trim() || result.ticket_no.length > 128 ||
+        !["待处理", "已处理"].includes(result.status)) throw new Error("ticket_failed");
+    choice.completed = true;
+    choice.result.textContent = "工单已创建 · " + result.ticket_no;
+  } catch {
+    choice.result.textContent = "工单创建失败，请重试。";
+  } finally {
+    choice.pending = false;
+    choice.button.disabled = choice.completed;
+    scrollBottom();
+  }
+}
+
+// 转人工确认只在该回复下插入两句固定文案，不发请求、不影响另一个动作。
+function confirmHandoff(choice) {
+  if (choice.completed || !window.confirm("确认转接人工客服吗？")) return;
+  choice.completed = true;
+  choice.button.disabled = true;
+  for (const text of ["已转接人工客服", "您好，我是客服小猫，请问有什么可以帮您的"]) {
+    const line = document.createElement("p");
+    line.className = "handoff-line";
+    line.textContent = text;
+    choice.result.append(line);
+  }
+  scrollBottom();
+}
+
+// 流完全成功结束后才显示动作；每条旧回复闭包绑定自己的会话、快照和独立按钮状态。
+function addActions(state) {
+  if (!state.done || state.error || state.stopped || !state.actions || state.actionChoices.size || !state.actions.options.length) return;
+  const section = document.createElement("div");
+  section.className = "support-actions";
+  section.setAttribute("aria-label", "可确认的客服操作");
+  for (const option of state.actions.options) {
+    const group = document.createElement("div");
+    group.className = "support-action-group";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "support-action";
+    button.textContent = actionLabels[option.action];
+    const result = document.createElement("div");
+    result.className = "support-action-result";
+    result.setAttribute("role", "status");
+    const choice = { button, result, pending: false, completed: false };
+    state.actionChoices.set(option.action, choice);
+    // 每个按钮只访问自身状态，后续聊天不会替换这条回复的动作身份。
+    button.addEventListener("click", () => {
+      if (option.action === "handoff") confirmHandoff(choice);
+      else void confirmTicket(state, choice);
+    });
+    group.append(button, result);
+    section.append(group);
+  }
+  state.bubble.append(section);
 }
 
 // 只接受正文开始前的一份来源全集，严格保留编号和字符串主键。
@@ -357,6 +460,7 @@ function acceptFrame(frame, state) {
   let payload;
   try { payload = JSON.parse(data.join("\n")); }
   catch { throw new Error("收到的回复格式异常，请重新尝试。"); }
+  if (state.actions && !["done", "error"].includes(event)) throw new Error("回复操作之后收到多余事件，请重新尝试。");
   if (event === "status" && payload && typeof payload === "object") {
     if (state.hasDelta) throw new Error("正文开始后收到阶段事件，请重新尝试。");
     acceptStatus(payload, state);
@@ -365,8 +469,11 @@ function acceptFrame(frame, state) {
   } else if (event === "delta" && typeof payload?.delta === "string") {
     state.hasDelta = true;
     state.queue.push(...Array.from(payload.delta));
+  } else if (event === "actions") {
+    acceptActions(payload, state);
   } else if (event === "done" && payload?.conversation_id === state.conversationId &&
-             validId(payload.message_id) && Object.keys(payload).sort().join(",") === "conversation_id,message_id") {
+             validId(payload.message_id) && Object.keys(payload).sort().join(",") === "conversation_id,message_id" &&
+             (!state.actions || state.actions.assistant_message_id === payload.message_id)) {
     state.terminal = true;
     state.done = true;
     state.messageId = payload.message_id;
@@ -470,7 +577,7 @@ form.addEventListener("submit", (event) => {
     dot.className = "thinking-dot";
     assistant.text.append(dot);
   }
-  const state = { ...assistant, controller: new AbortController(), queue: [], visible: "", citations: new Map(), hasCitations: false, hasDelta: false, lastPaint: performance.now(), networkFinished: false, terminal: false, done: false, stopped: false, error: "", startedText: false, animation: null };
+  const state = { ...assistant, controller: new AbortController(), queue: [], visible: "", citations: new Map(), toolBadges: new Map(), actions: null, actionChoices: new Map(), hasCitations: false, hasDelta: false, lastPaint: performance.now(), networkFinished: false, terminal: false, done: false, stopped: false, error: "", startedText: false, animation: null };
   active = state;
   input.value = "";
   busy(true);
