@@ -113,7 +113,7 @@ async def test_faq_real_milvus_search_projects_only_real_mysql_done_rows(knowled
     assert embedder.texts == ['邮费是多少', '邮费是多少']
 
 
-# 验证同一轮工具调用重试复用工单，而新用户消息生成新工单且只转移所属会话状态。
+# 验证同一轮工具调用重试复用工单，新用户消息生成新工单且会话状态始终不变。
 @pytest.mark.asyncio
 async def test_ticket_retry_is_same_but_next_user_message_is_new(mysql_database, owned_rows):
     identifier, message_id = await new_turn(mysql_database, owned_rows)
@@ -131,7 +131,7 @@ async def test_ticket_retry_is_same_but_next_user_message_is_new(mysql_database,
     async with mysql_database.session() as session:
         assert await session.scalar(select(func.count()).select_from(Ticket).where(Ticket.conversation_id == int(identifier))) == 2
         assert await session.scalar(select(func.count()).select_from(Ticket).where(Ticket.conversation_id == int(other))) == 0
-        assert (await session.get(Conversation, int(identifier))).status == "已转人工"
+        assert (await session.get(Conversation, int(identifier))).status == "进行中"
         assert (await session.get(Conversation, int(other))).status == "进行中"
 
 
@@ -151,7 +151,7 @@ async def test_blank_ticket_descriptions_cannot_write_or_transfer(mysql_database
         assert (await session.get(Conversation, int(identifier))).status == "进行中"
 
 
-# 验证有效描述的前后空白原样入库，且成功创建工单后会话转人工。
+# 验证有效描述的前后空白原样入库，成功创建工单后会话仍进行中。
 @pytest.mark.asyncio
 async def test_ticket_keeps_nonblank_description_whitespace_in_storage(mysql_database, owned_rows):
     identifier, message_id = await new_turn(mysql_database, owned_rows)
@@ -162,7 +162,7 @@ async def test_ticket_keeps_nonblank_description_whitespace_in_storage(mysql_dat
     async with mysql_database.session() as session:
         row = await session.get(Ticket, result["ticket_no"])
         assert row.description == "\u3000损坏\t\n " and row.ticket_type == "售后"
-        assert (await session.get(Conversation, int(identifier))).status == "已转人工"
+        assert (await session.get(Conversation, int(identifier))).status == "进行中"
 
 
 # 验证首次提交成功后响应超时触发重试，最终仍只存在一条工单。
@@ -192,7 +192,7 @@ async def test_ticket_commit_then_timeout_keeps_one_row(mysql_database, owned_ro
         ticket_count = await session.scalar(select(func.count()).select_from(Ticket).where(Ticket.conversation_id == int(identifier)))
         conversation = await session.get(Conversation, int(identifier))
         assert ticket_count == 1
-        assert conversation.status == "已转人工"
+        assert conversation.status == "进行中"
 
 
 # 验证同一幂等键的冲突描述或类型返回冲突错误，并保留原工单业务字段。
@@ -328,7 +328,7 @@ async def test_ticket_non_duplicate_integrity_failure_is_not_reported_as_success
         await repository.create(**args)
 
 
-# 验证工单提交后取消等待会传播取消且不重试，已提交的工单与转人工状态仍存在。
+# 验证工单提交后取消等待会传播取消且不重试，已提交的工单仍存在且会话状态不变。
 @pytest.mark.asyncio
 async def test_ticket_cancel_after_commit_does_not_retry(mysql_database, owned_rows):
     identifier, message_id = await new_turn(mysql_database, owned_rows)
@@ -353,5 +353,5 @@ async def test_ticket_cancel_after_commit_does_not_retry(mysql_database, owned_r
         await task
     assert calls == 1
     async with mysql_database.session() as session:
-        assert (await session.get(Conversation, int(identifier))).status == "已转人工"
+        assert (await session.get(Conversation, int(identifier))).status == "进行中"
         assert await session.scalar(select(func.count()).select_from(Ticket).where(Ticket.conversation_id == int(identifier))) == 1

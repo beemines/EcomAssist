@@ -1,4 +1,4 @@
-# 人工工单仓储：以调用上下文生成稳定编号，事务内创建工单并更新会话状态。
+# 人工工单仓储：以调用上下文生成稳定编号，在独立短事务内创建工单。
 from hashlib import sha256
 
 from sqlalchemy import select
@@ -18,13 +18,13 @@ def _result(ticket: Ticket, identifier: int, description: str, ticket_type: str)
 
 
 class TicketRepository:
-    """稳定编号保证重试复用，工单与转人工状态在同一短事务提交。"""
+    """稳定编号保证重试复用，工单独立提交且不改变会话处理状态。"""
 
-    # 保存创建工单与更新会话状态所需的数据库依赖。
+    # 保存创建工单与校验会话所需的数据库依赖。
     def __init__(self, database: Database):
         self.database = database
 
-    # 以会话、用户消息和调用标识生成稳定工单编号，原子地创建工单并转人工。
+    # 以会话、用户消息和调用标识生成稳定工单编号，原子地创建工单。
     async def create(self, *, conversation_id: str, user_message_id: int, tool_call_id: str, description: str, ticket_type: str) -> dict:
         identifier = _conversation_id(conversation_id)
         if type(user_message_id) is not int or not 1 <= user_message_id <= 18446744073709551615:
@@ -49,8 +49,6 @@ class TicketRepository:
                 _require_conversation(conversation)
                 ticket = Ticket(ticket_no=ticket_no, conversation_id=identifier, description=description, ticket_type=ticket_type)
                 session.add(ticket)
-                # 工单和会话转人工状态共用事务，异常时一并回滚。
-                conversation.status = "已转人工"
                 await session.flush()
                 # MySQL 不支持 INSERT RETURNING，显式加载服务端默认状态。
                 await session.refresh(ticket, attribute_names=["status"])

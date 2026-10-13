@@ -46,7 +46,7 @@ def contextual_tools(faq: FAQRepository, tickets: TicketRepository, context: Too
     # 使用闭包身份和运行时注入的调用标识创建幂等人工工单。
     @tool(args_schema=TicketArgs)
     async def create_ticket(description: str, ticket_type: str, tool_call_id: Annotated[str, InjectedToolCallId]) -> dict:
-        """为当前用户问题创建人工工单并转人工；仅支持售后、投诉、咨询。"""
+        """为当前用户问题创建人工工单；仅支持售后、投诉、咨询。"""
         return await tickets.create(conversation_id=context.conversation_id, user_message_id=context.user_message_id, tool_call_id=tool_call_id, description=description, ticket_type=ticket_type)
 
     return [query_faq, create_ticket]
