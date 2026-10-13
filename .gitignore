@@ -13,3 +13,5 @@ __pycache__/
 .superpowers/
 # 评估运行快照含本地裁判审计与资源归属，不进入版本库或静态目录。
 runtime/rag-evaluation/
+# Workflow 检查点与 SQLite 日志只保存在本机运行目录。
+runtime/workflow/

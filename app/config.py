@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     agent_total_token_budget: int = Field(default=32000, gt=0, validation_alias='AGENT_TOTAL_TOKEN_BUDGET')
     agent_decision_max_output_tokens: int = Field(default=2048, gt=0, validation_alias='AGENT_DECISION_MAX_OUTPUT_TOKENS')
     intent_max_output_tokens: int = Field(default=2048, gt=0, validation_alias='INTENT_MAX_OUTPUT_TOKENS')
+    # Workflow 检查点独立于业务 MySQL；相对路径由持久化入口锚定项目根目录。
+    workflow_checkpoint_path: Path = Field(default=Path('runtime/workflow/checkpoints.sqlite'),
+                                           validation_alias='WORKFLOW_CHECKPOINT_PATH')
     # 工作台默认只读；换本机端口时由启动环境显式配置 JSON 来源数组。
     rag_evaluation_enabled: bool = Field(default=False, validation_alias='RAG_EVALUATION_ENABLED')
     # 仅评估资源显式使用；缺省不发送新参数，空白及非提供商枚举由 Literal 拒绝。
