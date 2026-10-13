@@ -8,12 +8,13 @@ from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from openai import APITimeoutError
 
 from tests.fakes import FAQStub, ConversationStore, StreamingModel, decode_sse, fake_settings, implementations
+from tests.fakes import legacy_app
 
 
 # 用离线依赖创建 ASGI 客户端，并允许覆盖聊天预算等设置。
 def client_for(model=None, repository=None, **settings):
     _, _, create_app = implementations()
-    app = create_app(fake_settings(**settings), faq_repository=FAQStub(), model=model or StreamingModel(), repository=repository if repository is not None else ConversationStore())
+    app = legacy_app(fake_settings(**settings), faq_repository=FAQStub(), model=model or StreamingModel(), repository=repository if repository is not None else ConversationStore())
     return httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test")
 
 

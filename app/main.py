@@ -15,7 +15,10 @@ from app.api.rag_evaluations import create_router as evaluation_router
 from app.rag_evaluation.manager import DATASET_ROOT, RUNTIME_ROOT, RunManager
 from app.rag_evaluation.store import RunStore
 from app.config import Settings, load_settings
-from app.core.tool_chat import ToolChatService
+from app.workflow.service import WorkflowChatService
+from app.workflow.agent import build_agent_graph
+from app.workflow.graph import build_workflow_graph
+from app.workflow.persistence import open_checkpointer, checkpoint_path
 from app.core.conversation_locks import ConversationLocks
 from app.db.session import Database
 from app.repositories.conversations import ConversationRepository
@@ -53,6 +56,8 @@ def create_app(
     sufficiency_service: SufficiencyService | None = None,
     quality_repository: QualityRepository | None = None,
     evaluation_manager: RunManager | None = None,
+    chat_service: Any | None = None,
+    checkpointer: Any | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
     owns_database = database is None and repository is None
@@ -61,12 +66,13 @@ def create_app(
         if database is None:
             database = _UnavailableDatabase()
     owns_model = model is None
+    owns_checkpointer = chat_service is None and checkpointer is None
     owns_evaluation_manager = evaluation_manager is None
     evaluation_settings = settings.model_copy(deep=True)
     if evaluation_manager is None:
         evaluation_manager = RunManager(RunStore(RUNTIME_ROOT), evaluation_settings, DATASET_ROOT)
 
-    # 将仓储、工具对话服务和结构化抽取服务注入应用状态。
+    # 注入显式聊天服务，或在官方 saver 就绪后建立默认 Workflow。
     def configure(app: FastAPI):
         app.state.repository = repository
         app.state.database = database
@@ -75,15 +81,19 @@ def create_app(
             model_with_output_budget(model, settings, settings.sufficiency_max_output_tokens),
             input_budget=settings.tool_input_token_budget, timeout=settings.sufficiency_timeout_seconds,
             minimum_rerank_score=settings.rerank_min_score)
-        app.state.chat_service = ToolChatService(model, repository,
-            lambda context: build_registry(faq_repository, tickets, context), ConversationLocks(), settings,
-            sufficiency_service=assessment, quality_repository=quality_repository)
+        if chat_service is not None:
+            app.state.chat_service = chat_service
+        elif checkpointer is not None:
+            app.state.chat_service = WorkflowChatService(model, repository,
+                lambda context: build_registry(faq_repository, tickets, context), ConversationLocks(), settings,
+                graph=build_workflow_graph(build_agent_graph(), checkpointer=checkpointer), checkpointer=checkpointer,
+                faq_repository=faq_repository, sufficiency_service=assessment, quality_repository=quality_repository)
         app.state.extraction_service = ExtractionService(model, settings.input_token_budget)
 
     # 在应用启动时准备依赖，并在退出时按注册顺序的逆序释放资源。
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        nonlocal database, repository, model, faq_repository, sufficiency_service, quality_repository
+        nonlocal database, repository, model, faq_repository, sufficiency_service, quality_repository, checkpointer
         async with AsyncExitStack() as resources:
             if settings.rerank_min_score is None or not math.isfinite(settings.rerank_min_score):
                 raise ValueError('online hybrid retrieval requires a calibrated finite threshold')
@@ -125,7 +135,13 @@ def create_app(
             if owns_evaluation_manager and evaluation_settings.rag_evaluation_enabled:
                 resources.push_async_callback(evaluation_manager.shutdown)
                 await evaluation_manager.startup()
+            if owns_checkpointer:
+                checkpointer = await resources.enter_async_context(open_checkpointer(
+                    checkpoint_path(settings, Path(__file__).resolve().parents[1])))
             configure(app)
+            if chat_service is None:
+                # 图任务必须先结束，后进先出的资源栈随后才关闭官方 saver。
+                resources.push_async_callback(app.state.chat_service.shutdown)
             yield
 
     app = FastAPI(lifespan=lifespan)

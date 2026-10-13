@@ -183,6 +183,29 @@ def implementations():
     return ToolChatService, ManagedChatResponse, create_app
 
 
+def legacy_app(settings, **dependencies):
+    """旧传输契约测试显式选择旧服务，产品默认始终保持 Workflow。"""
+    from app.main import create_app, _UnavailableDatabase
+    from app.core.tool_chat import ToolChatService
+    from app.core.conversation_locks import ConversationLocks
+    from app.core.sufficiency import SufficiencyService
+    from app.core.llm import model_with_output_budget
+    from app.repositories.tickets import TicketRepository
+    from app.tools.registry import build_registry
+    model, repository, faq = (dependencies.get(key) for key in ('model', 'repository', 'faq_repository'))
+    if model is not None and repository is not None and faq is not None:
+        database = dependencies.get('database') or getattr(repository, 'database', None) or _UnavailableDatabase()
+        tickets = TicketRepository(database)
+        assessment = dependencies.get('sufficiency_service') or SufficiencyService(
+            model_with_output_budget(model, settings, settings.sufficiency_max_output_tokens),
+            input_budget=settings.tool_input_token_budget, timeout=settings.sufficiency_timeout_seconds,
+            minimum_rerank_score=settings.rerank_min_score)
+        dependencies['chat_service'] = ToolChatService(model, repository,
+            lambda context: build_registry(faq, tickets, context), ConversationLocks(), settings,
+            sufficiency_service=assessment, quality_repository=dependencies.get('quality_repository'))
+    return create_app(settings, **dependencies)
+
+
 class ConversationStore:
     """离线持久仓储替身；保留失败审计，但仅完成轮次可回放。"""
 

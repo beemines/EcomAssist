@@ -91,6 +91,8 @@ async def retrieve_knowledge(state: WorkflowState, runtime: Runtime[WorkflowRunt
         response_metadata={'finish_reason': 'tool_calls'})
     request.id = str(await context.repository.append_message(state['conversation_id'], request))
     started = time.monotonic()
+    runtime.stream_writer({'event': 'status', 'data': {'tool': 'query_faq', 'tool_call_id': identifier,
+        'origin': 'workflow', 'status': 'running'}})
     try:
         async with asyncio.timeout(timeout):
             payload = await context.faq_repository.retrieve(keyword,
@@ -115,6 +117,7 @@ async def retrieve_knowledge(state: WorkflowState, runtime: Runtime[WorkflowRunt
 async def confidence_gate(state: WorkflowState, runtime: Runtime[WorkflowRuntime]) -> dict:
     """空/低分先拒绝，达标才内容自评，任何服务异常保持错误。"""
     context = runtime.context
+    runtime.stream_writer({'event': 'status', 'data': {'phase': 'checking', 'origin': 'workflow'}})
     packet = state_evidence(state, context)
     threshold = context.settings.rerank_min_score
     if packet.strategy != 'hybrid_rerank' or threshold is None:
@@ -133,6 +136,8 @@ async def confidence_gate(state: WorkflowState, runtime: Runtime[WorkflowRuntime
 async def knowledge_fallback(state: WorkflowState, runtime: Runtime[WorkflowRuntime]) -> dict:
     """闸拒绝只生成明确资料不足回复，提交与入池统一留给 log_response。"""
     log_node(state, 'knowledge_fallback', reason_code=state['quality']['source'])
+    runtime.stream_writer({'event': 'citations', 'data': {'citations': state['citations']}})
+    runtime.stream_writer({'event': 'status', 'data': {'phase': 'answering', 'origin': 'workflow'}})
     runtime.stream_writer({'event': 'delta', 'data': {'text': KNOWLEDGE_FALLBACK}})
     return {'final_answer': KNOWLEDGE_FALLBACK, 'reply_mode': 'answer', 'suggested_actions': ['handoff']}
 
@@ -140,6 +145,8 @@ async def knowledge_fallback(state: WorkflowState, runtime: Runtime[WorkflowRunt
 async def complaint_response(state: WorkflowState, runtime: Runtime[WorkflowRuntime]) -> dict:
     """投诉固定安抚并提供两个独立选项，不执行工具或修改会话状态。"""
     log_node(state, 'complaint_response')
+    runtime.stream_writer({'event': 'citations', 'data': {'citations': []}})
+    runtime.stream_writer({'event': 'status', 'data': {'phase': 'answering', 'origin': 'workflow'}})
     runtime.stream_writer({'event': 'delta', 'data': {'text': COMPLAINT_RESPONSE}})
     return {'final_answer': COMPLAINT_RESPONSE, 'reply_mode': 'answer',
         'suggested_actions': ['handoff', 'create_ticket']}
@@ -148,6 +155,8 @@ async def complaint_response(state: WorkflowState, runtime: Runtime[WorkflowRunt
 async def social_response(state: WorkflowState, runtime: Runtime[WorkflowRuntime]) -> dict:
     """固定社交话术不使用最终生成模型。"""
     log_node(state, 'social_response')
+    runtime.stream_writer({'event': 'citations', 'data': {'citations': []}})
+    runtime.stream_writer({'event': 'status', 'data': {'phase': 'answering', 'origin': 'workflow'}})
     runtime.stream_writer({'event': 'delta', 'data': {'text': SOCIAL_RESPONSE}})
     return {'final_answer': SOCIAL_RESPONSE, 'reply_mode': 'answer', 'suggested_actions': []}
 

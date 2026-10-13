@@ -272,8 +272,9 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
         raise ServiceError(error.get('code', 'tool_execution_error'),
             error.get('message', '知识检索未能完成，请稍后重试。'), 502)
     if state.get('stop_reason'):
+        runtime.stream_writer({'event': 'citations', 'data': {'citations': []}})
         runtime.stream_writer({'event': 'delta', 'data': {'text': UNFINISHED_ANSWER}})
-        return {'final_answer': UNFINISHED_ANSWER, 'reply_mode': 'answer', 'suggested_actions': ['handoff'], 'quality': {}}
+        return {'final_answer': UNFINISHED_ANSWER, 'reply_mode': 'answer', 'suggested_actions': ['handoff'], 'quality': {}, 'citations': []}
     try:
         packet = _packet(state, context, agent_final_system(state['intent'], state['reply_mode']))
         ledger = _ledger(state, limits)
@@ -281,8 +282,9 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
     except (InputTooLong, ServiceError) as exc:
         if exc.code not in ('input_too_long', 'token_budget'):
             raise
+        runtime.stream_writer({'event': 'citations', 'data': {'citations': []}})
         runtime.stream_writer({'event': 'delta', 'data': {'text': UNFINISHED_ANSWER}})
-        return {'final_answer': UNFINISHED_ANSWER, 'reply_mode': 'answer', 'suggested_actions': ['handoff'], 'quality': {}}
+        return {'final_answer': UNFINISHED_ANSWER, 'reply_mode': 'answer', 'suggested_actions': ['handoff'], 'quality': {}, 'citations': []}
     _, _, _, payloads = _parts(state)
     has_faq = any('matches' in payload for payload in payloads)
     clarification = state['reply_mode'] == 'clarification' and state['route'] == 'business'
@@ -290,6 +292,7 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
     if has_faq and not clarification:
         quality = state['quality'] if packet.payload == state['evidence_payload'] and state['quality'] else await _check_evidence(state, context, packet)
         if not quality['useful']:
+            runtime.stream_writer({'event': 'citations', 'data': {'citations': [asdict(c) for c in packet.citations]}})
             runtime.stream_writer({'event': 'delta', 'data': {'text': KNOWLEDGE_FALLBACK}})
             return {'quality': quality, 'final_answer': KNOWLEDGE_FALLBACK, 'reply_mode': 'answer',
                 'suggested_actions': ['handoff'], 'citations': [asdict(c) for c in packet.citations], 'evidence_payload': packet.payload}
@@ -298,6 +301,7 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
     if clarification:
         quality = QualityDecision(useful=True, reason='本轮只追问必要业务参数。', response_kind='clarification', source=None).model_dump()
     model = model_with_output_budget(context.model, context.settings, limits.final_output_tokens)
+    runtime.stream_writer({'event': 'citations', 'data': {'citations': [] if clarification else [asdict(c) for c in packet.citations]}})
     collector, aggregate = FinalAnswerStream(), None
     context.upstream = model.astream(packet.messages)
     try:

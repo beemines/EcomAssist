@@ -47,6 +47,7 @@ async def test_query_self_check_and_final_send_independent_budgets_and_share_own
 async def test_injected_application_without_lifespan_still_uses_independent_self_check_budget():
     """验证提前注入的应用装配也使用独立自评预算，借用模型仍保持开放。"""
     from app.main import create_app
+    from langgraph.checkpoint.memory import InMemorySaver
     from tests.fakes import ConversationStore, FAQStub
     requests=[]
     def handle(request):
@@ -59,7 +60,8 @@ async def test_injected_application_without_lifespan_still_uses_independent_self
     async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as http:
         model=create_model(settings,http_async_client=http)
         try:
-            app=create_app(settings,model=model,repository=ConversationStore(),faq_repository=FAQStub())
+            app=create_app(settings,model=model,repository=ConversationStore(),faq_repository=FAQStub(),
+                checkpointer=InMemorySaver())
             await app.state.chat_service.sufficiency_service.check('邮费？',build())
             assert requests[0]['max_tokens']==2048 and model.extra_body['max_tokens']==512
             assert not model.root_async_client.is_closed()

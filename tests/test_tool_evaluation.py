@@ -140,7 +140,7 @@ async def test_failed_final_answer_retains_actual_tool_audit():
 
 # 验证工具评测可运行真实应用链路，并依据已提交审计核对模拟物流结果。
 async def test_evaluation_uses_application_chain_and_committed_audit():
-    from app.main import create_app
+    from tests.fakes import legacy_app as create_app
     case = CASES[0]
     model = StreamingModel([AIMessageChunk(content='模拟物流'), AIMessageChunk(content='仅供演示'), AIMessageChunk(content='', response_metadata={'finish_reason': 'stop'})])
     model.selected = AIMessage('', tool_calls=[{'id': 'logistics-1', 'name': 'query_logistics', 'args': {'order_id': 'A-42'}}], response_metadata={'finish_reason': 'tool_calls'})

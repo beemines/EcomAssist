@@ -6,7 +6,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from app.core.llm import create_model
-from app.main import create_app
+from tests.fakes import legacy_app as create_app
 from tests.fakes import FAQStub, ConversationStore, decode_sse, fake_settings
 
 

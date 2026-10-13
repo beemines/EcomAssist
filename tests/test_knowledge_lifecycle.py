@@ -5,13 +5,14 @@ from langchain_core.messages import AIMessage, AIMessageChunk
 
 import app.main as main
 from tests.fakes import ConversationStore, FAQStub, StreamingModel, decode_sse, fake_settings
+from tests.fakes import legacy_app
 
 
 # 确认应用支持 FAQ 仓储注入，再使用离线设置创建应用。
 def injected_app(**kwargs):
     import inspect
     assert 'faq_repository' in inspect.signature(main.create_app).parameters, 'FAQ injection missing'
-    return main.create_app(fake_settings(), **kwargs)
+    return legacy_app(fake_settings(), **kwargs)
 
 
 # 验证注入 FAQ 不额外创建检索客户端或关闭外部仓储，且仍参与工具回答。

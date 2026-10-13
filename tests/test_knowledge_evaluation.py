@@ -78,7 +78,7 @@ async def test_dense_domain_leakage_is_a_reported_failure_not_fabricated_empty_r
 async def test_app_audit_rejects_wrong_knowledge_even_with_good_sse_and_persisted_answer(monkeypatch):
     from langchain_core.messages import AIMessage, AIMessageChunk
     from tests.fakes import ConversationStore, StreamingModel, fake_settings
-    from app.main import create_app
+    from tests.fakes import legacy_app as create_app
     module = implementation()
     repository = ConversationStore()
     model = StreamingModel([AIMessageChunk(content='合成演示8元[1]'),
