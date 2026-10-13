@@ -1,0 +1,24 @@
+{"id":"intent-001","question":"MH-LP200 能装多少猫砂？","expected_intent":"商品咨询","expected_route":"knowledge","should_clarify":false}
+{"id":"intent-002","question":"饮水机 MH-W60 多久换滤芯？","expected_intent":"商品咨询","expected_route":"knowledge","should_clarify":false}
+{"id":"intent-003","question":"金卡会员有什么权益？","expected_intent":"商品咨询","expected_route":"knowledge","should_clarify":false}
+{"id":"intent-004","question":"退货政策是什么？","expected_intent":"退款退货","expected_route":"knowledge","should_clarify":false}
+{"id":"intent-005","question":"退货运费由谁承担？","expected_intent":"退款退货","expected_route":"knowledge","should_clarify":false}
+{"id":"intent-006","question":"退款到账有什么规则？","expected_intent":"退款退货","expected_route":"knowledge","should_clarify":false}
+{"id":"intent-007","question":"订单1001的包裹到哪里了？","expected_intent":"物流","expected_route":"business","should_clarify":false}
+{"id":"intent-008","question":"请查一下物流","expected_intent":"物流","expected_route":"business","should_clarify":true}
+{"id":"intent-009","question":"订单1002显示已发货，快递现在到哪里？","expected_intent":"物流","expected_route":"business","should_clarify":false}
+{"id":"intent-010","question":"订单1001的状态是什么？","expected_intent":"订单","expected_route":"business","should_clarify":false}
+{"id":"intent-011","question":"帮我查询订单","expected_intent":"订单","expected_route":"business","should_clarify":true}
+{"id":"intent-012","question":"帮我查订单1003的明细","expected_intent":"订单","expected_route":"business","should_clarify":false}
+{"id":"intent-013","question":"我买的MH-LP200无法开机","expected_intent":"售后","expected_route":"business","should_clarify":true}
+{"id":"intent-014","question":"刚买的饮水机漏水了，怎么处理？","expected_intent":"售后","expected_route":"business","should_clarify":true}
+{"id":"intent-015","question":"我买的喂食器卡粮不下粮","expected_intent":"售后","expected_route":"business","should_clarify":true}
+{"id":"intent-016","question":"我要投诉客服态度","expected_intent":"投诉","expected_route":"complaint","should_clarify":false}
+{"id":"intent-017","question":"我要投诉订单1001迟迟不发货","expected_intent":"投诉","expected_route":"complaint","should_clarify":false}
+{"id":"intent-018","question":"我要投诉你们的售后处理","expected_intent":"投诉","expected_route":"complaint","should_clarify":false}
+{"id":"intent-019","question":"你好","expected_intent":"闲聊","expected_route":"social","should_clarify":false}
+{"id":"intent-020","question":"谢谢","expected_intent":"闲聊","expected_route":"social","should_clarify":false}
+{"id":"intent-021","question":"再见","expected_intent":"闲聊","expected_route":"social","should_clarify":false}
+{"id":"intent-022","question":"你好，订单1001到哪了","expected_intent":"物流","expected_route":"business","should_clarify":false}
+{"id":"intent-023","question":"先查订单1001物流，但我要投诉快递太慢","expected_intent":"投诉","expected_route":"complaint","should_clarify":false}
+{"id":"intent-024","question":"新买的商品不太会用，能帮我看看吗？","expected_intent":"售后","expected_route":"business","should_clarify":true}
