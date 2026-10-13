@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.chat import router as chat_router
+from app.api.chat_actions import router as chat_actions_router
 from app.api.conversations import router as conversations_router
 from app.api.extract import router as extract_router
 from app.api.rag_evaluations import create_router as evaluation_router
@@ -16,6 +17,7 @@ from app.rag_evaluation.manager import DATASET_ROOT, RUNTIME_ROOT, RunManager
 from app.rag_evaluation.store import RunStore
 from app.config import Settings, load_settings
 from app.workflow.service import WorkflowChatService
+from app.workflow.actions import TicketActionService
 from app.workflow.agent import build_agent_graph
 from app.workflow.graph import build_workflow_graph
 from app.workflow.persistence import open_checkpointer, checkpoint_path
@@ -88,6 +90,15 @@ def create_app(
                 lambda context: build_registry(faq_repository, tickets, context), ConversationLocks(), settings,
                 graph=build_workflow_graph(build_agent_graph(), checkpointer=checkpointer), checkpointer=checkpointer,
                 faq_repository=faq_repository, sufficiency_service=assessment, quality_repository=quality_repository)
+        service = getattr(app.state, 'chat_service', None)
+        # 动作读取同一服务的当前注册表工厂，保留注入与测试的外部资源归属。
+        def action_registry(context):
+            """按原轮可信上下文复用聊天服务的既有业务工具。"""
+            return service.registry_factory(context)
+
+        app.state.ticket_action_service = (TicketActionService(service.graph, service.repository,
+            action_registry, service.executor, service.locks)
+            if isinstance(service, WorkflowChatService) else None)
         app.state.extraction_service = ExtractionService(model, settings.input_token_budget)
 
     # 在应用启动时准备依赖，并在退出时按注册顺序的逆序释放资源。
@@ -147,6 +158,7 @@ def create_app(
     app = FastAPI(lifespan=lifespan)
     app.state.rag_evaluation_settings = evaluation_settings
     app.state.evaluation_manager = evaluation_manager
+    app.state.chat_action_allowed_origins = settings.rag_evaluation_allowed_origins
     app.include_router(evaluation_router(evaluation_manager, evaluation_manager.store, evaluation_settings))
     # 支持已注入依赖但刻意不启动 lifespan 的 HTTPX 调用方。
     if repository is None and database is not None:
@@ -155,6 +167,7 @@ def create_app(
         configure(app)
     app.include_router(conversations_router)
     app.include_router(chat_router)
+    app.include_router(chat_actions_router)
     app.include_router(extract_router)
     static_dir = Path(__file__).resolve().parent / "static"
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
