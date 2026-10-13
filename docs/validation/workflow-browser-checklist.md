@@ -35,10 +35,10 @@ Playwright 优先从项目或 `NODE_PATH` 加载，然后探测用户桌面运�
 ## 真实模式
 
 ```powershell
-node scripts/verify-workflow-browser.cjs --url http://127.0.0.1:8001/ --mode live
+node scripts/verify-workflow-browser.cjs --url http://127.0.0.1:8002/ --mode live
 ```
 
-live 不注册任何路由拦截，也不启动夹具服务器。默认只打开实际页面并截图；**不声称已验证真实聊天**。Task9 如需真实聊天，应显式设置 `WORKFLOW_LIVE_MESSAGE`；脚本会从输入框发送原文并检查错误/有效回答，单次页面等待默认245秒，可通过 `WORKFLOW_BROWSER_TIMEOUT_MS` 有界覆盖。脚本不自动点击真实工单确认、不自动重试模型失败。截图与结果在 `.cache/workflow-browser/live/`，标签明确区别于受控结果。
+Task9起live不注册任何路由拦截，也不启动夹具服务器；显式live命令执行固定政策、物流、两步、投诉、闲聊、缺型号求助、MH-LP200和库外问题，另有只建工单与未确认旧操作快照两项补充。真实按钮确认属于本次已授权验收。每轮等待上限240秒，同一知识/业务/投诉链路首次失败即停止后续场景；不会重试模型或改变预算。脚本保存原SSE、请求身份、引用原文、按钮前后自有SQL、截图与PASS/FAIL/NOT_EXECUTED于`.cache/workflow-browser/live/<run-id>/`。未执行不计通过；独立SQL/SQLite复核由evaluate_workflow只读已有证据完成，避免重复收费。
 
 ## 本次结果
 

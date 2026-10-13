@@ -210,6 +210,44 @@ API 基址 `/api/rag-evaluations` 提供 `GET /datasets`、`POST /runs`、`GET /
 
 这版材料参考同一金标题库构造，只能支持项目内受控比较。候选 Top-50 等于全部 50 块，候选覆盖饱和不能证明泛化；实际比较还需看首命中、Top-5/10 完整组、Prompt 覆盖、回答要点与忠实度，并列出各指标有效分母、错误与四路共同有效子集。部分失败如实保留，不通过重复全量收费洗分。
 
+## Workflow 与 Agent 演示
+
+正式 `/api/chat` 使用固定 Workflow 分流与有界 Agent 子图。知识问题先强制检索和检查置信度；订单、物流和售后交给 Agent；明确问候、感谢和告别使用零模型固定回复。投诉提供独立的转人工、建工单按钮，只有明确确认建工单才写库。
+
+裸循环教学演示默认不调用模型：
+
+```powershell
+uv run --locked python -m app.agent.cli demo
+```
+
+示例会依次执行 `query_order`、`query_logistics` 并回灌工具结果。这些业务查询返回带 `mock` 标记的演示数据；FAQ 读取真实知识库，工单写入 MySQL。裸循环供走读，正式 HTTP 使用 LangGraph。
+
+已配置 merchant 集合和原校准值后，以单实例、单 worker 启动：
+
+```powershell
+uv run --locked uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8002 --workers 1
+```
+
+实际聊天地址为 [http://127.0.0.1:8002/](http://127.0.0.1:8002/)。MySQL 保存会话、消息、知识原文、质量记录和工单；官方 `AsyncSqliteSaver` 在 `runtime/workflow/checkpoints.sqlite` 保存 Workflow 根状态与旧操作快照。该目录已忽略且不由静态服务公开。同一 SQLite 重启后新消息从 START 开始，旧完成回复的按钮仍按原 checkpoint 校验。会话锁属于进程，因此保持单 worker。
+
+报告工具默认不收费，所有未执行题保留分母：
+
+```powershell
+uv run --locked python -m evals.evaluate_workflow --mode intent --output .cache/workflow-intent-not-executed.json
+uv run --locked python -m evals.evaluate_workflow --mode chat --output .cache/workflow-chat-not-executed.json
+```
+
+真实验收命令须在获授权的有界验收中运行：
+
+```powershell
+uv run --locked python -m evals.evaluate_workflow --mode intent --live --output .cache/workflow-intent-live.json
+node scripts/verify-workflow-browser.cjs --url http://127.0.0.1:8002/ --mode live
+# 用上一步实际run目录中的results.json，读取已有SSE/SQL/SQLite证据，不重复调用聊天模型。
+uv run --locked python -m evals.evaluate_workflow --mode chat --live --evidence .cache/workflow-browser/live/<实际run-id>/results.json --output .cache/workflow-chat-live.json
+```
+
+固定意图集为21题加3题边界，每题单次；浏览器固定场景每轮上限240秒，相同链路首次失败停止后续收费。32000账本统计意图与 Agent 决策/最终调用；检索改写和充分性沿用各自预算、期限并单独说明。错误、超时、截断、资料不足拒答及未执行分别统计，实际证据和完成范围见[本次验收](docs/validation/2026-10-13-workflow-agent-acceptance.md)。
+
 ## 回归与开发记录
 
 ```powershell

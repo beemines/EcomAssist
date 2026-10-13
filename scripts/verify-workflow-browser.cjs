@@ -272,20 +272,128 @@ async function runControlled(browser, url, transport, output) {
   return results;
 }
 
-// live 只访问真实页面且不安装任何路由拦截；消息由显式环境变量提供，默认只检查页面。
-async function runLive(browser, url, output) {
-  const page = await browser.newPage({ viewport: { width: 1200, height: 900 }, reducedMotion: "reduce" });
-  page.setDefaultTimeout(Number(process.env.WORKFLOW_BROWSER_TIMEOUT_MS || 245000));
-  await page.goto(url);
-  if (process.env.WORKFLOW_LIVE_MESSAGE) {
-    await send(page, process.env.WORKFLOW_LIVE_MESSAGE);
-    assert.equal(await page.locator(".message-note.error").count(), 0, "真实聊天不应出现错误");
-    assert.ok((await page.locator(".answer-text").last().innerText()).trim());
-  }
-  await page.screenshot({ path: path.join(output, "live-page.png"), fullPage: true });
-  await page.close();
-  return [{ name: process.env.WORKFLOW_LIVE_MESSAGE ? "live-chat-no-interception" : "live-page-no-interception", status: "PASS" }];
+// 解析真实服务器的完整SSE原文，保留错误/截断，不用页面文字推测完成。
+function parseEvents(text) {
+  return text.replace(/\r\n/g, "\n").split("\n\n").filter((block) => block.trim()).map((block) => {
+    const lines = block.split("\n");
+    return { event: lines.find((line) => line.startsWith("event: "))?.slice(7),
+      data: JSON.parse(lines.filter((line) => line.startsWith("data: ")).map((line) => line.slice(6)).join("\n")) };
+  });
 }
+
+// 仅用已创建的自有会话ID执行只读SQL快照，隐藏子进程且不读出环境密钥。
+function ownedSqlSnapshot(conversationId, output, name) {
+  const target = path.join(output, `${name}-sql.json`);
+  const executable = process.env.WORKFLOW_PYTHON_PATH || path.join(root, ".venv", "Scripts", "python.exe");
+  require("node:child_process").execFileSync(executable, ["-m", "evals.evaluate_workflow", "--mode", "chat", "--live", "--snapshot-conversation", conversationId, "--output", target], { cwd: root, windowsHide: true, timeout: 20000, encoding: "utf8", env: { ...process.env, PYTHONUTF8: "1" } });
+  return JSON.parse(fs.readFileSync(target, "utf8"));
+}
+
+// live 不拦截任何请求；每轮最多240秒，首次错误停止相同链路且保留独立场景。
+async function runLive(browser, url, output) {
+  const cases = [
+    ["policy", "knowledge", "退货政策是什么？"],
+    ["logistics", "business", "订单1001的包裹到哪里了？"],
+    ["two-step", "business", "先查订单1001的状态，再按订单查物流"],
+    ["complaint", "complaint", "我要投诉客服态度"],
+    ["social", "social", "你好"],
+    ["usage-help", "business", "新买的商品不太会用，能帮我看看吗？"],
+    ["mh-lp200", "knowledge", "MH-LP200 能装多少猫砂？"],
+    ["out-of-library", "knowledge", "你们提供宠物洗澡美容服务吗，具体价格是多少？"],
+    ["complaint-ticket-only", "complaint", "我要投诉客服态度"],
+    ["restart-offer", "complaint", "我要投诉客服态度"],
+  ];
+  const results = [], stopped = new Set();
+  for (const [name, family, question] of cases) {
+    if (stopped.has(family)) { results.push({ name, question, status: "NOT_EXECUTED", reason: "同链路首次失败后停止" }); continue; }
+    const page = await browser.newPage({ viewport: { width: 1200, height: 900 }, reducedMotion: "reduce" });
+    page.setDefaultTimeout(240000);
+    const record = { name, question, status: "FAIL", requests: [], actions: [], events: [] };
+    const pending = [];
+    page.on("request", (request) => { if (new URL(request.url()).pathname.startsWith("/api/")) record.requests.push({ url: request.url(), method: request.method(), body: request.postData() }); }); // 仅记录当前页面自有业务请求。
+    page.on("response", (response) => {
+      const pathname = new URL(response.url()).pathname;
+      if (pathname === "/api/conversations" || pathname === "/api/chat" || pathname.endsWith("/actions/ticket")) {
+        pending.push((async () => {
+          const text = await response.text();
+          if (pathname === "/api/conversations") record.conversation_id = JSON.parse(text).conversation_id;
+          else if (pathname === "/api/chat") { record.raw_sse = text; record.events = parseEvents(text); record.http_status = response.status(); }
+          else record.actions.push({ request: response.request().postDataJSON(), status: response.status(), response: JSON.parse(text) });
+        })().catch((error) => { record.capture_error = error.message; })); // 读取完成原文，不修改SSE或绕过真实后端。
+      }
+    });
+    try {
+      await page.goto(url);
+      await send(page, question);
+      await Promise.all(pending);
+      assert.equal(record.capture_error, undefined);
+      assert.equal(record.http_status, 200);
+      assert.equal(record.events.filter((event) => event.event === "error").length, 0, "真实聊天返回error");
+      assert.equal(record.events.at(-1)?.event, "done", "必须正常done结束");
+      assert.equal(await page.locator(".message-note.error").count(), 0, "真实聊天不应出现页面错误");
+      record.answer = await page.locator(".answer-text").last().innerText();
+      assert.ok(record.answer.trim());
+      record.tool_badges = await page.locator(".tool-badge").allTextContents();
+      record.sql_before_actions = ownedSqlSnapshot(record.conversation_id, output, `${name}-before`);
+      assert.equal(record.sql_before_actions.tickets.length, 0, "建议出现时不得自动建工单");
+      if (family === "knowledge") {
+        assert.ok(record.events.some((event) => event.event === "status" && event.data.origin === "workflow" && event.data.tool_name === "query_faq"));
+        if (name !== "out-of-library") {
+          assert.ok(await page.locator(".citation-button").count(), "可答知识应有可定位引用");
+          await page.locator(".citation-button").first().click();
+          await page.locator("#source-dialog[open]").waitFor();
+          record.source = await page.locator("#source-answer").innerText();
+          await page.keyboard.press("Escape");
+        }
+      }
+      if (name === "mh-lp200") assert.match(record.answer, /12\s*(?:L|升|l)/, "MH-LP200应有12L原文事实");
+      if (name === "two-step") {
+        assert.deepEqual(record.events.filter((event) => event.event === "status" && event.data.phase === "tool_running").map((event) => event.data.tool_name), ["query_order", "query_logistics"]);
+        assert.equal(await page.locator('.tool-badge[data-status="success"]').count(), 2);
+      }
+      if (family === "social") assert.equal(record.tool_badges.length, 0);
+      if (family === "complaint") {
+        assert.equal(await page.locator(".support-action").count(), 2);
+        const handoff = page.getByRole("button", { name: "转人工", exact: true });
+        const ticket = page.getByRole("button", { name: "建工单", exact: true });
+        const before = record.requests.length;
+        await confirmClick(page, handoff, false);
+        await confirmClick(page, ticket, false);
+        assert.equal(record.requests.length, before, "取消确认不得写接口");
+        if (name === "complaint") {
+          await confirmClick(page, handoff, true);
+          assert.equal(record.requests.length, before, "模拟转人工零HTTP");
+          assert.equal(await ticket.isEnabled(), true);
+          assert.equal(await page.locator(".handoff-line").count(), 2);
+        }
+        if (name !== "restart-offer") {
+          await confirmClick(page, ticket, true);
+          await page.getByText(/工单已创建 ·/).waitFor();
+          await Promise.all(pending);
+          assert.equal(record.actions.length, 1);
+          assert.equal(record.actions[0].status, 200);
+          assert.deepEqual(Object.keys(record.actions[0].request).sort(), ["assistant_message_id", "checkpoint_id"]);
+          assert.equal(await page.getByText("已转接人工客服", { exact: true }).count(), name === "complaint" ? 1 : 0);
+          record.sql_after_actions = ownedSqlSnapshot(record.conversation_id, output, `${name}-after`);
+          assert.equal(record.sql_after_actions.tickets.length, 1);
+          assert.equal(record.sql_after_actions.conversation_status, "进行中");
+          assert.equal(record.sql_after_actions.tickets[0].description, question);
+        }
+      }
+      record.status = "PASS";
+    } catch (error) { record.error = error.message; stopped.add(family); }
+    record.screenshot = path.join(output, `${name}.png`);
+    await page.screenshot({ path: record.screenshot, fullPage: true });
+    results.push(record);
+    fs.writeFileSync(path.join(output, "partial-results.json"), JSON.stringify({ mode: "live", url, run_id: liveRunId, results }, null, 2) + "\n");
+    console.log(`${record.status} ${name}${record.error ? ": " + record.error.split("\n")[0] : ""}`);
+    await page.close();
+  }
+  return results;
+}
+
+// 每次真实验收拥有独立运行身份与目录，保留首次失败证据不覆盖。
+const liveRunId = require("node:crypto").randomUUID();
 
 // 明确模式与 URL 后运行，服务器/浏览器属于本脚本且均在 finally 清理。
 async function main() {
@@ -293,7 +401,7 @@ async function main() {
   const url = args[args.indexOf("--url") + 1];
   const mode = args[args.indexOf("--mode") + 1];
   assert.ok(args.includes("--url") && args.includes("--mode") && ["controlled", "live"].includes(mode), "用法: --url http://127.0.0.1:8002/ --mode controlled|live");
-  const output = path.join(root, ".cache", "workflow-browser", mode);
+  const output = path.join(root, ".cache", "workflow-browser", mode, ...(mode === "live" ? [liveRunId] : []));
   fs.mkdirSync(output, { recursive: true });
   const { chromium } = loadPlaywright();
   const executablePath = browserPath(chromium);
@@ -316,9 +424,11 @@ async function main() {
     }
     browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
     const results = mode === "controlled" ? await runControlled(browser, url, transport, output) : await runLive(browser, url, output);
-    fs.writeFileSync(path.join(output, "results.json"), JSON.stringify({ mode, url, results }, null, 2) + "\n");
+    fs.writeFileSync(path.join(output, "results.json"), JSON.stringify({ mode, url, run_id: mode === "live" ? liveRunId : null, results }, null, 2) + "\n");
     const failed = results.filter((item) => item.status === "FAIL");
-    console.log(`${mode}: ${results.length - failed.length}/${results.length} PASS; screenshots=${output}`);
+    const passed = results.filter((item) => item.status === "PASS").length;
+    const notExecuted = results.filter((item) => item.status === "NOT_EXECUTED").length;
+    console.log(`${mode}: ${passed}/${results.length} PASS; failed=${failed.length}; not_executed=${notExecuted}; screenshots=${output}`);
     process.exitCode = failed.length ? 1 : 0;
   } finally {
     if (browser) await browser.close();
