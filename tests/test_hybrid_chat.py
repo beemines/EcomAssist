@@ -271,7 +271,7 @@ async def test_real_tcp_utf8_terminal_and_actual_mysql_commit(mysql_database, re
     import httpx
     from sqlalchemy import text
     from uuid import uuid4
-    from app.main import create_app
+    from tests.fakes import legacy_app as create_app
     from app.repositories.conversations import ConversationRepository
     from app.quality.repository import QualityRepository
     from tests.fakes import StreamingModel

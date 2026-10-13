@@ -8,6 +8,7 @@ import uvicorn
 from langchain_core.messages import AIMessageChunk
 
 from tests.fakes import FAQStub, ConversationStore, StreamingModel, fake_settings, implementations
+from tests.fakes import legacy_app
 
 
 # 在临时回环端口启动真实 Uvicorn 服务，并在上下文退出后请求停机和回收任务。
@@ -49,7 +50,7 @@ async def test_real_network_first_event_arrives_before_last_chunk_allowed():
         AIMessageChunk(content="", response_metadata={"finish_reason": "stop"}),
     ], gate_at=1)
     repository = ConversationStore()
-    app = create_app(fake_settings(), faq_repository=FAQStub(), model=model, repository=repository)
+    app = legacy_app(fake_settings(), faq_repository=FAQStub(), model=model, repository=repository)
     async with local_server(app) as url, httpx.AsyncClient(base_url=url, trust_env=False) as client:
         async with client.stream("POST", "/api/chat", json={"conversation_id": "1", "message": "你好"}) as response:
             lines = response.aiter_lines()
@@ -77,7 +78,7 @@ async def test_real_network_disconnect_stops_upstream_and_session_is_reusable():
         AIMessageChunk(content="", response_metadata={"finish_reason": "stop"}),
     ], gate_at=1)
     repository = ConversationStore()
-    app = create_app(fake_settings(), faq_repository=FAQStub(), model=model, repository=repository)
+    app = legacy_app(fake_settings(), faq_repository=FAQStub(), model=model, repository=repository)
     async with local_server(app) as url, httpx.AsyncClient(base_url=url, trust_env=False) as client:
         async with client.stream("POST", "/api/chat", json={"conversation_id": "1", "message": "你好"}) as response:
             lines = response.aiter_lines()

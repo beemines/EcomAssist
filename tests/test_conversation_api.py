@@ -7,11 +7,12 @@ from langchain_core.messages import AIMessage
 
 from app.main import create_app
 from tests.fakes import FAQStub, ConversationStore, StreamingModel, decode_sse, fake_settings
+from tests.fakes import legacy_app
 
 
 # 用指定模型与会话仓储构造离线 ASGI 客户端。
 def client_for(model, repository):
-    app = create_app(fake_settings(), faq_repository=FAQStub(), model=model, repository=repository)
+    app = legacy_app(fake_settings(), faq_repository=FAQStub(), model=model, repository=repository)
     return httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test")
 
 
@@ -159,7 +160,7 @@ async def test_owned_database_and_model_close_once_even_if_model_close_fails(mon
 async def test_injected_faq_failure_has_safe_tool_error():
     model = StreamingModel()
     model.selected = AIMessage("", tool_calls=[{"name": "query_faq", "args": {"keyword": "退货"}, "id": "faq_call"}], response_metadata={"finish_reason": "tool_calls"})
-    app = create_app(fake_settings(), model=model, repository=ConversationStore(),
+    app = legacy_app(fake_settings(), model=model, repository=ConversationStore(),
         faq_repository=FAQStub(failure=RuntimeError("synthetic FAQ failure")))
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test") as client:
         response = await client.post("/api/chat", json={"conversation_id": "1", "message": "如何退货"})

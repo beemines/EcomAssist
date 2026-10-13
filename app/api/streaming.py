@@ -1,16 +1,28 @@
 # 管理 SSE 的发送、断连与取消，确保生成器关闭和会话占用最终释放。
 import json
 import logging
+from typing import Any, Protocol
+from collections.abc import AsyncIterator
 
 import anyio
 from starlette.responses import StreamingResponse
 from starlette.types import Receive, Scope, Send
 
 from app.core.chat import StreamEvent
-from app.core.tool_chat import ToolChatService, PreparedToolChat
 
 
 logger = logging.getLogger(__name__)
+
+
+class ChatService(Protocol):
+    """显式注入服务遵循同一托管生命周期，生产不按模型能力切换。"""
+    def stream(self, prepared: Any) -> AsyncIterator[StreamEvent]:
+        """逐个输出受控公开事件。"""
+        ...
+
+    def release(self, prepared: Any) -> None:
+        """幂等释放本轮会话租约。"""
+        ...
 
 
 # 把流事件编码为 UTF-8 SSE 帧，保留中文并用空行结束事件。
@@ -26,7 +38,7 @@ class ManagedChatResponse(StreamingResponse):
     """
 
     # 保存服务和会话凭证，建立事件迭代器并设置 SSE 响应头。
-    def __init__(self, service: ToolChatService, prepared: PreparedToolChat):
+    def __init__(self, service: ChatService, prepared: Any):
         self.service = service
         self.prepared = prepared
         self.events = service.stream(prepared)
