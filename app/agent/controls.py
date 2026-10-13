@@ -83,7 +83,7 @@ def parse_tool_selection(reply: AIMessage, registry: Mapping[str, BaseTool]) -> 
     if not isinstance(reply, AIMessage) or reply.invalid_tool_calls or len(reply.tool_calls) > 1:
         raise _protocol_error()
     reason = reply.response_metadata.get('finish_reason')
-    if reason not in ({'stop', 'tool_calls'} if reply.tool_calls else {'stop'}):
+    if not isinstance(reason, str) or reason not in ({'stop', 'tool_calls'} if reply.tool_calls else {'stop'}):
         raise _protocol_error()
     raw = reply.additional_kwargs.get('tool_calls')
     if raw is not None and (not isinstance(raw, list) or len(raw) != len(reply.tool_calls)):

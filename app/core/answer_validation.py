@@ -24,7 +24,9 @@ _CLARIFY_CONTEXT = '为了帮您查询订单的物流情况'
 _CLARIFY_CLAUSE = re.compile(
     r'(?:(?:请|麻烦)(?:您)?(?:提供|补充|告知)(?:一下|具体的)?(?:您的|你的)?' + _DETAILS + r'|'
     r'请问(?:您的)?' + _DETAILS + r'(?:是什么|是何时|是多久|呢)?|'
-    r'(?:请问)?(?:您)?(?:是否|有没有)(?:拆封|收货)|(?:请问)?(?:您)?(?:什么时候|何时)(?:购买|收货)(?:的)?)'
+    r'(?:请问)?(?:您)?(?:是否|有没有)(?:拆封|收货)|(?:请问)?(?:您)?(?:什么时候|何时)(?:购买|收货)(?:的)?|'
+    r'(?:请问)?(?:你|您)(?:买的|购买的)(?:是)?什么商品(?:或型号)?|'
+    r'(?:请问)?具体(?:是)?在哪一步(?:不会操作|不会使用|遇到问题))'
 )
 
 
@@ -84,6 +86,7 @@ async def close_answer_stream(upstream) -> None:
 
 # 各分句必须完整符合允许的形式，不能在追问后附加政策、状态或承诺。
 def _nonfactual_form(answer: str, kind: str) -> bool:
+    """逐句校验窄追问形式；纯应答开头仅在澄清路径允许。"""
     # 已观察到的纯表情装饰可忽略；不删除任意未知文字或业务短语。
     answer = answer.replace('😊', '').replace('🙂', '')
     clauses = [part.strip() for part in re.split(r'[，,。.!！?？；;～~\n]+', answer) if part.strip()]
@@ -93,7 +96,16 @@ def _nonfactual_form(answer: str, kind: str) -> bool:
         return all(_SOCIAL_CLAUSE.fullmatch(part) for part in clauses)
     return (any(_CLARIFY_CLAUSE.fullmatch(part) for part in clauses)
             and all(_CLARIFY_CLAUSE.fullmatch(part) or _SOCIAL_CLAUSE.fullmatch(part)
-                    or part == _CLARIFY_CONTEXT for part in clauses))
+                    or part in {_CLARIFY_CONTEXT, '可以的', '好的'} for part in clauses))
+
+
+def validate_business_answer(answer: str, evidence: EvidencePacket, payloads: list[dict]) -> None:
+    """业务回答只用本轮引用；模拟结果必须保留演示含义，不能伪装实际业务状态。"""
+    known = {str(citation.n) for citation in evidence.citations}
+    if any(reference not in known for reference in _NUMERIC_BRACKET.findall(answer)):
+        raise ServiceError('invalid_answer_citations', '模型回复引用无效，请稍后重试。', 502)
+    if any(payload.get('mock') is True for payload in payloads) and not re.search(r'模拟|演示|mock', answer, re.I):
+        raise ServiceError('invalid_answer', '模拟查询回复未保留演示说明，请稍后重试。', 502)
 
 
 # 仅允许完整 stop 和本轮编号；Task7 还须检查实际 AIMessage 工具字段并且不绑定工具。
