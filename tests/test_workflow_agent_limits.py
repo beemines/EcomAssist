@@ -1,5 +1,6 @@
 """有界停止、协议故障与原始配对完整性。"""
 import asyncio
+import time
 import pytest
 from langchain_core.messages import AIMessageChunk, HumanMessage, ToolMessage
 
@@ -113,3 +114,79 @@ async def test_final_cancellation_closes_upstream_without_committing():
     with pytest.raises(asyncio.CancelledError):
         await task
     assert context.model.closed and context.upstream is None and not context.repository.messages
+
+
+@pytest.mark.asyncio
+async def test_actual_faq_timeout_preserves_error_pair_and_call_count():
+    """同值内外超时不能抢先取消执行器，真实等待超时应形成完整失败配对。"""
+    from langgraph.runtime import Runtime
+    from app.tools.executor import ToolExecutor
+    from app.workflow.agent import finalize_answer, tool_node
+    context, state = setup([], question='新买的商品如何操作', intent='售后')
+    context.settings.faq_timeout_seconds = .02
+    context.executor = ToolExecutor(overrides={'query_faq': (.02, 0)})
+    waited = []
+    async def waiting_retrieve(keyword, *, raw_question, category=None):
+        """真实等待超过执行器期限，不用模拟异常冒充超时。"""
+        waited.append(keyword)
+        await asyncio.sleep(.2)
+        return {'found': False, 'matches': [], 'retrieval': {'strategy': 'hybrid_rerank', 'match_count': 0}}
+    context.faq_repository.retrieve = waiting_retrieve
+    state['selected'] = workflow_call('query_faq', {'keyword': '新买'}, 'timed-faq')
+    try:
+        update = await tool_node(state, Runtime(context=context))
+    except TimeoutError:
+        update = None
+    assert update is not None, 'outer FAQ timer cancelled executor before matching tool_timeout result'
+    assert waited == ['新买']
+    assert [message.type for message in context.repository.messages] == ['ai', 'tool']
+    assert update['tool_call_count'] == 1 and update['tool_error']['code'] == 'tool_timeout'
+    assert update['messages'][-1].tool_call_id == 'timed-faq' and update['messages'][-1].status == 'error'
+    assert update['tool_trace'][-1]['attempts'] == 1
+    with pytest.raises(ServiceError) as error:
+        await finalize_answer({**state, **update}, Runtime(context=context))
+    assert error.value.code == 'tool_timeout'
+    assert not context.repository.refusals and context.model.streams == 0
+
+
+@pytest.mark.asyncio
+async def test_faq_whole_turn_deadline_remains_timeout():
+    """整轮绝对期限更早时仍直接传播超期，不伪装成可完成工具错误。"""
+    from langgraph.runtime import Runtime
+    from app.tools.executor import ToolExecutor
+    from app.workflow.agent import tool_node
+    context, state = setup([], question='新买的商品如何操作', intent='售后')
+    context.settings.faq_timeout_seconds = .2
+    context.executor = ToolExecutor(overrides={'query_faq': (.2, 0)})
+    context.deadline = time.monotonic() + .02
+    async def waiting_retrieve(keyword, *, raw_question, category=None):
+        """保持查询等待，使整轮期限先于工具自身期限到达。"""
+        await asyncio.sleep(.3)
+    context.faq_repository.retrieve = waiting_retrieve
+    state['selected'] = workflow_call('query_faq', {'keyword': '新买'})
+    with pytest.raises(TimeoutError):
+        await tool_node(state, Runtime(context=context))
+    assert [m.type for m in context.repository.messages] == ['ai']
+    assert context.model.streams == 0 and not context.repository.refusals
+
+
+@pytest.mark.asyncio
+async def test_faq_external_cancellation_is_not_tool_timeout():
+    """用户取消仍原样传播，不写成功结果或低置信记录。"""
+    from langgraph.runtime import Runtime
+    from app.workflow.agent import tool_node
+    context, state = setup([], question='新买的商品如何操作', intent='售后')
+    started = asyncio.Event()
+    async def waiting_retrieve(keyword, *, raw_question, category=None):
+        """标记真实工具已经进入等待，再由测试发起明确取消。"""
+        started.set()
+        await asyncio.Event().wait()
+    context.faq_repository.retrieve = waiting_retrieve
+    state['selected'] = workflow_call('query_faq', {'keyword': '新买'})
+    task = asyncio.create_task(tool_node(state, Runtime(context=context)))
+    await asyncio.wait_for(started.wait(), timeout=1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert [m.type for m in context.repository.messages] == ['ai']
+    assert context.model.streams == 0 and not context.repository.refusals
