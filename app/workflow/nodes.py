@@ -108,7 +108,7 @@ async def retrieve_knowledge(state: WorkflowState, runtime: Runtime[WorkflowRunt
         'name': 'query_faq', 'elapsed_seconds': time.monotonic() - started}
     log_node(state, 'retrieve_knowledge', **{key: value for key, value in trace.items() if key != 'node'})
     runtime.stream_writer({'event': 'status', 'data': {'tool': 'query_faq', 'tool_call_id': identifier,
-        'origin': 'workflow', 'status': 'completed'}})
+        'origin': 'workflow', 'status': 'completed', 'result_status': 'success'}})
     return {'messages': messages, 'evidence_payload': packet.payload,
         'citations': [asdict(citation) for citation in packet.citations],
         'tool_trace': [*state['tool_trace'], trace], 'tool_call_count': state['tool_call_count'] + 1}

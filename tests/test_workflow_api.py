@@ -174,6 +174,25 @@ async def test_forced_faq_running_arrives_before_retrieval_finishes(tmp_path):
     assert rest[-1].event == 'done'
 
 
+@pytest.mark.parametrize('fails', [False, True])
+async def test_forced_faq_public_completion_reports_actual_result(tmp_path, fails):
+    """真实 HTTP 完成帧必须含成功结果及同一工具身份，失败检索不得伪报成功。"""
+    faq = FAQStub(failure=RuntimeError('controlled retrieval failure') if fails else None)
+    model = ScriptedWorkflowModel(intent_replies=[intent('商品咨询')])
+    async with workflow_app(tmp_path, model=model, store=Store(), faq=faq) as app:
+        frames = decode_sse((await request(app, '商品参数')).text)
+    running = next(data for name, data in frames if name == 'status' and data.get('phase') == 'tool_running')
+    completed = [data for name, data in frames if name == 'status' and data.get('phase') == 'tool_completed']
+    assert running['tool_name'] == 'query_faq' and running['origin'] == 'workflow'
+    assert running['tool_call_id'].startswith('workflow_faq_')
+    if fails:
+        assert completed == [] and frames[-1][0] == 'error'
+    else:
+        assert completed == [{'phase': 'tool_completed', 'tool_name': 'query_faq',
+            'tool_call_id': running['tool_call_id'], 'origin': 'workflow', 'status': 'success'}]
+        assert frames[-1][0] == 'done'
+
+
 async def test_citations_match_final_packet_and_precede_live_delta(tmp_path):
     """最终知识引用必须在首正文前仅一次出现，并与完成快照精确相同。"""
     from app.core.sufficiency import QualityDecision
