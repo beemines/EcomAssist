@@ -845,6 +845,56 @@ textarea:disabled {
   display:none
 }
 
+/* 每个操作单独保留按钮和结果，自动换行使旧回复与窄屏都可继续确认。 */
+.support-actions {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:flex-start;
+  gap:12px;
+  margin-top:14px;
+  padding-top:12px;
+  border-top:1px solid #e1e8db;
+  white-space:normal
+}
+.support-action-group {
+  min-width:0;
+  max-width:100%;
+  flex:1 1 180px
+}
+.support-action {
+  border:1px solid #adc8af;
+  border-radius:8px;
+  background:#f4f8ef;
+  color:#286659;
+  padding:7px 13px;
+  font-size:12px;
+  line-height:1.6
+}
+.support-action:not(:disabled):hover {
+  background:#e1eddb
+}
+.support-action:disabled {
+  opacity:.55;
+  cursor:default
+}
+.support-action:focus-visible,.citation-button:focus-visible,.feedback-button:focus-visible {
+  outline:2px solid #286659;
+  outline-offset:3px
+}
+.support-action-result {
+  margin-top:7px;
+  font-size:11px;
+  line-height:1.8;
+  color:#607956;
+  overflow-wrap:anywhere
+}
+.support-action-result:empty {
+  margin:0
+}
+.handoff-line {
+  margin:0 0 3px
+}
+
 /* 工具徽章的运行、成功、错误和中断状态通过 data-status 切换。 */
 .tool-badge {
   display:inline-flex;
