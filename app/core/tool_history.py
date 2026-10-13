@@ -9,26 +9,29 @@ from app.core.memory import estimate_tokens
 from app.repositories.records import MessageRecord, message_from_record, record_from_message
 
 
-# 校验完整轮次或待回答轮次的角色顺序及单次工具申请与结果的对应关系。
+# 校验完整或待回答轮次的顺序配对，并要求全轮工具调用标识唯一。
 def _validate_turn(messages: Sequence[BaseMessage], *, pending: bool = False) -> None:
     if not messages or not isinstance(messages[0], HumanMessage):
         raise ValueError("A turn must start with a user message.")
     # 通过同一转换器检查字段与文本界限，避免回放和预算使用不同规则。
     for message in messages:
         message_from_record(record_from_message(message))
-    if len(messages) == 2 and not pending:
-        if isinstance(messages[1], AIMessage) and not messages[1].tool_calls:
-            return
-    expected = 3 if pending else 4
-    if len(messages) == expected:
-        request, result = messages[1:3]
-        if (
-            isinstance(request, AIMessage) and len(request.tool_calls) == 1
-            and isinstance(result, ToolMessage) and result.tool_call_id == request.tool_calls[0]["id"]
-            and (pending or isinstance(messages[3], AIMessage) and not messages[3].tool_calls)
-        ):
-            return
-    raise ValueError("History must contain a complete, matched single-tool turn.")
+    exchanges = messages[1:]
+    if not pending:
+        if not exchanges or not isinstance(exchanges[-1], AIMessage) or exchanges[-1].tool_calls:
+            raise ValueError("A complete turn must end with an assistant answer.")
+        exchanges = exchanges[:-1]
+    if len(exchanges) % 2 or (pending and not exchanges):
+        raise ValueError("Tool requests must have adjacent matched results.")
+    seen: set[str] = set()
+    for index in range(0, len(exchanges), 2):
+        request, result = exchanges[index:index + 2]
+        if not isinstance(request, AIMessage) or len(request.tool_calls) != 1 or not isinstance(result, ToolMessage):
+            raise ValueError("Each tool request must be followed by its result.")
+        identifier = request.tool_calls[0]["id"]
+        if identifier in seen or result.tool_call_id != identifier:
+            raise ValueError("Tool call ids must be unique and match the adjacent result.")
+        seen.add(identifier)
 
 
 # 按消息主键恢复完整轮次，跳过损坏、未完成和孤立的消息组合。
@@ -47,8 +50,6 @@ def completed_turns(rows: Sequence[MessageRecord]) -> list[list[BaseMessage]]:
             if isinstance(message, AIMessage) and not message.tool_calls:
                 _validate_turn(group)
                 turns.append(group)
-                group = None
-            elif len(group) > 3:
                 group = None
         except (ValueError, TypeError, KeyError, RecursionError):
             group = None

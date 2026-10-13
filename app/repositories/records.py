@@ -34,11 +34,11 @@ def _invalid_constant(value: str) -> None:
     raise ValueError("Tool arguments must use finite JSON values.")
 
 
-# 校验单个持久化工具申请，并还原 LangChain 使用的调用字典。
+# 校验每个申请消息仅有一个工具调用，并还原 LangChain 使用的调用字典。
 def decode_tool_calls(value: Any) -> list[dict]:
     """持久化采用 Chat Completions 格式，回放时还原 LangChain 格式。"""
     if not isinstance(value, list) or len(value) != 1:
-        raise ValueError("Exactly one tool call is allowed per turn.")
+        raise ValueError("Exactly one tool call is allowed per request message.")
     call = value[0]
     if not isinstance(call, dict) or call.get("type") != "function":
         raise ValueError("Invalid Chat Completions tool call.")
@@ -55,7 +55,7 @@ def decode_tool_calls(value: Any) -> list[dict]:
     return [{"id": identifier, "name": function["name"], "args": args, "type": "tool_call"}]
 
 
-# 把支持的文本消息转为记录，工具申请采用可审计的标准 JSON 格式。
+# 把支持的文本消息转为记录，每个申请消息仅保存一个可审计工具调用。
 def record_from_message(message: BaseMessage, *, identifier: int = 0) -> MessageRecord:
     """只接收本应用的文本消息，工具申请保存为可审计的标准 JSON。"""
     if isinstance(message, HumanMessage):
@@ -69,7 +69,7 @@ def record_from_message(message: BaseMessage, *, identifier: int = 0) -> Message
         if not message.tool_calls:
             return MessageRecord(identifier, "assistant", content, None, None)
         if len(message.tool_calls) != 1:
-            raise ValueError("Exactly one tool call is allowed per turn.")
+            raise ValueError("Exactly one tool call is allowed per request message.")
         call = message.tool_calls[0]
         serialized = [{"id": call.get("id"), "type": "function", "function": {
             "name": call.get("name"),
