@@ -212,7 +212,7 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
 
 
 async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dict:
-    """逐个保存申请和对应成功/错误结果；FAQ 新证据在下一次决策前过闸。"""
+    """执行器负责工具超时，外层仅限制整轮期限；逐个保存配对并在回灌前检查新FAQ。"""
     context = runtime.context
     ensure_answer_active(context.deadline)
     selected = state['selected'].model_copy(deep=True)
@@ -221,8 +221,8 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
     identity = {'tool': call.name, 'tool_call_id': call.id, 'origin': 'agent'}
     runtime.stream_writer({'event': 'status', 'data': {**identity, 'status': 'running'}})
     started = time.monotonic()
-    async with asyncio.timeout(remaining_timeout(context, context.settings.faq_timeout_seconds if call.name == 'query_faq'
-            else context.settings.llm_timeout_seconds)):
+    # 同值外层工具期限会抢先取消执行器，必须只让执行器拥有匹配 tool_timeout 的机会。
+    async with asyncio.timeout_at(context.deadline):
         outcome = await context.executor.execute(call, _registry(state, context))
     ensure_answer_active(context.deadline)
     result = ToolMessage(json.dumps(outcome.content, ensure_ascii=False, separators=(',', ':'), allow_nan=False),
