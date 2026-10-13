@@ -66,6 +66,11 @@ class Settings(BaseSettings):
     tool_max_retries: int = Field(default=1, ge=0, le=1, validation_alias="TOOL_MAX_RETRIES")
     faq_timeout_seconds: float = Field(default=90, gt=0, le=90, validation_alias='FAQ_TIMEOUT_SECONDS')
     chat_timeout_seconds: float = Field(default=240, gt=0, le=240, validation_alias='CHAT_TIMEOUT_SECONDS')
+    # Agent 控制预算与原最终回答上限独立，工具次数不能超过已确认的四次。
+    agent_max_tool_calls: int = Field(default=4, gt=0, le=4, validation_alias='AGENT_MAX_TOOL_CALLS')
+    agent_total_token_budget: int = Field(default=32000, gt=0, validation_alias='AGENT_TOTAL_TOKEN_BUDGET')
+    agent_decision_max_output_tokens: int = Field(default=2048, gt=0, validation_alias='AGENT_DECISION_MAX_OUTPUT_TOKENS')
+    intent_max_output_tokens: int = Field(default=2048, gt=0, validation_alias='INTENT_MAX_OUTPUT_TOKENS')
     # 工作台默认只读；换本机端口时由启动环境显式配置 JSON 来源数组。
     rag_evaluation_enabled: bool = Field(default=False, validation_alias='RAG_EVALUATION_ENABLED')
     # 仅评估资源显式使用；缺省不发送新参数，空白及非提供商枚举由 Literal 拒绝。
@@ -122,6 +127,15 @@ class Settings(BaseSettings):
     def qa_output_budget_must_not_be_bool(cls, value):
         if isinstance(value, bool):
             raise ValueError('QA output budget must be a positive integer')
+        return value
+
+    @field_validator('agent_max_tool_calls', 'agent_total_token_budget',
+                     'agent_decision_max_output_tokens', 'intent_max_output_tokens', mode='before')
+    @classmethod
+    def agent_limits_must_not_be_bool(cls, value):
+        """转换前拒绝布尔值；正数、有限整数与工具硬上限由字段校验。"""
+        if isinstance(value, bool):
+            raise ValueError('Agent limits must be positive integers.')
         return value
 
     # 新增数值配置在强制转换前排除布尔值，有限数校验沿用全局配置。
