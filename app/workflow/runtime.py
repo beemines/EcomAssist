@@ -10,6 +10,7 @@ from app.config import Settings
 
 @dataclass
 class WorkflowRuntime:
+    """父图拥有模型与仓储；决策模型用于2048控制，model用于512最终流，upstream由收敛节点回收。"""
     model: Any
     decision_model: Any
     intent_model: Any
