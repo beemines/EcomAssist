@@ -116,3 +116,70 @@ def build_evidence(*, system: SystemMessage, turns: Sequence[Sequence[BaseMessag
     citations = [Citation(item['n'], item['id'], item.get('section_path'), item['question'], item['answer'])
                  for item in bounded['matches']]
     return EvidencePacket(bounded, citations, messages, selected[0]['score'] if selected else None, strategy)
+
+
+def build_agent_evidence(*, system: SystemMessage, turns: Sequence[Sequence[BaseMessage]],
+                         current: HumanMessage, current_tool_messages: list[BaseMessage],
+                         payloads: list[dict], budget: int) -> EvidencePacket:
+    """合并本轮 FAQ 展示副本并整块计费；审计原结果、业务结果均不改写。"""
+    if type(budget) is not int or budget <= 0:
+        raise ValueError('input budget must be a positive integer')
+    # 先验证所有配对和历史，即使最终预算裁剪也不能吞掉坏协议。
+    pending = [message.model_copy(deep=True) for message in current_tool_messages]
+    if len(pending) != len(payloads) * 2:
+        raise ValueError('each current tool pair requires its original payload')
+    from app.core.tool_history import _validate_turn
+    if pending:
+        _validate_turn([current, *pending], pending=True)
+    for turn in turns:
+        _validate_turn(turn)
+    faq_indexes, merged = [], {}
+    for index, payload in enumerate(payloads):
+        if not isinstance(payload, dict) or json.loads(pending[index * 2 + 1].content) != payload:
+            raise ValueError('payload must match original tool result')
+        if 'matches' not in payload:
+            continue
+        faq_indexes.append(index)
+        for item in _matches(payload):
+            if item['score_kind'] != 'rerank':
+                raise ValueError('agent FAQ evidence requires authoritative rerank scores')
+            previous = merged.get(item['id'])
+            if previous is None or item['score'] > previous['score']:
+                merged[item['id']] = item
+    candidates = sorted(merged.values(), key=lambda item: item['score'], reverse=True)[:10]
+    base = copy.deepcopy(payloads[faq_indexes[-1]]) if faq_indexes else {}
+    strategy = base.get('retrieval', {}).get('strategy', 'none')
+
+    def assemble(selected: list[dict], history):
+        """每次试装完整当前配对，FAQ 统一展示位置不遗漏工具参数与业务正文。"""
+        data = _numbered_payload(base, selected) if faq_indexes else {}
+        if isinstance(data.get('retrieval'), dict):
+            data['retrieval']['candidate_count'] = len(merged)
+        shown = [message.model_copy(deep=True) for message in pending]
+        for index in faq_indexes:
+            if index == faq_indexes[-1]:
+                display = data
+            else:
+                display = _numbered_payload(payloads[index], [])
+                display['evidence_merged'] = True
+                display['evidence_note'] = '本次 FAQ 命中已合并到本轮最后一个 FAQ 结果，请使用最终编号证据。'
+                if isinstance(display.get('retrieval'), dict):
+                    display['retrieval']['candidate_count'] = 0
+            shown[index * 2 + 1].content = _serialize(display)
+        return data, build_tool_messages(system, history, current, budget, tool_schema=[],
+            current_tool_messages=shown)
+
+    assemble([], [])
+    selected = []
+    for candidate in candidates:
+        try:
+            assemble([*selected, candidate], [])
+        except InputTooLong:
+            continue
+        selected.append(candidate)
+    if candidates and not selected:
+        raise InputTooLong()
+    bounded, messages = assemble(selected, turns)
+    citations = [Citation(item['n'], item['id'], item.get('section_path'), item['question'], item['answer'])
+                 for item in bounded.get('matches', [])]
+    return EvidencePacket(bounded, citations, messages, selected[0]['score'] if selected else None, strategy)
