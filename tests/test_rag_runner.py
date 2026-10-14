@@ -227,7 +227,30 @@ async def test_shared_rewrite_failure_four_errors_one_request(tmp_path):
 async def test_shared_rewrite_elapsed_charged_independently(tmp_path, monkeypatch):
     """各路扣相同改写耗时，后路不会承担前路检索耗时。"""
     runner, resources, store, data, run_id, http = await setup(tmp_path)
-    resources.model.delay, runner.retrieval.delay = .15, .2
+    loop = asyncio.get_running_loop()
+    clock = [loop.time()]
+
+    def controlled_time():
+        """改写和检索显式累计耗时，真实文件写入速度不影响路由期限。"""
+        return clock[0]
+
+    monkeypatch.setattr(loop, 'time', controlled_time)
+    original_request, original_retrieve = resources.model.request, runner.retrieval.retrieve
+
+    async def timed_request(stage, messages):
+        """保留本机HTTP与计数，只给共享改写计入固定0.15秒。"""
+        await original_request(stage, messages)
+        if stage == 'rewrite':
+            clock[0] += .15
+
+    async def timed_retrieve(*args, **kwargs):
+        """保留实际检索替身结果，每一路只计入自身0.2秒检索时间。"""
+        result = await original_retrieve(*args, **kwargs)
+        clock[0] += .2
+        return result
+
+    monkeypatch.setattr(resources.model, 'request', timed_request)
+    monkeypatch.setattr(runner.retrieval, 'retrieve', timed_retrieve)
     runner.settings = settings().model_copy(update={'faq_timeout_seconds': .7, 'chat_timeout_seconds': 2.})
     starts, deadlines = [], []
     original_route, original_timeout = runner._route, asyncio.timeout_at
@@ -244,7 +267,7 @@ async def test_shared_rewrite_elapsed_charged_independently(tmp_path, monkeypatc
     try:
         assert await runner.run_cases(data, {'one': 1, 'two': 2}, data.pilot_ids, asyncio.Event()) == 'completed'
         assert len(runner.retrieval.calls) == 4
-        assert all(r['elapsed_ms'] >= 350 for r in await store.records(run_id))
+        assert all(r['elapsed_ms'] == pytest.approx(350, abs=.01) for r in await store.records(run_id))
         assert len(deadlines) == 8 and len(starts) == 4
         assert len({elapsed for _, elapsed in starts}) == 1
         for index, (start, rewrite_elapsed) in enumerate(starts):
@@ -465,17 +488,27 @@ async def test_expired_checkpoint_does_not_start_next_model_stage(tmp_path, monk
     """检查点等待耗尽聊天期限后不得再开始自评模型HTTP请求。"""
     runner, resources, store, data, run_id, http = await setup(tmp_path)
     runner.settings = settings().model_copy(update={'chat_timeout_seconds': .3})
+    loop = asyncio.get_running_loop()
+    clock = [loop.time()]
+
+    def controlled_time():
+        """真实写盘不消耗测试期限，只在指定检查点推进时间。"""
+        return clock[0]
+
+    monkeypatch.setattr(loop, 'time', controlled_time)
     original = runner._publish
+    reached = []
     async def slow_self_check(row):
         """只在已保存检索产物后耗尽期限，保留完整真实写盘行为。"""
         await original(row)
         if row['status'] == 'running' and row['stage'] == 'self_check':
-            # 同步延迟模拟真实fsync阻塞事件循环，timeout回调尚未得到运行机会。
-            import time
-            time.sleep(.35)
+            # 不让出事件循环地推进时钟，模拟fsync阻塞后超时回调尚未运行。
+            reached.append(row['strategy'])
+            clock[0] += .35
     monkeypatch.setattr(runner, '_publish', slow_self_check)
     try:
         assert await runner.run_cases(data, {'one': 1, 'two': 2}, data.pilot_ids, asyncio.Event()) == 'completed_with_errors'
+        assert reached == list(STRATEGIES)
         assert (await store.get(run_id))['request_counts']['self_check'] == 0
         assert {r['status'] for r in await store.records(run_id)} == {'self_check_error'}
     finally:
