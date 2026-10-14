@@ -168,3 +168,25 @@ async def test_captured_policy_prose_remains_invalid_control_output(path):
     assert context.model.streams == 0 and not context.repository.refusals
     assert all(event['event'] != 'delta' for event in events)
     assert [message.type for message in context.repository.messages] == ([] if path == 'mandatory_faq' else ['ai', 'tool'])
+
+
+@pytest.mark.asyncio
+async def test_captured_factual_logistics_still_rejected_under_chosen_clarification():
+    """错误选择澄清后的真实物流正文仍被守卫拒绝，不覆盖模型模式或提交最终SQL。"""
+    from tests.test_workflow_agent import graph
+    captured = ('您好，为您查询到订单1001的物流信息（此为模拟演示数据，仅供参考）：'
+        '包裹目前已揽收，运单号为MOCK11540677，预计2天内送达。'
+        '如需了解更多物流详情，建议以实际物流平台信息为准哦～')
+    context, state = setup([workflow_call('query_logistics', {'order_id': '1001'}), control('clarification')],
+        question='订单1001的包裹到哪里了？', intent='物流', answer=captured)
+    parsed_modes = []
+    with pytest.raises(ServiceError) as error:
+        async for kind, data in graph().astream(state, context=context, stream_mode=['updates', 'custom']):
+            if kind == 'updates' and 'llm_call' in data and 'reply_mode' in data['llm_call']:
+                parsed_modes.append(data['llm_call']['reply_mode'])
+    assert error.value.code == 'invalid_answer'
+    assert parsed_modes == ['clarification']
+    assert '回复模式：clarification' in context.model.stream_inputs[0][0].text
+    assert [message.type for message in context.repository.messages] == ['ai', 'tool']
+    assert context.model.streams == 1 and context.decision_model.decisions == 2
+    assert not context.repository.refusals
