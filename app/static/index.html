@@ -9,8 +9,8 @@
   <title>MewHelp · 智能客服</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='14' fill='%23286659'/%3E%3Cpath d='M14 17h20v19H14zM19 17v-3a5 5 0 0 1 10 0v3' fill='none' stroke='white' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E">
   <!-- 先加载样式，defer 脚本等 DOM 解析完成后再绑定输入与按钮事件。 -->
-  <link rel="stylesheet" href="/static/chat.css">
-  <script src="/static/chat.js" defer></script>
+  <link rel="stylesheet" href="/static/chat.css?v=20261014-dialog2">
+  <script src="/static/chat.js?v=20261014-dialog2" defer></script>
 </head>
 <body>
   <!-- 复用同一组内联 SVG 图标，其他区域通过 use 引用，避免依赖外部图标请求。 -->
@@ -73,6 +73,16 @@
   <dialog class="source-dialog" id="source-dialog" aria-labelledby="source-title">
     <header class="source-header"><div><p class="source-eyebrow">回答依据</p><h2 id="source-title">知识来源</h2></div><button type="button" id="source-close" class="source-close" aria-label="关闭知识来源">×</button></header>
     <div class="source-content"><p id="source-path" class="source-path"></p><p id="source-question" class="source-question"></p><div id="source-answer" class="source-answer"></div><p id="source-id" class="source-id"></p></div>
+  </dialog>
+  <!-- 人工接入使用主题内弹窗确认；通知与问候在确认后各自生成新消息。 -->
+  <dialog class="source-dialog handoff-dialog" id="handoff-dialog" aria-labelledby="handoff-title" aria-describedby="handoff-description">
+    <header class="source-header"><div><p class="source-eyebrow">人工协助</p><h2 id="handoff-title">转接人工客服</h2></div><button type="button" id="handoff-close" class="source-close" aria-label="关闭转人工确认">×</button></header>
+    <div class="handoff-content">
+      <div class="handoff-person"><span class="handoff-avatar" aria-hidden="true"><svg><use href="#icon-chat"/></svg></span><div><p class="handoff-name">客服小猫</p><p class="handoff-status"><span aria-hidden="true"></span>准备为你解答</p></div></div>
+      <p id="handoff-description" class="handoff-description">需要客服小猫继续帮你处理吗？确认后，将在对话中接入人工客服。</p>
+      <p class="handoff-note">当前为演示接入，你也可以继续与智能客服对话。</p>
+      <div class="ticket-footer"><button type="button" id="handoff-cancel" class="ticket-cancel">暂不转接</button><button type="button" id="handoff-confirm" class="ticket-submit">确认接入</button></div>
+    </div>
   </dialog>
   <!-- 工单内容由用户亲自填写，只有提交才请求写库；原生弹窗约束键盘焦点。 -->
   <dialog class="source-dialog ticket-dialog" id="ticket-dialog" aria-labelledby="ticket-title">

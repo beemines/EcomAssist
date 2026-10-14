@@ -172,10 +172,10 @@ def create_app(
     static_dir = Path(__file__).resolve().parent / "static"
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-    # 返回静态聊天页面，作为应用首页。
+    # 聊天入口不持久缓存，配合有版本的资源地址避免改版后继续加载旧交互。
     @app.get("/", response_class=FileResponse, include_in_schema=False)
     async def chat_page():
-        return FileResponse(static_dir / "index.html")
+        return FileResponse(static_dir / "index.html", headers={"Cache-Control": "no-store"})
 
     # 将业务异常转换为统一的错误码、提示和 HTTP 状态。
     @app.exception_handler(ServiceError)

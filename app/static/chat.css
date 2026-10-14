@@ -1038,6 +1038,18 @@ textarea:disabled {
   background:#213c3545;
   backdrop-filter:blur(2px)
 }
+/* 人工确认与工单共用主题边框、遮罩和按钮，避免浏览器原生黑色确认框。 */
+.handoff-dialog { width:min(440px,calc(100% - 32px)) }
+.handoff-content { padding:26px }
+.handoff-person { display:flex; align-items:center; gap:13px; margin-bottom:22px }
+.handoff-avatar { display:grid; place-items:center; width:48px; height:48px; flex-shrink:0; border-radius:15px; background:#e8f0e3; color:#46755d }
+.handoff-avatar svg { width:25px; height:25px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round }
+.handoff-name { margin:0 0 5px; font-size:15px; font-weight:600 }
+.handoff-status { display:flex; align-items:center; gap:6px; margin:0; font-size:11px; color:#7c9273 }
+.handoff-status span { width:6px; height:6px; border-radius:50%; background:#8ab57e }
+.handoff-description { margin:0; font-size:14px; line-height:1.9 }
+.handoff-note { margin:12px 0 0; color:#899781; font-size:11px; line-height:1.8 }
+.handoff-dialog button:focus-visible { outline:2px solid #84b39e; outline-offset:3px }
 /* 手填工单沿用聊天页配色，字段与错误提示在移动端弹窗内滚动。 */
 .ticket-dialog { width:min(510px,calc(100% - 32px)) }
 .ticket-content { padding:22px 26px 26px }
