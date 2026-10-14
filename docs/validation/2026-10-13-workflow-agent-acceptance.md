@@ -84,3 +84,20 @@ Task5决策/最终Prompt隔离、Task9 SQL配对与引用选择均通过scoped�
 主8场景已持久化账本11次，物流最终失败调用自身用量未持久化、usage_complete=false，**11不是全供应商收费次数**。32000仍只含已记录意图+Agent决策/最终；委托query改写/充分性按原独立cap/deadline运行，排除在该账本外。没有重复24题分类、完整试跑或增加诊断；错误后只继续独立知识/投诉/社交路径。下一步由原Task5修复模式指令并审查，随后只定点物流/两步/使用求助，不重跑已通过项。
 
 原始与本轮JSON/SSE/SQL/截图各自保持：`.cache/workflow-browser/live/<各run-id>/`；本轮导出`.cache/task-9-final-live-chat.json`、`.cache/task-9-final-live-chat.txt`。已人工查看MH-LP200、库外、物流截图：12L与引用可见，预期拒答显示转人工入口；物流错误有红色说明、无反馈/动作，未误写普通成功。
+
+## 2026-10-14：模式修复后的三项定点续验
+
+生产模式修复5f98563通过审查后，选择器600ccc7785c3ed8345cc7d2402696ba4175eb6ed只增加固定主场景 --cases，原默认与语义/来源/SQL门槛不变。聚焦TDD 5失败→41通过，等号误用前置拒绝另5通过；未重复full、25项受控全批或意图24题。
+
+旧8002链78840→35900→38816→99840及停止工具110612核对后优雅关闭，shutdown complete后才隐藏重开同.env/SQLite。当前uv17620/Uvicorn7308、healthok；8001仍58816。日志/归属在`.cache/task-9-targeted-stop-owned.txt`、`task-9-targeted-server.*`。
+
+直接人类许可call_ec17b619fb6146cca74f82144b55b462覆盖固定场景及修复后定点续验；引用其原话后执行一次 `D:/vue/node.exe scripts/verify-workflow-browser.cjs --url http://127.0.0.1:8002/ --mode live --cases logistics,two-step,usage-help`，run `1e35ffad-79e3-4c75-bfb1-98f5be22c0d9`。原模型/预算/240秒/零重试保持，未选政策、投诉、社交、MH、库外及两个附加项均NOT_EXECUTED；使用求助因两步首次业务失败停止，未调用。
+
+- 物流39：PASS。SQL159用户→160 query_logistics申请→161同ID成功结果→162最终，reply_mode=answer、决策2、工具1，严格SQL配对无误，正常done。已持久化4次/2320用量，usage_complete=true。
+- 两步40：ERROR。SQL163用户→164/165 query_order→166/167 query_logistics，两组同ID工具配对按顺序成功，页面有两个成功徽章；最终正文却给订单金额及物流结果加[1]/[2]，SSE citations=[]，触发invalid_answer_citations，无最终SQL、无done/actions。已持久化4次/2949用量，失败最终调用用量未入账、usage_complete=false。
+
+浏览器**1PASS/1FAIL/8NOT_EXECUTED，exit1**；严格只读导入主8分母**2尝试/1通过/1错误/6未执行，exit1**。导入命令 `python -m evals.evaluate_workflow --mode chat --live --evidence .cache/workflow-browser/live/1e35ffad-79e3-4c75-bfb1-98f5be22c0d9/results.json --output .cache/task-9-targeted-live-chat.json`。只读取既有SSE/MySQL/官方SQLite，零新增模型请求。8次账本不是全部收费数；32000范围仍限已记录intent+Agent，委托query/充分性不混入。
+
+本地零模型重建`.cache/task-9-targeted-two-step-local-diagnosis.json`证明子图reply_mode=answer、packet.citations=[]，同一正文/packet由validate_business_answer精确复现invalid_answer_citations。原packet完整保留，未采集推理；最初诊断提前break出现生成器清理告警，改为连接内消费完有限快照后重放，最后输出无告警。实际截图two-step.png已人工查看：两工具成功、伪引用与红色错误同时可见，不当成功答复。
+
+先前a08d00ad的政策/MH/拒答/独立按钮/社交、会话30重启幂等证据继续按原run复用，没有复制到本次结果。本轮仍未完成全部验收，控制器负责下一轮业务结果与FAQ引用指令修复及审查；本轮不再live/full、不放松guard、不删除未知引用、不调整模型或预算。

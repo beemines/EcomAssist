@@ -246,9 +246,11 @@ node scripts/verify-workflow-browser.cjs --url http://127.0.0.1:8002/ --mode liv
 uv run --locked python -m evals.evaluate_workflow --mode chat --live --evidence .cache/workflow-browser/live/<实际run-id>/results.json --output .cache/workflow-chat-live.json
 ```
 
+修复后可用 `--cases logistics,two-step,usage-help` 仅执行白名单中的固定场景；未选项仍记未执行，投诉附加按钮场景只随 complaint/default 执行。非法、空或重复名称在浏览器启动前拒绝。
+
 固定意图集为21题加3题边界，每题单次；浏览器固定场景每轮上限240秒，相同链路首次失败停止后续收费。32000账本统计意图与 Agent 决策/最终调用；检索改写和充分性沿用各自预算、期限并单独说明。错误、超时、截断、资料不足拒答及未执行分别统计，实际证据和完成范围见[本次验收](docs/validation/2026-10-13-workflow-agent-acceptance.md)。
 
-2026-10-14，已审查版本的完整离线回归1782通过/118跳过。真实政策、MH-LP200的12L来源、库外预期拒答和独立按钮已验；物流决策错选澄清模式仍导致最终校验错误，两步及使用求助等待定点复验。第五步尚未完整验收，未将已流出的文本当作正常完成。
+2026-10-14，已审查版本的完整离线回归1782通过/118跳过。真实政策、MH-LP200的12L来源、库外预期拒答和独立按钮已验。模式修复后仅定点复验：物流正常完成；两步工具均成功，但最终正文给无FAQ来源的业务结果添加[1]/[2]，被严格引用校验拒绝；使用求助按首次业务失败停止规则未执行。第五步仍未完整验收，待修复引用指令后继续剩余项。
 
 ## 回归与开发记录
 
