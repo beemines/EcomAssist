@@ -177,3 +177,45 @@ async def test_actual_model_inputs_separate_decision_and_final_phase(path):
     assert '澄清只询问必要信息，不包含政策、状态、期限或承诺' in final_system
     assert '转人工、创建工单仅为用户可确认的建议，不声称已执行' in final_system
     assert result['final_answer'] == ('当前退货规则[1]。' if path == 'mandatory_faq' else '模拟物流查询：运输中。')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('question,intent,mode,tool,answer', [
+    pytest.param('订单1001的包裹到哪里了？', '物流', 'answer', 'query_logistics',
+        '模拟物流查询：包裹已揽收。', id='successful_mock_logistics_is_answer'),
+    pytest.param('新买的商品不太会用，能帮我看看吗', '售后', 'clarification', None,
+        '可以的，你买的是什么商品或型号？具体在哪一步不会操作？', id='missing_product_model_is_clarification'),
+])
+async def test_annotated_reply_modes_have_explicit_meaning_in_actual_model_inputs(question, intent, mode, tool, answer):
+    """独立标注的模拟结果/缺型号样例在实际两阶段输入中有明确且一致的模式语义。"""
+    import re
+    from app.workflow.agent import AgentControl
+    replies = [control(mode)] if tool is None else [workflow_call(tool, {'order_id': '1001'}), control(mode)]
+    context, state = setup(replies, question=question, intent=intent, answer=answer)
+    result, _ = await run(context, state)
+    decision_system = context.decision_model.tool_inputs[-1][0].text
+    assert 'answer：本轮读取结果或编号证据足以回应当前问题' in decision_system
+    assert '解释已有工具结果属于 answer' in decision_system
+    assert 'mock=true 的结果在保留模拟说明后仍可选择 answer' in decision_system
+    assert 'clarification：仅用于追问用户尚未提供的必要信息' in decision_system
+    # 实际发送的每个JSON示例都必须被正式控制Schema接受，不能写伪enum字面量。
+    examples = [AgentControl.model_validate(json.loads(text)) for text in re.findall(r'\{[^{}]*\}', decision_system)]
+    assert examples and {example.reply_mode for example in examples} == {'answer', 'clarification'}
+    annotated_examples = {}
+    for line in decision_system.splitlines():
+        if line.startswith('示例：') and '{' in line:
+            annotated_examples[line.split('→')[0]] = AgentControl.model_validate_json(line[line.index('{'):].rstrip('。'))
+    assert any('订单1001的包裹到哪里了？' in label and example.reply_mode == 'answer'
+        for label, example in annotated_examples.items())
+    assert any('新买的商品不太会用' in label and example.reply_mode == 'clarification'
+        for label, example in annotated_examples.items())
+    final_system = context.model.stream_inputs[0][0].text
+    assert f'回复模式：{mode}' in final_system
+    if mode == 'answer':
+        assert '本轮采用 answer：直接依据当前结果或编号证据回答' in final_system
+        assert '模拟结果必须保留模拟或演示说明' in final_system
+    else:
+        assert '本轮采用 clarification：只询问缺少的必要用户信息' in final_system
+        assert '不要复述或解释已有工具结果' in final_system
+        assert '不输出物流状态、运单号、预计天数或其他事实' in final_system
+    assert result['reply_mode'] == mode and result['final_answer'] == answer
