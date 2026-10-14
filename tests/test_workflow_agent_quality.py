@@ -190,3 +190,32 @@ async def test_captured_factual_logistics_still_rejected_under_chosen_clarificat
     assert [message.type for message in context.repository.messages] == ['ai', 'tool']
     assert context.model.streams == 1 and context.decision_model.decisions == 2
     assert not context.repository.refusals
+
+
+@pytest.mark.asyncio
+async def test_captured_two_step_business_citations_remain_strictly_rejected():
+    """两步业务成功后回灌真实伪造引用正文，仍拒绝完成且保留两组审计配对。"""
+    from tests.test_workflow_agent import graph
+    captured = ('您好，查询结果如下（均为模拟演示数据）：\n\n'
+        '- 订单1001状态：已完成，金额58.94元 [1]\n'
+        '- 物流情况：已揽收，运单号 MOCK65694130，预计3天送达 [2]\n\n'
+        '如需进一步帮助，请告诉我。')
+    context, state = setup([
+        workflow_call('query_order', {'order_id': '1001'}),
+        workflow_call('query_logistics', {'order_id': '1001'}, 'call_2'), control()],
+        question='先查订单1001的状态，再按订单查物流', answer=captured)
+    events, modes = [], []
+    with pytest.raises(ServiceError) as error:
+        async for kind, data in graph().astream(state, context=context, stream_mode=['updates', 'custom']):
+            if kind == 'custom':
+                events.append(data)
+            elif 'llm_call' in data and 'reply_mode' in data['llm_call']:
+                modes.append(data['llm_call']['reply_mode'])
+    assert error.value.code == 'invalid_answer_citations'
+    assert modes == ['answer']
+    assert [event['data']['citations'] for event in events if event['event'] == 'citations'] == [[]]
+    assert ''.join(event['data']['text'] for event in events if event['event'] == 'delta') == captured
+    assert all(event['event'] != 'done' for event in events)
+    assert [message.type for message in context.repository.messages] == ['ai', 'tool', 'ai', 'tool']
+    assert context.model.streams == 1 and context.decision_model.decisions == 3
+    assert not context.repository.refusals
