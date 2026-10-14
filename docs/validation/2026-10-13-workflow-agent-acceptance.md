@@ -141,3 +141,17 @@ BASE `ac2cb81841d2a9b316745e830dc89cfc9ccb52ac` 的无内容协议诊断经独�
 | 独立按钮及重启幂等 | a08d00ad，33/37/38；原会话30重启proof | 两按钮互不依赖、仅明确确认写工单；同SQLite接续不重复旧turn，旧checkpoint重复确认仍同一工单。 |
 
 本表是跨run功能证据索引，不是一次新“8/8”报告，未把旧成功复制进help-only JSON；原strict分类金标/误分类计数不变。按控制器Ruling，两步订单/物流共用业务出口，组合优先级留后续正式意图阶段定义。旧3cccc1a8、a08d00ad、1e35ffad、5c7dd489、e867aeab全部失败/未执行与用量不完整记录保留，原工具协议异常未在后次复现并不等于根治。完整功能路径证据已齐，最终整分支独立审查、其发现处理及当前HEAD完整回归仍由控制器执行；不以316d0cc的1782/118替代未来HEAD结果。
+
+## 2026-10-14：最终审查与收尾验证
+
+最终产品代码为 `919662ec026b561bdb1b6b0cfb75f6348fbd3625`。整分支审查发现的四项问题已在一次修复波次完成，并经独立定向复审全部确认：知识路径合法追问使用澄清校验；默认控制台可见的安全节点/终态/工单审计；生产图同步写检查点；裸循环演示直接回答上限512。相关9文件166项通过。日志只配置应用自建处理器，首次105通过/60失败的捕获器接线错误及修正证据均保留。
+
+最终完整命令 `uv run --locked pytest -q`（启用 `WORKFLOW_BROWSER_CONTRACT=1`）实际为 **1843 passed、118 skipped、1 failed，397.71秒**；唯一失败发生在受控浏览器启动前，当前Playwright默认寻找未安装的chromium-1217。控制器补上既有安装路径 `WORKFLOW_CHROMIUM_PATH=C:/Users/beemines/AppData/Local/ms-playwright/chromium-1234/chrome-win64/chrome.exe`，原代码不变，仅复验同一用例，**1 passed、4.33秒**。这是完整运行加单项环境修复复验，不能表述为一次全绿完整运行；原输出 `.cache/workflow-final-full.txt` 与复验 `.cache/workflow-final-browser-path-recheck.txt` 分别保留。默认跳过的资源集成不计通过。
+
+最终本机隔离MySQL/SQLite专项：`uv run --locked pytest -q --run-mysql tests/integration/test_workflow_actions.py tests/test_workflow_persistence.py`，**10 passed、5.46秒**。控制器首次误写SQLite测试路径导致0项收集，修正后才执行该专项。最终 `git diff --check`（全分支范围）通过。未追加真实模型调用、重试或300题评估。
+
+同.env与同官方SQLite重启最终8002：uv99376/Uvicorn45360，原8001 PID58816保持。唯一零模型问候浏览器冒烟run `f4842306-4a72-42ba-b678-c60dd18e131a` 通过；会话45的SQL178用户→179最终、checkpoint与done一致，用量四项均0。实际控制台有4个workflow_node、checkpoint_complete和恰好一次terminal success，证明默认启动可见日志；截图已检查。证据 `.cache/workflow-final-runtime-proof.json`、`workflow-final-runtime.stderr.log` 与相应browser/chat文件。
+
+固定功能证据按前表各run来源保留，不合成为新8/8。两步查询功能正常，但严格主意图标注仍保留actual订单/expected物流的差异；正式组合意图与指代消解留后续。历史供应商协议异常的精确原因未有原始内容证据，后续成功不代表永久消除。32000账本仍限已记录intent+Agent，检索改写/充分性及未保存失败调用不混作全供应商成本。
+
+本轮实现与必要验证完成，代码已提交在 `feat/workflow-agent`，主分支与远程尚未改动。当前演示入口为 http://127.0.0.1:8002/ 。启动与裸循环命令见README。技术裁决及判断错误时的成本见[裁决记录](workflow-agent-decisions.md)；开发过程见 `dev-notes/ch05.md`。集成方式交由用户选择，保留工作树、运行检查点和本地验收证据。
