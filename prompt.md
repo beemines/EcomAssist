@@ -890,3 +890,16 @@ D58,D_absent,你们做宠物殡葬这类服务吗,,,是
 D59,D_absent,能帮我看看我家猫是什么品种吗,,,是
 D60,D_absent,"我想在你们平台开店卖东西,怎么入驻",,,是
 ```
+
+# 第五步
+
+## 使用插件
+
+- Superpowers
+- Context7
+
+## 完整提示词与后续确认
+
+本次要求用 Workflow 确定性编排作为骨架、主力 Agent 作为核心节点，补齐裸 Agent 循环、LangGraph State 与检查点、七类意图四路分流、检索后的置信度闸，以及用户独立确认的转人工和手填工单交互。
+
+完整原始提示词、用户后续确认的 AsyncSqliteSaver／闲聊规则、主题弹窗与独立气泡纠偏，归档于[第五步提示词](docs/prompts/step-05-workflow-agent.md)。开发过程见[dev-notes/ch05.md](dev-notes/ch05.md)。

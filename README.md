@@ -285,7 +285,9 @@ $env:WORKFLOW_BROWSER_CONTRACT = '1'
 $env:WORKFLOW_CHROMIUM_PATH = 'C:/Users/beemines/AppData/Local/ms-playwright/chromium-1234/chrome-win64/chrome.exe'
 ```
 
-当前演示仍为 http://127.0.0.1:8002/ ，本轮在 `feat/workflow-agent` 提交，集成前保留工作树和检查点。
+当前演示为 http://127.0.0.1:8002/?ui=20261014-dialog2 ，运行工作树和检查点继续保留，避免影响已打开的验收页面。
 ### 人工与工单交互调整
 
-转人工现以独立服务通知及客服小猫新气泡显示。工单由用户在空白弹窗中选择类别、填写问题描述，再明确提交；不再自动从原投诉推断。取消不写库、两个按钮相互独立，成功后另起气泡显示单号。接口增加必填`ticket_type`、`description`，保留原两个回复定位字段及幂等校验；旧页面请Ctrl+F5刷新。最新完整回归1854通过/119跳过，受控浏览器26项及实际投诉3场景通过，详见验收记录末尾。
+转人工使用浅绿圆角主题确认弹窗，确认后以独立服务通知及客服小猫新气泡显示。工单由用户在空白弹窗中选择类别、填写问题描述，再明确提交；不再自动从原投诉推断。取消不写库、两个按钮相互独立，成功后另起气泡显示单号。接口增加必填`ticket_type`、`description`，保留原两个回复定位字段及幂等校验。聊天HTML禁止持久缓存，CSS/JS使用版本地址，避免旧页面继续执行原生黑色确认框。最新专项、完整回归及计时测试复验结果详见[验收记录](docs/validation/2026-10-13-workflow-agent-acceptance.md)。
+
+第五步的完整原始需求、后续确认及页面纠偏见[第五步提示词](docs/prompts/step-05-workflow-agent.md)，根目录[prompt.md](prompt.md)提供各步入口；开发过程记录在[dev-notes/ch05.md](dev-notes/ch05.md)。
