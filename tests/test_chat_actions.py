@@ -48,11 +48,12 @@ async def offered_app(tmp_path, *, question=' 我要投诉，商品坏了。 ', 
             reply = await client.post('/api/chat', json={'conversation_id': '1', 'message': question})
             actions = next(data for name, data in decode_sse(reply.text) if name == 'actions')
             payload = {key: actions[key] for key in ('assistant_message_id', 'checkpoint_id')}
+            payload.update(ticket_type='投诉', description=question[:2000])
             yield app, client, tickets, store, payload
 
 
 async def confirm(client, payload, *, conversation_id='1', **kwargs):
-    """经完整 HTTP 入口提交仅含两个可信定位字段的 JSON。"""
+    """经完整 HTTP 入口提交回复定位与用户手填工单内容。"""
     return await client.post(f'/api/conversations/{conversation_id}/actions/ticket', json=payload, **kwargs)
 
 
@@ -104,13 +105,13 @@ async def test_duplicate_confirmation_returns_one_ticket(tmp_path):
 
 
 @pytest.mark.parametrize('mutation', [
-    {'description': '伪造'}, {'question': '伪造'}, {'ticket_type': '投诉'}, {'user_message_id': '1'},
+    {'description': ' '}, {'question': '伪造'}, {'ticket_type': '其他'}, {'user_message_id': '1'},
     {'tool_name': 'create_ticket'}, {'assistant_message_id': 2}, {'assistant_message_id': '02'},
     {'assistant_message_id': '18446744073709551616'}, {'checkpoint_id': 'x' * 129},
     {'checkpoint_id': 'not-a-uuid'}, {'assistant_message_id': '1'},
 ])
 async def test_extra_or_bad_identity_writes_nothing(tmp_path, mutation):
-    """额外业务输入和伪造定位字段必须在执行工单工具前失败。"""
+    """非法业务输入、额外字段和伪造定位字段均在工具执行前失败。"""
     async with offered_app(tmp_path) as (_, client, tickets, _, payload):
         response = await confirm(client, {**payload, **mutation})
         assert response.status_code == 422
@@ -185,25 +186,23 @@ async def test_pending_root_checkpoint_writes_nothing(tmp_path):
             pytest.fail('真实 Workflow 应保留待执行根快照')
 
 
-@pytest.mark.parametrize(('intent_name', 'expected'), [
-    ('投诉', '投诉'), ('退款退货', '售后'), ('售后', '售后'), ('订单', '咨询'),
-])
-async def test_trusted_intent_maps_ticket_type(tmp_path, intent_name, expected):
-    """工单分类来自可信完成状态，不能由浏览器覆盖。"""
+@pytest.mark.parametrize('intent_name', ['投诉', '退款退货', '售后', '订单'])
+async def test_user_selected_ticket_type_overrides_intent(tmp_path, intent_name):
+    """可信意图只参与路由，用户所选的合法工单类别不得被自动覆盖。"""
     async with offered_app(tmp_path) as (app, client, tickets, _, payload):
         config = await app.state.chat_service.graph.aupdate_state(checkpoint_config('1'), {'intent': intent_name})
-        response = await confirm(client, {**payload, 'checkpoint_id': config['configurable']['checkpoint_id']})
-        assert response.status_code == 200 and tickets.calls[-1]['ticket_type'] == expected
+        response = await confirm(client, {**payload, 'ticket_type': '咨询',
+            'checkpoint_id': config['configurable']['checkpoint_id']})
+        assert response.status_code == 200 and tickets.calls[-1]['ticket_type'] == '咨询'
 
 
-async def test_original_description_truncates_with_marker(tmp_path):
-    """可信原话超出字段限制时保留前文和截取标记，总长不超过2000。"""
+async def test_long_original_question_does_not_override_manual_description(tmp_path):
+    """原话即使超长，也应保存用户重新填写的描述而不擅自截断原话建单。"""
     async with offered_app(tmp_path, question='我要投诉' + 'broken ' * 300) as (_, client, tickets, _, payload):
-        response = await confirm(client, payload)
+        response = await confirm(client, {**payload, 'description': '设备故障，请协助维修。'})
         assert response.status_code == 200
         description = tickets.calls[-1]['description']
-        assert len(description) == 2000 and description.startswith('我要投诉broken ')
-        assert description.endswith('…[原文已截取]')
+        assert description == '设备故障，请协助维修。'
 
 
 async def test_ended_conversation_cannot_create_new_ticket(tmp_path):
@@ -236,7 +235,7 @@ async def test_assistant_sql_row_belongs_to_original_turn(tmp_path):
         assert (await confirm(client, payload)).status_code == 422
         store.rows['1'] = [original[0], replace(original[0], id=2), replace(original[1], id=3)]
         config = await app.state.chat_service.graph.aupdate_state(checkpoint_config('1'), {'final_message_id': '3'})
-        changed = {'assistant_message_id': '3', 'checkpoint_id': config['configurable']['checkpoint_id']}
+        changed = {**payload, 'assistant_message_id': '3', 'checkpoint_id': config['configurable']['checkpoint_id']}
         assert (await confirm(client, changed)).status_code == 422
         assert tickets.calls == []
 

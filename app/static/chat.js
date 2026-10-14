@@ -14,6 +14,16 @@ const hint = document.querySelector("#composer-hint");
 const sourceDialog = document.querySelector("#source-dialog");
 const sourceClose = document.querySelector("#source-close");
 let sourceTrigger = null;
+const ticketDialog = document.querySelector("#ticket-dialog");
+const ticketForm = document.querySelector("#ticket-form");
+const ticketType = document.querySelector("#ticket-type");
+const ticketDescription = document.querySelector("#ticket-description");
+const ticketFields = document.querySelector("#ticket-fields");
+const ticketError = document.querySelector("#ticket-error");
+const ticketSubmit = document.querySelector("#ticket-submit");
+const ticketClose = document.querySelector("#ticket-close");
+const ticketCancel = document.querySelector("#ticket-cancel");
+let ticketDraft = null;
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 let conversationId = null;
 let active = null;
@@ -67,7 +77,7 @@ input.addEventListener("keydown", (event) => {
 });
 
 // 创建一条消息气泡，返回正文、工具徽章和提示节点，供后续流式更新。
-function addMessage(role, text) {
+function addMessage(role, text, labelText) {
   const row = document.createElement("article");
   row.className = "message " + role;
   if (role === "assistant") {
@@ -80,7 +90,7 @@ function addMessage(role, text) {
   content.className = "message-content";
   const label = document.createElement("div");
   label.className = "message-label";
-  label.textContent = role === "user" ? "你" : "MewHelp · 智能客服";
+  label.textContent = labelText || (role === "user" ? "你" : "MewHelp · 智能客服");
   const bubble = document.createElement("div");
   bubble.className = "bubble";
   const tools = document.createElement("div");
@@ -351,45 +361,99 @@ function acceptActions(payload, state) {
   state.actions = payload;
 }
 
-// 用户确认建工单后才 POST 两个定位字段，失败恢复自己的按钮，成功不触发转人工。
-async function confirmTicket(state, choice) {
-  if (choice.pending || choice.completed || !window.confirm("确认为这条回复创建工单吗？")) return;
+// 每次打开空白表单，定位始终绑定原回复；打开或取消不产生任何写请求。
+function openTicketForm(state, choice) {
+  if (choice.pending || choice.completed || ticketDialog.open) return;
+  ticketDraft = { state, choice };
+  ticketForm.reset();
+  ticketDescription.setCustomValidity("");
+  ticketFields.disabled = false;
+  ticketSubmit.disabled = ticketClose.disabled = ticketCancel.disabled = false;
+  ticketSubmit.textContent = "提交工单";
+  ticketError.hidden = true;
+  ticketDialog.showModal();
+  ticketType.focus();
+}
+
+// 保存中的表单保持打开，取消只关闭本地表单，不执行后台工单工具。
+function closeTicketForm() {
+  if (!ticketDraft?.choice.pending) ticketDialog.close();
+}
+ticketClose.addEventListener("click", closeTicketForm);
+ticketCancel.addEventListener("click", closeTicketForm);
+// 原生Escape关闭同样遵守提交中不可取消的边界。
+ticketDialog.addEventListener("cancel", (event) => {
+  if (ticketDraft?.choice.pending) event.preventDefault();
+});
+// 关闭时恢复原按钮焦点；旧会话已离开则回到当前输入框。
+ticketDialog.addEventListener("close", () => {
+  const trigger = ticketDraft?.choice.button;
+  ticketDraft = null;
+  (trigger?.isConnected && !trigger.disabled ? trigger : input).focus({ preventScroll: true });
+});
+// 输入时撤销此前的空白描述提示，便于用户直接修正后再次提交。
+ticketDescription.addEventListener("input", () => ticketDescription.setCustomValidity(""));
+
+// 表单提交才传递用户所填类别/描述及原回复定位，重试复用同一工单身份。
+async function submitTicket(event) {
+  event.preventDefault();
+  const draft = ticketDraft;
+  if (!draft || draft.choice.pending || draft.choice.completed) return;
+  const { state, choice } = draft;
+  const description = ticketDescription.value.trim();
+  ticketDescription.setCustomValidity(description ? "" : "请填写问题描述，不能只输入空白。");
+  if (!ticketForm.reportValidity()) return;
   choice.pending = true;
   choice.button.disabled = true;
-  choice.result.textContent = "正在创建工单…";
+  ticketFields.disabled = true;
+  ticketSubmit.disabled = ticketClose.disabled = ticketCancel.disabled = true;
+  ticketSubmit.textContent = "正在提交…";
+  ticketError.hidden = true;
   try {
     const response = await fetch("/api/conversations/" + state.conversationId + "/actions/ticket", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ assistant_message_id: state.actions.assistant_message_id, checkpoint_id: state.actions.checkpoint_id }),
+      body: JSON.stringify({ assistant_message_id: state.actions.assistant_message_id,
+        checkpoint_id: state.actions.checkpoint_id, ticket_type: ticketType.value, description }),
     });
-    if (!response.ok) throw new Error("ticket_failed");
+    if (!response.ok) {
+      const failure = await response.json().catch(() => ({}));
+      throw new Error(failure.code === "ticket_conflict" ? "这条回复已提交过不同内容的工单，请使用原信息重试。" :
+        response.status === 422 ? "请检查工单类别和问题描述后重试。" : "工单创建失败，请重试。");
+    }
     const result = await response.json();
     if (!result || Object.keys(result).sort().join(",") !== "status,ticket_no" ||
         typeof result.ticket_no !== "string" || !result.ticket_no.trim() || result.ticket_no.length > 128 ||
         !["待处理", "已处理"].includes(result.status)) throw new Error("ticket_failed");
     choice.completed = true;
-    choice.result.textContent = "工单已创建 · " + result.ticket_no;
-  } catch {
-    choice.result.textContent = "工单创建失败，请重试。";
+    // 结果作为新的聊天消息，离开原会话后不把旧结果插进新会话。
+    if (state.bubble.isConnected) addMessage("assistant", "工单已创建 · " + result.ticket_no, "服务通知");
+    if (ticketDraft === draft) ticketDialog.close();
+  } catch (error) {
+    if (ticketDraft === draft) {
+      ticketError.textContent = error.message === "ticket_failed" ? "工单创建失败，请重试。" : error.message || "工单创建失败，请重试。";
+      ticketError.hidden = false;
+    }
   } finally {
     choice.pending = false;
     choice.button.disabled = choice.completed;
+    if (ticketDraft === draft) {
+      ticketFields.disabled = false;
+      ticketSubmit.disabled = ticketClose.disabled = ticketCancel.disabled = false;
+      ticketSubmit.textContent = "提交工单";
+    }
     scrollBottom();
   }
 }
+ticketForm.addEventListener("submit", submitTicket);
 
-// 转人工确认只在该回复下插入两句固定文案，不发请求、不影响另一个动作。
+// 转人工直接新增服务通知和独立人工气泡，不发请求、不修改原回复或工单状态。
 function confirmHandoff(choice) {
-  if (choice.completed || !window.confirm("确认转接人工客服吗？")) return;
+  if (choice.completed) return;
   choice.completed = true;
   choice.button.disabled = true;
-  for (const text of ["已转接人工客服", "您好，我是客服小猫，请问有什么可以帮您的"]) {
-    const line = document.createElement("p");
-    line.className = "handoff-line";
-    line.textContent = text;
-    choice.result.append(line);
-  }
+  addMessage("assistant", "已接入人工客服", "服务通知");
+  addMessage("assistant", "您好，我是客服小猫，请问有什么可以帮您的", "客服小猫 · 人工客服");
   scrollBottom();
 }
 
@@ -414,7 +478,7 @@ function addActions(state) {
     // 每个按钮只访问自身状态，后续聊天不会替换这条回复的动作身份。
     button.addEventListener("click", () => {
       if (option.action === "handoff") confirmHandoff(choice);
-      else void confirmTicket(state, choice);
+      else openTicketForm(state, choice);
     });
     group.append(button, result);
     section.append(group);
@@ -590,6 +654,7 @@ form.addEventListener("submit", (event) => {
 newButtons.forEach((button) => button.addEventListener("click", () => {
   if (active) return;
   if (sourceDialog.open) closeSource();
+  if (ticketDialog.open) ticketDialog.close();
   conversationId = null;
   messages.replaceChildren();
   welcome.hidden = false;

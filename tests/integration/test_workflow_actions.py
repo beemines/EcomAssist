@@ -54,7 +54,8 @@ async def action_context(mysql_database, tmp_path):
 
             service = TicketActionService(graph, repository, registry, ToolExecutor(), ConversationLocks())
             payload = TicketActionRequest(assistant_message_id=str(assistant_id),
-                checkpoint_id=snapshot.config['configurable']['checkpoint_id'])
+                checkpoint_id=snapshot.config['configurable']['checkpoint_id'],
+                ticket_type='咨询', description='手填：请说明如何更换饮水机滤芯。')
             yield conversation_id, user_id, graph, repository, service, payload
     finally:
         async with mysql_database.session() as session, session.begin():
@@ -64,7 +65,7 @@ async def action_context(mysql_database, tmp_path):
 
 
 async def test_old_completed_offer_is_idempotent_and_never_transfers(mysql_database, action_context):
-    """新轮之后旧按钮仍取原SQL问题，多次确认仅一单且会话仍进行中。"""
+    """旧回复仍绑定原SQL用户，但落库内容取手填表单，多次提交仅一单。"""
     conversation_id, user_id, graph, repository, service, payload = action_context
     async with mysql_database.session() as session:
         assert await session.scalar(select(func.count()).select_from(Ticket).where(Ticket.conversation_id == int(conversation_id))) == 0
@@ -80,11 +81,24 @@ async def test_old_completed_offer_is_idempotent_and_never_transfers(mysql_datab
     async with mysql_database.session() as session, session.begin():
         assert await session.scalar(select(func.count()).select_from(Ticket).where(Ticket.conversation_id == int(conversation_id))) == 1
         row = await session.get(Ticket, first['ticket_no'])
-        assert row.description == '原用户投诉：商品损坏' and row.ticket_type == '投诉'
+        assert row.description == '手填：请说明如何更换饮水机滤芯。' and row.ticket_type == '咨询'
         conversation = await session.get(Conversation, int(conversation_id))
         assert conversation.status == '进行中'
         conversation.status = '已结束'
     assert await service.create_ticket(conversation_id, payload) == first
+
+
+async def test_changed_form_retry_cannot_create_second_ticket(mysql_database, action_context):
+    """同一旧回复改变表单重提时明确冲突，原工单不覆盖也不重复新增。"""
+    conversation_id, _, _, _, service, payload = action_context
+    first = await service.create_ticket(conversation_id, payload)
+    with pytest.raises(ServiceError) as conflict:
+        await service.create_ticket(conversation_id, payload.model_copy(update={'description': '修改后的内容'}))
+    assert conflict.value.code == 'ticket_conflict'
+    async with mysql_database.session() as session:
+        rows = (await session.scalars(select(Ticket).where(Ticket.conversation_id == int(conversation_id)))).all()
+        assert len(rows) == 1 and rows[0].ticket_no == first['ticket_no']
+        assert rows[0].description == '手填：请说明如何更换饮水机滤芯。'
 
 
 async def test_ended_conversation_and_foreign_snapshot_write_nothing(mysql_database, action_context):
