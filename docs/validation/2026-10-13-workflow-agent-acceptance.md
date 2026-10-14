@@ -122,3 +122,22 @@ BASE `ac2cb81841d2a9b316745e830dc89cfc9ccb52ac` 的无内容协议诊断经独�
 - 使用求助43 ERROR：意图售后，零工具/零低置信记录；正文“可以的，您买的是什么商品或型号？具体在哪一步不会操作呢？”随后invalid_answer“社交或澄清回复包含未验证内容”。SQL仅user175，无final/done/actions。已记录2calls/1154actual，失败final用量不完整。既有非事实句式以fullmatch识别“具体在哪一步不会操作”，未允许句尾“呢”；本地同一句校验False，仅本地移除“呢”后True，见`.cache/task-9-diag-local-validation.json`。未改生产句式、原文或原报告。
 
 严格只读导入命令 `python -m evals.evaluate_workflow --mode chat --live --evidence .cache/workflow-browser/live/e867aeab-22c7-49fb-acec-b0dfe3c8f14a/results.json --output .cache/task-9-diag-live-chat.json`，主8分母**2尝试/0通过/1误分类/1错误/6未执行，exit1**。持久化账本7次不是全部收费次数；32000范围/委托query与充分性排除规则不变。两个截图已人工查看：两步成功与正常反馈、help正确追问及红色错误。旧各run与当前结果严格分开保存，未重复已通过场景、未自动重试/full/付费诊断。使用求助仍待控制器处理句式边界，两步分类差异单独保留，不能称全验收通过。
+
+## 2026-10-14：使用求助完成与跨批次功能证据汇总
+
+句式小修`c10c9e8235a74c1e94987a4d5f197e0a28b10a4c`经scoped审查无新增问题后，只核对并优雅关闭旧自有链34776→85000→103764→106652（控制台加停止工具91088），同.env SHA/同SQLite隐藏重开uv64976/Uvicorn97940；healthok，8001仍58816。缓存`.cache/task-9-help-stop-owned.txt`、`task-9-help-server.*`。原240秒、零重试、模型预算/merchant集合/阈值保持，直接人类call_ec17b619fb6146cca74f82144b55b462许可原话随命令申请提交。
+
+唯一真实命令 `D:/vue/node.exe scripts/verify-workflow-browser.cjs --url http://127.0.0.1:8002/ --mode live --cases usage-help`，run `b1662cd0-1cc8-4c00-897f-82392feaeb0e`，浏览器**1PASS/0FAIL/9NOT_EXECUTED，exit0**。会话44：SQL176用户→177最终，实际意图售后、reply_mode=clarification、决策1/工具0、无低置信记录，原文“可以的，你买的是什么商品或型号？具体在哪一步不会操作？”，正常done。实际截图已查看，型号/步骤追问与正常反馈可见，无错误。该次生成未带“呢”，窄修复的精确带呢覆盖由离线真实原文回灌测试证明，不混作本次实际生成。
+
+严格只读导入 `python -m evals.evaluate_workflow --mode chat --live --evidence .cache/workflow-browser/live/b1662cd0-1cc8-4c00-897f-82392feaeb0e/results.json --output .cache/task-9-help-live-chat.json` →**主8分母1尝试/1通过/7未执行，其余0，exit0**；sql_pairing_errors=[]，3calls/1495actual、usage_complete=true。输入/决策/最终保留原预算，32000仅计已记录intent+Agent；委托query/充分性排除规则不变。未重复其他场景或完整套件。
+
+| 固定功能证据 | 实际来源 | 核对结论 |
+| --- | --- | --- |
+| 政策、投诉、闲聊、MH-LP200 | a08d00ad，31/33/34/35 | 政策实际引用、投诉明确确认工单、闲聊零模型、MH-LP200实际引用12L通过。 |
+| 库外问题 | a08d00ad，36 | 资料不足为预期拒答，不计一般回答通过；保留低置信记录。 |
+| 物流 | 1e35ffad，39 | 一组成功工具SQL、answer模式、正常最终与done通过。 |
+| 两步订单→物流 | e867aeab，42 | 两组顺序SQL、两成功徽章、合法最终/无伪引用正常完成；严格报告依旧misclassified（actual订单/expected物流）。 |
+| 使用求助 | b1662cd0，44 | 追问型号/步骤、零工具/零低置信、clarification与正常done通过。 |
+| 独立按钮及重启幂等 | a08d00ad，33/37/38；原会话30重启proof | 两按钮互不依赖、仅明确确认写工单；同SQLite接续不重复旧turn，旧checkpoint重复确认仍同一工单。 |
+
+本表是跨run功能证据索引，不是一次新“8/8”报告，未把旧成功复制进help-only JSON；原strict分类金标/误分类计数不变。按控制器Ruling，两步订单/物流共用业务出口，组合优先级留后续正式意图阶段定义。旧3cccc1a8、a08d00ad、1e35ffad、5c7dd489、e867aeab全部失败/未执行与用量不完整记录保留，原工具协议异常未在后次复现并不等于根治。完整功能路径证据已齐，最终整分支独立审查、其发现处理及当前HEAD完整回归仍由控制器执行；不以316d0cc的1782/118替代未来HEAD结果。
