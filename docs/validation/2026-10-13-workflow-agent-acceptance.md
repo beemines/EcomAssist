@@ -111,3 +111,14 @@ Task5决策/最终Prompt隔离、Task9 SQL配对与引用选择均通过scoped�
 严格只读导入主8项为**1尝试/0通过/1错误/7未执行，exit1**，SQL仅用户168；根与子检查点pending __error__，子图决策0/工具0，已记录分类1call/385actual、usage_complete=false。失败Agent调用用量未持久化，1不是全部收费次数。导入命令 `python -m evals.evaluate_workflow --mode chat --live --evidence .cache/workflow-browser/live/5c7dd489-8c35-482e-bb6e-12abf16a1db8/results.json --output .cache/task-9-last-live-chat.json`，读取已有证据、零新增模型调用。
 
 源码确认该错误由parse_tool_selection协议校验发出，可对应结束标记、工具数量、非法申请或raw镜像等多个条件。失败原始AIMessage未落检查点，现有证据无法区分具体字段；本轮未进行收费诊断或重试，也不能声称刚修复的最终引用已通过，因为失败尚未到最终阶段。原物流39及更早政策/MH/库外拒答/按钮/社交和重启幂等证据按各自run保留，不复制到本轮。整体验收仍未完成，后续处理由控制器决定，本轮无产品修改、full或额外调用。
+
+## 2026-10-14：安全诊断版本的两项定点结果
+
+BASE `ac2cb81841d2a9b316745e830dc89cfc9ccb52ac` 的无内容协议诊断经独立审查放行后，仅重启自有8002链32524→29900→83920→98024；控制台全集加自身59732核对后优雅关闭，.env SHA一致、同SQLite隐藏重开uv34776/Uvicorn106652、healthok。8001 PID58816保持，证据`.cache/task-9-diag-stop-owned.txt`与`task-9-diag-server.*`。
+
+依原人类固定场景/修复后定点授权，仅一次 `D:/vue/node.exe scripts/verify-workflow-browser.cjs --url http://127.0.0.1:8002/ --mode live --cases two-step,usage-help`，run `e867aeab-22c7-49fb-acec-b0dfe3c8f14a`；浏览器**1PASS/1FAIL/8NOT_EXECUTED，exit1**。其他已通过场景未执行，原协议错误本轮未复现，日志没有agent_tool_protocol_failure；不能因此宣称外部协议异常已根治。
+
+- 两步42功能PASS：SQL169用户→170/171 query_order（call_-7181255034821147660）→172/173 query_logistics（call_-7181205728596582884）→174最终；两工具成功徽章、实际正常done、reply_mode=answer、决策3/工具2，正文保留模拟说明且无虚假[1]/[2]，本地直接调用严格sql_turn_errors返回[]。但实际分类“订单”，金标“物流”，报告如实保留misclassified，未改金标或放宽评估。已记录5calls/3459actual，usage_complete=true，零低置信记录。
+- 使用求助43 ERROR：意图售后，零工具/零低置信记录；正文“可以的，您买的是什么商品或型号？具体在哪一步不会操作呢？”随后invalid_answer“社交或澄清回复包含未验证内容”。SQL仅user175，无final/done/actions。已记录2calls/1154actual，失败final用量不完整。既有非事实句式以fullmatch识别“具体在哪一步不会操作”，未允许句尾“呢”；本地同一句校验False，仅本地移除“呢”后True，见`.cache/task-9-diag-local-validation.json`。未改生产句式、原文或原报告。
+
+严格只读导入命令 `python -m evals.evaluate_workflow --mode chat --live --evidence .cache/workflow-browser/live/e867aeab-22c7-49fb-acec-b0dfe3c8f14a/results.json --output .cache/task-9-diag-live-chat.json`，主8分母**2尝试/0通过/1误分类/1错误/6未执行，exit1**。持久化账本7次不是全部收费次数；32000范围/委托query与充分性排除规则不变。两个截图已人工查看：两步成功与正常反馈、help正确追问及红色错误。旧各run与当前结果严格分开保存，未重复已通过场景、未自动重试/full/付费诊断。使用求助仍待控制器处理句式边界，两步分类差异单独保留，不能称全验收通过。
