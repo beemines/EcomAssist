@@ -60,10 +60,11 @@ async def test_knowledge_does_not_query_faq_twice():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('tail', ['可以退货', '已发货', '三天到账', '可以退货吗'])
-async def test_clarification_cannot_smuggle_facts(tail):
+@pytest.mark.parametrize('particle', ['', '呢'])
+async def test_clarification_cannot_smuggle_facts(tail, particle):
     """逐句追问守卫拒绝未验证政策/状态/承诺，即使有问号也不放行。"""
     context, state = setup([control('clarification')], question='新买的商品不太会用', intent='售后',
-        answer='可以的，你买的是什么商品或型号？具体在哪一步不会操作？' + tail + '。')
+        answer='可以的，你买的是什么商品或型号？具体在哪一步不会操作' + particle + '？' + tail + '。')
     with pytest.raises(ServiceError):
         await run(context, state)
     assert not context.repository.messages and not context.repository.refusals
@@ -219,3 +220,17 @@ async def test_captured_two_step_business_citations_remain_strictly_rejected():
     assert [message.type for message in context.repository.messages] == ['ai', 'tool', 'ai', 'tool']
     assert context.model.streams == 1 and context.decision_model.decisions == 3
     assert not context.repository.refusals
+
+
+@pytest.mark.asyncio
+async def test_recorded_step_question_particle_completes_agent_clarification():
+    """原样回灌实际缺型号追问，真实Agent必须正常完成且不查询工具或写低置信池。"""
+    answer = '可以的，您买的是什么商品或型号？具体在哪一步不会操作呢？'
+    context, state = setup([control('clarification')], question='新买的商品不太会用，能帮我看看吗？',
+        intent='售后', answer=answer)
+    result, events = await run(context, state)
+    assert result['final_answer'] == answer
+    assert result['reply_mode'] == 'clarification'
+    assert result['tool_call_count'] == 0
+    assert not context.repository.messages and not context.repository.refusals
+    assert events[-1] == {'event': 'delta', 'data': {'text': answer}}
