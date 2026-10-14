@@ -1,6 +1,7 @@
 """主力 ReAct 子图：受限读取、完整 SQL 配对、证据闸及唯一最终流。"""
 import asyncio
 import json
+import logging
 import time
 from dataclasses import asdict
 from typing import Literal
@@ -14,7 +15,7 @@ from openai import APITimeoutError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from app.agent.bare import UNFINISHED_ANSWER
-from app.agent.controls import AgentLimits, UsageLedger, call_signature, estimate_call_input, parse_tool_selection, record_usage, reserve_call
+from app.agent.controls import AgentLimits, ToolProtocolError, UsageLedger, call_signature, estimate_call_input, parse_tool_selection, record_usage, reserve_call, tool_protocol_diagnostic
 from app.core.answer_validation import FinalAnswerStream, close_answer_stream, ensure_answer_active, validate_answer, validate_business_answer
 from app.core.errors import InputTooLong, ServiceError
 from app.core.evidence import build_agent_evidence
@@ -27,6 +28,9 @@ from app.workflow.nodes import log_node, remaining_timeout
 from app.workflow.prompts import KNOWLEDGE_FALLBACK, agent_decision_system, agent_final_system
 from app.workflow.runtime import WorkflowRuntime
 from app.workflow.state import WorkflowState
+
+
+logger = logging.getLogger(__name__)
 
 
 class AgentControl(BaseModel):
@@ -146,7 +150,7 @@ async def _check_evidence(state, context, packet):
 
 
 async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dict:
-    """最多五次决策；执行前保留完整最终输入和输出，控制正文从不输出或入库。"""
+    """最多五次决策并预留最终预算；协议失败仅记录不含正文的白名单诊断。"""
     context, limits = runtime.context, _limits(runtime.context)
     ensure_answer_active(context.deadline)
     if state['decision_count'] >= limits.max_decisions:
@@ -178,7 +182,15 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
     ensure_answer_active(context.deadline)
     record_usage(selected, ledger, estimated_input=estimate_call_input(packet.messages, schema),
         output_limit=limits.decision_output_tokens)
-    call = parse_tool_selection(selected, registry)
+    try:
+        call = parse_tool_selection(selected, registry)
+    except ToolProtocolError as exc:
+        # 默认 WARNING 和普通消息格式也可见，不能附带上游异常或整个模型对象。
+        logger.warning(json.dumps({'event': 'agent_tool_protocol_failure',
+            'conversation_id': state['conversation_id'], 'user_message_id': state['user_message_id'],
+            'reason': exc.reason.value, **tool_protocol_diagnostic(selected), 'usage': _usage(ledger)},
+            ensure_ascii=True, separators=(',', ':'), allow_nan=False))
+        raise
     update = {'decision_count': state['decision_count'] + 1, 'usage': _usage(ledger), 'selected': None, 'stop_reason': None}
     log_node(state, 'llm_call', decision_count=update['decision_count'], usage=update['usage'])
     if ledger.remaining < final_reserve:

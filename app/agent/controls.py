@@ -2,6 +2,7 @@
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_core.tools import BaseTool
@@ -67,9 +68,25 @@ class UsageLedger:
         return 'estimated' if self.estimated_calls else 'none'
 
 
-def _protocol_error() -> ServiceError:
-    """构造不包含上游正文或参数的安全协议错误。"""
-    return ServiceError('upstream_error', '模型返回了无效工具申请或未正常结束。', 502)
+class ToolProtocolReason(StrEnum):
+    """固定内部原因码，不接受上游提供的自由文本。"""
+    TYPE = 'type'
+    INVALID_DECODED_COUNT = 'invalid_decoded_count'
+    MULTIPLE_TOOLS = 'multiple_tools'
+    FINISH = 'finish'
+    RAW_MIRROR = 'raw_mirror'
+    RECORD = 'record'
+    NAME = 'name'
+    ARGS = 'args'
+
+
+class ToolProtocolError(ServiceError):
+    """内部携带拒绝类别，公开错误三元组和异常正文保持原契约。"""
+
+    def __init__(self, reason: ToolProtocolReason):
+        """只保存固定枚举，不附带响应对象、参数或底层异常。"""
+        super().__init__('upstream_error', '模型返回了无效工具申请或未正常结束。', 502)
+        self.reason = ToolProtocolReason(reason)
 
 
 def call_signature(call: ToolCall) -> str:
@@ -79,32 +96,66 @@ def call_signature(call: ToolCall) -> str:
 
 
 def parse_tool_selection(reply: AIMessage, registry: Mapping[str, BaseTool]) -> ToolCall | None:
-    """校验单申请、合法结束和真实 raw 镜像；Schema 交执行器校验。"""
-    if not isinstance(reply, AIMessage) or reply.invalid_tool_calls or len(reply.tool_calls) > 1:
-        raise _protocol_error()
+    """严格校验原单工具协议并标注固定失败原因；Schema 仍交执行器校验。"""
+    if not isinstance(reply, AIMessage):
+        raise ToolProtocolError(ToolProtocolReason.TYPE)
+    if reply.invalid_tool_calls:
+        raise ToolProtocolError(ToolProtocolReason.INVALID_DECODED_COUNT)
+    if len(reply.tool_calls) > 1:
+        raise ToolProtocolError(ToolProtocolReason.MULTIPLE_TOOLS)
     reason = reply.response_metadata.get('finish_reason')
     if not isinstance(reason, str) or reason not in ({'stop', 'tool_calls'} if reply.tool_calls else {'stop'}):
-        raise _protocol_error()
+        raise ToolProtocolError(ToolProtocolReason.FINISH)
     raw = reply.additional_kwargs.get('tool_calls')
     if raw is not None and (not isinstance(raw, list) or len(raw) != len(reply.tool_calls)):
-        raise _protocol_error()
+        raise ToolProtocolError(ToolProtocolReason.RAW_MIRROR)
+    if reply.tool_calls:
+        call = reply.tool_calls[0]
+        if not isinstance(call.get('name'), str) or not call['name'].strip() or call['name'] not in registry:
+            raise ToolProtocolError(ToolProtocolReason.NAME)
+        if not isinstance(call.get('args'), dict):
+            raise ToolProtocolError(ToolProtocolReason.ARGS)
     try:
         record_from_message(reply)
-        if not reply.tool_calls:
-            return None
-        call = reply.tool_calls[0]
-        if (not isinstance(call.get('name'), str) or call['name'] not in registry
-                or not isinstance(call.get('args'), dict)):
-            raise ValueError('Invalid tool name or arguments.')
-        if raw is not None:
+    except (ValueError, TypeError, KeyError, RecursionError):
+        raise ToolProtocolError(ToolProtocolReason.RECORD) from None
+    if not reply.tool_calls:
+        return None
+    if raw is not None:
+        try:
             mirrored = decode_tool_calls(raw)[0]
             if (mirrored['id'] != call['id'] or mirrored['name'] != call['name']
                     or call_signature(ToolCall(mirrored['id'], mirrored['name'], mirrored['args']))
                     != call_signature(ToolCall(call['id'], call['name'], call['args']))):
                 raise ValueError('Raw tool request differs from parsed request.')
-        return ToolCall(call['id'], call['name'], call['args'])
-    except (ValueError, TypeError, KeyError, RecursionError):
-        raise _protocol_error() from None
+        except (ValueError, TypeError, KeyError, RecursionError):
+            raise ToolProtocolError(ToolProtocolReason.RAW_MIRROR) from None
+    return ToolCall(call['id'], call['name'], call['args'])
+
+
+def tool_protocol_diagnostic(reply) -> dict:
+    """只投影有界数量、类型标记及白名单结束值，不读取正文或调用内容。"""
+    if isinstance(reply, AIMessage):
+        calls, invalid = reply.tool_calls, reply.invalid_tool_calls
+        raw = reply.additional_kwargs.get('tool_calls')
+        finish = reply.response_metadata.get('finish_reason')
+    else:
+        calls = invalid = raw = finish = None
+    if finish is None:
+        normalized_finish = 'missing'
+    elif not isinstance(finish, str):
+        normalized_finish = 'invalid_type'
+    elif finish in ('stop', 'tool_calls', 'length', 'content_filter'):
+        normalized_finish = finish
+    else:
+        normalized_finish = 'other'
+    return {
+        'tool_call_count': min(len(calls), 1000) if isinstance(calls, list) else None,
+        'invalid_tool_call_count': min(len(invalid), 1000) if isinstance(invalid, list) else None,
+        'raw_tool_call_count': min(len(raw), 1000) if isinstance(raw, list) else None,
+        'raw_tool_calls_invalid_type': raw is not None and not isinstance(raw, list),
+        'finish': normalized_finish,
+    }
 
 
 def estimate_call_input(messages: Sequence[BaseMessage], tool_schema: list[dict]) -> int:
