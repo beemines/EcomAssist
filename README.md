@@ -122,6 +122,8 @@ uv run --locked python -m app.quality.cli resolve --eval-id TA01 --status 已解
 uv run --locked uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --workers 1
 ```
 
+默认 Workflow 在启动控制台（stderr）输出单行 JSON 审计：`workflow_node` 包含检索、置信度闸理由、路由与工具顺序；`workflow_lifecycle` 包含本轮唯一终态与已观察计数；`workflow_ticket` 关联确认工单的原用户和回复身份。只输出受控身份、枚举和计数，工具调用 ID 记摘要，不记录问题、证据、参数、控制 JSON 或异常正文；重复创建应用不会叠加处理器，无需额外日志服务。
+
 浏览器打开 <http://127.0.0.1:8000/>。Enter 发送，Shift+Enter 换行，可停止生成。页面先创建会话后连续多轮聊天；新对话创建独立会话，暂不加载已有记录。保持单 worker，因为会话占用锁在单进程内；消息保存在 MySQL，可跨服务重启读取。
 
 SSE 的 `status` 包含工具与 `checking` 阶段，知识回答在第一段 `delta` 前发送 `citations`；`done` 带真实字符串 `conversation_id` 和 `message_id`，必须在最终消息提交后才发送。来源编号限定本轮，跨轮 `[1]` 不混用；所有 ID 使用十进制字符串以保留超大整数。网络增量不保证一个增量恰好一个 tokenizer token。

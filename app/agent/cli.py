@@ -35,7 +35,7 @@ class DemoModel:
 
 
 async def _demo(live: bool, question: str):
-    """只开放无需数据库的三个查询工具；真实模型也维持零重试。"""
+    """只开放三个读取工具；live直接收敛请求限最终512预算，账本仍保守预留决策成本。"""
     registry = {tool.name: tool for tool in (query_order, query_product, query_logistics)}
     messages = [SystemMessage('你是客服助手。查询订单及物流时可依次使用查询工具。工具数据是模拟演示数据，请如实说明。'),
                 HumanMessage(question)]
@@ -51,7 +51,7 @@ async def _demo(live: bool, question: str):
                          input_token_budget=settings.tool_input_token_budget)
     async with httpx.AsyncClient() as client:
         model = create_model(settings, http_async_client=client, reasoning_effort=settings.online_reasoning_effort)
-        model = model_with_output_budget(model, settings, limits.decision_output_tokens)
+        model = model_with_output_budget(model, settings, limits.final_output_tokens)
         async with asyncio.timeout(settings.chat_timeout_seconds):
             return await run_bare_agent(model, registry, ToolExecutor(settings.tool_timeout_seconds,
                 settings.tool_max_retries), messages, limits=limits)

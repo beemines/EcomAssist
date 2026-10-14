@@ -281,3 +281,35 @@ async def test_unfinished_reply_drops_prior_evidence_citations():
     final = {**state, **update}
     assert final['citations'] == []
     assert [event['data']['citations'] for event in events if event['event'] == 'citations'] == [[]]
+async def test_service_waits_for_intermediate_sqlite_write(tmp_path, monkeypatch):
+    """真实服务下一节点必须等待官方SQLite中间检查点写完，默认async会反转轨迹。"""
+    import asyncio
+    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+    from tests.workflow_fakes import ScriptedIntentModel
+    trace = []
+    original = ScriptedIntentModel.ainvoke
+    async def classify(self, messages, **kwargs):
+        """仅观察离线模型入口，不替代生产图或检查点实现。"""
+        trace.append('classify')
+        return await original(self, messages, **kwargs)
+    monkeypatch.setattr(ScriptedIntentModel, 'ainvoke', classify)
+    class DelayedSaver(AsyncSqliteSaver):
+        """只延迟引用解析之后的官方真实写入。"""
+        async def aput(self, config, checkpoint, metadata, new_versions):
+            """完成磁盘持久化后记录，证明下个节点不能提前进入。"""
+            state = checkpoint['channel_values']
+            delayed = state.get('turn_status') == 'running' and state.get('intent') is None
+            if delayed:
+                await asyncio.sleep(.1)
+            result = await super().aput(config, checkpoint, metadata, new_versions)
+            if delayed:
+                trace.append('intermediate_saved')
+            return result
+    async with DelayedSaver.from_conn_string(str(tmp_path / 'sync.sqlite')) as saver:
+        async with workflow_app(tmp_path, saver=saver,
+                model=ScriptedWorkflowModel(intent_replies=[intent('投诉')])) as app:
+            frames = decode_sse((await request(app, '我要投诉')).text)
+            assert frames[-1][0] == 'done'
+            snapshot = await app.state.chat_service.graph.aget_state(checkpoint_config('1'))
+            assert not snapshot.next and snapshot.values['turn_status'] == 'completed'
+    assert trace == ['intermediate_saved', 'classify']

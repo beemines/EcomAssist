@@ -276,7 +276,7 @@ def _after_tool(state):
 
 
 async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dict:
-    """只用原512模型流式回答一次，正常结束/引用/非事实守卫通过后才设置 final 状态。"""
+    """证据闸后按实际回复模式验证唯一512流；两路澄清都必须通过非事实守卫。"""
     context, limits = runtime.context, _limits(runtime.context)
     ensure_answer_active(context.deadline)
     if state.get('tool_error'):
@@ -299,9 +299,9 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
         return {'final_answer': UNFINISHED_ANSWER, 'reply_mode': 'answer', 'suggested_actions': ['handoff'], 'quality': {}, 'citations': []}
     _, _, _, payloads = _parts(state)
     has_faq = any('matches' in payload for payload in payloads)
-    clarification = state['reply_mode'] == 'clarification' and state['route'] == 'business'
+    clarification = state['reply_mode'] == 'clarification'
     quality = {}
-    if has_faq and not clarification:
+    if has_faq:
         quality = state['quality'] if packet.payload == state['evidence_payload'] and state['quality'] else await _check_evidence(state, context, packet)
         if not quality['useful']:
             runtime.stream_writer({'event': 'citations', 'data': {'citations': [asdict(c) for c in packet.citations]}})

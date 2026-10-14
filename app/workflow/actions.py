@@ -4,6 +4,7 @@ from app.repositories.conversations import _conversation_id
 from app.schemas.chat_actions import TicketActionRequest
 from app.tools.types import ToolCall, ToolContext
 from app.workflow.persistence import checkpoint_config
+from app.workflow.logging import log_audit
 
 
 class TicketActionService:
@@ -14,9 +15,10 @@ class TicketActionService:
         self.executor, self.locks = executor, locks
 
     async def create_ticket(self, conversation_id: str, payload: TicketActionRequest) -> dict:
-        """核对指定根完成快照及原轮 SQL 所属关系，执行稳定幂等确认。"""
+        """核对完成快照及原轮SQL，确认与结果仅审计可信身份，复用稳定幂等执行。"""
         _conversation_id(conversation_id)
         lease = self.locks.acquire(conversation_id)
+        audit = None
         try:
             snapshot = await self.graph.aget_state(checkpoint_config(conversation_id, checkpoint_id=payload.checkpoint_id))
             state = snapshot.values
@@ -46,6 +48,9 @@ class TicketActionService:
                     or any(row.role == 'user' and user_id < row.id < assistant_id for row in rows)):
                 raise ServiceError('invalid_action', '回复与原用户消息不匹配。', 422)
             description = user.content
+            audit = {'conversation_id': conversation_id, 'user_message_id': str(user_id),
+                'assistant_message_id': payload.assistant_message_id, 'action': 'create_ticket'}
+            log_audit('workflow_ticket', phase='confirmed', **audit)
             marker = '…[原文已截取]'
             if len(description) > 2000:
                 description = description[:2000 - len(marker)] + marker
@@ -60,6 +65,12 @@ class TicketActionService:
             result = outcome.content
             if (not isinstance(result.get('ticket_no'), str) or result.get('status') not in ('待处理', '已处理')):
                 raise ServiceError('tool_execution_error', '工单暂时无法创建，请稍后重试。', 503)
+            log_audit('workflow_ticket', phase='result', outcome='success', ticket_no=result['ticket_no'], **audit)
             return {'ticket_no': result['ticket_no'], 'status': result['status']}
+        except BaseException as exc:
+            if audit is not None:
+                log_audit('workflow_ticket', phase='result', outcome='error',
+                    code=exc.code if isinstance(exc, ServiceError) else 'tool_execution_error', **audit)
+            raise
         finally:
             lease.release()

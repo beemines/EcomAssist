@@ -1,7 +1,6 @@
 """外层 Workflow 节点：固定分流、强制检索、闸前拒答与统一提交。"""
 import asyncio
 import json
-import logging
 import time
 from dataclasses import asdict
 from uuid import uuid4
@@ -16,8 +15,7 @@ from app.workflow.intent import IntentClassifier, route_intent, social_fast_path
 from app.workflow.prompts import COMPLAINT_RESPONSE, EVIDENCE_SYSTEM, KNOWLEDGE_FALLBACK, SOCIAL_RESPONSE
 from app.workflow.runtime import WorkflowRuntime
 from app.workflow.state import WorkflowState
-
-logger = logging.getLogger(__name__)
+from app.workflow.logging import log_audit
 
 
 def remaining_timeout(context: WorkflowRuntime, limit: float) -> float:
@@ -29,10 +27,10 @@ def remaining_timeout(context: WorkflowRuntime, limit: float) -> float:
 
 
 def log_node(state: WorkflowState, node: str, **metadata):
-    """记录身份、节点及理由代码，不输出原话、证据或内部 JSON。"""
-    logger.info('workflow_node', extra={'workflow': {'conversation_id': state['conversation_id'],
+    """经统一白名单写出默认可见节点身份、路由及理由代码。"""
+    log_audit('workflow_node', **{'conversation_id': state['conversation_id'],
         'user_message_id': state['user_message_id'], 'node': node, 'intent': state['intent'],
-        'route': state['route'], **metadata}})
+        'route': state['route'], **metadata})
 
 
 def state_evidence(state: WorkflowState, context: WorkflowRuntime):

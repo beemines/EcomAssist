@@ -234,3 +234,35 @@ async def test_recorded_step_question_particle_completes_agent_clarification():
     assert result['tool_call_count'] == 0
     assert not context.repository.messages and not context.repository.refusals
     assert events[-1] == {'event': 'delta', 'data': {'text': answer}}
+@pytest.mark.asyncio
+@pytest.mark.parametrize('business_result', [False, True])
+@pytest.mark.parametrize('tail', ['', '可以退货。', '[99]'])
+async def test_parent_refund_gate_then_clarification(business_result, tail):
+    """真实父图过政策闸后可追问；业务模拟结果不强迫纯追问声明，事实及伪引用仍拒绝。"""
+    from langgraph.checkpoint.memory import InMemorySaver
+    from app.workflow.agent import build_agent_graph
+    from app.workflow.graph import build_workflow_graph
+    replies = ([workflow_call()] if business_result else []) + [control('clarification')]
+    context, state = setup(replies, question='想退货，请帮我查看我的订单是否符合退货政策',
+        intent='退款退货', answer='请提供订单号。' + tail)
+    context.faq_repository.retrieve = faq_result(context, payload(('当前退货规则',)))
+    parent = build_workflow_graph(build_agent_graph(), checkpointer=InMemorySaver())
+    events = []
+    async def consume():
+        """消费父子图实际事件，保留根完成与SQL提交边界。"""
+        async for namespace, event in parent.astream(state, {'configurable': {'thread_id': 'session'}},
+                context=context, stream_mode='custom', subgraphs=True):
+            events.append(event)
+        return (await parent.aget_state({'configurable': {'thread_id': 'session'}})).values
+    if tail:
+        with pytest.raises(ServiceError):
+            await consume()
+        assert not any(m.type == 'ai' and not m.tool_calls for m in context.repository.messages)
+    else:
+        result = await consume()
+        assert result['turn_status'] == 'completed' and result['final_answer'] == '请提供订单号。'
+        assert result['citations'] == [] and result['quality']['response_kind'] == 'clarification'
+        assert [e['data']['citations'] for e in events if e['event'] == 'citations'] == [[]]
+    assert context.faq_repository.calls and context.sufficiency.calls
+    original = json.loads(context.repository.messages[1].content)
+    assert original['matches'][0]['answer'] == '当前退货规则' and 'n' not in original['matches'][0]

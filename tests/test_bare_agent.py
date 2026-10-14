@@ -203,3 +203,32 @@ async def test_whole_loop_has_240_second_timeout(monkeypatch):
     assert done and configured == [240]
     with pytest.raises(TimeoutError):
         await task
+@pytest.mark.parametrize('limit_field', ['max_tokens', 'max_completion_tokens'])
+async def test_live_demo_serializes_visible_final_ceiling(monkeypatch, limit_field):
+    """live入口只用离线HTTP传输，直接收敛请求必须限512且不能追加最终调用。"""
+    import json
+    import httpx
+    from app.agent import cli
+    from tests.fakes import fake_settings
+    settings = fake_settings(llm_token_limit_field=limit_field)
+    monkeypatch.setattr(cli, 'load_settings', lambda: settings)
+    payloads = []
+    def respond(request):
+        """观察真实模型序列化报文，返回合法无工具最终响应。"""
+        payloads.append(json.loads(request.content))
+        return httpx.Response(200, json={'id': 'offline-final', 'object': 'chat.completion',
+            'created': 1, 'model': settings.llm_model,
+            'choices': [{'index': 0, 'finish_reason': 'stop',
+                'message': {'role': 'assistant', 'content': '请提供订单号。'}}]})
+    client_type = httpx.AsyncClient
+    class OfflineClient(client_type):
+        """保持真实客户端类型，仅将网络传输替换为离线响应。"""
+        def __init__(self, *args, **kwargs):
+            """禁止触碰实际端点及.env，兼容模型工厂的客户端类型检查。"""
+            super().__init__(*args, **{**kwargs, 'transport': httpx.MockTransport(respond), 'trust_env': False})
+    monkeypatch.setattr(httpx, 'AsyncClient', OfflineClient)
+    result = await cli._demo(True, '请查订单')
+    assert result.answer == '请提供订单号。' and result.stop_reason == 'completed'
+    assert len(payloads) == 1 and payloads[0][limit_field] == 512
+    assert payloads[0]['parallel_tool_calls'] is False
+    assert result.usage.estimated >= 2048
