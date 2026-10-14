@@ -136,3 +136,35 @@ async def test_faq_service_fault_preserves_paired_error_state():
     with pytest.raises(ServiceError):
         await finalize_answer({**state, **update}, Runtime(context=context))
     assert context.model.streams == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('path', ['mandatory_faq', 'logistics'])
+async def test_captured_policy_prose_remains_invalid_control_output(path):
+    """离线回灌已授权诊断的真实正文，任何阶段都不能把它强转为控制JSON或最终答复。"""
+    captured = AIMessage(
+        '关于退货政策，简单来说：\n\n'
+        '- **无理由退货**：自签收之日起 7 天内，商品完好、不影响二次销售的，支持无理由退货，定制类、生鲜类商品除外 [1][4]。\n'
+        '- **运费承担**：无理由退货的退回运费由买家承担；因质量问题、发错货、少发漏发导致的退换货，运费由平台承担 [10]。\n'
+        '- **退款时效**：退货商品经平台核验通过后，退款原路退回，到账时效以平台售后规则为准 [8]。\n'
+        '- **不支持退货的商品**：定制类、生鲜类、已拆封的猫砂等消耗品，以及标注「不支持无理由退货」的商品，非质量问题不支持退货 [7]。\n\n'
+        '如有具体订单需要处理退货，请提供订单号，我可以帮您进一步查询。',
+        response_metadata={'finish_reason': 'stop'}, tool_calls=[], invalid_tool_calls=[])
+    replies = [captured] if path == 'mandatory_faq' else [workflow_call('query_logistics'), captured]
+    context, state = setup(replies, question='退货政策是什么？' if path == 'mandatory_faq' else '订单 A-42 物流到哪了？',
+        intent='退款退货' if path == 'mandatory_faq' else '物流')
+    if path == 'mandatory_faq':
+        state.update(route='knowledge', tool_call_count=1,
+            quality={'useful': True, 'reason': '本轮资料已通过闸门', 'response_kind': 'knowledge', 'source': None})
+        state['messages'] += [workflow_call('query_faq', {'keyword': '退货政策'}, 'mandatory'),
+            ToolMessage(json.dumps(payload(('当前退货规则',))), tool_call_id='mandatory')]
+    events = []
+    from tests.test_workflow_agent import graph
+    with pytest.raises(ServiceError) as error:
+        async for event in graph().astream(state, context=context, stream_mode='custom'):
+            events.append(event)
+    assert error.value.code == 'invalid_structured_output'
+    assert context.decision_model.decisions == (1 if path == 'mandatory_faq' else 2)
+    assert context.model.streams == 0 and not context.repository.refusals
+    assert all(event['event'] != 'delta' for event in events)
+    assert [message.type for message in context.repository.messages] == ([] if path == 'mandatory_faq' else ['ai', 'tool'])
