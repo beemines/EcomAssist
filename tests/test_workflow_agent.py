@@ -141,3 +141,39 @@ async def test_parent_commits_final_once_after_child_validation():
     assert [m.type for m in context.repository.messages] == ['ai', 'tool', 'ai']
     assert context.repository.messages[-1].content == result['final_answer']
     assert result['messages'][-1].id == result['final_message_id']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('path', ['mandatory_faq', 'logistics'])
+async def test_actual_model_inputs_separate_decision_and_final_phase(path):
+    """强制检索后及物流回灌后的实际决策输入不得混入最终正文阶段指令。"""
+    from tests.test_evidence import payload
+    if path == 'mandatory_faq':
+        context, state = setup([control()], question='退货政策是什么？', intent='退款退货', answer='当前退货规则[1]。')
+        state.update(route='knowledge', tool_call_count=1,
+            quality={'useful': True, 'reason': '本轮资料已通过闸门', 'response_kind': 'knowledge', 'source': None})
+        state['messages'] += [workflow_call('query_faq', {'keyword': '退货政策'}, 'mandatory'),
+            ToolMessage(json.dumps(payload(('当前退货规则',))), tool_call_id='mandatory')]
+    else:
+        context, state = setup([workflow_call('query_logistics'), control()],
+            question='订单 A-42 物流到哪了？', intent='物流', answer='模拟物流查询：运输中。')
+    result, _ = await run(context, state)
+    assert len(context.decision_model.tool_inputs) == (1 if path == 'mandatory_faq' else 2)
+    for messages in context.decision_model.tool_inputs:
+        system = messages[0].text
+        assert '不需要工具时只输出严格 JSON' in system
+        assert '需要进一步读取时使用工具申请，正文必须为空' in system
+        assert '不输出控制 JSON' not in system, 'decision request contains final-only no-JSON instruction'
+        assert '不申请工具' not in system, 'decision request forbids its own read-tool phase'
+        assert '最终回复只输出给用户看的简短中文正文' not in system
+        assert '只依据本轮编号证据和本轮工具结果' in system
+        assert '历史不能充当新证据' in system
+        assert 'mock=true' in system
+    final_system = context.model.stream_inputs[0][0].text
+    assert '最终回复只输出给用户看的简短中文正文，不输出控制 JSON，不申请工具' in final_system
+    assert '不需要工具时只输出严格 JSON' not in final_system
+    assert '知识事实必须引用当前证据 [n]' in final_system
+    assert 'mock=true' in final_system and '模拟' in final_system and '演示' in final_system
+    assert '澄清只询问必要信息，不包含政策、状态、期限或承诺' in final_system
+    assert '转人工、创建工单仅为用户可确认的建议，不声称已执行' in final_system
+    assert result['final_answer'] == ('当前退货规则[1]。' if path == 'mandatory_faq' else '模拟物流查询：运输中。')

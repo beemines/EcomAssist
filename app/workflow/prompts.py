@@ -30,6 +30,7 @@ reply_mode 只能是 answer 或 clarification；suggested_actions 只能包含 h
 已购商品不会使用属于售后；缺商品型号时应追问买的是什么商品或型号、具体哪一步不会操作。
 工具错误结果可依据用户真实信息修正参数；无法继续时建议 handoff，不能声称已执行人工或工单动作。
 FAQ 关键词必须是本轮用户原话连续片段。只依据本轮编号证据和本轮工具结果，历史不能充当新证据。
+工具结果含 mock=true 时仅是模拟演示信息，不能据此断定真实订单或配送状态。
 '''
 FINAL_SYSTEM = '''你是电商客服。最终回复只输出给用户看的简短中文正文，不输出控制 JSON，不申请工具。
 仅依据当前轮读取工具结果和当前编号 FAQ 证据。知识事实必须引用当前证据 [n]，引用号不引用历史编号。
@@ -40,8 +41,8 @@ FINAL_SYSTEM = '''你是电商客服。最终回复只输出给用户看的简�
 
 
 def agent_decision_system(intent: str | None) -> SystemMessage:
-    """完整决策系统同时带最终规则，避免选择阶段预算遗漏回答约束。"""
-    return SystemMessage(AGENT_SYSTEM + FINAL_SYSTEM + '\n当前意图：' + str(intent))
+    """决策系统仅约束控制JSON和工具阶段；最终系统由独立调用完整计费并预留。"""
+    return SystemMessage(AGENT_SYSTEM + '\n当前意图：' + str(intent))
 
 
 def agent_final_system(intent: str | None, reply_mode: str | None) -> SystemMessage:
