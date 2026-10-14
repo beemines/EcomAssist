@@ -219,3 +219,41 @@ async def test_annotated_reply_modes_have_explicit_meaning_in_actual_model_input
         assert '不要复述或解释已有工具结果' in final_system
         assert '不输出物流状态、运单号、预计天数或其他事实' in final_system
     assert result['reply_mode'] == mode and result['final_answer'] == answer
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('path', ['business_without_faq', 'mixed_faq', 'numbered_faq'])
+async def test_final_model_input_distinguishes_business_results_from_faq_citation_sources(path):
+    """真实最终输入必须限定 FAQ 的 n 为引用来源，同时保留无引用业务及混合知识回答。"""
+    from tests.test_evidence import payload
+    from tests.test_workflow_agent_quality import faq_result
+    business = path != 'numbered_faq'
+    has_faq = path != 'business_without_faq'
+    replies = [workflow_call(), workflow_call('query_logistics', identifier='call_2')] if business else []
+    if business and has_faq:
+        replies.append(workflow_call('query_faq', {'keyword': '退货政策'}, 'faq'))
+    answer = ('模拟查询：订单及物流查询已返回。' if business else '') + ('退货规则乙[2]。' if has_faq else '')
+    context, state = setup([*replies, control()], question='订单 A-42 的状态、物流和退货政策', answer=answer)
+    context.faq_repository.retrieve = faq_result(context, payload(('退货规则甲', '退货规则乙', '退货规则丙')))
+    if not business:
+        state.update(route='knowledge', intent='退款退货', tool_call_count=1,
+            quality={'useful': True, 'reason': '本轮资料已通过闸门', 'response_kind': 'knowledge', 'source': None})
+        state['messages'] += [workflow_call('query_faq', {'keyword': '退货政策'}, 'faq'),
+            ToolMessage(json.dumps(payload(('退货规则甲', '退货规则乙', '退货规则丙'))), tool_call_id='faq')]
+    result, _ = await run(context, state)
+    final_messages = context.model.stream_inputs[0]
+    system = final_messages[0].text
+    assert '只有当前轮 FAQ 证据 matches 中实际存在的 n 字段才可作为 [n] 引用号' in system
+    assert '订单、物流、商品等业务工具结果没有 FAQ 引用号' in system
+    assert '不得把工具调用顺序、结果位置、调用 ID 或业务编号编造成引用号' in system
+    assert '没有带 n 的 FAQ 证据时，直接用普通正文说明已有业务结果，不添加 [n]' in system
+    assert '混合业务与 FAQ 时，仅为 FAQ 知识事实标注其实际 n' in system
+    assert 'mock=true' in system and '模拟' in system
+    shown = [json.loads(message.content) for message in final_messages if isinstance(message, ToolMessage)]
+    business_payloads = [data for data in shown if 'matches' not in data]
+    assert len(business_payloads) == (2 if business else 0)
+    assert all('n' not in data and data['mock'] is True for data in business_payloads)
+    numbered = [match for data in shown for match in data.get('matches', [])]
+    assert [item['n'] for item in numbered] == ([1, 3, 2] if has_faq else [])
+    assert [item['n'] for item in result['citations']] == ([1, 3, 2] if has_faq else [])
+    assert result['final_answer'] == answer and context.model.streams == 1
