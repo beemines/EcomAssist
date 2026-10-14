@@ -309,6 +309,24 @@ function assertLiveScenario(name, record) {
   }
 }
 
+// 共用实际引用点击路径；保存原文与来源标题，供页面和报告核对。
+async function openKnowledgeSource(page, name, record) {
+  assert.ok(await page.locator(".citation-button").count(), "可答知识应有可定位引用");
+  if (name === "mh-lp200") {
+    const citations = record.events.find((event) => event.event === "citations")?.data.citations || [];
+    const supporting = citations.find((citation) => record.answer.includes(`[${citation.n}]`) && /(?<!\d)12\s*(?:L|升)/i.test(citation.answer) && /MH[-－]?LP200(?!\d)/i.test([citation.question, citation.section_path, citation.answer].filter(Boolean).join("\n"))); // 只选答案实际引用且属于目标商品的容量原文。
+    assert.ok(supporting, "未找到实际被引用的MH-LP200容量12L来源");
+    await page.getByRole("button", { name: `查看来源 ${supporting.n}：${supporting.section_path || supporting.question}`, exact: true }).first().click();
+  } else {
+    await page.locator(".citation-button").first().click();
+  }
+  await page.locator("#source-dialog[open]").waitFor();
+  record.source = await page.locator("#source-answer").innerText();
+  record.source_title = await page.locator("#source-title").innerText();
+  record.source_identity = [await page.locator("#source-question").innerText(), await page.locator("#source-path").innerText(), record.source].join("\n");
+  await page.keyboard.press("Escape");
+}
+
 // live 不拦截任何请求；每轮最多240秒，首次错误停止相同链路且保留独立场景。
 async function runLive(browser, url, output) {
   const cases = [
@@ -359,12 +377,7 @@ async function runLive(browser, url, output) {
       if (family === "knowledge") {
         assert.ok(record.events.some((event) => event.event === "status" && event.data.origin === "workflow" && event.data.tool_name === "query_faq"));
         if (name !== "out-of-library") {
-          assert.ok(await page.locator(".citation-button").count(), "可答知识应有可定位引用");
-          await page.locator(".citation-button").first().click();
-          await page.locator("#source-dialog[open]").waitFor();
-          record.source = await page.locator("#source-answer").innerText();
-          record.source_identity = [await page.locator("#source-question").innerText(), await page.locator("#source-path").innerText(), record.source].join("\n");
-          await page.keyboard.press("Escape");
+          await openKnowledgeSource(page, name, record);
         }
       }
       assertLiveScenario(name, record);
@@ -462,5 +475,5 @@ function requireVersion() {
   try { return require("playwright/package.json").version; } catch {}
   return JSON.parse(fs.readFileSync(path.join(process.env.USERPROFILE || process.env.HOME || "", ".cache", "codex-runtimes", "codex-primary-runtime", "dependencies", "node", "node_modules", "playwright", "package.json"))).version;
 }
-module.exports = { assertLiveScenario };
+module.exports = { assertLiveScenario, openKnowledgeSource };
 if (require.main === module) main().catch((error) => { console.error(error.message); process.exitCode = 1; }); // 仅直接运行启动浏览器；导入只测试固定场景断言。

@@ -2,6 +2,7 @@
 import importlib.util
 from copy import deepcopy
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -266,3 +267,77 @@ console.log('受控场景断言10项通过');
     result = subprocess.run([executable, '-e', code], capture_output=True, text=True, encoding='utf-8', timeout=20)
     assert result.returncode == 0, result.stderr
     assert '受控场景断言10项通过' in result.stdout
+
+
+def test_later_capacity_citation_can_support_the_answer():
+    """首条是介绍、第二条才是被引用容量证据时，报告接受实际打开的第二条。"""
+    module = evaluation()
+    row = completed_two_tool_row()
+    row.update(answer='MH-LP200产品介绍见[1]，猫砂容量12L[2]。', source='最大猫砂容量12L。',
+        citations=[{'n': 1, 'question': 'MH-LP200介绍', 'answer': '这是智能猫砂盆。', 'section_path': None},
+                   {'n': 2, 'question': 'MH-LP200容量', 'answer': '最大猫砂容量12L。', 'section_path': None}])
+    assert module.case_outcome('mh-lp200', row) == 'passed'
+
+
+def test_later_capacity_citation_browser_click_uses_supporting_source(tmp_path):
+    """显式受控Chromium打开真实页面，验证共用点击路径选择后面的容量引用。"""
+    if os.environ.get('WORKFLOW_BROWSER_CONTRACT') != '1':
+        pytest.skip('显式WORKFLOW_BROWSER_CONTRACT=1运行受控浏览器引用回归')
+    executable = shutil.which('node') or ('D:/vue/node.exe' if Path('D:/vue/node.exe').is_file() else None)
+    assert executable, '受控浏览器回归需要Node'
+    code = r'''
+const fs = require('node:fs');
+const http = require('node:http');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const {chromium} = require('playwright');
+const {openKnowledgeSource, assertLiveScenario} = require('./scripts/verify-workflow-browser.cjs');
+// 使用独立回环静态服务器与精确API夹具，所有聊天数据均为受控输入。
+async function main() {
+  const files = {'/':['index.html','text/html'],'/static/chat.js':['chat.js','text/javascript'],'/static/chat.css':['chat.css','text/css']};
+  const server = http.createServer((request,response) => {
+    const file = files[new URL(request.url,'http://localhost').pathname];
+    if (!file) { response.writeHead(404); response.end(); return; }
+    response.writeHead(200,{'Content-Type':file[1]+'; charset=utf-8'});
+    response.end(fs.readFileSync(path.join('app','static',file[0])));
+  }); // 只提供当前实际页面文件，不访问真实8001/8002服务。
+  let browser;
+  try {
+    await new Promise(resolve => server.listen(0,'127.0.0.1',resolve)); // 只监听自有临时端口。
+    browser = await chromium.launch({headless:true, executablePath:process.env.WORKFLOW_CHROMIUM_PATH || chromium.executablePath()});
+    const page = await browser.newPage();
+    const citations = [
+      {n:1,chunk_id:'42',section_path:'产品介绍',question:'MH-LP200介绍',answer:'这是智能猫砂盆。'},
+      {n:2,chunk_id:'43',section_path:'商品规格',question:'MH-LP200容量',answer:'最大猫砂容量12L。'},
+      {n:3,chunk_id:'44',section_path:'饮水机规格',question:'MH-W60容量',answer:'另一商品容量12L。'}];
+    const events = [{event:'citations',data:{citations}},
+      {event:'delta',data:{delta:'MH-LP200产品介绍见[1]，猫砂容量12L[2]。'}},
+      {event:'done',data:{conversation_id:'1001',message_id:'1002'}}];
+    const stream = events.map(event => `event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`).join(''); // 发送真实SSE文本经过页面解析和引用渲染。
+    await page.route('**/api/conversations',route => route.fulfill({json:{conversation_id:'1001'}})); // 精确会话夹具。
+    await page.route('**/api/chat',route => route.fulfill({contentType:'text/event-stream; charset=utf-8',body:stream})); // 精确聊天夹具，不调用模型。
+    await page.goto(`http://127.0.0.1:${server.address().port}/`);
+    await page.locator('#message-input').fill('MH-LP200能装多少猫砂？');
+    await page.locator('#message-input').press('Enter');
+    await page.waitForFunction(() => !document.querySelector('#message-input').disabled); // 等待真实页面消费done和EOF。
+    const record = {events,answer:await page.locator('.answer-text').last().innerText()};
+    await openKnowledgeSource(page,'mh-lp200',record);
+    assert.equal(record.source_title,'知识来源 [2]','必须实际点击后面的容量来源而非介绍[1]');
+    assert.equal(record.source,'最大猫砂容量12L。');
+    assertLiveScenario('mh-lp200',record);
+    await assert.rejects(() => openKnowledgeSource(page,'mh-lp200',{...record,answer:'产品介绍见[1]。'}), /未找到实际被引用/); // 未引用的容量来源不能拿来放行。
+    await assert.rejects(() => openKnowledgeSource(page,'mh-lp200',{...record,answer:'另一商品容量12L[3]。'}), /未找到实际被引用/); // 别的商品即使12L也不能替代。
+    await page.screenshot({path:process.argv[1],fullPage:true});
+    console.log('实际受控点击容量来源[2]通过');
+  } finally {
+    if (browser) await browser.close();
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve)); // 只关闭本测试创建的临时服务器。
+  }
+}
+main().catch(error => {console.error(error.stack);process.exitCode=1;}); // 明确报告断言失败并保持非零退出码。
+'''
+    result = subprocess.run([executable, '-e', code, str(tmp_path / 'later-capacity.png')],
+        capture_output=True, text=True, encoding='utf-8', timeout=40)
+    assert result.returncode == 0, result.stderr
+    assert '实际受控点击容量来源[2]通过' in result.stdout
