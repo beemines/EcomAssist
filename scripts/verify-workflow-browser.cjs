@@ -327,8 +327,8 @@ async function openKnowledgeSource(page, name, record) {
   await page.keyboard.press("Escape");
 }
 
-// live 不拦截任何请求；每轮最多240秒，首次错误停止相同链路且保留独立场景。
-async function runLive(browser, url, output) {
+// 固定主场景白名单；补充按钮场景只能随投诉一起执行。
+function selectLiveCases(args) {
   const cases = [
     ["policy", "knowledge", "退货政策是什么？"],
     ["logistics", "business", "订单1001的包裹到哪里了？"],
@@ -341,12 +341,27 @@ async function runLive(browser, url, output) {
     ["complaint-ticket-only", "complaint", "我要投诉客服态度"],
     ["restart-offer", "complaint", "我要投诉客服态度"],
   ];
+  assert.ok(!args.some((arg) => arg.startsWith("--cases=")), "--cases 请使用空格分隔的固定名称列表");
+  const positions = args.flatMap((arg, index) => arg === "--cases" ? [index] : []); // 先校验选项，再允许启动浏览器或网络。
+  assert.ok(positions.length <= 1, "--cases 不得重复指定");
+  const names = positions.length ? (args[positions[0] + 1] || "").split(",") : null;
+  if (names) {
+    const allowed = new Set(cases.slice(0, 8).map(([name]) => name)); // 只接受既有八个主场景，不接受任意问句。
+    assert.ok(names.every((name) => allowed.has(name)) && new Set(names).size === names.length, "--cases 必须是固定主场景名称，禁止空值、未知名称和重复项");
+  }
+  return cases.map(([name, family, question], index) => ({ name, family, question,
+    selected: !names || names.includes(index < 8 ? name : "complaint") })); // 默认保持完整十场景，补充项服从投诉选择。
+}
+
+// live 不拦截任何请求；每轮最多240秒，首次错误停止相同链路且保留独立场景。
+async function runLive(browser, url, output, cases = selectLiveCases([])) {
   const results = [], stopped = new Set();
-  for (const [name, family, question] of cases) {
-    if (stopped.has(family)) { results.push({ name, question, status: "NOT_EXECUTED", reason: "同链路首次失败后停止" }); continue; }
+  for (const {name, family, question, selected} of cases) {
+    if (!selected) { results.push({ name, question, selected: false, status: "NOT_EXECUTED", reason: "--cases 未选择此场景" }); continue; }
+    if (stopped.has(family)) { results.push({ name, question, selected: true, status: "NOT_EXECUTED", reason: "同链路首次失败后停止" }); continue; }
     const page = await browser.newPage({ viewport: { width: 1200, height: 900 }, reducedMotion: "reduce" });
     page.setDefaultTimeout(240000);
-    const record = { name, question, status: "FAIL", requests: [], actions: [], events: [] };
+    const record = { name, question, selected: true, status: "FAIL", requests: [], actions: [], events: [] };
     const pending = [];
     page.on("request", (request) => { if (new URL(request.url()).pathname.startsWith("/api/")) record.requests.push({ url: request.url(), method: request.method(), body: request.postData() }); }); // 仅记录当前页面自有业务请求。
     page.on("response", (response) => {
@@ -435,6 +450,8 @@ async function main() {
   const url = args[args.indexOf("--url") + 1];
   const mode = args[args.indexOf("--mode") + 1];
   assert.ok(args.includes("--url") && args.includes("--mode") && ["controlled", "live"].includes(mode), "用法: --url http://127.0.0.1:8002/ --mode controlled|live");
+  const selection = selectLiveCases(args);
+  assert.ok(mode === "live" || !args.includes("--cases"), "--cases 仅支持 live 固定场景");
   const output = path.join(root, ".cache", "workflow-browser", mode, ...(mode === "live" ? [liveRunId] : []));
   fs.mkdirSync(output, { recursive: true });
   const { chromium } = loadPlaywright();
@@ -457,7 +474,7 @@ async function main() {
       }
     }
     browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
-    const results = mode === "controlled" ? await runControlled(browser, url, transport, output) : await runLive(browser, url, output);
+    const results = mode === "controlled" ? await runControlled(browser, url, transport, output) : await runLive(browser, url, output, selection);
     fs.writeFileSync(path.join(output, "results.json"), JSON.stringify({ mode, url, run_id: mode === "live" ? liveRunId : null, results }, null, 2) + "\n");
     const failed = results.filter((item) => item.status === "FAIL");
     const passed = results.filter((item) => item.status === "PASS").length;
@@ -475,5 +492,5 @@ function requireVersion() {
   try { return require("playwright/package.json").version; } catch {}
   return JSON.parse(fs.readFileSync(path.join(process.env.USERPROFILE || process.env.HOME || "", ".cache", "codex-runtimes", "codex-primary-runtime", "dependencies", "node", "node_modules", "playwright", "package.json"))).version;
 }
-module.exports = { assertLiveScenario, openKnowledgeSource };
+module.exports = { assertLiveScenario, openKnowledgeSource, selectLiveCases };
 if (require.main === module) main().catch((error) => { console.error(error.message); process.exitCode = 1; }); // 仅直接运行启动浏览器；导入只测试固定场景断言。
