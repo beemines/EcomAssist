@@ -115,3 +115,16 @@ def test_clarification_context_cannot_hide_delivery_promise_or_replace_request(a
     module, _ = api()
     with pytest.raises(ServiceError):
         module.validate_answer(answer, {'stop'}, build(payload(())), decision('clarification'))
+
+
+@pytest.mark.parametrize('tail', ['', '可以退货', '已发货', '三天到账'])
+def test_recorded_step_question_particle_accepts_only_clarification(tail):
+    """真实带呢追问可通过，但追加政策、状态或到账承诺仍拒绝。"""
+    module, _ = api()
+    answer = '可以的，您买的是什么商品或型号？具体在哪一步不会操作呢？' + tail
+    if tail:
+        with pytest.raises(ServiceError) as error:
+            module.validate_answer(answer, {'stop'}, build(payload(())), decision('clarification'))
+        assert error.value.code == 'invalid_answer'
+    else:
+        module.validate_answer(answer, {'stop'}, build(payload(())), decision('clarification'))
