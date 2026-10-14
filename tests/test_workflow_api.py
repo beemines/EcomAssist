@@ -76,6 +76,15 @@ async def test_default_app_uses_workflow(tmp_path):
     assert (tmp_path / 'checkpoints.sqlite').exists()
 
 
+async def test_chat_html_is_not_stored_by_browser_cache(tmp_path):
+    """聊天入口每次取新HTML，避免改版后仍使用旧脚本地址和动作交互。"""
+    async with workflow_app(tmp_path) as app:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://test') as client:
+            response = await client.get('/')
+    assert response.status_code == 200
+    assert response.headers.get('cache-control') == 'no-store'
+
+
 async def test_social_zero_model_calls(tmp_path):
     """问候若误分类或生成会消费空模型队列并失去正常完成。"""
     model = ScriptedWorkflowModel()

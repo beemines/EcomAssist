@@ -14,6 +14,11 @@ const hint = document.querySelector("#composer-hint");
 const sourceDialog = document.querySelector("#source-dialog");
 const sourceClose = document.querySelector("#source-close");
 let sourceTrigger = null;
+const handoffDialog = document.querySelector("#handoff-dialog");
+const handoffClose = document.querySelector("#handoff-close");
+const handoffCancel = document.querySelector("#handoff-cancel");
+const handoffConfirm = document.querySelector("#handoff-confirm");
+let handoffDraft = null;
 const ticketDialog = document.querySelector("#ticket-dialog");
 const ticketForm = document.querySelector("#ticket-form");
 const ticketType = document.querySelector("#ticket-type");
@@ -363,7 +368,7 @@ function acceptActions(payload, state) {
 
 // 每次打开空白表单，定位始终绑定原回复；打开或取消不产生任何写请求。
 function openTicketForm(state, choice) {
-  if (choice.pending || choice.completed || ticketDialog.open) return;
+  if (choice.pending || choice.completed || ticketDialog.open || handoffDialog.open) return;
   ticketDraft = { state, choice };
   ticketForm.reset();
   ticketDescription.setCustomValidity("");
@@ -447,15 +452,39 @@ async function submitTicket(event) {
 }
 ticketForm.addEventListener("submit", submitTicket);
 
-// 转人工直接新增服务通知和独立人工气泡，不发请求、不修改原回复或工单状态。
-function confirmHandoff(choice) {
-  if (choice.completed) return;
+// 打开主题内确认框，原回复与两个动作在用户确认前均保持原状。
+function openHandoffForm(state, choice) {
+  if (choice.completed || handoffDialog.open || ticketDialog.open || !state.bubble.isConnected) return;
+  handoffDraft = { state, choice };
+  handoffDialog.showModal();
+  handoffCancel.focus();
+}
+
+// 取消或Escape仅关闭弹窗，恢复原按钮焦点，不执行任何接入动作。
+function closeHandoffForm() {
+  handoffDialog.close();
+}
+handoffClose.addEventListener("click", closeHandoffForm);
+handoffCancel.addEventListener("click", closeHandoffForm);
+handoffDialog.addEventListener("close", () => {
+  const trigger = handoffDraft?.choice.button;
+  handoffDraft = null;
+  (trigger?.isConnected && !trigger.disabled ? trigger : input).focus({ preventScroll: true });
+});
+
+// 确认后新增独立通知与人工气泡，纯前端模拟，不能写工单或向旧会话追加结果。
+function confirmHandoff() {
+  const draft = handoffDraft;
+  if (!draft || draft.choice.completed || !draft.state.bubble.isConnected) return;
+  const { choice } = draft;
   choice.completed = true;
   choice.button.disabled = true;
   addMessage("assistant", "已接入人工客服", "服务通知");
   addMessage("assistant", "您好，我是客服小猫，请问有什么可以帮您的", "客服小猫 · 人工客服");
+  handoffDialog.close();
   scrollBottom();
 }
+handoffConfirm.addEventListener("click", confirmHandoff);
 
 // 流完全成功结束后才显示动作；每条旧回复闭包绑定自己的会话、快照和独立按钮状态。
 function addActions(state) {
@@ -477,7 +506,7 @@ function addActions(state) {
     state.actionChoices.set(option.action, choice);
     // 每个按钮只访问自身状态，后续聊天不会替换这条回复的动作身份。
     button.addEventListener("click", () => {
-      if (option.action === "handoff") confirmHandoff(choice);
+      if (option.action === "handoff") openHandoffForm(state, choice);
       else openTicketForm(state, choice);
     });
     group.append(button, result);
@@ -654,6 +683,7 @@ form.addEventListener("submit", (event) => {
 newButtons.forEach((button) => button.addEventListener("click", () => {
   if (active) return;
   if (sourceDialog.open) closeSource();
+  if (handoffDialog.open) handoffDialog.close();
   if (ticketDialog.open) ticketDialog.close();
   conversationId = null;
   messages.replaceChildren();

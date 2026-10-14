@@ -138,6 +138,13 @@ async function confirmClick(page, button, accept) {
   await page.locator("#ticket-submit").click();
 }
 
+// 人工确认走主题内dialog，取消不新增消息，确认后仅在本地追加消息。
+async function handoffClick(page, button, accept) {
+  await button.click();
+  await page.locator("#handoff-dialog").waitFor({ state: "visible" });
+  await page.locator(accept ? "#handoff-confirm" : "#handoff-cancel").click();
+}
+
 // 逐场景独立执行并留截图，失败继续收集，最后统一返回非零退出码。
 async function runControlled(browser, url, transport, output) {
   const results = [];
@@ -169,7 +176,10 @@ async function runControlled(browser, url, transport, output) {
     assert.equal(records.length, 0);
     const initialRequests = requests.length;
     const original = await page.locator(".message.assistant").first().innerText();
-    await handoff.click();
+    await handoffClick(page, handoff, false);
+    assert.equal(await handoff.isEnabled(), true);
+    assert.equal(await page.locator(".message.assistant").count(), 1);
+    await handoffClick(page, handoff, true);
     assert.equal(records.length, 0);
     assert.equal(requests.length, initialRequests);
     assert.equal(await handoff.isDisabled(), true);
@@ -191,7 +201,38 @@ async function runControlled(browser, url, transport, output) {
     assert.equal(records[0].method, "POST");
     assert.equal(await ticket.isDisabled(), true);
     assert.equal(await page.locator(".answer-text img").count(), 0);
-  }); // 两动作独立；人工追加独立消息且零HTTP，工单只提交定位与手填字段。
+  }); // 两动作独立；人工取消不接入、确认后独立消息且零HTTP，工单手填。
+  await scenario("handoff-themed-dialog", async ({ page, requests }) => {
+    await send(page, "complaint");
+    const before = requests.length;
+    let nativeDialogs = 0;
+    page.on("dialog", async dialog => { nativeDialogs += 1; await dialog.dismiss(); }); // 若误用原生确认框直接记录失败。
+    await page.getByRole("button", { name: "转人工", exact: true }).click();
+    const dialog = page.locator("#handoff-dialog");
+    assert.equal(await dialog.isVisible(), true);
+    assert.match(await dialog.innerText(), /客服小猫/);
+    assert.equal(await page.locator(".message.assistant").count(), 1);
+    await page.screenshot({ path: path.join(output, "handoff-dialog-desktop.png"), fullPage: true });
+    await dialog.press("Escape");
+    assert.equal(await dialog.isVisible(), false);
+    assert.equal(await page.locator(".message.assistant").count(), 1);
+    await page.getByRole("button", { name: "转人工", exact: true }).click();
+    await page.locator("#handoff-close").click();
+    assert.equal(await dialog.isVisible(), false);
+    assert.equal(nativeDialogs, 0);
+    assert.equal(requests.length, before);
+  }); // 桌面主题弹窗、关闭与Escape均不执行动作。
+  await scenario("handoff-themed-mobile", async ({ page }) => {
+    await send(page, "complaint");
+    await page.getByRole("button", { name: "转人工", exact: true }).click();
+    const dialog = page.locator("#handoff-dialog");
+    const bounds = await dialog.boundingBox();
+    assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390);
+    assert.equal(await page.locator("#handoff-confirm").isVisible(), true);
+    await page.screenshot({ path: path.join(output, "handoff-dialog-mobile.png"), fullPage: true });
+    await page.locator("#handoff-confirm").click();
+    assert.equal(await page.getByText("已接入人工客服", { exact: true }).count(), 1);
+  }, 0, { width: 390, height: 844 }); // 窄屏弹窗与确认按钮均不溢出。
   await scenario("ticket-only-and-old-offer", async ({ page, records }) => {
     await send(page, "complaint");
     await send(page, "no-actions");
@@ -440,7 +481,7 @@ async function runLive(browser, url, output, cases = selectLiveCases([])) {
         await confirmClick(page, ticket, false);
         assert.equal(record.requests.length, before, "取消确认不得写接口");
         if (name === "complaint") {
-          await handoff.click();
+          await handoffClick(page, handoff, true);
           assert.equal(record.requests.length, before, "模拟转人工零HTTP");
           assert.equal(await ticket.isEnabled(), true);
           assert.equal(await page.getByText("已接入人工客服", { exact: true }).count(), 1);
