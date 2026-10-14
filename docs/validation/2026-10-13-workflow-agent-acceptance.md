@@ -101,3 +101,13 @@ Task5决策/最终Prompt隔离、Task9 SQL配对与引用选择均通过scoped�
 本地零模型重建`.cache/task-9-targeted-two-step-local-diagnosis.json`证明子图reply_mode=answer、packet.citations=[]，同一正文/packet由validate_business_answer精确复现invalid_answer_citations。原packet完整保留，未采集推理；最初诊断提前break出现生成器清理告警，改为连接内消费完有限快照后重放，最后输出无告警。实际截图two-step.png已人工查看：两工具成功、伪引用与红色错误同时可见，不当成功答复。
 
 先前a08d00ad的政策/MH/拒答/独立按钮/社交、会话30重启幂等证据继续按原run复用，没有复制到本次结果。本轮仍未完成全部验收，控制器负责下一轮业务结果与FAQ引用指令修复及审查；本轮不再live/full、不放松guard、不删除未知引用、不调整模型或预算。
+
+## 2026-10-14：引用指令修复后的剩余两项复验
+
+`26d3758af0a39fbb481064e6d8888939d01677f9`引用契约修复经独立审查放行后，只优雅关闭自有链17620→98900→13236→7308（控制台另含停止工具44396），同.env SHA/同SQLite隐藏重开uv32524/Uvicorn98024、healthok；8001 PID58816保持。缓存`.cache/task-9-last-stop-owned.txt`、`task-9-last-server.*`保存归属/关闭/启动证据。
+
+按原人类明确授权call_ec17b619fb6146cca74f82144b55b462，仅执行一次 `D:/vue/node.exe scripts/verify-workflow-browser.cjs --url http://127.0.0.1:8002/ --mode live --cases two-step,usage-help`。run `5c7dd489-8c35-482e-bb6e-12abf16a1db8`：两步会话41仅发selecting后返回upstream_error“模型返回了无效工具申请或未正常结束。”，没有工具或最终答复；使用求助依同链路首次失败规则未执行。其余已通过场景不重复。本轮浏览器**0PASS/1FAIL/9NOT_EXECUTED，exit1**。
+
+严格只读导入主8项为**1尝试/0通过/1错误/7未执行，exit1**，SQL仅用户168；根与子检查点pending __error__，子图决策0/工具0，已记录分类1call/385actual、usage_complete=false。失败Agent调用用量未持久化，1不是全部收费次数。导入命令 `python -m evals.evaluate_workflow --mode chat --live --evidence .cache/workflow-browser/live/5c7dd489-8c35-482e-bb6e-12abf16a1db8/results.json --output .cache/task-9-last-live-chat.json`，读取已有证据、零新增模型调用。
+
+源码确认该错误由parse_tool_selection协议校验发出，可对应结束标记、工具数量、非法申请或raw镜像等多个条件。失败原始AIMessage未落检查点，现有证据无法区分具体字段；本轮未进行收费诊断或重试，也不能声称刚修复的最终引用已通过，因为失败尚未到最终阶段。原物流39及更早政策/MH/库外拒答/按钮/社交和重启幂等证据按各自run保留，不复制到本轮。整体验收仍未完成，后续处理由控制器决定，本轮无产品修改、full或额外调用。
