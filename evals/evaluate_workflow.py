@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import re
 
 from app.workflow.intent import route_intent, social_fast_path
 
@@ -55,7 +56,7 @@ def failure_status(exc):
 
 
 async def evaluate_intent(cases, classify, *, execution):
-    """每个非社交原问题至多一次，首次失败停止并保留后续未执行。"""
+    """每题至多一次，合法错类继续测量；协议/服务异常停止并保留未执行分母。"""
     rows, stopped = [], False
     for case in cases:
         row = {**case, 'status': 'not_executed', 'model_calls': 0}
@@ -70,7 +71,6 @@ async def evaluate_intent(cases, classify, *, execution):
                     usage=actual['usage'])
                 row['status'] = 'passed' if (row['actual_intent'] == case['expected_intent']
                     and row['actual_route'] == case['expected_route']) else 'misclassified'
-                stopped = row['status'] != 'passed'
             except Exception as exc:
                 row.update(status=failure_status(exc), error={'type': type(exc).__name__,
                     'code': getattr(exc, 'code', None)})
@@ -92,12 +92,54 @@ def chat_outcome(events, state):
     return 'refused' if state.get('quality', {}).get('useful') is False else 'passed'
 
 
+def sql_turn_errors(row):
+    """按可信当前用户/最终消息边界逐组核对SQL申请、结果与轨迹身份顺序及计数。"""
+    from app.repositories.records import decode_tool_calls
+    try:
+        messages, trace = row['sql_messages'], row['tool_trace']
+        identifiers = [message['id'] for message in messages]
+        if (not all(isinstance(value, str) and value.isdecimal() and str(int(value)) == value for value in identifiers)
+                or any(int(left) >= int(right) for left, right in zip(identifiers, identifiers[1:]))):
+            return ['message_id_order_or_duplicate']
+        start = identifiers.index(row['user_message_id'])
+        end = next((index for index in range(start + 1, len(messages)) if messages[index]['role'] == 'user'), len(messages))
+        current = messages[start:end]
+        if (len(current) < 2 or current[0]['role'] != 'user' or current[0]['content'] != row['question']
+                or current[0].get('tool_calls') is not None or current[0].get('tool_call_id') is not None
+                or current[-1]['id'] != row['final_message_id'] or current[-1]['role'] != 'assistant'
+                or current[-1].get('tool_calls') is not None or current[-1].get('tool_call_id') is not None
+                or not isinstance(current[-1]['content'], str) or not current[-1]['content'].strip()):
+            return ['owned_turn_boundary']
+        body = current[1:-1]
+        if len(body) != 2 * len(trace) or row['tool_call_count'] != len(trace):
+            return ['tool_pair_count']
+        seen = set()
+        for index, expected in enumerate(trace):
+            request, result = body[2 * index:2 * index + 2]
+            if request['role'] != 'assistant' or request.get('tool_call_id') is not None or request.get('content') not in (None, ''):
+                return ['tool_request_shape']
+            call = decode_tool_calls(request['tool_calls'])[0]
+            if (call['id'] in seen or call['id'] != expected['tool_call_id'] or call['name'] != expected['name']
+                    or result['role'] != 'tool' or result.get('tool_calls') is not None
+                    or result.get('tool_call_id') != call['id']):
+                return ['tool_pair_identity_or_order']
+            if not isinstance(json.loads(result['content']), dict):
+                return ['tool_result_shape']
+            seen.add(call['id'])
+        return []
+    except (KeyError, TypeError, ValueError, IndexError):
+        return ['invalid_sql_or_trace']
+
+
 def case_outcome(case_id, row):
     """对合法终态再核对固定场景语义，拒答保留单独统计且不计通过。"""
     status = row['status']
     if status not in ('passed', 'refused'):
         return status
     if row.get('browser_status') != 'PASS':
+        return 'errors'
+    row['sql_pairing_errors'] = sql_turn_errors(row)
+    if row['sql_pairing_errors']:
         return 'errors'
     trace = [item['name'] for item in row.get('tool_trace', [])]
     if case_id == 'social' and (row['model_calls'] != 0 or trace):
@@ -106,6 +148,25 @@ def case_outcome(case_id, row):
         return 'errors'
     if case_id == 'two-step' and trace != ['query_order', 'query_logistics']:
         return 'errors'
+    if case_id == 'logistics' and not any(item['name'] == 'query_logistics' and item.get('status') == 'success'
+            for item in row['tool_trace']):
+        return 'errors'
+    answer = row.get('answer', '')
+    if case_id == 'usage-help' and (row.get('reply_mode') != 'clarification' or trace
+            or re.search(r'资料不足|知识不足', answer)
+            or not re.search(r'商品|型号|产品|设备', answer)
+            or not re.search(r'什么|哪|提供|告知|告诉|补充', answer)
+            or not re.search(r'步骤|哪一步|不会|操作|遇到|问题', answer)):
+        return 'errors'
+    if case_id == 'mh-lp200':
+        source = row.get('source', '')
+        supporting = [citation for citation in row.get('citations', [])
+            if citation.get('answer') == source and f"[{citation.get('n')}]" in answer
+            and re.search(r'MH[-－]?LP200(?!\d)', '\n'.join(str(citation.get(key) or '')
+                for key in ('question', 'section_path', 'answer')), re.I)]
+        if (not re.search(r'(?<!\d)12\s*(?:L|升)', answer, re.I)
+                or not re.search(r'(?<!\d)12\s*(?:L|升)', source, re.I) or not supporting):
+            return 'errors'
     return status
 
 
@@ -195,6 +256,8 @@ async def live_chat_evidence(evidence_path):
                             tool_call_count=max((item['tool_call_count'] or 0 for item in checkpoints), default=0),
                             usage=recorded_usage([item['usage'] for item in checkpoints]), quality=state.get('quality', {}),
                             citations=state.get('citations', []), turn_status=state.get('turn_status'),
+                            reply_mode=state.get('reply_mode'), user_message_id=state.get('user_message_id'),
+                            final_message_id=state.get('final_message_id'),
                             sql_messages=[{'id': str(message.id), 'role': message.role,
                                 'content': message.content, 'tool_calls': message.tool_calls,
                                 'tool_call_id': message.tool_call_id} for message in messages],
