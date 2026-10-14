@@ -15,7 +15,7 @@ from app.core.tool_history import build_tool_messages, completed_turns
 from app.retrieval.types import validate_category
 from app.tools.executor import ToolExecutor
 from app.tools.types import ToolContext
-from app.workflow.logging import log_lifecycle
+from app.workflow.logging import configure_workflow_logging, log_lifecycle, log_terminal, safe_fields
 from app.workflow.persistence import checkpoint_config
 from app.workflow.prompts import agent_decision_system, build_intent_messages
 from app.agent.controls import estimate_call_input
@@ -37,6 +37,9 @@ class PreparedWorkflowChat:
     runtime: WorkflowRuntime
     deadline: float
     task: asyncio.Task | None = field(default=None, repr=False)
+    audit: dict = field(default_factory=dict)
+    terminal_logged: bool = False
+    cancel_outcome: str = 'cancelled'
 
 
 def _history(rows):
@@ -95,7 +98,8 @@ class WorkflowChatService:
     """只在 SQL 与根 completed 检查点均已完成后发布动作及 done。"""
     def __init__(self, model, repository, registry_factory, locks, settings, *, graph, checkpointer,
                  faq_repository, sufficiency_service, quality_repository, executor=None):
-        """保存只读依赖，每轮单独组装可变运行环境及任务。"""
+        """保存依赖并幂等启用专用审计，每轮单独组装运行环境及任务。"""
+        configure_workflow_logging()
         self.model, self.repository, self.registry_factory = model, repository, registry_factory
         self.locks, self.settings, self.graph, self.checkpointer = locks, settings, graph, checkpointer
         self.faq_repository, self.sufficiency_service = faq_repository, sufficiency_service
@@ -106,7 +110,7 @@ class WorkflowChatService:
         self._closing = False
 
     async def prepare(self, conversation_id: str, message: str, *, category=None) -> PreparedWorkflowChat:
-        """SSE 前检查预算和锁；检测旧快照但始终提交完整的新轮输入。"""
+        """SSE前检查预算和锁；提交新轮输入并初始化安全审计计数。"""
         validate_category(category)
         if self._closing:
             raise ServiceError('service_unavailable', '服务正在关闭，请稍后重试。', 503)
@@ -137,6 +141,7 @@ class WorkflowChatService:
                     self.repository, self.faq_repository, self.sufficiency_service, self.quality_repository,
                     registry, self.executor, self.settings, deadline)
                 prepared = PreparedWorkflowChat(conversation_id, identifier, lease, state, runtime, deadline)
+                prepared.audit = safe_fields({key: state[key] for key in ('decision_count', 'tool_call_count', 'usage')})
                 self._prepared[id(prepared)] = prepared
                 log_lifecycle(prepared, 'prepared', prior_pending=bool(previous.next))
                 return prepared
@@ -145,16 +150,23 @@ class WorkflowChatService:
             raise
 
     async def _produce(self, prepared, queue):
-        """独立任务驱动真实 custom 流，并在图正常退出后读取根最终快照。"""
+        """同步持久化每步并汇总安全更新；根完成才发布done，每个退出记录唯一终态。"""
         config = checkpoint_config(prepared.conversation_id)
         config['recursion_limit'] = 64
         stream = self.graph.astream(prepared.state, config=config, context=prepared.runtime,
-            stream_mode='custom', subgraphs=True)
+            stream_mode=['custom', 'updates'], subgraphs=True, durability='sync')
         citations_sent = answering_started = False
+        outcome, terminal = 'cancelled', {}
         try:
             async with asyncio.timeout_at(prepared.deadline):
                 await queue.put(StreamEvent('status', {'phase': 'selecting'}))
-                async for namespace, event in stream:
+                async for namespace, kind, event in stream:
+                    if kind == 'updates':
+                        for update in event.values():
+                            if isinstance(update, dict):
+                                prepared.audit.update(safe_fields({key: update[key] for key in
+                                    ('decision_count', 'tool_call_count', 'usage') if key in update}))
+                        continue
                     if not isinstance(event, dict) or not isinstance(event.get('data'), dict):
                         continue
                     name, data = event.get('event'), event['data']
@@ -192,18 +204,23 @@ class WorkflowChatService:
                         'checkpoint_id': checkpoint_id, 'options': options}))
                 await queue.put(StreamEvent('done', {'conversation_id': prepared.conversation_id,
                     'message_id': final['final_message_id']}))
+                outcome = 'success'
+                terminal = {'final_message_id': final['final_message_id'], 'checkpoint_id': checkpoint_id}
         except ServiceError as exc:
+            outcome, terminal = ('timeout' if exc.code == 'upstream_timeout' else 'error'), {'code': exc.code}
             await queue.put(StreamEvent('error', {'code': exc.code, 'message': exc.message}))
         except TimeoutError:
+            outcome, terminal = 'timeout', {'code': 'upstream_timeout'}
             await queue.put(StreamEvent('error', {'code': 'upstream_timeout', 'message': '本轮处理超时，请稍后重试。'}))
         except Exception:
-            log_lifecycle(prepared, 'failed')
+            outcome, terminal = 'error', {'code': 'upstream_error'}
             await queue.put(StreamEvent('error', {'code': 'upstream_error', 'message': '本次回答未能完成，请稍后重试。'}))
         finally:
+            log_terminal(prepared, prepared.cancel_outcome if outcome == 'cancelled' else outcome, **terminal)
             await stream.aclose()
 
     async def stream(self, prepared):
-        """有界队列保留增量响应；响应关闭或停机均取消同一图任务。"""
+        """有界队列保留增量响应；响应关闭标记断连，停机保持取消原因。"""
         if self._closing:
             raise asyncio.CancelledError()
         queue = asyncio.Queue(maxsize=1)
@@ -231,11 +248,14 @@ class WorkflowChatService:
         finally:
             with anyio.move_on_after(5, shield=True):
                 if not task.done():
+                    if not self._closing:
+                        prepared.cancel_outcome = 'disconnected'
                     task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
 
     def release(self, prepared):
-        """幂等归还凭证，包括未开始流、发送失败及清理超时。"""
+        """幂等归还凭证；尚未启动或清理超时也补唯一断连/停机终态。"""
+        log_terminal(prepared, 'cancelled' if self._closing else 'disconnected')
         prepared.lease.release()
         self._prepared.pop(id(prepared), None)
 
