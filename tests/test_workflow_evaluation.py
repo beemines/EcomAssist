@@ -341,3 +341,36 @@ main().catch(error => {console.error(error.stack);process.exitCode=1;}); // 明�
         capture_output=True, text=True, encoding='utf-8', timeout=40)
     assert result.returncode == 0, result.stderr
     assert '实际受控点击容量来源[2]通过' in result.stdout
+
+
+def test_browser_case_selection_keeps_fixed_denominator_and_supplemental_gate():
+    """真实选择器保留固定十项账本，仅执行指定主场景及投诉附加项。"""
+    executable = shutil.which('node') or 'D:/vue/node.exe'
+    code = r'''
+const assert = require('node:assert/strict');
+const {selectLiveCases} = require('./scripts/verify-workflow-browser.cjs');
+assert.equal(typeof selectLiveCases, 'function', '缺少固定场景选择器');
+const chosen = selectLiveCases(['--cases','logistics,two-step,usage-help']);
+assert.equal(chosen.length,10);
+assert.deepEqual(chosen.filter(row=>row.selected).map(row=>row.name), ['logistics','two-step','usage-help']);
+assert.deepEqual(chosen.filter(row=>!row.selected).map(row=>row.name), ['policy','complaint','social','mh-lp200','out-of-library','complaint-ticket-only','restart-offer']);
+assert.equal(selectLiveCases([]).filter(row=>row.selected).length,10);
+assert.deepEqual(selectLiveCases(['--cases','complaint']).filter(row=>row.selected).map(row=>row.name), ['complaint','complaint-ticket-only','restart-offer']);
+for (const args of [['--cases=logistics'],['--cases',''],['--cases'],['--cases','logistics,'],['--cases','logistics,logistics'],['--cases','invented'],['--cases','complaint-ticket-only'],['--cases','logistics','--cases','social']]) {
+  assert.throws(()=>selectLiveCases(args), /cases/);
+}
+'''
+    result = subprocess.run([executable, '-e', code], capture_output=True, text=True, encoding='utf-8', timeout=20)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize('selection', ['', 'logistics,logistics', '任意问题', 'restart-offer'])
+def test_browser_invalid_cases_fail_before_browser_or_network(selection):
+    """无浏览器依赖时仍先报告非法选择，不创建运行目录或触发网络。"""
+    executable = shutil.which('node') or 'D:/vue/node.exe'
+    result = subprocess.run([executable, 'scripts/verify-workflow-browser.cjs', '--url',
+        'http://127.0.0.1:1/', '--mode', 'live', '--cases', selection],
+        capture_output=True, text=True, encoding='utf-8', timeout=20)
+    assert result.returncode != 0
+    assert '--cases' in result.stderr
+    assert 'MODE=' not in result.stdout
