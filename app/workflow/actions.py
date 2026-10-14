@@ -47,18 +47,13 @@ class TicketActionService:
                     or assistant.content != state.get('final_answer') or user_id >= assistant_id
                     or any(row.role == 'user' and user_id < row.id < assistant_id for row in rows)):
                 raise ServiceError('invalid_action', '回复与原用户消息不匹配。', 422)
-            description = user.content
             audit = {'conversation_id': conversation_id, 'user_message_id': str(user_id),
                 'assistant_message_id': payload.assistant_message_id, 'action': 'create_ticket'}
             log_audit('workflow_ticket', phase='confirmed', **audit)
-            marker = '…[原文已截取]'
-            if len(description) > 2000:
-                description = description[:2000 - len(marker)] + marker
-            intent = state.get('intent')
-            ticket_type = '投诉' if intent == '投诉' else '售后' if intent in ('退款退货', '售后') else '咨询'
+            # 归属来自已核验的旧回复；业务内容来自用户表单，不再从原话/意图推断。
             registry = self.registry_factory(ToolContext(conversation_id, user_id, user.content, state.get('category')))
             outcome = await self.executor.execute(ToolCall(f'ui_ticket:{payload.assistant_message_id}', 'create_ticket',
-                {'description': description, 'ticket_type': ticket_type}), registry)
+                {'description': payload.description, 'ticket_type': payload.ticket_type}), registry)
             if outcome.status != 'success':
                 code = outcome.content.get('error', {}).get('code', 'tool_execution_error')
                 raise ServiceError(code, '工单暂时无法创建，请稍后重试。', 503)

@@ -82,7 +82,7 @@ router = APIRouter(route_class=ActionRoute)
 
 @router.post('/api/conversations/{conversation_id}/actions/ticket')
 async def create_ticket(conversation_id: str, payload: TicketActionRequest, request: Request) -> dict:
-    """明确确认入口只向已组装的动作服务传递会话及定位字段。"""
+    """明确提交入口传递已校验表单，动作服务另外核对原回复与会话归属。"""
     service = request.app.state.ticket_action_service
     if service is None:
         raise ServiceError('tool_execution_error', '', 503)

@@ -74,5 +74,23 @@
     <header class="source-header"><div><p class="source-eyebrow">回答依据</p><h2 id="source-title">知识来源</h2></div><button type="button" id="source-close" class="source-close" aria-label="关闭知识来源">×</button></header>
     <div class="source-content"><p id="source-path" class="source-path"></p><p id="source-question" class="source-question"></p><div id="source-answer" class="source-answer"></div><p id="source-id" class="source-id"></p></div>
   </dialog>
+  <!-- 工单内容由用户亲自填写，只有提交才请求写库；原生弹窗约束键盘焦点。 -->
+  <dialog class="source-dialog ticket-dialog" id="ticket-dialog" aria-labelledby="ticket-title">
+    <form id="ticket-form">
+      <header class="source-header"><div><p class="source-eyebrow">人工协助</p><h2 id="ticket-title">创建工单</h2></div><button type="button" id="ticket-close" class="source-close" aria-label="关闭工单表单">×</button></header>
+      <div class="ticket-content">
+        <p class="ticket-intro">请选择问题类别，并填写需要处理的问题。</p>
+        <fieldset id="ticket-fields">
+          <label for="ticket-type">工单类别 <span aria-hidden="true">*</span></label>
+          <select id="ticket-type" name="ticket_type" required><option value="" disabled selected>请选择工单类别</option><option value="售后">售后</option><option value="投诉">投诉</option><option value="咨询">咨询</option></select>
+          <label for="ticket-description">问题描述 <span aria-hidden="true">*</span></label>
+          <textarea id="ticket-description" name="description" rows="5" maxlength="2000" placeholder="请描述你遇到的问题，以及希望获得的帮助…" required></textarea>
+          <p class="ticket-limit">最多2000字</p>
+        </fieldset>
+        <p id="ticket-error" class="ticket-error" role="alert" hidden></p>
+        <div class="ticket-footer"><button type="button" id="ticket-cancel" class="ticket-cancel">取消</button><button type="submit" id="ticket-submit" class="ticket-submit">提交工单</button></div>
+      </div>
+    </form>
+  </dialog>
 </body>
 </html>

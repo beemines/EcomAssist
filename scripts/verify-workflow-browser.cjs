@@ -35,6 +35,7 @@ const checkpoint = "1f0a6cab-7153-6045-8001-d47d0224b364";
 const options = [{ action: "handoff", label: "转人工" }, { action: "create_ticket", label: "建工单" }];
 const offer = { assistant_message_id: messageId, checkpoint_id: checkpoint, options };
 const done = { conversation_id: conversation, message_id: messageId };
+const manualTicket = { ticket_type: "咨询", description: "手填补充：饮水机滤芯怎么更换？<img src=x onerror=alert(1)>" };
 // 生成完整 SSE 帧，确保浏览器真实经过解码、解析和页面渲染链路。
 function frame(event, data) { return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`; }
 // 拼装不同故障/成功场景，避免通过页面函数调用伪装浏览器验收。
@@ -128,10 +129,13 @@ async function send(page, name, wait = true) {
   if (wait) await page.locator("#message-input").waitFor({ state: "visible" }).then(() => page.waitForFunction(() => !document.querySelector("#message-input").disabled)); // 等待真实页面恢复输入。
 }
 
-// 原生 confirm 的接受/取消由一次性监听处理，取消不应锁定按钮或请求接口。
+// 从实际表单选择类别并填写描述，取消或关闭不会调用写接口。
 async function confirmClick(page, button, accept) {
-  page.once("dialog", (dialog) => accept ? dialog.accept() : dialog.dismiss()); // 每次仅处理当前按钮确认。
-  await button.click();
+  if (!await page.locator("#ticket-dialog").evaluate((node) => node.open)) await button.click();
+  if (!accept) { await page.locator("#ticket-cancel").click(); return; }
+  await page.locator("#ticket-type").selectOption(manualTicket.ticket_type);
+  await page.locator("#ticket-description").fill(manualTicket.description);
+  await page.locator("#ticket-submit").click();
 }
 
 // 逐场景独立执行并留截图，失败继续收集，最后统一返回非零退出码。
@@ -164,16 +168,18 @@ async function runControlled(browser, url, transport, output) {
     assert.equal(await page.locator(".support-action").count(), 2, "投诉完成后应有两个独立按钮");
     assert.equal(records.length, 0);
     const initialRequests = requests.length;
-    await confirmClick(page, handoff, false);
-    assert.equal(await handoff.isEnabled(), true);
-    assert.equal(records.length, 0);
-    assert.equal(requests.length, initialRequests);
-    await confirmClick(page, handoff, true);
+    const original = await page.locator(".message.assistant").first().innerText();
+    await handoff.click();
     assert.equal(records.length, 0);
     assert.equal(requests.length, initialRequests);
     assert.equal(await handoff.isDisabled(), true);
     assert.equal(await ticket.isEnabled(), true);
-    assert.deepEqual(await page.locator(".handoff-line").allTextContents(), ["已转接人工客服", "您好，我是客服小猫，请问有什么可以帮您的"]);
+    assert.deepEqual(await page.locator(".message.assistant .answer-text").allTextContents(),
+      ["这是受控回复 <img src=x onerror=alert(1)>。", "已接入人工客服", "您好，我是客服小猫，请问有什么可以帮您的"]);
+    assert.ok((await page.locator(".message.assistant").first().innerText()).includes("这是受控回复"));
+    assert.equal(await page.locator(".message.assistant").first().getByText("已接入人工客服", { exact: true }).count(), 0);
+    assert.equal(await page.locator(".message.assistant").first().getByText("您好，我是客服小猫，请问有什么可以帮您的", { exact: true }).count(), 0);
+    assert.ok(original.includes("这是受控回复"));
     await confirmClick(page, ticket, false);
     assert.equal(await ticket.isEnabled(), true);
     assert.equal(records.length, 0);
@@ -181,11 +187,11 @@ async function runControlled(browser, url, transport, output) {
     await confirmClick(page, ticket, true);
     await page.getByText("工单已创建 · TK-CONTROLLED-001", { exact: true }).waitFor();
     assert.equal(records.length, 1);
-    assert.deepEqual(records[0].body, { assistant_message_id: messageId, checkpoint_id: checkpoint });
+    assert.deepEqual(records[0].body, { assistant_message_id: messageId, checkpoint_id: checkpoint, ...manualTicket });
     assert.equal(records[0].method, "POST");
     assert.equal(await ticket.isDisabled(), true);
     assert.equal(await page.locator(".answer-text img").count(), 0);
-  }); // 两个确认独立，人工确认零 HTTP，工单请求严格两字段。
+  }); // 两动作独立；人工追加独立消息且零HTTP，工单只提交定位与手填字段。
   await scenario("ticket-only-and-old-offer", async ({ page, records }) => {
     await send(page, "complaint");
     await send(page, "no-actions");
@@ -193,8 +199,8 @@ async function runControlled(browser, url, transport, output) {
     await confirmClick(page, ticket, true);
     await page.getByText("工单已创建 · TK-CONTROLLED-001", { exact: true }).waitFor();
     assert.equal(records.length, 1);
-    assert.deepEqual(records[0].body, { assistant_message_id: messageId, checkpoint_id: checkpoint });
-    assert.equal(await page.getByText("已转接人工客服", { exact: true }).count(), 0);
+    assert.deepEqual(records[0].body, { assistant_message_id: messageId, checkpoint_id: checkpoint, ...manualTicket });
+    assert.equal(await page.getByText("已接入人工客服", { exact: true }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "转人工", exact: true }).isEnabled(), true);
   }); // 新轮完成不覆盖旧回复的动作身份。
   await scenario("ticket-retry", async ({ page, records }) => {
@@ -207,8 +213,28 @@ async function runControlled(browser, url, transport, output) {
     await page.getByText("工单已创建 · TK-CONTROLLED-001", { exact: true }).waitFor();
     assert.equal(records.length, 2);
     assert.deepEqual(records[0].body, records[1].body);
-    assert.equal(await page.getByText("已转接人工客服", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("已接入人工客服", { exact: true }).count(), 0);
   }, 1); // 失败恢复自身按钮，重复确认保留同一回复身份。
+  await scenario("ticket-form-validation", async ({ page, records }) => {
+    await send(page, "complaint");
+    await page.getByRole("button", { name: "建工单", exact: true }).click();
+    assert.equal(await page.locator("#ticket-type").inputValue(), "");
+    assert.equal(await page.locator("#ticket-description").inputValue(), "");
+    await page.locator("#ticket-submit").click();
+    assert.equal(records.length, 0, "空表单不能提交");
+    await page.locator("#ticket-type").selectOption("售后");
+    await page.locator("#ticket-description").fill("   ");
+    await page.locator("#ticket-submit").click();
+    assert.equal(records.length, 0, "纯空白描述不能提交");
+    assert.equal(await page.locator("#ticket-description").evaluate((node) => node.validity.valid), false);
+    await page.locator("#ticket-description").fill("我填写的设备故障，请安排维修。");
+    await page.screenshot({ path: path.join(output, "ticket-form-desktop.png"), fullPage: true });
+    await page.locator("#ticket-submit").click();
+    await page.getByText("工单已创建 · TK-CONTROLLED-001", { exact: true }).waitFor();
+    assert.equal(records.length, 1);
+    assert.equal(records[0].body.ticket_type, "售后");
+    assert.equal(records[0].body.description, "我填写的设备故障，请安排维修。");
+  }); // 真实表单阻止未填/空白，提交内容来自用户填写，不是原聊天内容。
   await scenario("actions-wait-for-done", async ({ page, records }) => {
     await send(page, "pending", false);
     await page.waitForFunction(() => document.querySelector(".assistant .answer-text")?.textContent.includes("等待完成")); // 等待动作帧已进入尚未完成的流。
@@ -263,11 +289,16 @@ async function runControlled(browser, url, transport, output) {
     const bounds = await page.locator("#message-input").boundingBox();
     assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390 && bounds.y + bounds.height <= 844);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true); // 窄屏不得出现页面水平溢出。
-    const handoff = page.getByRole("button", { name: "转人工", exact: true });
-    await handoff.focus();
-    page.once("dialog", (dialog) => dialog.dismiss()); // 键盘 Enter 取消保持原按钮可用。
+    const ticket = page.getByRole("button", { name: "建工单", exact: true });
+    await ticket.focus();
     await page.keyboard.press("Enter");
-    assert.equal(await handoff.isEnabled(), true);
+    assert.equal(await page.locator("#ticket-type").inputValue(), "");
+    assert.equal(await page.locator("#ticket-description").inputValue(), "");
+    const modal = await page.locator("#ticket-dialog").boundingBox();
+    assert.ok(modal.x >= 0 && modal.x + modal.width <= 390 && modal.y >= 0 && modal.y + modal.height <= 844);
+    await page.screenshot({ path: path.join(output, "ticket-form-mobile.png"), fullPage: true });
+    await page.keyboard.press("Escape");
+    assert.equal(await ticket.evaluate((node) => node === document.activeElement), true);
   }, 0, { width: 390, height: 844 }); // 输入框、徽章与按钮在窄屏保留可访问布局。
   return results;
 }
@@ -406,14 +437,14 @@ async function runLive(browser, url, output, cases = selectLiveCases([])) {
         const handoff = page.getByRole("button", { name: "转人工", exact: true });
         const ticket = page.getByRole("button", { name: "建工单", exact: true });
         const before = record.requests.length;
-        await confirmClick(page, handoff, false);
         await confirmClick(page, ticket, false);
         assert.equal(record.requests.length, before, "取消确认不得写接口");
         if (name === "complaint") {
-          await confirmClick(page, handoff, true);
+          await handoff.click();
           assert.equal(record.requests.length, before, "模拟转人工零HTTP");
           assert.equal(await ticket.isEnabled(), true);
-          assert.equal(await page.locator(".handoff-line").count(), 2);
+          assert.equal(await page.getByText("已接入人工客服", { exact: true }).count(), 1);
+          assert.equal(await page.getByText("您好，我是客服小猫，请问有什么可以帮您的", { exact: true }).count(), 1);
         }
         if (name !== "restart-offer") {
           await confirmClick(page, ticket, true);
@@ -421,12 +452,13 @@ async function runLive(browser, url, output, cases = selectLiveCases([])) {
           await Promise.all(pending);
           assert.equal(record.actions.length, 1);
           assert.equal(record.actions[0].status, 200);
-          assert.deepEqual(Object.keys(record.actions[0].request).sort(), ["assistant_message_id", "checkpoint_id"]);
-          assert.equal(await page.getByText("已转接人工客服", { exact: true }).count(), name === "complaint" ? 1 : 0);
+          assert.deepEqual(Object.keys(record.actions[0].request).sort(), ["assistant_message_id", "checkpoint_id", "description", "ticket_type"]);
+          assert.equal(await page.getByText("已接入人工客服", { exact: true }).count(), name === "complaint" ? 1 : 0);
           record.sql_after_actions = ownedSqlSnapshot(record.conversation_id, output, `${name}-after`);
           assert.equal(record.sql_after_actions.tickets.length, 1);
           assert.equal(record.sql_after_actions.conversation_status, "进行中");
-          assert.equal(record.sql_after_actions.tickets[0].description, question);
+          assert.equal(record.sql_after_actions.tickets[0].description, manualTicket.description);
+          assert.equal(record.sql_after_actions.tickets[0].ticket_type, manualTicket.ticket_type);
         }
       }
       record.status = "PASS";
