@@ -1,8 +1,8 @@
 # Workflow Agent 有界验收（2026-10-13）
 
-当前代码分支为 `feat/workflow-agent`，基线 `83ea49620bb710e559947475229b7b5910ea1b21`。**第五步尚未完成：真实聊天的知识/业务 Agent 控制输出失败，四个后续场景停止；分类、独立按钮和重启验收已通过。**报告区分受控工程验证与真实模型/服务验收，不使用旧1531数字代替本次结果。
+当前代码分支为 `feat/workflow-agent`，基线 `83ea49620bb710e559947475229b7b5910ea1b21`。**第五步尚未完成：2026-10-14复验中知识/12L来源/库外拒答已通过；物流决策错误选择澄清模式导致最终校验失败，两步和使用求助停止。**该轮HEAD为`316d0cc`，完整离线1782通过/118跳过；后续模式修复不能冒用这次旧HEAD结果。原分类、独立按钮和重启证据继续保留，下面分轮列事实。
 
-## 已完成的当前验证
+## 初轮验证（原始事实保留）
 
 | 类型 | 本次结果 | 命令 / 原始证据 |
 | --- | --- | --- |
@@ -55,3 +55,32 @@
 实现者按implementer-prompt自审，不派评审子代理。整个分支的独立审查、最终集成/推送由控制器负责；本报告不将尚未执行的审查或合并写为完成。
 
 交付保留本次会话25–30、三张明确确认的自有工单与SQLite快照，供复查；没有清整个业务表、知识集合或其他会话。工具/文档可以审查，真实Agent控制协议故障仍阻塞完整第五步验收。
+
+## 2026-10-14：审查修复后的固定复验
+
+Task5决策/最终Prompt隔离、Task9 SQL配对与引用选择均通过scoped审查后，在`316d0cc`执行一次固定复验。用户通过`call_ec17b619fb6146cca74f82144b55b462`明确允许同一.env GLM的固定场景及修复后定点复验，发送测试问句/FAQ/模拟结果，保持每轮240秒、原预算、零重试、不跑300题。先前自动审批拒绝发生在启动前0调用；新明确许可后原命令获准，没有绕过拒绝。
+
+仅自有8002旧控制台87144/99844/45716/61352及停止工具96416核对后Ctrl+C，日志正常关闭；同.env SHA256、同SQLite隐藏重开，uv78840/Uvicorn99840、healthok。8001原PID58816未动。当前8002仍为这次自有实例，后续模式修复需要再次仅重启它。
+
+完整离线一次：`uv run --locked pytest -q`，显式`WORKFLOW_BROWSER_CONTRACT=1`包含真实受控后置容量引用点击，**1782 passed、118 skipped、370.44秒、exit0**。完整输出已读，`.cache/task-9-final-full-offline.txt`无失败；118skip保持未启用真实MySQL/Milvus等资源集成原因。真实3308/SQLite的10项专项沿前次已通过证据，不重复运行。此完整套件属于本轮HEAD，模式再次修复后须另列相应覆盖。
+
+唯一真实固定脚本run `a08d00ad-3bd5-4d98-9bf1-dc5b00af375b`，原命令`node scripts/verify-workflow-browser.cjs --url http://127.0.0.1:8002/ --mode live`；浏览器汇总**7PASS、1FAIL、2NOT_EXECUTED，exit1**。经过加强后的只读SQL/官方SQLite导出，主8场景为**6尝试、4通过、1预期知识拒答、1错误、2未执行**；拒答不混为模型错误或一般回答通过。
+
+| 场景 / 自有会话 | 本轮实际结果 |
+| --- | --- |
+| 政策 /31 | PASS；SQL136用户→137 FAQ申请→138结果→139最终，逻辑工具1、决策1、已记录模型3次。成功经过检索/闸/Agent/最终提交；实际点击来源[4]为签收7天退货原文。 |
+| 物流 /32 | ERROR；SQL140用户→141 query_logistics申请→142结果，工具成功但无最终助手SQL、无done/actions。最终正文明确模拟并给已揽收/MOCK11540677/2天，随后invalid_answer。 |
+| 两步 | NOT_EXECUTED；首个业务失败后停止，未声称两组真实SQL已经通过。 |
+| 投诉 /33 | PASS；SQL143/144，建议出现前零工单，独立确认后仅Tcc00f0083a27753f5641f86ec104a8b、会话进行中。 |
+| 闲聊 /34 | PASS；SQL145/146，零工具、用量四项全0。 |
+| 使用求助 | NOT_EXECUTED；业务链路停止，待定点验收。 |
+| MH-LP200 /35 | PASS；SQL147→148FAQ→149结果→150最终；回答12L，实际打开[1]商品规格原文明确型号MH-LP200、猫砂容量12L。引用匹配真实SQL/最终引用，无首条假设放宽。 |
+| 库外 /36 | EXPECTED REFUSAL；SQL151→152FAQ→153结果→154固定拒答；不进Agent，低置信池id7保存完整原话，source=retrieval_low_conf。 |
+
+补充只建工单/37 PASS，仅明确确认后单号T485d8193eab72a4b17725af5fe237f9、无转人工文字；未确认旧offer/38 PASS、SQL零工单。原会话30同SQLite重启、谢谢零模型、旧checkpoint工单幂等的证明继续复用，因为Prompt/验收器修复没有改持久化或动作授权。保留所有原始25–30及新31–38数据，不删整表/集合。
+
+物流根因仅做本地无收费重建：子图`agent:a579e0df-1ac6-6719-b630-bf000b085320`最新状态`decision_count=2`、`reply_mode=clarification`、`quality={}`、`selected=None`；根状态尚未接收子图结果，reply_mode为null。严格AgentControl要求reply_mode且无默认值，llm_call直接写模型解析值，因此是本次模型错误选择澄清，不是适配器默认。最终packet带“回复模式：clarification”；finalize据此构造clarification质量决策，实际包含物流事实的delta触发非事实守卫。用真实delta、相同packet及`{'stop'}`离线重放，复现完全相同`invalid_answer / 社交或澄清回复包含未验证内容`。`.cache/task-9-final-logistics-local-diagnosis.json`保存packet/子图/原delta；无新模型调用。
+
+主8场景已持久化账本11次，物流最终失败调用自身用量未持久化、usage_complete=false，**11不是全供应商收费次数**。32000仍只含已记录意图+Agent决策/最终；委托query改写/充分性按原独立cap/deadline运行，排除在该账本外。没有重复24题分类、完整试跑或增加诊断；错误后只继续独立知识/投诉/社交路径。下一步由原Task5修复模式指令并审查，随后只定点物流/两步/使用求助，不重跑已通过项。
+
+原始与本轮JSON/SSE/SQL/截图各自保持：`.cache/workflow-browser/live/<各run-id>/`；本轮导出`.cache/task-9-final-live-chat.json`、`.cache/task-9-final-live-chat.txt`。已人工查看MH-LP200、库外、物流截图：12L与引用可见，预期拒答显示转人工入口；物流错误有红色说明、无反馈/动作，未误写普通成功。
