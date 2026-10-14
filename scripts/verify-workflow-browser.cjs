@@ -289,6 +289,26 @@ function ownedSqlSnapshot(conversationId, output, name) {
   return JSON.parse(fs.readFileSync(target, "utf8"));
 }
 
+// 固定真实场景必须包含对应执行或支持事实；此断言也用受控证据直接验证。
+function assertLiveScenario(name, record) {
+  if (name === "logistics") {
+    const events = record.events;
+    assert.ok(events.some((event, index) => event.event === "status" && event.data.phase === "tool_completed" && event.data.tool_name === "query_logistics" && event.data.status === "success" && events.slice(0, index).some((prior) => prior.event === "status" && prior.data.phase === "tool_running" && prior.data.tool_name === "query_logistics" && prior.data.tool_call_id === event.data.tool_call_id)), "物流必须有同一调用ID的query_logistics开始及成功完成");
+  }
+  if (name === "usage-help") {
+    assert.equal(record.tool_badges.length, 0, "缺型号不得猜测参数查询工具");
+    assert.doesNotMatch(record.answer, /资料不足|知识不足/);
+    assert.match(record.answer, /商品|型号|产品|设备/, "必须询问商品或型号");
+    assert.match(record.answer, /什么|哪|提供|告知|告诉|补充/);
+    assert.match(record.answer, /步骤|哪一步|不会|操作|遇到|问题/, "必须询问具体使用问题");
+  }
+  if (name === "mh-lp200") {
+    assert.match(record.answer, /(?<!\d)12\s*(?:L|升)/i, "MH-LP200回答应有12L事实");
+    assert.match(record.source, /(?<!\d)12\s*(?:L|升)/i, "引用原文必须支持12L");
+    assert.match(record.source_identity || record.source, /MH[-－]?LP200(?!\d)/i, "引用必须属于MH-LP200");
+  }
+}
+
 // live 不拦截任何请求；每轮最多240秒，首次错误停止相同链路且保留独立场景。
 async function runLive(browser, url, output) {
   const cases = [
@@ -343,10 +363,11 @@ async function runLive(browser, url, output) {
           await page.locator(".citation-button").first().click();
           await page.locator("#source-dialog[open]").waitFor();
           record.source = await page.locator("#source-answer").innerText();
+          record.source_identity = [await page.locator("#source-question").innerText(), await page.locator("#source-path").innerText(), record.source].join("\n");
           await page.keyboard.press("Escape");
         }
       }
-      if (name === "mh-lp200") assert.match(record.answer, /12\s*(?:L|升|l)/, "MH-LP200应有12L原文事实");
+      assertLiveScenario(name, record);
       if (name === "two-step") {
         assert.deepEqual(record.events.filter((event) => event.event === "status" && event.data.phase === "tool_running").map((event) => event.data.tool_name), ["query_order", "query_logistics"]);
         assert.equal(await page.locator('.tool-badge[data-status="success"]').count(), 2);
@@ -441,4 +462,5 @@ function requireVersion() {
   try { return require("playwright/package.json").version; } catch {}
   return JSON.parse(fs.readFileSync(path.join(process.env.USERPROFILE || process.env.HOME || "", ".cache", "codex-runtimes", "codex-primary-runtime", "dependencies", "node", "node_modules", "playwright", "package.json"))).version;
 }
-main().catch((error) => { console.error(error.message); process.exitCode = 1; }); // 启动错误保留非零退出码。
+module.exports = { assertLiveScenario };
+if (require.main === module) main().catch((error) => { console.error(error.message); process.exitCode = 1; }); // 仅直接运行启动浏览器；导入只测试固定场景断言。
