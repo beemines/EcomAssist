@@ -2,6 +2,7 @@
 import importlib
 import json
 from contextlib import asynccontextmanager
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -55,8 +56,24 @@ async def workflow_app(tmp_path, *, model=None, store=None, faq=None, saver=None
         model=model if model is not None else ScriptedWorkflowModel(),
         repository=store if store is not None else Store(), faq_repository=faq or FAQStub(),
         quality_repository=store if store is not None else Store(), **({'checkpointer': saver} if saver else {}))
-    async with app.router.lifespan_context(app):
-        yield app
+    from app.workflow.runtime import WorkflowRuntime
+    from app.retrieval.multi import WorkflowRetrieval
+    from tests.workflow_fakes import workflow_runtime
+    def runtime(*args, **kwargs):
+        """Task5新增依赖在测试边界明确提供，生产接线留Task6。"""
+        result = WorkflowRuntime(*args, **kwargs)
+        result.understanding = workflow_runtime().understanding
+        class Retrieve:
+            async def retrieve(self, *, question, queries, category):
+                """复用已注入FAQ边界，保留真实图及检查点。"""
+                assert queries == (question,)
+                return WorkflowRetrieval(await result.faq_repository.retrieve(question[:128],
+                    raw_question=question, category=category), {})
+        result.workflow_retriever = Retrieve()
+        return result
+    with patch('app.workflow.service.WorkflowRuntime', runtime):
+        async with app.router.lifespan_context(app):
+            yield app
 
 
 async def request(app, message):

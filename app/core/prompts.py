@@ -99,7 +99,8 @@ def build_query_messages(raw_question: str) -> list[BaseMessage]:
 
 
 # 自评只接收本轮原话和选定证据，分类不能把业务事实包装为社交或澄清。
-def build_sufficiency_messages(raw_question: str, payload: dict) -> list[BaseMessage]:
+def build_sufficiency_messages(raw_question: str, payload: dict, *, order_context: dict | None = None) -> list[BaseMessage]:
+    """可信订单上下文仅辅助政策适用性，不替代缺少的政策内容。"""
     return [SystemMessage(content=(
         '直接判断当前证据能否可靠回答本轮问题，不思考不解释，立即输出最短JSON：'
         '{"useful":true,"reason":"简短理由","response_kind":"knowledge"}。仅这三个键。'
@@ -107,6 +108,9 @@ def build_sufficiency_messages(raw_question: str, payload: dict) -> list[BaseMes
         'response_kind表示计划回复的类型，与证据是否充分独立；事实问题即使useful=false也仍为knowledge。'
         'knowledge包括商家政策、商品条件、订单物流事实；证据必须直接相关且覆盖关键条件、型号和限制。'
         '空证据、无关证据或缺少关键条件的事实问题判false，不使用历史或常识补事实。'
+        '若提供可信order_context，检查当前政策与订单是否足够给出条件答复；未知商品完好、二次销售条件不自动等于缺少政策。'
+        '政策已覆盖适用条件时可以说明待核验，不必把未知实物状态一律判为资料不足。订单事实不能代替政策。'
+        '超过七天无理由期限不等于质量售后或保修一律失效；不能假定已有质量故障。'
         'social仅纯问候感谢；clarification仅追问缺失的订单号、型号或适用条件，不能包含业务事实。'
         '纯问候和必要信息追问即使没有证据也可以useful=true，因为它们不回答任何业务事实。'
         '已明确型号或条件的政策问题不能用social/clarification绕过知识。'
@@ -116,7 +120,7 @@ def build_sufficiency_messages(raw_question: str, payload: dict) -> list[BaseMes
         '问拆封能否退但缺条件证据：{"useful":false,"reason":"条件无证据","response_kind":"knowledge"}；'
         '问你好：{"useful":true,"reason":"纯问候","response_kind":"social"}；'
         '问我的订单到哪了但无订单号：{"useful":true,"reason":"需订单号","response_kind":"clarification"}。'
-    )), HumanMessage(content=json.dumps({'question': raw_question, 'evidence': payload},
+    )), HumanMessage(content=json.dumps({'question': raw_question, 'evidence': payload, 'order_context': order_context},
                                        ensure_ascii=False, separators=(',', ':'), allow_nan=False))]
 
 

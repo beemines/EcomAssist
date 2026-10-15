@@ -17,10 +17,10 @@ from app.workflow.prompts import build_intent_messages
 
 
 Intent = Literal['物流','订单','商品咨询','退款退货','售后','投诉','闲聊','其他']
-Route = Literal['knowledge','business','complaint','social','other']
+Route = Literal['knowledge','business','after_sales','complaint','social','other']
 _SOCIAL = re.compile(r'(?:你好|您好|嗨|哈喽|谢谢(?:你|您)?|多谢|辛苦了|再见|拜拜|早上好|下午好|晚上好)[！!。.?？\s]*')
-_ROUTES = {'商品咨询': 'knowledge', '退款退货': 'knowledge', '物流': 'business',
-           '订单': 'business', '售后': 'business', '投诉': 'complaint', '闲聊': 'social', '其他': 'other'}
+_ROUTES = {'商品咨询': 'knowledge', '退款退货': 'after_sales', '物流': 'business',
+           '订单': 'business', '售后': 'after_sales', '投诉': 'complaint', '闲聊': 'social', '其他': 'other'}
 
 
 @dataclass(frozen=True)
@@ -71,6 +71,10 @@ class IntentClassifier:
         cost = estimate_call_input(messages, [])
         if cost > self.input_budget:
             raise InputTooLong()
+        # 调用已开始即保守计费；有原始实测响应时在协议校验前替换。
+        ledger = UsageLedger()
+        record_usage(None, ledger, estimated_input=cost, output_limit=2048)
+        self.usage = {key: getattr(ledger, key) for key in self.usage}
         try:
             async with asyncio.timeout(self.timeout_seconds):
                 output = await self.model.ainvoke(messages)
@@ -83,11 +87,11 @@ class IntentClassifier:
         except Exception as exc:
             raise ServiceError('upstream_error', '模型服务暂时不可用，请稍后重试。', 502) from exc
         raw = output.get('raw') if isinstance(output, dict) else None
+        ledger = UsageLedger()
+        record_usage(raw, ledger, estimated_input=cost, output_limit=2048)
+        self.usage = {key: getattr(ledger, key) for key in self.usage}
         if (not isinstance(raw, AIMessage) or raw.response_metadata.get('finish_reason') != 'stop'
                 or raw.tool_calls or raw.invalid_tool_calls or raw.additional_kwargs.get('tool_calls')):
             raise invalid_output(finish_reason=raw.response_metadata.get('finish_reason') if isinstance(raw, AIMessage) else None)
         result = validate_structured_output(output, _IntentOutput)
-        ledger = UsageLedger()
-        record_usage(raw, ledger, estimated_input=cost, output_limit=2048)
-        self.usage = {key: getattr(ledger, key) for key in self.usage}
         return IntentResult(result.intent, result.intent if result.confidence >= 0.70 else '其他', result.confidence)

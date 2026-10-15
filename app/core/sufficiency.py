@@ -14,6 +14,7 @@ from app.core.evidence import EvidencePacket
 from app.core.extraction import invalid_output, validate_structured_output
 from app.core.memory import estimate_tokens
 from app.core.prompts import build_sufficiency_messages
+from app.agent.controls import UsageLedger, estimate_call_input, record_usage
 
 
 class _Assessment(BaseModel):
@@ -69,9 +70,12 @@ class SufficiencyService:
         self.structured_model = model.with_structured_output(_Assessment, method='json_mode', include_raw=True)
         self.input_budget, self.timeout, self.minimum_rerank_score = input_budget, timeout, minimum_rerank_score
         self.mode = mode
+        self.usage = {'actual': 0, 'estimated': 0, 'actual_calls': 0, 'estimated_calls': 0}
 
     # 无工具问题也必须判定；合法自评后再执行知识空集及真实重排分的硬门槛。
-    async def check(self, raw_question: str, evidence: EvidencePacket) -> QualityDecision:
+    async def check(self, raw_question: str, evidence: EvidencePacket, *, order_context: dict | None = None) -> QualityDecision:
+        """判断政策可否支持事实或条件答复，订单事实不替代政策。"""
+        self.usage = dict.fromkeys(self.usage, 0)
         if not isinstance(raw_question, str) or not raw_question.strip():
             raise ValueError('raw question must be nonempty text')
         if self.mode == 'calibrated_score' and evidence.strategy == 'hybrid_rerank':
@@ -79,9 +83,13 @@ class SufficiencyService:
                 raise ValueError('online hybrid_rerank requires a calibrated threshold')
             if any(item['score_kind'] != 'rerank' for item in evidence.payload.get('matches', [])):
                 raise ValueError('hybrid_rerank requires authoritative rerank scores')
-        messages = build_sufficiency_messages(raw_question, evidence.payload)
+        messages = build_sufficiency_messages(raw_question, evidence.payload, order_context=order_context)
         if estimate_tokens(messages) > self.input_budget:
             raise InputTooLong()
+        cost = estimate_call_input(messages, [])
+        ledger = UsageLedger()
+        record_usage(None, ledger, estimated_input=cost, output_limit=2048)
+        self.usage = {key: getattr(ledger, key) for key in self.usage}
         try:
             async with asyncio.timeout(self.timeout):
                 output = await self.structured_model.ainvoke(messages)
@@ -92,6 +100,9 @@ class SufficiencyService:
         except Exception as exc:
             raise ServiceError('upstream_error', '模型服务暂时不可用，请稍后重试。', 502) from exc
         raw = output.get('raw') if isinstance(output, dict) else None
+        ledger = UsageLedger()
+        record_usage(raw, ledger, estimated_input=cost, output_limit=2048)
+        self.usage = {key: getattr(ledger, key) for key in self.usage}
         if (not isinstance(raw, AIMessage) or raw.response_metadata.get('finish_reason') != 'stop'
                 or raw.tool_calls or raw.invalid_tool_calls):
             raise invalid_output()

@@ -125,7 +125,7 @@ def workflow_runtime(*, intent='商品咨询', payload=None, useful=True, error=
             """初始化自评调用记录。"""
             self.calls = []
 
-        async def check(self, raw_question, evidence):
+        async def check(self, raw_question, evidence, *, order_context=None):
             """记录原话及实际证据并返回受控合法判定。"""
             self.calls.append((raw_question, evidence))
             return QualityDecision(useful=useful, reason='离线内容判定',
@@ -136,8 +136,24 @@ def workflow_runtime(*, intent='商品咨询', payload=None, useful=True, error=
         response_metadata={'finish_reason': 'stop'})])
     settings = SimpleNamespace(tool_input_token_budget=8000, llm_timeout_seconds=60,
         faq_timeout_seconds=90, rerank_min_score=.5, intent_max_output_tokens=2048)
-    return WorkflowRuntime(model, model, model, repository, FAQ(), Sufficiency(), repository,
-        {}, None, settings, time.monotonic() + 240)
+    class Understanding:
+        """显式理解边界替身，不在生产路径跳过模型。"""
+        usage = {'actual': 1, 'estimated': 0, 'actual_calls': 1, 'estimated_calls': 0}
+        async def resolve(self, question, history):
+            """保持已完整问题，不替模型声称准确率。"""
+            from app.workflow.understanding import Resolution
+            return Resolution(question, False)
+
+    faq = FAQ()
+    class Retrieve:
+        """可信单查询入口映射到已存在的离线FAQ边界。"""
+        async def retrieve(self, *, question, queries, category):
+            """保持查询和过滤入参可观察，不使用旧planner。"""
+            from app.retrieval.multi import WorkflowRetrieval
+            assert queries == (question,)
+            return WorkflowRetrieval(await faq.retrieve(question[:128], raw_question=question, category=category), {})
+    return WorkflowRuntime(model, model, model, repository, faq, Sufficiency(), repository,
+        {}, None, settings, time.monotonic() + 240, understanding=Understanding(), workflow_retriever=Retrieve())
 
 
 def workflow_call(name='query_order', args=None, identifier='call_1'):

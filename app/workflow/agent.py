@@ -24,7 +24,8 @@ from app.core.llm import model_with_output_budget
 from app.core.sufficiency import QualityDecision
 from app.tools.schemas import FAQArgs
 from app.tools.types import ToolCall
-from app.workflow.nodes import log_node, remaining_timeout
+from app.workflow.nodes import assess_sufficiency, log_node, remaining_timeout
+from app.workflow.after_sales import parse_after_sales_control
 from app.workflow.prompts import KNOWLEDGE_FALLBACK, agent_decision_system, agent_final_system
 from app.workflow.runtime import WorkflowRuntime
 from app.workflow.state import WorkflowState
@@ -72,7 +73,7 @@ def _usage(ledger):
 def _registry(state, context):
     """只开放读取工具，已强制检索的知识轮排除 FAQ。"""
     allowed = {'query_order', 'query_logistics', 'query_product', 'query_faq'}
-    if state['route'] == 'knowledge':
+    if state['route'] in ('knowledge', 'after_sales'):
         allowed.remove('query_faq')
     return {name: tool for name, tool in context.registry.items() if name in allowed}
 
@@ -136,17 +137,17 @@ def _normalize(selected, call, question):
     return effective, ToolCall(call.id, call.name, args)
 
 
-async def _check_evidence(state, context, packet):
+async def _check_evidence(state, runtime, packet):
     """新增 FAQ 与实际最终副本均执行真实重排门槛，外部故障保持 ServiceError。"""
+    context = runtime.context
     threshold = context.settings.rerank_min_score
     if packet.strategy != 'hybrid_rerank' or threshold is None:
         raise ValueError('online knowledge gate requires hybrid_rerank and calibrated threshold')
     if not packet.citations or packet.best_score is None or packet.best_score < threshold:
         return {'useful': False, 'reason': '当前知识证据为空或低于已校准重排门槛。',
-            'response_kind': 'knowledge', 'source': 'retrieval_low_conf'}
-    async with asyncio.timeout(remaining_timeout(context, context.settings.llm_timeout_seconds)):
-        decision = await context.sufficiency.check(state['raw_question'], packet)
-    return decision.model_dump()
+            'response_kind': 'knowledge', 'source': 'retrieval_low_conf'}, state['stage_usage']
+    decision, stages = await assess_sufficiency(state, runtime, packet)
+    return decision.model_dump(), stages
 
 
 async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dict:
@@ -159,8 +160,8 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
     schema = [convert_to_openai_tool(tool) for tool in registry.values()]
     ledger = _ledger(state, limits)
     try:
-        packet = _packet(state, context, agent_decision_system(state['intent']), schema)
-        final_packet = _packet(state, context, agent_final_system(state['intent'], state['reply_mode']))
+        packet = _packet(state, context, agent_decision_system(state['intent'], after_sales=state['route'] == 'after_sales'), schema)
+        final_packet = _packet(state, context, agent_final_system(state['intent'], state['reply_mode'], after_sales=state['route'] == 'after_sales', refund_decision=state.get('refund_decision'), decision_reason=state.get('decision_reason')))
         final_reserve = estimate_call_input(final_packet.messages, []) + limits.final_output_tokens
         reserve_call(packet.messages, schema, ledger, output_limit=limits.decision_output_tokens,
             final_reserve=final_reserve)
@@ -196,8 +197,8 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
     if ledger.remaining < final_reserve:
         return {**update, 'stop_reason': 'token_budget'}
     if call is None:
-        control = _control(selected)
-        return {**update, 'reply_mode': control.reply_mode, 'suggested_actions': control.suggested_actions}
+        control = parse_after_sales_control(selected, state['intent']) if state['route'] == 'after_sales' else _control(selected)
+        return {**update, **control.model_dump()}
     if selected.text.strip():
         raise invalid_output()
     selected, call = _normalize(selected, call, state['raw_question'])
@@ -214,7 +215,7 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
     placeholder = ToolMessage('{}', tool_call_id=call.id)
     try:
         future = {**state, 'messages': [*state['messages'], selected, placeholder]}
-        future_packet = _packet(future, context, agent_final_system(state['intent'], 'answer'))
+        future_packet = _packet(future, context, agent_final_system(state['intent'], 'answer', after_sales=state['route'] == 'after_sales', refund_decision=state.get('refund_decision'), decision_reason=state.get('decision_reason')))
         reserve_call(future_packet.messages, [], ledger, output_limit=limits.final_output_tokens, final_reserve=0)
     except (InputTooLong, ServiceError) as exc:
         if exc.code not in ('input_too_long', 'token_budget'):
@@ -252,7 +253,7 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
             # 先形成完整状态更新，再由收敛节点抛服务错误，不能丢失配对和计数。
             return {**update, 'tool_error': error}
     try:
-        packet = _packet({**state, **update}, context, agent_final_system(state['intent'], 'answer'))
+        packet = _packet({**state, **update}, context, agent_final_system(state['intent'], 'answer', after_sales=state['route'] == 'after_sales', refund_decision=state.get('refund_decision'), decision_reason=state.get('decision_reason')))
         reserve_call(packet.messages, [], _ledger(state, _limits(context)),
             output_limit=_limits(context).final_output_tokens, final_reserve=0)
     except (InputTooLong, ServiceError) as exc:
@@ -260,8 +261,8 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
             raise
         return {**update, 'stop_reason': 'token_budget'}
     if call.name == 'query_faq' and outcome.status == 'success':
-        quality = await _check_evidence(state, context, packet)
-        update.update(quality=quality, evidence_payload=packet.payload, citations=[asdict(c) for c in packet.citations])
+        quality, stages = await _check_evidence(state, runtime, packet)
+        update.update(quality=quality, stage_usage=stages, evidence_payload=packet.payload, citations=[asdict(c) for c in packet.citations])
     return update
 
 
@@ -288,7 +289,7 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
         runtime.stream_writer({'event': 'delta', 'data': {'text': UNFINISHED_ANSWER}})
         return {'final_answer': UNFINISHED_ANSWER, 'reply_mode': 'answer', 'suggested_actions': ['handoff'], 'quality': {}, 'citations': []}
     try:
-        packet = _packet(state, context, agent_final_system(state['intent'], state['reply_mode']))
+        packet = _packet(state, context, agent_final_system(state['intent'], state['reply_mode'], after_sales=state['route'] == 'after_sales', refund_decision=state.get('refund_decision'), decision_reason=state.get('decision_reason')))
         ledger = _ledger(state, limits)
         reserve_call(packet.messages, [], ledger, output_limit=limits.final_output_tokens, final_reserve=0)
     except (InputTooLong, ServiceError) as exc:
@@ -301,12 +302,16 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
     has_faq = any('matches' in payload for payload in payloads)
     clarification = state['reply_mode'] == 'clarification'
     quality = {}
+    stages = state['stage_usage']
     if has_faq:
-        quality = state['quality'] if packet.payload == state['evidence_payload'] and state['quality'] else await _check_evidence(state, context, packet)
+        if packet.payload == state['evidence_payload'] and state['quality']:
+            quality = state['quality']
+        else:
+            quality, stages = await _check_evidence(state, runtime, packet)
         if not quality['useful']:
             runtime.stream_writer({'event': 'citations', 'data': {'citations': [asdict(c) for c in packet.citations]}})
             runtime.stream_writer({'event': 'delta', 'data': {'text': KNOWLEDGE_FALLBACK}})
-            return {'quality': quality, 'final_answer': KNOWLEDGE_FALLBACK, 'reply_mode': 'answer',
+            return {'quality': quality, 'stage_usage': stages, 'final_answer': KNOWLEDGE_FALLBACK, 'reply_mode': 'answer',
                 'suggested_actions': ['handoff'], 'citations': [asdict(c) for c in packet.citations], 'evidence_payload': packet.payload}
     elif not clarification and (state['route'] == 'knowledge' or not any('error' not in p and 'matches' not in p for p in payloads)):
         raise ServiceError('invalid_answer', '当前结果不足以生成事实回答，请补充必要信息。', 502)
@@ -334,7 +339,7 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
             raise ServiceError('token_budget', '本轮模型预算不足，无法保存回答。', 422)
         ensure_answer_active(context.deadline)
         log_node(state, 'finalize_answer', usage=_usage(ledger))
-        return {'final_answer': answer, 'quality': quality, 'usage': _usage(ledger), 'evidence_payload': packet.payload,
+        return {'final_answer': answer, 'quality': quality, 'stage_usage': stages, 'usage': _usage(ledger), 'evidence_payload': packet.payload,
             'citations': [] if clarification else [asdict(c) for c in packet.citations]}
     except (TimeoutError, httpx.TimeoutException, APITimeoutError) as exc:
         raise ServiceError('upstream_timeout', '模型响应超时，请稍后重试。', 504) from exc
