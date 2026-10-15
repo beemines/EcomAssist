@@ -8,7 +8,7 @@
 
 **Tech Stack:** 现有 Python 3.11–3.13、FastAPI 0.142.2、SQLAlchemy 2.0.54、Pydantic 2.13.5、MySQL、Milvus、LangChain Core 1.6.6/OpenAI 1.6.7、LangGraph 1.2.15、langgraph-checkpoint-sqlite 3.1.2、原生 HTML/CSS/JavaScript。
 
-**Spec:** [2026-10-15-intent-routing-design.md](../specs/2026-10-15-intent-routing-design.md)。用户在书面设计提交 `d414dd9` 后回复“继续”，进入实施计划阶段。本计划尚待审阅；沿用此前已选择的 Subagent-Driven 执行方式，前端按用户指定的 Vibe Coding 例外处理。
+**Spec:** [2026-10-15-intent-routing-design.md](../specs/2026-10-15-intent-routing-design.md)。用户在书面设计提交 `d414dd9` 后回复“继续”，又在计划提交 `73a948e` 后回复“开始实现”，现已批准实施。沿用此前已选择的 Subagent-Driven 执行方式，前端按用户指定的 Vibe Coding 例外处理。
 
 ## Global Constraints
 
