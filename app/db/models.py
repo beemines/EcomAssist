@@ -63,6 +63,33 @@ class Ticket(Base):
     created_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"), comment="创建时间")
 
 
+class RefundRequest(Base):
+    """只映射显式提交的待审核申请，不开放修改或支付动作。"""
+    __tablename__ = 'refund_requests'
+    __table_args__ = (Index('uk_refund_request', 'request_no', unique=True),
+        Index('uk_refund_offer', 'offer_id', unique=True), Index('uk_refund_pending', 'pending_key', unique=True),
+        Index('idx_refund_owner_order_status', 'user_id', 'order_id', 'status'),
+        {'mysql_engine': 'InnoDB', 'mysql_charset': 'utf8mb4', 'comment': '用户显式提交的待审核退款申请'})
+    id: Mapped[int] = mapped_column(BIGINT(unsigned=True), primary_key=True, autoincrement=True, comment='申请主键')
+    request_no: Mapped[str] = mapped_column(VARCHAR(65), nullable=False, comment='服务器稳定申请号')
+    conversation_id: Mapped[int] = mapped_column(BIGINT(unsigned=True), ForeignKey('conversations.id', name='fk_refund_conversation'), nullable=False, comment='来源会话')
+    user_message_id: Mapped[int] = mapped_column(BIGINT(unsigned=True), ForeignKey('messages.id', name='fk_refund_user'), nullable=False, comment='本轮用户消息')
+    assistant_message_id: Mapped[int] = mapped_column(BIGINT(unsigned=True), ForeignKey('messages.id', name='fk_refund_assistant'), nullable=False, comment='已完成助手答复')
+    checkpoint_id: Mapped[str] = mapped_column(VARCHAR(128), nullable=False, comment='不可变完成根检查点')
+    offer_id: Mapped[str] = mapped_column(VARCHAR(64), nullable=False, comment='服务器申请许可')
+    user_id: Mapped[str] = mapped_column(VARCHAR(64), nullable=False, comment='可信用户身份')
+    order_id: Mapped[str] = mapped_column(VARCHAR(64), nullable=False, comment='可信订单身份')
+    pending_key: Mapped[str] = mapped_column(VARCHAR(64), nullable=False, comment='用户订单规范JSON数组的SHA256')
+    reason: Mapped[str] = mapped_column(ENUM('unwanted', 'quality', 'not_as_described', 'wrong_or_missing', 'damaged', 'other'), nullable=False, comment='用户表单原因')
+    amount_cents: Mapped[int] = mapped_column(BIGINT(unsigned=True), nullable=False, comment='订单实付整数分')
+    currency: Mapped[str] = mapped_column(ENUM('CNY'), nullable=False, comment='订单币种')
+    status: Mapped[str] = mapped_column(ENUM('待审核'), nullable=False, server_default=text("'待审核'"), comment='待审核申请状态')
+    order_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, comment='原订单事实完整快照')
+    policy_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, comment='原政策证据全文与路径快照')
+    decision_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, comment='原模型判断及说明快照')
+    created_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text('CURRENT_TIMESTAMP'), comment='服务器提交时间')
+
+
 # 知识分块原文及向量化状态由 MySQL 保存，主键与向量索引对应。
 class KnowledgeChunk(Base):
     __tablename__ = "knowledge_chunks"

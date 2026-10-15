@@ -1,0 +1,30 @@
+-- 仅显式init创建退款申请表，不变更历史表或执行支付。
+SET NAMES utf8mb4;
+CREATE TABLE refund_requests (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '申请主键',
+  request_no VARCHAR(65) NOT NULL COMMENT '服务器稳定申请号',
+  conversation_id BIGINT UNSIGNED NOT NULL COMMENT '来源会话',
+  user_message_id BIGINT UNSIGNED NOT NULL COMMENT '本轮用户消息',
+  assistant_message_id BIGINT UNSIGNED NOT NULL COMMENT '已完成助手答复',
+  checkpoint_id VARCHAR(128) NOT NULL COMMENT '不可变完成根检查点',
+  offer_id VARCHAR(64) NOT NULL COMMENT '服务器申请许可',
+  user_id VARCHAR(64) NOT NULL COMMENT '可信用户身份',
+  order_id VARCHAR(64) NOT NULL COMMENT '可信订单身份',
+  pending_key VARCHAR(64) NOT NULL COMMENT '用户订单规范JSON数组的SHA256',
+  reason ENUM('unwanted','quality','not_as_described','wrong_or_missing','damaged','other') NOT NULL COMMENT '用户表单原因',
+  amount_cents BIGINT UNSIGNED NOT NULL COMMENT '订单实付整数分',
+  currency ENUM('CNY') NOT NULL COMMENT '订单币种',
+  status ENUM('待审核') NOT NULL DEFAULT '待审核' COMMENT '待审核申请状态',
+  order_snapshot JSON NOT NULL COMMENT '原订单事实完整快照',
+  policy_snapshot JSON NOT NULL COMMENT '原政策证据全文与路径快照',
+  decision_snapshot JSON NOT NULL COMMENT '原模型判断及说明快照',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '服务器提交时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_refund_request (request_no),
+  UNIQUE KEY uk_refund_offer (offer_id),
+  UNIQUE KEY uk_refund_pending (pending_key),
+  KEY idx_refund_owner_order_status (user_id,order_id,status),
+  CONSTRAINT fk_refund_conversation FOREIGN KEY (conversation_id) REFERENCES conversations (id),
+  CONSTRAINT fk_refund_user FOREIGN KEY (user_message_id) REFERENCES messages (id),
+  CONSTRAINT fk_refund_assistant FOREIGN KEY (assistant_message_id) REFERENCES messages (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户显式提交的待审核退款申请';

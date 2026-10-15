@@ -11,7 +11,7 @@ logger = logging.getLogger('app.workflow.audit')
 _console_handler = logging.StreamHandler()
 _console_handler.setFormatter(None)
 _ENUMS = {
-    'event': {'workflow_node', 'workflow_lifecycle', 'workflow_ticket'},
+    'event': {'workflow_node', 'workflow_lifecycle', 'workflow_ticket', 'workflow_refund'},
     'node': {'resolve_reference', 'classify_intent', 'retrieve_knowledge', 'confidence_gate',
         'knowledge_fallback', 'complaint_response', 'social_response', 'log_response',
         'llm_call', 'tool_node', 'finalize_answer', 'other_response', 'resolve_order', 'prepare_order_selection',
@@ -21,7 +21,7 @@ _ENUMS = {
     'route': {'knowledge', 'business', 'complaint', 'social', 'other', 'after_sales'},
     'reason_code': {'retrieval_low_conf', 'self_check'},
     'origin': {'workflow', 'agent'}, 'name': {'query_faq', 'query_order', 'query_logistics', 'query_product'},
-    'status': {'success', 'error'}, 'turn_status': {'completed'}, 'action': {'create_ticket'},
+    'status': {'success', 'error'}, 'turn_status': {'completed'}, 'action': {'create_ticket', 'submit_refund'},
     'outcome': {'success', 'error', 'timeout', 'cancelled', 'disconnected', 'paused'},
     'code': {'upstream_error', 'upstream_timeout', 'invalid_structured_output', 'invalid_answer',
         'invalid_answer_citations', 'input_too_long', 'token_budget', 'tool_execution_error',
@@ -51,6 +51,8 @@ def safe_fields(values):
             except ValueError:
                 pass
         elif key == 'ticket_no' and isinstance(value, str) and re.fullmatch(r'T[0-9a-fA-F]{31,32}', value):
+            result[key] = value
+        elif key == 'request_no' and isinstance(value, str) and re.fullmatch(r'R[0-9a-f]{64}', value):
             result[key] = value
         elif key == 'tool_call_id' and isinstance(value, str):
             result['tool_call_id_hash'] = hashlib.sha256(value.encode()).hexdigest()[:16]
