@@ -133,7 +133,7 @@ async def test_parent_commits_final_once_after_child_validation():
     from langgraph.checkpoint.memory import InMemorySaver
     from app.workflow.graph import build_workflow_graph
     context, state = setup([workflow_call(), control()])
-    context.intent_model = ScriptedWorkflowModel(intent_replies=[AIMessage('{"intent":"订单"}',
+    context.intent_model = ScriptedWorkflowModel(intent_replies=[AIMessage('{"intent":"订单","confidence":0.95}',
         response_metadata={'finish_reason': 'stop'})])
     parent = build_workflow_graph(graph(), checkpointer=InMemorySaver())
     result = await parent.ainvoke(state, context=context, config={'configurable': {'thread_id': 'parent-child'}})

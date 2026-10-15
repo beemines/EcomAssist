@@ -12,7 +12,7 @@ from app.core.errors import ServiceError
 from app.core.evidence import build_agent_evidence
 from app.core.llm import model_with_output_budget
 from app.workflow.intent import IntentClassifier, route_intent, social_fast_path
-from app.workflow.prompts import COMPLAINT_RESPONSE, EVIDENCE_SYSTEM, KNOWLEDGE_FALLBACK, SOCIAL_RESPONSE
+from app.workflow.prompts import COMPLAINT_RESPONSE, EVIDENCE_SYSTEM, KNOWLEDGE_FALLBACK, OTHER_RESPONSE, SOCIAL_RESPONSE
 from app.workflow.runtime import WorkflowRuntime
 from app.workflow.state import WorkflowState
 from app.workflow.logging import log_audit
@@ -71,7 +71,8 @@ async def classify_intent(state: WorkflowState, runtime: Runtime[WorkflowRuntime
         model = model_with_output_budget(context.intent_model, context.settings, context.settings.intent_max_output_tokens)
         classifier = IntentClassifier(model, input_budget=context.settings.tool_input_token_budget,
             timeout_seconds=remaining_timeout(context, context.settings.llm_timeout_seconds))
-        intent = await classifier.classify(state['raw_question'])
+        result = await classifier.classify(state['raw_question'])
+        intent = result.intent
         usage = {key: usage[key] + classifier.usage[key] for key in usage}
     route = route_intent(intent)
     log_node(state, 'classify_intent', selected_intent=intent, selected_route=route)
@@ -157,6 +158,15 @@ async def social_response(state: WorkflowState, runtime: Runtime[WorkflowRuntime
     runtime.stream_writer({'event': 'status', 'data': {'phase': 'answering', 'origin': 'workflow'}})
     runtime.stream_writer({'event': 'delta', 'data': {'text': SOCIAL_RESPONSE}})
     return {'final_answer': SOCIAL_RESPONSE, 'reply_mode': 'answer', 'suggested_actions': []}
+
+
+async def other_response(state: WorkflowState, runtime: Runtime[WorkflowRuntime]) -> dict:
+    """无法识别的诉求固定澄清，不查单、检索或自动建议动作。"""
+    log_node(state, 'other_response')
+    runtime.stream_writer({'event': 'citations', 'data': {'citations': []}})
+    runtime.stream_writer({'event': 'status', 'data': {'phase': 'answering', 'origin': 'workflow'}})
+    runtime.stream_writer({'event': 'delta', 'data': {'text': OTHER_RESPONSE}})
+    return {'final_answer': OTHER_RESPONSE, 'reply_mode': 'clarification', 'suggested_actions': []}
 
 
 async def log_response(state: WorkflowState, runtime: Runtime[WorkflowRuntime]) -> dict:

@@ -5,12 +5,16 @@ import json
 
 import httpx
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from pydantic import ValidationError
 
 from app.core.errors import InputTooLong, ServiceError
 from app.core.llm import create_model
 from tests.fakes import fake_settings
+from app.workflow.understanding import QueryUnderstanding
+from app.workflow.entities import trusted_order_ids, validate_resolved_entities
+from app.workflow.intent import IntentClassifier
+from tests.workflow_fakes import ScriptedWorkflowModel
 
 
 # 加载实际查询理解类，缺失接口时给出明确失败而非隐式跳过。
@@ -265,3 +269,115 @@ def test_invalid_new_retrieval_settings_are_rejected(field, value):
 # 校准前允许缺门槛的合法配置，校准运行才能采集真实样本。
 def test_calibration_can_load_settings_without_threshold():
     assert fake_settings(rerank_min_score=None).rerank_min_score is None
+
+# 第六步理解组件的来源、整轮历史、协议与费用边界；上方旧查询规划测试完整保留。
+
+
+def history(*ids):
+    """提供固定已完成工具事实，不将模型助手文字当成可信订单来源。"""
+    messages = [HumanMessage('查询订单详情')]
+    for identifier in ids:
+        messages.extend([AIMessage('', tool_calls=[{'id': identifier, 'name': 'query_order',
+            'args': {'order_id': identifier}}]), ToolMessage(json.dumps({'order_id': identifier,
+            'model': 'MH-LP200', 'mock': True}), tool_call_id=identifier)])
+    return [*messages, AIMessage('模拟订单信息。')]
+
+
+def understanding(query=None, *, raw=None, finish='stop', budget=8000):
+    """仅受控模型输出，输入拼装与来源验证使用真实服务。"""
+    reply = AIMessage(raw if raw is not None else json.dumps({'query': query}, ensure_ascii=False),
+        response_metadata={'finish_reason': finish},
+        usage_metadata={'input_tokens': 12, 'output_tokens': 8, 'total_tokens': 20})
+    model = ScriptedWorkflowModel(intent_replies=[reply])
+    return QueryUnderstanding(model, input_budget=budget, timeout_seconds=1), model
+
+
+@pytest.mark.asyncio
+async def test_resolution_uses_completed_tool_fact_and_records_usage():
+    """理解结果可引用已完成订单，费用与 changed 是内部派生数据。"""
+    service, model = understanding('订单1001的MH-LP200能退货吗？')
+    result = await service.resolve('它能退吗？', history('1001'))
+    assert result.query == '订单1001的MH-LP200能退货吗？' and result.changed
+    assert service.usage == {'actual': 20, 'estimated': 0, 'actual_calls': 1, 'estimated_calls': 0}
+    assert isinstance(model.intent_inputs[0][-1], HumanMessage)
+    assert model.intent_inputs[0][-1].content == '它能退吗？'
+
+
+@pytest.mark.asyncio
+async def test_full_question_passes_through_exactly():
+    """完整问题的空白与否定逐字保留。"""
+    question = '  不要退款，我要查订单1001物流。\n'
+    service, _ = understanding(question)
+    result = await service.resolve(question, [])
+    assert result.query == question and not result.changed
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('raw_question,resolved,previous', [
+    ('它能退吗？', '订单9999能退吗？', history('1001')),
+    ('它能退吗？', '订单1001能退吗？', history('1001', '1002')),
+    ('改查订单1002。', '查询订单1001。', history('1001')),
+    ('它能退吗？', '订单1001能退吗？', [HumanMessage('订单1001'), AIMessage('订单1001', tool_calls=[
+        {'id': 'x', 'name': 'query_order', 'args': {'order_id': '1001'}}])]),
+    ('它能退吗？', '订单1001能退吗？', [HumanMessage('你好'), AIMessage('订单1001是你的订单')]),
+    ('它能退吗？', 'MH-FAKE999能退吗？', history('1001')),
+    ('它能退吗？', 'MH-LP200能退吗？', history('1001', '1002')),
+    ('改查订单1002。', '查询订单1002的MH-LP200。', history('1001')),
+])
+async def test_resolution_cannot_invent_order(raw_question, resolved, previous):
+    """无来源、歧义选择、旧单覆盖、未完成轮次和助手自造实体均拒绝。"""
+    service, _ = understanding(resolved)
+    with pytest.raises(ServiceError) as caught:
+        await service.resolve(raw_question, previous)
+    assert caught.value.code == 'invalid_structured_output'
+
+
+def test_trusted_orders_require_completed_pairs_and_explicit_user_expression():
+    """孤立工具结果、错误查询及无关数字不能变成订单锚点。"""
+    assert trusted_order_ids(history('1001')) == {'1001'}
+    assert trusted_order_ids([HumanMessage('订单号为 A-42'), AIMessage('好的')]) == {'A-42'}
+    assert trusted_order_ids([HumanMessage('预算1001元'), AIMessage('订单1002')]) == set()
+    assert trusted_order_ids([ToolMessage('{"order_id":"1001"}', tool_call_id='x')]) == set()
+    assert trusted_order_ids(history('1001')[:-1]) == set()
+    validate_resolved_entities('订单号1002能退吗？', '订单1002能退货吗？', history('1001'))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('raw,finish', [('{"query":"x","changed":true}', 'stop'),
+    ('{"query":""}', 'stop'), ('{"query":"   "}', 'stop'),
+    ('{"query":123}', 'stop'), ('{"query":"' + '字' * 513 + '"}', 'stop'),
+    ('{"query":"问题"', 'stop'), ('{"query":"问题"}', 'length'), ('{"query":"问题"}', None)])
+async def test_understanding_rejects_bad_wire(raw, finish):
+    """严格 query 单字段输出不能被 LangChain 修复后偷偷接受。"""
+    service, _ = understanding(raw=raw, finish=finish)
+    with pytest.raises(ServiceError) as caught:
+        await service.resolve('问题', [])
+    assert caught.value.code == 'invalid_structured_output'
+
+
+@pytest.mark.asyncio
+async def test_social_fullmatch_skips_both_models():
+    """固定整句社交整轮零调用；业务问候仍经过理解和分类。"""
+    model = ScriptedWorkflowModel()
+    service = QueryUnderstanding(model, input_budget=8000, timeout_seconds=1)
+    result = await service.resolve('谢谢！', [])
+    intent = await IntentClassifier(model, input_budget=8000, timeout_seconds=1).classify(result.query)
+    assert result.query == '谢谢！' and not result.changed and intent.intent == '闲聊'
+    assert model.intents == model.decisions == model.streams == 0
+    service, model = understanding('你好，订单1001到哪了？')
+    result = await service.resolve('你好，订单1001到哪了？', [])
+    assert result.query == '你好，订单1001到哪了？' and model.intents == 1
+
+
+@pytest.mark.asyncio
+async def test_understanding_drops_whole_old_turns_before_entity_validation():
+    """被预算裁掉的订单不能继续作为理解来源，必需输入过大则不收费。"""
+    service, model = understanding('订单1001能退吗？', budget=2200)
+    previous = [HumanMessage('订单1001' + '旧' * 3000), AIMessage('旧答复')]
+    with pytest.raises(ServiceError):
+        await service.resolve('它能退吗？', previous)
+    assert len(model.intent_inputs[0]) == 2
+    service, model = understanding('问题', budget=1)
+    with pytest.raises(InputTooLong):
+        await service.resolve('问题', [])
+    assert model.intents == 0

@@ -1,4 +1,4 @@
-"""固定 Workflow 有界验收；默认只生成未执行报告，真实调用须显式 --live。"""
+"""第五步历史 Workflow 样例评估；默认未执行，不代表第六步新边界验收。"""
 import argparse
 import asyncio
 from datetime import datetime, timezone
@@ -24,7 +24,7 @@ STATUSES = ('passed', 'misclassified', 'refused', 'errors', 'timeouts', 'truncat
 
 
 def load_intent_cases():
-    """读取已审定的21题七意图与3题边界金标，不传给生成模型。"""
+    """保留第五步七意图历史金标，不将旧政策标签改作第六步通过证据。"""
     return [json.loads(line) for line in (ROOT / 'evals/workflow_intent_cases.jsonl').read_text(
         encoding='utf-8').splitlines() if line.strip()]
 
@@ -33,7 +33,9 @@ def report_for(mode, cases, execution):
     """逐题保存真实状态分母与调用统计，未执行默认不能通过。"""
     counts = {'total': len(cases), 'attempted': sum(row['status'] != 'not_executed' for row in cases)}
     counts.update({status: sum(row['status'] == status for row in cases) for status in STATUSES})
-    return {'title': f"Workflow {mode} 验收：{'真实' if execution == 'live' else '受控（未证明真实模型质量）'}",
+    return {'title': f"第五步历史样例 Workflow {mode} 验收：{'真实' if execution == 'live' else '受控（未证明真实模型质量）'}",
+        'benchmark': 'chapter5_historical',
+        'interpretation': '保留旧金标与历史口径；通用退货政策旧标签为退款退货，不作为第六步八意图通过证据。',
         'execution': execution, 'mode': mode, 'created_at': datetime.now(timezone.utc).isoformat(),
         'counts': counts, 'model_calls': sum(row.get('model_calls', 0) for row in cases),
         'usage_scope': '32000仅统计意图+Agent决策/最终；query改写及充分性使用原独立预算/期限，未计入该账本。',
@@ -68,7 +70,7 @@ async def evaluate_intent(cases, classify, *, execution):
                     row['model_calls'] = 1
                     actual = await classify(case['question'])
                 row.update(actual_intent=actual['intent'], actual_route=route_intent(actual['intent']),
-                    usage=actual['usage'])
+                    raw_intent=actual.get('raw_intent'), confidence=actual.get('confidence'), usage=actual['usage'])
                 row['status'] = 'passed' if (row['actual_intent'] == case['expected_intent']
                     and row['actual_route'] == case['expected_route']) else 'misclassified'
             except Exception as exc:
@@ -190,8 +192,9 @@ async def live_intent():
 
         async def classify(question):
             """只发送原话，金标仅在返回后用于报告比较。"""
-            intent = await classifier.classify(question)
-            return {'intent': intent, 'usage': dict(classifier.usage)}
+            result = await classifier.classify(question)
+            return {'intent': result.intent, 'raw_intent': result.raw_intent,
+                'confidence': result.confidence, 'usage': dict(classifier.usage)}
 
         return await evaluate_intent(load_intent_cases(), classify, execution='live')
 
