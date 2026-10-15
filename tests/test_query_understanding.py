@@ -342,6 +342,35 @@ def test_trusted_orders_require_completed_pairs_and_explicit_user_expression():
     validate_resolved_entities('订单号1002能退吗？', '订单1002能退货吗？', history('1001'))
 
 
+@pytest.mark.parametrize('alias', ['订单', '订单号', '订单编号', '订单号码', '单号'])
+def test_order_reference_aliases_share_provenance_checks(alias):
+    """同一订单表述在原话、完整历史及改写中使用同一来源检查，不能换称呼造单。"""
+    with pytest.raises(ServiceError) as caught:
+        validate_resolved_entities('它能退吗？', alias + '9999能退吗？', [])
+    assert caught.value.code == 'invalid_structured_output'
+    validate_resolved_entities(alias + '1002这台能退吗？', '订单1002能退货吗？', [])
+    previous = [HumanMessage(alias + '为1002'), AIMessage('请说明需要办理的事项。')]
+    assert trusted_order_ids(previous) == {'1002'}
+    validate_resolved_entities('这单能退吗？', alias + '1002能退货吗？', previous)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('selected,model_name', [('1001', 'MH-LP200'), ('1002', 'MH-WD100')])
+async def test_explicit_selection_uses_only_its_fact_from_multi_order_turn(selected, model_name):
+    """用户明确选单后可引用该单配对型号；其他单的型号仍不能串入或替用户猜选。"""
+    previous = history('1001', '1002')
+    previous[4].content = '{"order_id":"1002","model":"MH-WD100","mock":true}'
+    resolved = f'订单{selected}的{model_name}能退货吗？'
+    service, _ = understanding(resolved)
+    result = await service.resolve(f'订单{selected}这台能退吗？', previous)
+    assert result.query == resolved and result.changed
+    other_model = 'MH-WD100' if selected == '1001' else 'MH-LP200'
+    with pytest.raises(ServiceError):
+        validate_resolved_entities(f'订单{selected}这台能退吗？', f'订单{selected}的{other_model}能退货吗？', previous)
+    with pytest.raises(ServiceError):
+        validate_resolved_entities('它能退吗？', resolved, previous)
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize('raw,finish', [('{"query":"x","changed":true}', 'stop'),
     ('{"query":""}', 'stop'), ('{"query":"   "}', 'stop'),
