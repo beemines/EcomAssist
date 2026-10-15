@@ -3,6 +3,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -33,6 +34,18 @@ async def test_list_and_query_return_same_snapshot():
     assert (orders[1].as_of - orders[1].signed_at).days > 7
     assert orders[2].signed_at is None and orders[2].status == '待发货'
     assert orders[3].category == '个人定制商品'
+
+
+# 捕获注入事实绕过固定演示日期、导致下游资格判断时间口径漂移的回归。
+@pytest.mark.asyncio
+async def test_fixture_rejects_different_business_date(tmp_path):
+    order = await DemoOrderProvider().get_order(user_id='demo-user', order_id='1001')
+    wrong_date = order.model_dump(mode='json')
+    wrong_date['as_of'] = '2026-10-16'
+    fixture = tmp_path / 'wrong-date.json'
+    fixture.write_text(json.dumps({'orders': [wrong_date]}), encoding='utf-8')
+    with pytest.raises(ValidationError, match='2026-10-15'):
+        DemoOrderProvider(fixture)
 
 
 # 捕获任意订单号被伪造为成功演示订单的回归。
