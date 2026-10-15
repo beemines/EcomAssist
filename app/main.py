@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.chat import router as chat_router
 from app.api.chat_actions import router as chat_actions_router
 from app.api.order_actions import router as order_actions_router
+from app.api.refunds import router as refunds_router
 from app.api.conversations import router as conversations_router
 from app.api.extract import router as extract_router
 from app.api.rag_evaluations import create_router as evaluation_router
@@ -38,6 +39,9 @@ from app.repositories.knowledge import KnowledgeRepository
 from app.core.sufficiency import SufficiencyService
 from app.quality.repository import QualityRepository
 from app.quality.migration import verify_quality
+from app.refunds.migration import verify_refunds
+from app.refunds.repository import RefundRepository
+from app.refunds.service import RefundActionService
 from app.repositories.tickets import TicketRepository
 from app.tools.registry import build_registry
 from app.core.errors import ServiceError
@@ -112,6 +116,9 @@ def create_app(
             action_registry, service.executor, service.locks)
             if isinstance(service, WorkflowChatService) else None)
         app.state.order_action_service = OrderActionService(service) if isinstance(service, WorkflowChatService) else None
+        app.state.refund_action_service = (RefundActionService(service.graph, service.repository,
+            RefundRepository(database), service.checkpointer, service.locks)
+            if isinstance(service, WorkflowChatService) else None)
         app.state.extraction_service = ExtractionService(model, settings.input_token_budget)
 
     # 在应用启动时准备依赖，并在退出时按注册顺序的逆序释放资源。
@@ -155,6 +162,7 @@ def create_app(
             # 真实数据库即使注入仍核验；纯仓储注入不凭空创建连接池。
             if getattr(database, 'engine', None) is not None:
                 await verify_quality(database)
+                await verify_refunds(database)
             # 默认禁用不恢复或写历史；注入管理器与注入模型一样由调用方持有。
             if owns_evaluation_manager and evaluation_settings.rag_evaluation_enabled:
                 resources.push_async_callback(evaluation_manager.shutdown)
@@ -182,6 +190,7 @@ def create_app(
     app.include_router(chat_router)
     app.include_router(chat_actions_router)
     app.include_router(order_actions_router)
+    app.include_router(refunds_router)
     app.include_router(extract_router)
     static_dir = Path(__file__).resolve().parent / "static"
     app.mount("/static", StaticFiles(directory=static_dir), name="static")

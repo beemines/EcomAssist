@@ -32,6 +32,7 @@ from app.workflow.understanding import QueryUnderstanding
 from app.workflow.expansion import QueryExpander
 from app.schemas.order_actions import OrderSelectionRequest
 from app.orders.types import OrderSnapshot
+from app.refunds.types import REFUND_REASONS
 from app.repositories.conversations import _conversation_id
 
 
@@ -269,9 +270,7 @@ class WorkflowChatService:
             await queue.put(StreamEvent('refund_offer', {'assistant_message_id': final['final_message_id'],
                 'checkpoint_id': checkpoint_id, 'offer_id': offer['offer_id'], 'order': order.to_card(),
                 'refund_decision': offer['refund_decision'], 'decision_reason': offer['decision_reason'],
-                'reasons': [{'code': code, 'label': label} for code, label in (
-                    ('unwanted', '不想要了'), ('quality', '质量问题'), ('not_as_described', '与描述不符'),
-                    ('wrong_or_missing', '发错/漏发'), ('damaged', '运输破损'), ('other', '其他'))]}))
+                'reasons': [{'code': code, 'label': label} for code, label in REFUND_REASONS]}))
         await queue.put(StreamEvent('done', {'conversation_id': prepared.conversation_id, 'message_id': final['final_message_id']}))
 
     async def _produce(self, prepared, queue):
