@@ -2,7 +2,7 @@
 from datetime import date
 from typing import Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class OrderSnapshot(BaseModel):
@@ -23,6 +23,14 @@ class OrderSnapshot(BaseModel):
     as_of: date = date(2026, 10, 15)
     mock: Literal[True] = True
     fixture_version: str
+
+    # 拒绝注入事实改变固定业务日期，保持卡片与后续政策判断的时间口径一致。
+    @field_validator("as_of")
+    @classmethod
+    def require_fixed_business_date(cls, value: date) -> date:
+        if value != date(2026, 10, 15):
+            raise ValueError("Demo business date must be 2026-10-15.")
+        return value
 
     # 只返回卡片展示所需信息，避免把演示身份暴露给客户端。
     def to_card(self) -> dict:
