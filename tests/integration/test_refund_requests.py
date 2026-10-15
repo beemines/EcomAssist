@@ -13,7 +13,7 @@ from app.repositories.conversations import ConversationRepository
 from tests.integration.test_refund_migration import refund_schema
 
 
-async def draft_for(db, *, owner='demo-user', order='1001', offer=None):
+async def draft_for(db, *, owner='demo-user', order='1001', offer=None, policy=None):
     """由真实SQL消息和演示事实构造独立服务器草稿。"""
     from app.orders.demo import DemoOrderProvider
     from app.refunds.types import RefundDraft
@@ -26,7 +26,7 @@ async def draft_for(db, *, owner='demo-user', order='1001', offer=None):
     return RefundDraft(conversation_id=cid, user_message_id=str(uid), assistant_message_id=str(aid),
         checkpoint_id=str(uuid4()), offer_id=offer or str(uuid4()), user_id=owner, order_id=order,
         amount_cents=19900, currency='CNY', order_snapshot=snapshot,
-        policy_snapshot={'matches': [{'answer': '完整政策原文', 'section_path': '退货/规则'}]},
+        policy_snapshot=policy or {'matches': [{'answer': '完整政策原文', 'section_path': '退货/规则'}]},
         decision_snapshot={'refund_decision': 'needs_review', 'decision_reason': '完好待核验'},
         raw_question='订单退货', final_answer='需审核')
 
@@ -175,3 +175,61 @@ async def test_cli_explicit_init_and_verify_on_owned_schema(refund_schema, monke
     await cli.run(argparse.Namespace(command='init'))
     await cli.run(argparse.Namespace(command='verify'))
     assert capsys.readouterr().out.count('Refund schema ready') == 2
+
+
+async def test_real_rerank_score_json_roundtrip_keeps_same_root_retry(refund_schema):
+    """真实MySQL浮点JSON往返后的响应丢失重试必须仍返回同一收据。"""
+    import json
+    from app.refunds.types import RefundDraft
+    repo = await ready(refund_schema)
+    policy = {'matches': [{'id': '119', 'n': 1, 'answer': '商品完好需核验', 'score': 0.014654727652668953},
+                          {'id': '120', 'n': 2, 'answer': '退款需审核', 'score': 0.011466585099697113}],
+              'retrieval': {'candidate_count': 50}}
+    draft = await draft_for(refund_schema, policy=policy)
+    first = await repo.create_pending(draft, 'quality')
+    # 第一次HTTP结果丢失；客户端同一原始完成根、offer和原因重发。
+    assert await repo.create_pending(draft, 'quality') == first
+    async with refund_schema.session() as session:
+        before = await session.scalar(text('SELECT policy_snapshot FROM refund_requests'))
+        assert len((await session.execute(text('SELECT id FROM refund_requests'))).all()) == 1
+    names = ('conversation_id', 'user_message_id', 'assistant_message_id', 'checkpoint_id', 'offer_id',
+             'user_id', 'order_id', 'amount_cents', 'currency', 'order_snapshot', 'policy_snapshot',
+             'decision_snapshot', 'raw_question', 'final_answer')
+    for mutation in ('policy_text', 'policy_structure', 'amount', 'decision', 'non_score_float', 'score_two_ulps'):
+        values = {name: getattr(draft, name) for name in names}
+        if mutation == 'policy_text':
+            values['policy_snapshot']['matches'][0]['answer'] = '不同政策'
+        elif mutation == 'policy_structure':
+            values['policy_snapshot']['matches'].reverse()
+        elif mutation == 'amount':
+            values['amount_cents'] += 1
+        elif mutation == 'decision':
+            values['decision_snapshot']['refund_decision'] = 'eligible'
+        elif mutation == 'non_score_float':
+            values['policy_snapshot']['retrieval']['candidate_count'] = 50.0
+        else:
+            import math
+            stored_score = json.loads(before)['matches'][0]['score']
+            values['policy_snapshot']['matches'][0]['score'] = math.nextafter(math.nextafter(stored_score, math.inf), math.inf)
+        with pytest.raises(ServiceError) as exc:
+            await repo.create_pending(RefundDraft(**values), 'quality')
+        assert exc.value.status_code == 409
+    async with refund_schema.session() as session:
+        assert await session.scalar(text('SELECT COUNT(*) FROM refund_requests')) == 1
+        assert await session.scalar(text('SELECT policy_snapshot FROM refund_requests')) == before
+
+
+def test_policy_score_equivalence_is_only_one_finite_ulp_at_exact_score_path():
+    """仅已观察到的一个ULP存储偏差等价；任意其他字段、类型、结构都严格。"""
+    from app.refunds import repository
+    compare = getattr(repository, 'same_policy_snapshot', lambda a, b: a == b)
+    original = {'matches': [{'score': 0.014654727652668953, 'answer': '全文'}], 'amount': 19900}
+    assert compare(original, {'matches': [{'score': 0.014654727652668951, 'answer': '全文'}], 'amount': 19900})
+    for changed in [
+        {'matches': [{'score': 0.014654727652668950, 'answer': '全文'}], 'amount': 19900},
+        {'matches': [{'score': float('nan'), 'answer': '全文'}], 'amount': 19900},
+        {'matches': [{'score': 0.014654727652668951, 'answer': '改文'}], 'amount': 19900},
+        {'matches': [{'score': 0.014654727652668951, 'answer': '全文', 'extra': 1}], 'amount': 19900},
+        {'matches': [{'score': 0.014654727652668951, 'answer': '全文'}], 'amount': 19900.0},
+    ]:
+        assert not compare(original, changed)

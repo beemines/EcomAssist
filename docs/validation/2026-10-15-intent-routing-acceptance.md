@@ -58,3 +58,82 @@ node scripts/verify-intent-routing-browser.cjs --url http://127.0.0.1:8003/ --mo
 ```
 
 可用 `--message "具体审核用例"` 替换默认退货问句。live 无路由拦截，记录实际 API 响应、截图及请求计数；默认打开后取消，带提交参数才点击提交。结果始终标注 `sql_verified:false`，真实 SQL 需要 Task 9 另取证，不能靠 HTTP 回执推定。
+
+## Task 9：实际有界验证与未闭环项（2026-10-15）
+
+当前状态：**有界验证已完成，仍有阻断性全链路缺口，不能宣称全部验收通过。** 本记录保留Task8受控结果和本次全部真实失败；最终整分支审查及最终产品完整回归由控制器在修复波决定后执行。8002保留；8003为本工作树单worker，专用`runtime/workflow/intent-routing-8003.sqlite`。
+
+### 实际环境、命令与测试边界
+
+非密配置核对：MySQL `127.0.0.1:3307/customer_service`，用户`customer_service`；模型`glm-5.3-flash`、online low不变。显式`.venv/Scripts/python.exe -m app.refunds.cli init`及`verify`均输出`Refund schema ready`，exit0。此前应用refund_requests为0行。后台由`scripts/start-intent-routing-demo.ps1`隐藏启动，日志按启动时间独立保存；实际监听PID写入自有文件，重启不更换SQLite。当前演示[8003](http://127.0.0.1:8003/)；旧8002 PID11740未停止。
+
+本机命令使用锁定且已安装的`.venv/Scripts/python.exe`，等价于计划`uv run --locked python/pytest`；设置`PYTHONUTF8=1`、`PYTHONPATH=D:/shixi/ecommerce-customer-service/.worktrees/intent-routing`。没有安装或更改依赖。pytest实际执行：
+
+| 命令/范围 | 真实结果 | 范围与日志 |
+| --- | --- | --- |
+| `-m pytest tests/test_intent_routing_evaluation.py -q` 初始RED/GREEN |7 failed→7 passed|task-9-red.log、green-final.log|
+| `-m pytest -q` 修前聚合 |2108 passed、142 skipped、537.80秒，exit0|task-9-full.log；收集并执行了初始7项评估测试，不能当后续产品修复最终全量|
+| 三项refund/workflow文件`--run-mysql -q` |25 passed、19.89秒|task-9-mysql.log；仅3308随机自有schema|
+| 评分器/来源复用/导入逐次RED→GREEN |来源真正RED1 failed/3 passed；导入旗标RED1 failed；后续相关115 passed|初次list参数探测4个API错误另存，不冒充行为RED|
+| greeting真实失败与反例 |2 failed/2 passed→相关119 passed、4.67秒|task-9-greeting-{red,green}.log|
+| 实际MySQL浮点幂等回归 |2 failed→27 passed、14.02秒|task-9-refund-ulp-{red,green}.log；最终2ULP负例专项2 passed、2.15秒|
+| 最终受影响离线8文件 |237 passed、10.60秒|task-9-final-focused.log：evaluator、understanding、intent_contract、refund_actions/contracts、demo/business、workflow_agent|
+
+评分器更正发生在修前聚合运行期间、评估测试已执行之后，已明确向控制器披露；控制器裁定保留该修前聚合，加修后专项，不因评分/Prompt单独重复9分钟全量。后来出现真实产品修复，**最终产品完整回归待审查修复决定后再运行一次**。没有把历史第五步或离线fake当当前协议真实通过；没有运行300题或重复无关Milvus全量。
+
+### 固定48轮与定点修复
+
+新CLI：`python -m evals.evaluate_intent_routing --mode understanding|chat --split acceptance|development --output <新路径>`。缺省零上游调用；真实understanding才加`--live`。现有输出拒绝覆盖；无repeats参数。定点`--case-id`只执行该轮，`--previous`可多次指定已有真实有效观测，记录源Prompt/报告/实现哈希；同模型和样例指纹必须一致，失败或缺失前序blocked，不自动付费回放、不注入expected_query/intent。chat只核验既有浏览器证据，导入时再次读取真实SQL及指定原始完成根。
+
+| 真实执行 | 管线状态 | 意图/协议 | 完整透传 | 可消解 | 关键路由 | 上游调用/实际tokens |
+| --- | --- | --- | --- | --- | --- | --- |
+| 唯一acceptance16，Prompt v1 |12通过、2失败、2blocked|14/16、14/16|9/12|2/3|12/14|28 /15934|
+| 失败1-4、3-2各定点一次，v2 |各1通过/16，15未执行|各1/16|各1/12|未重测其他题|各1/14|4 /2793|
+| 此前blocked3-3、3-4依次各定点一次，v2 |各1通过/16，15未执行|各1/16|3-4为1/12|3-3为1/3|各1/14|4 /2879|
+| 唯一development32，v2 |31通过、1失败|32/32、32/32|28/29|3/3|18/18|58 /32214|
+| single18守卫后定点一次 |1通过/32，31未执行|1/32、1/32|1/29|未重测其他题|1/18|2 /1057|
+
+原始两个固定批次合计仍为**43管线通过/48，3失败、2blocked；意图46/48、关键路由30/32、完整透传37/41、可消解5/6、歧义零猜单1/1、实体保持46/48**。意图数值达到≥46，但完整透传全部保持、可消解≥95%及关键路由全部正确的原始批次目标没有全部达标。五次定点有效管线均通过，不能混合不同Prompt/实现后重称“独立48题全通过”。所有阶段共96次understanding/classification实际上游调用、54877实测tokens、估算0；这不包括浏览器聊天和检索内部费用，不构成全链路严格费用上限。
+
+原acceptance失败分别为完整指令加“的”、短改查指令扩成详情问句。仅一般性澄清Prompt，没有复制失败验收金标作few-shot；修复后只重查两个失败轮及依赖的两个blocked轮，gate验证后才放行32轮。development single18实际模型原输出`{"query":"订单1001到哪了？"}`丢“你好，”；守卫只在后缀逐字相同时恢复原文，实际定点raw仍丢问候、有效resolved恢复完整原句。**这证明工程守卫，不证明原模型已学会完整透传。** 真正指代消解或其他后缀变化不被强制改回原话。
+
+报告路径均在`.cache/intent-routing/`：`acceptance-live.json`、`point-dialogue-*-v2.json`、`development-live-v2.json`、`point-single-18-guard.json`。新报告含样例/Prompt/实现哈希、原模型JSON、finish_reason、resolved/intent/confidence/route、实际/估算usage及全分母。之前报告未补写伪造新版本哈希。
+
+### 真实浏览器八组与SQL
+
+既有真实Chromium151.0.7922.34，无路由拦截、无安装。首选CUA在Task8子代理受限已记录，根控制器本阶段成功打开IAB8003首页且未发聊天；实际固定点击脚本沿用获准Chromium。命令起点：
+
+```powershell
+$env:WORKFLOW_CHECKPOINT_PATH='D:/shixi/ecommerce-customer-service/.worktrees/intent-routing/runtime/workflow/intent-routing-8003.sqlite'
+node scripts/verify-intent-routing-browser.cjs --url http://127.0.0.1:8003/ --mode live --restart-script scripts/start-intent-routing-demo.ps1
+```
+
+首运行`bda983f0-97ff-4102-bd4c-d5ab500560f8`保存前三组后在第4组重启helper发生继承pipe死等；PowerShell已退出、服务健康、没有活动模型轮，只终止自有Node112044。保留partial/interrupted/log。第4组此前pause已产生会话60/user241及2次模型，不能因尚未写入partial记0；恢复用其真实pending，不重复收费原问题。`stdio:ignore`修正helper，日志继续独立文件。
+
+恢复仅`--cases pause-refresh-restart-new-message,refund-form-cancel-submit,duplicate-and-cross-conversation,repair-no-refund,complaint-social-other --resume-evidence <原interrupted-results.json>`，目录`af288aaa-b35a-4d97-bd80-da946b9c728b`：**5/8 PASS，exit1**。最后只对具体失败物流末轮及幂等/跨会话动作各定点一次，复用已观察SQL历史和原offer，不重发前序聊天；目录`92ec17f4-bc0f-469f-897c-ad9d9766db00`：**6/8有效组通过、2项仍未闭环，exit1**，为跨阶段来源合并结果，非独立八组整批通过。
+
+| 固定组 | 实际结果与边界 |
+| --- | --- |
+| 政策无选单 |通过：knowledge、一次工具检索、无选单/扩写|
+| 物流→退款→物流 |失败：前两轮真实完成，退款中间轮低分拒答；原末轮无当前工具直接answer被delta前拒绝；修后仅末轮复核仍失败，见下方阻断项|
+| 缺单点选续办 |通过：实际paused、卡片点选，SQL不加新用户消息，understanding调用计数不重置，完成offer|
+| 暂停刷新/重启/新消息失效 |通过：会话60真实pause保留跨重启，公开GET恢复；新问候零模型，旧卡锁定/选单409|
+| 表单取消/提交 |通过：复用真实59原offer经GET重验；空必选/取消0POST，明确双击提交1POST，实际SQL0→1，独立待审通知|
+| 重复与跨会话申请 |首轮同offer错误409；1ULP修复后同原offer200同申请号，改原因409，新会话另一offer409，记录数仍1|
+| 维修 |路由/先查单/后政策正确且无退款入口；前置知识闸拒答，未执行Agent。原脚本强求not_applicable是过严断言；实际答复完成率仍gateblocked，不能改称维修知识回答通过|
+| 投诉/问候/其他 |通过：complaint/social/other各正确，纯感谢stage_usage为空，无退款入口|
+
+实际申请为`Rcbdae9a1ecfb2d3ee65534c9a0e9f6dc02b2bb2613d614d118e6ae65a15d836d`，会话59/user235/assistant240、原根`1f1c8aae-719b-61f9-800b-22df2f9c9e18`、order1001、19900分/CNY、unwanted、待审核。保留完整订单/政策/决策快照、业务日期与版本。原工单记录及原会话状态未改，没有付款、实际退款、自动工单或删除业务行。
+
+MySQL JSON往返使两个政策建议score各偏1ULP，严格Python字典比较误判同源冲突。修复仅`policy_snapshot.matches[i].score`允许有限double相邻1ULP；所有身份、原因、金额、状态、决策、政策原文/结构及其他数字类型精确，2ULP或改文/金额等均409。没有更新原行或忽略整份policy，原行原分数保留。1001名称按repo及实际KB权威事实纠正为智能猫砂盆Max/fixture v2；id/model/日期/金额不变，原v1根/申请不改。旧原offer在修后公开GET仍合法，实际弹窗截图`old-root-valid-form-after-fix.png`。
+
+证据导入：`python -m evals.evaluate_intent_routing --mode chat --split acceptance --live --evidence <92ec17.../results.json> --output .cache/intent-routing/chat-live-evidence-final.json`。**model_calls=0；full_chain实际8组分母；benchmark_full_chain16题保持未执行。** 每个可计通过组重新读取真实MySQL助手与指定原始durable完成根，不能只信JSON里的sql_verified:true。
+
+### 尚存阻断和维修闸证据
+
+1. **物流最终澄清晚校验泄露：** 原末轮Agent持久子状态为answer、decision_count1、tool_count0，安全守卫在delta前invalid_answer。一般性“本轮读取”Prompt澄清后，唯一末轮定点改为clarification，但模型仍从旧历史输出台灯物流事实，**先发delta后才invalid_answer“社交或澄清回复包含未验证内容”**。没有done/SQL最终助手；原SSE完整保留。该问题需要独立后端审查修复，不能用反复收费Prompt调参或弱化守卫掩盖。当前6/8不能作为可完整交付声明。
+2. **售后政策相关但低于原校准门槛：** 订单1002原话与resolved均`订单1002不要退货，只想寄修。`，intent售后/routeafter_sales、tool_count2。实际扩写为原话、`MH-WD100明辉饮水机保修范围与维修适用条件是什么？`、`MH-WD100寄修流程与需提供的故障信息和材料是什么？`。实际Top10含chunk90“售后手册/维修寄修流程”score0.0628956854、chunk124“退货退款政策/质量问题与保修”0.0137902740，确有设备故障/保修/寄修政策；另chunk93申请退款0.0119578969、chunk119无理由范围0.0105613619。最高仍低于原min0.3218679428100586，retrieval_low_conf，充分性/Agent未调用、refund_decision=null、无退款入口。不是先查单/工具排序缺失。修正脚本未来将其标gateblocked；本次原失败原样保留，不重跑付费维修，不降低阈值或虚构事实。完整savedretrieval_audit、查询、匹配全文在`.cache/intent-routing/repair-gate-diagnosis.json`。
+
+中间退款同样实际best0.087793961<0.3218679428；原查询`订单1001的MH-LP200能退货吗`，扩写含旧台灯名，实际chunk109为猫砂盆Max，名称矛盾另已纠正，但没有证据证明名字是低分唯一原因。无300题、无模型/依赖/校准值更换、无新收费循环。此记录供最终审查与用户决定余下修复范围。
+
+失败费用口径另有阻断：上述最后物流user256的终态审计仍为3次调用/3268tokens，但实际还启动并消费了第4个最终模型流。`finalize_answer`在`validate_answer`之后才`record_usage`，晚校验抛错导致该最终流usage未递交。保存的child/terminal记录与SSE只证明缺计路径，不能据此宣称真实全链路费用上限；统一后端修复波需覆盖失败最终流的同步记账。

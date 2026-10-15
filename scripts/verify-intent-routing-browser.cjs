@@ -5,7 +5,7 @@ const path = require("node:path");
 const http = require("node:http");
 const assert = require("node:assert/strict");
 const { createRequire } = require("node:module");
-const { randomUUID } = require("node:crypto");
+const { randomUUID, createHash } = require("node:crypto");
 const root = path.resolve(__dirname, "..");
 
 // 复用已有运行时与Chromium缓存，不安装包、不接管现有浏览器或端口。
@@ -322,44 +322,238 @@ async function runControlled(browser, output) {
   return results;
 }
 
-// 真实模式不安装路由拦截，不伪造SQL结果；只记录实际服务请求和响应，落库由Task9另核。
+// 真实八组场景不拦截请求；每轮从实际SQL和原始SQLite完成根独立取证。
 async function runLive(browser, url, output, args) {
-  const context = await browser.newContext({ viewport: { width: 1200, height: 900 }, reducedMotion: "reduce" });
-  const page = await context.newPage();
-  page.setDefaultTimeout(260000);
-  const result = { name: "live-order-refund", status: "FAIL", requests: [], responses: [], sql_verified: false, screenshot: path.join(output, "live-order-refund.png") };
-  const responses = [];
-  page.on("request", (request) => { if (new URL(request.url()).pathname.startsWith("/api/")) result.requests.push({ url: request.url(), method: request.method(), body: request.postData() }); });
-  page.on("response", (response) => { if (new URL(response.url()).pathname.startsWith("/api/")) responses.push(response.body().then((body) => result.responses.push({ url: response.url(), status: response.status(), body: body.toString() })).catch((error) => result.responses.push({ url: response.url(), error: error.message }))); });
-  try {
-    await page.goto(url);
-    const queryIndex = args.indexOf("--message");
-    await send(page, queryIndex >= 0 ? args[queryIndex + 1] : "我想退货退款，请先帮我选择订单。");
-    if (await page.locator(".order-select:enabled").count()) {
-      await page.screenshot({ path: path.join(output, "live-paused.png"), fullPage: true });
-      await page.reload();
-      await ready(page);
-      await page.locator(".order-select:enabled").first().click();
-      await ready(page);
+  const { execFileSync } = require("node:child_process");
+  const names = ["policy-no-picker", "logistics-refund-logistics", "missing-order-select-resume", "pause-refresh-restart-new-message", "refund-form-cancel-submit", "duplicate-and-cross-conversation", "repair-no-refund", "complaint-social-other"];
+  const casesIndex = args.indexOf("--cases");
+  const selected = casesIndex >= 0 ? args[casesIndex + 1].split(",") : names;
+  assert.ok(selected.length && new Set(selected).size === selected.length && selected.every((name) => names.includes(name)), "cases必须为固定场景的非空无重复白名单");
+  const resumeIndex = args.indexOf("--resume-evidence");
+  const resumePath = resumeIndex >= 0 ? path.resolve(args[resumeIndex + 1]) : null;
+  const previous = resumePath ? JSON.parse(fs.readFileSync(resumePath, "utf8")) : null;
+  assert.ok(!previous || previous.mode === "live", "不能导入受控证据");
+  const results = previous ? previous.results.filter((item) => !selected.includes(item.name)).map((item) => ({ ...item, source_evidence: resumePath })) : [];
+  let submitted = null;
+  const previousForm = previous?.results.find((item) => item.name === "refund-form-cancel-submit" && item.status === "PASS");
+  if (previousForm) {
+    const oldRequest = previousForm.requests.find((item) => item.method === "POST" && item.url.endsWith("/actions/refund"));
+    submitted = { payload: JSON.parse(oldRequest.body), cid: previousForm.conversation_id,
+      count: previousForm.storage_after.refunds.length, existing: previousForm.fresh_submission !== "passed",
+      root: previousForm.root_evidence };
+  }
+  // 子进程复用锁定Python和仅本服务的检查点路径，输出文件不覆盖。
+  function storage(name, cid, aid, checkpointId) {
+    const file = path.join(output, name + ".json");
+    const command = [path.join(root, "scripts/intent-routing-storage-evidence.py"), "--output", file];
+    if (cid) command.push("--conversation-id", cid);
+    if (aid) command.push("--assistant-id", aid);
+    if (checkpointId) command.push("--checkpoint-id", checkpointId);
+    execFileSync(path.join(root, ".venv/Scripts/python.exe"), command, { cwd: root, windowsHide: true, env: { ...process.env, PYTHONUTF8: "1", PYTHONPATH: root }, stdio: "pipe" });
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  }
+  const baseline = previous?.baseline || storage("baseline");
+  async function scenario(name, check) {
+    if (!selected.includes(name)) return;
+    const context = await browser.newContext({ viewport: { width: 1200, height: 900 }, reducedMotion: "reduce" });
+    const page = await context.newPage();
+    page.setDefaultTimeout(260000);
+    const result = { name, status: "FAIL", requests: [], responses: [], turns: [], pageerrors: [], screenshot: path.join(output, name + ".png") };
+    const responses = [];
+    page.on("pageerror", (error) => result.pageerrors.push(error.message));
+    page.on("request", (request) => { if (new URL(request.url()).pathname.startsWith("/api/")) result.requests.push({ url: request.url(), method: request.method(), body: request.postData() }); });
+    page.on("response", (response) => { if (new URL(response.url()).pathname.startsWith("/api/")) responses.push(response.body().then((body) => result.responses.push({ url: response.url(), status: response.status(), body: body.toString() })).catch((error) => result.responses.push({ url: response.url(), error: error.message }))); });
+    // 每个收费轮完整终态之后才继续；服务error/paused有明确独立边界。
+    async function turn(question, { paused = false, intent, route } = {}) {
+      const before = result.responses.length;
+      await send(page, question);
+      await Promise.allSettled(responses);
+      const stream = result.responses.slice(before).find((r) => r.url.endsWith("/api/chat"));
+      assert.ok(stream && stream.status === 200 && !stream.body.includes("event: error"), "当前轮出错，停止该依赖链");
+      assert.ok(stream.body.includes(paused ? "event: paused" : "event: done"), "缺少完整终态");
+      const session = await page.evaluate(() => JSON.parse(sessionStorage.getItem("mewhelp-intent-session-v1")));
+      const state = storage(name + "-turn-" + (result.turns.length + 1), session.conversationId);
+      result.conversation_id = session.conversationId;
+      const observed = { question, ...state };
+      result.turns.push(observed);
+      if (!paused) {
+        assert.equal(state.sql_evidence?.verified, true, "SQL助手与持久完成根不一致");
+        if (intent) assert.equal(state.root_evidence.intent, intent);
+        if (route) assert.equal(state.root_evidence.route, route);
+        result.sql_evidence = state.sql_evidence;
+        result.root_evidence = state.root_evidence;
+      } else assert.equal(state.root_evidence?.turn_status, "awaiting_order");
+      return state;
     }
+    try {
+      await page.goto(url);
+      await ready(page);
+      await check({ page, context, result, turn });
+      assert.deepEqual(result.pageerrors, []);
+      result.status = result.gate_blocked ? "BLOCKED" : "PASS";
+    } catch (error) { result.error = error.stack; }
+    await page.screenshot({ path: result.screenshot, fullPage: true });
+    await Promise.allSettled(responses);
+    results.push(result);
+    fs.writeFileSync(path.join(output, "partial-results.json"), JSON.stringify({ mode: "live", baseline, results }, null, 2) + "\n");
+    await context.close();
+  }
+  await scenario("policy-no-picker", async ({ page, turn }) => {
+    const state = await turn("退换货政策是怎样的？", { intent: "商品咨询", route: "knowledge" });
+    assert.equal(await page.locator(".order-select").count(), 0);
+    assert.equal(state.root_evidence.stage_usage?.expansion, undefined);
+    assert.equal(state.root_evidence.tool_call_count, 1);
+  });
+  await scenario("logistics-refund-logistics", async ({ page, result, turn }) => {
+    const prior = previous?.results.find((item) => item.name === "logistics-refund-logistics");
+    if (prior && prior.turns.length >= 2) {
+      await restoreObservedSession(page, prior.conversation_id);
+      result.conversation_id = prior.conversation_id;
+      result.turns = prior.turns.map((item) => ({ ...item, source_evidence: resumePath }));
+    } else {
+      await turn("订单1001的物流到哪里了？", { intent: "物流", route: "business" });
+      await turn("它能退吗？", { intent: "退款退货", route: "after_sales" });
+    }
+    const state = await turn("不要退款，我要查订单1001物流。", { intent: "物流", route: "business" });
+    assert.equal(state.root_evidence.raw_question, state.root_evidence.resolved_question);
+    assert.equal(state.root_evidence.tool_call_count > 0, true, "物流事实必须来自本轮真实读取");
+  });
+  await scenario("missing-order-select-resume", async ({ page, result, turn }) => {
+    const paused = await turn("我想申请退货，但还没有选择订单。", { paused: true });
+    const userCount = paused.messages.filter((m) => m.role === "user").length;
+    await page.locator(".order-select:enabled").filter({ hasText: "选择" }).first().click();
+    await ready(page);
+    const resumed = storage("missing-order-resumed", result.conversation_id);
+    assert.equal(resumed.sql_evidence?.verified, true);
+    assert.equal(resumed.messages.filter((m) => m.role === "user").length, userCount);
+    assert.equal(resumed.root_evidence.stage_usage.understanding.actual_calls, paused.root_evidence.stage_usage.understanding.actual_calls);
+    result.sql_evidence = resumed.sql_evidence; result.root_evidence = resumed.root_evidence;
+    await page.getByRole("button", { name: "申请退款", exact: true }).waitFor();
+  });
+  await scenario("pause-refresh-restart-new-message", async ({ page, result, turn }) => {
+    const priorPauseFile = resumePath && path.join(path.dirname(resumePath), "pause-refresh-restart-new-message-turn-1.json");
+    if (priorPauseFile && fs.existsSync(priorPauseFile)) {
+      const old = JSON.parse(fs.readFileSync(priorPauseFile, "utf8"));
+      result.conversation_id = old.root_evidence.conversation_id;
+      result.turns.push({ ...old, source_evidence: priorPauseFile });
+      await restoreObservedSession(page, result.conversation_id);
+    } else await turn("我想退货退款，请让我选择订单。", { paused: true });
+    await page.reload(); await ready(page);
+    await page.locator(".order-select:enabled").first().waitFor();
+    const restartIndex = args.indexOf("--restart-script");
+    assert.ok(restartIndex >= 0, "真实重启脚本缺失，不能将刷新冒充重启");
+    execFileSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", args[restartIndex + 1]], { cwd: root, windowsHide: true, env: process.env, stdio: "ignore" });
+    await page.reload(); await ready(page);
+    await page.locator(".order-select:enabled").first().waitFor();
+    const pendingResponse = await contextRequest(page, `/api/conversations/${result.conversation_id}/pending-order`, "GET");
+    const old = pendingResponse.json.pending;
+    await turn("你好", { intent: "闲聊", route: "social" });
+    assert.equal(await page.locator(".order-select:enabled").count(), 0);
+    const rejected = await contextRequest(page, `/api/conversations/${result.conversation_id}/actions/select-order`, "POST", { turn_id: old.turn_id, selection_id: old.selection_id, checkpoint_id: old.checkpoint_id, order_id: old.cards[0].order_id });
+    assert.equal(rejected.status, 409);
+  });
+  await scenario("refund-form-cancel-submit", async ({ page, result, turn }) => {
+    const source = results.find((item) => item.name === "missing-order-select-resume" && item.status === "PASS");
+    let state;
+    if (source) {
+      result.conversation_id = source.conversation_id;
+      await restoreObservedSession(page, source.conversation_id, source.root_evidence);
+      state = storage("form-source-original", source.conversation_id, source.root_evidence.assistant_message_id, source.root_evidence.checkpoint_id);
+      result.sql_evidence = state.sql_evidence; result.root_evidence = state.root_evidence;
+      result.reused_offer_source = source.source_evidence || "same-run-missing-order-select-resume";
+    } else state = await turn("订单1001能申请退货退款吗？", { intent: "退款退货", route: "after_sales" });
+    assert.ok(await page.getByRole("button", { name: "申请退款", exact: true }).count(), "当前完成根没有退款许可，停止依赖动作");
     await openRefund(page);
-    await page.screenshot({ path: path.join(output, "live-form.png"), fullPage: true });
+    await page.locator("#refund-submit").click();
+    assert.equal(result.requests.filter((r) => r.url.endsWith("/actions/refund")).length, 0);
     await page.locator("#refund-cancel").click();
-    assert.equal(result.requests.filter((item) => item.method === "POST" && item.url.endsWith("/actions/refund")).length, 0);
-    if (args.includes("--submit-refund")) {
-      await openRefund(page);
-      await page.locator("#refund-reason").selectOption("unwanted");
-      await page.locator("#refund-submit").click();
+    const afterCancel = storage("form-after-cancel", result.conversation_id);
+    assert.equal(afterCancel.refunds.length, baseline.refunds.length);
+    await openRefund(page); await page.locator("#refund-reason").selectOption("unwanted");
+    await page.locator("#refund-submit").dblclick();
+    const existing = baseline.refunds.find((r) => r.user_id === "demo-user" && r.order_id === "1001");
+    if (existing) await page.locator("#refund-error").waitFor({ state: "visible" });
+    else await page.locator("#refund-dialog").waitFor({ state: "hidden" });
+    const final = storage("form-after-submit", result.conversation_id);
+    await Promise.allSettled([]);
+    if (existing) {
+      await page.locator("#refund-error").waitFor({ state: "visible" });
+      assert.equal(final.refunds.length, baseline.refunds.length);
+      result.fresh_submission = "not_executed_existing_pending";
+    } else {
       await page.locator("#refund-dialog").waitFor({ state: "hidden" });
-      assert.equal(result.requests.filter((item) => item.method === "POST" && item.url.endsWith("/actions/refund")).length, 1);
+      assert.equal(final.refunds.length, baseline.refunds.length + 1);
       assert.match(await page.locator(".message.assistant").last().innerText(), /待审核/);
+      result.fresh_submission = "passed";
     }
-    result.status = "PASS";
-  } catch (error) { result.error = error.stack; }
-  await page.screenshot({ path: result.screenshot, fullPage: true });
-  await Promise.allSettled(responses);
-  await context.close();
-  return [result];
+    const request = result.requests.find((r) => r.url.endsWith("/actions/refund"));
+    submitted = { payload: JSON.parse(request.body), cid: result.conversation_id, checkpoint: state.root_evidence.checkpoint_id, count: final.refunds.length, existing: !!existing };
+    result.storage_after = final;
+    assert.deepEqual(final.tickets, baseline.tickets);
+    for (const original of baseline.conversations) assert.deepEqual(final.conversations.find((r) => r.id === original.id), original);
+    const row = final.refunds.find((r) => r.user_id === "demo-user" && r.order_id === "1001");
+    assert.equal(row.status, "待审核"); assert.equal(row.amount_cents, 19900);
+    assert.ok(row.policy_snapshot && row.order_snapshot && row.decision_snapshot);
+  });
+  await scenario("duplicate-and-cross-conversation", async ({ page, result, turn }) => {
+    assert.ok(submitted, "原提交失败，禁止继续依赖申请动作");
+    if (submitted.root) {
+      await restoreObservedSession(page, submitted.cid, submitted.root);
+      await openRefund(page);
+      await page.screenshot({ path: path.join(output, "old-root-valid-form-after-fix.png"), fullPage: true });
+      await page.locator("#refund-cancel").click();
+    }
+    const repeated = await contextRequest(page, `/api/conversations/${submitted.cid}/actions/refund`, "POST", submitted.payload);
+    assert.equal(repeated.status, submitted.existing ? 409 : 200);
+    const conflict = await contextRequest(page, `/api/conversations/${submitted.cid}/actions/refund`, "POST", { ...submitted.payload, reason: "damaged" });
+    assert.equal(conflict.status, 409);
+    await page.locator("#new-chat").click();
+    await turn("我想申请退货，请让我选择订单。", { paused: true });
+    await page.locator(".order-select:enabled").first().click(); await ready(page);
+    const resumed = storage("cross-conversation-resumed", result.conversation_id);
+    assert.equal(resumed.sql_evidence?.verified, true);
+    result.sql_evidence = resumed.sql_evidence; result.root_evidence = resumed.root_evidence;
+    assert.ok(await page.getByRole("button", { name: "申请退款", exact: true }).count(), "当前完成根没有退款许可，停止依赖动作");
+    await openRefund(page); await page.locator("#refund-reason").selectOption("unwanted"); await page.locator("#refund-submit").click();
+    await page.locator("#refund-error").waitFor({ state: "visible" });
+    const final = storage("duplicates-after", result.conversation_id);
+    assert.equal(final.refunds.length, submitted.count);
+    result.storage_after = final;
+  });
+  await scenario("repair-no-refund", async ({ page, result, turn }) => {
+    const state = await turn("订单1002不要退货，只想寄修。", { intent: "售后", route: "after_sales" });
+    if (state.root_evidence.refund_decision === null && /资料不足/.test(state.root_evidence.final_answer)) {
+      result.gate_blocked = true;
+      result.functional_shortfall = "前置知识闸拒答，Agent未执行，不能计not_applicable完成";
+    } else assert.equal(state.root_evidence.refund_decision, "not_applicable");
+    assert.equal(await page.getByRole("button", { name: "申请退款", exact: true }).count(), 0);
+  });
+  await scenario("complaint-social-other", async ({ page, turn }) => {
+    await turn("我要投诉你们的维修服务。", { intent: "投诉", route: "complaint" });
+    const social = await turn("谢谢您！", { intent: "闲聊", route: "social" });
+    assert.deepEqual(social.root_evidence.stage_usage, {});
+    await turn("蓝色星期八能替我给月亮签收吗？", { intent: "其他", route: "other" });
+    assert.equal(await page.getByRole("button", { name: "申请退款", exact: true }).count(), 0);
+  });
+  const after = storage("final");
+  fs.writeFileSync(path.join(output, "storage-summary.json"), JSON.stringify({ baseline, after }, null, 2) + "\n");
+  return results;
+}
+
+// 仅恢复实际观测到的结构定位；页面随后必须经公开GET重验原根，不注入订单/金额/政策/许可。
+async function restoreObservedSession(page, cid, rootEvidence) {
+  await page.evaluate(({ cid, locator }) => sessionStorage.setItem("mewhelp-intent-session-v1", JSON.stringify({ conversationId: cid, refundLocators: locator ? [locator] : [] })),
+    { cid, locator: rootEvidence ? { assistant_message_id: rootEvidence.assistant_message_id, checkpoint_id: rootEvidence.checkpoint_id } : null });
+  await page.reload(); await ready(page);
+  if (rootEvidence) await page.getByRole("button", { name: "申请退款", exact: true }).waitFor();
+}
+
+// 仅用于明确已授权幂等/过期请求；不调用聊天接口或页面私有函数。
+async function contextRequest(page, endpoint, method, body) {
+  return page.evaluate(async ({ endpoint, method, body }) => {
+    const response = await fetch(endpoint, { method, headers: { "Content-Type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    return { status: response.status, json: await response.json() };
+  }, { endpoint, method, body });
 }
 
 // 入口明确区分受控与真实，保留每次独立证据目录和所有失败，不覆盖旧结果。
@@ -381,9 +575,11 @@ async function main() {
   const browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
   try {
     const results = mode === "controlled" ? await runControlled(browser, output) : await runLive(browser, requestedUrl, output, args);
-    fs.writeFileSync(path.join(output, "results.json"), JSON.stringify({ mode, requested_url: requestedUrl, executablePath, browser_version: browser.version(), sql_verified: false, results }, null, 2) + "\n");
+    fs.writeFileSync(path.join(output, "results.json"), JSON.stringify({ mode, requested_url: requestedUrl, executablePath, browser_version: browser.version(), sql_verified: false,
+      backend_source_hash: createHash("sha256").update(["app/workflow/prompts.py", "app/workflow/understanding.py", "app/refunds/repository.py", "app/orders/demo_orders.json"].map((file) => fs.readFileSync(path.join(root, file), "utf8")).join("\n")).digest("hex"),
+      resumed_from: args.includes("--resume-evidence") ? path.resolve(args[args.indexOf("--resume-evidence") + 1]) : null, results }, null, 2) + "\n");
     console.log(`${results.filter((item) => item.status === "PASS").length}/${results.length} PASS; evidence=${output}`);
-    process.exitCode = results.some((item) => item.status === "FAIL") ? 1 : 0;
+    process.exitCode = results.some((item) => item.status !== "PASS") ? 1 : 0;
   } finally { await browser.close(); }
 }
 

@@ -313,6 +313,30 @@ async def test_full_question_passes_through_exactly():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('raw,resolved', [
+    ('你好，订单1001到哪了？', '订单1001到哪了？'),
+    ('您好！订单1001的物流？', '订单1001的物流？'),
+])
+async def test_exact_business_suffix_restores_only_dropped_leading_greeting(raw, resolved):
+    """真实single18失败仅丢问候时恢复原文，不让完整问句被礼貌裁剪。"""
+    service, _ = understanding(resolved)
+    result = await service.resolve(raw, [])
+    assert result.query == raw and result.changed is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('raw,resolved', [
+    ('你好，它能退吗？', '订单1001的MH-LP200能退货吗？'),
+    ('你好，订单1001到哪了？', '订单1001的物流进度是什么？'),
+])
+async def test_greeting_guard_does_not_replace_reference_resolution_or_changed_suffix(raw, resolved):
+    """核心指代消解及非字面后缀变化保持实际结果，不能一概强制原文。"""
+    service, _ = understanding(resolved)
+    result = await service.resolve(raw, history('1001'))
+    assert result.query == resolved and result.changed is True
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('raw_question,resolved,previous', [
     ('它能退吗？', '订单9999能退吗？', history('1001')),
     ('它能退吗？', '订单1001能退吗？', history('1001', '1002')),
