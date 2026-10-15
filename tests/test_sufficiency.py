@@ -13,6 +13,74 @@ from tests.fakes import fake_settings
 from tests.test_evidence import build, payload
 
 
+class ConcurrentAssessmentModel:
+    """确定性交错两个请求，只替换外部结构化模型边界。"""
+    def __init__(self, ending):
+        """A挂起让B先完成，随后A超时、取消或返回坏JSON。"""
+        self.ending = ending
+        self.started, self.release = asyncio.Event(), asyncio.Event()
+
+    def with_structured_output(self, schema, **kwargs):
+        """保留实际充分性Schema校验和完整include_raw数据结构。"""
+        self.schema = schema
+        return self
+
+    async def ainvoke(self, messages):
+        """B返回实测40；A没有响应时不能借用B的实测成本。"""
+        from langchain_core.messages import AIMessage
+        question = json.loads(messages[-1].content)['question']
+        if question == 'A请求的退货规则':
+            self.started.set()
+            await self.release.wait()
+            if self.ending == 'timeout':
+                raise TimeoutError()
+            text, total = '{"invalid":true}', 14
+        else:
+            text, total = '{"useful":true,"reason":"规则覆盖","response_kind":"knowledge"}', 40
+        raw = AIMessage(text, response_metadata={'finish_reason': 'stop'},
+            usage_metadata={'input_tokens': total - 4, 'output_tokens': 4, 'total_tokens': total})
+        try:
+            parsed, error = self.schema.model_validate_json(text), None
+        except ValidationError as exc:
+            parsed, error = None, exc
+        return {'raw': raw, 'parsed': parsed, 'parsing_error': error}
+
+
+@pytest.mark.parametrize('ending', ['timeout', 'cancel', 'invalid'])
+async def test_shared_service_keeps_each_invocation_usage_on_failure(ending):
+    """共享服务的B实测不能覆盖挂起A的估算或A自己的坏响应实测。"""
+    model = ConcurrentAssessmentModel(ending)
+    service = service_type()(model, input_budget=8000, minimum_rerank_score=.5)
+    observed = {}
+    async def first():
+        """在调用自己的任务上下文内读取失败成本。"""
+        try:
+            await service.check('A请求的退货规则', build())
+        finally:
+            observed['A'] = dict(service.usage)
+    task = asyncio.create_task(first())
+    try:
+        await asyncio.wait_for(model.started.wait(), 1)
+        decision = await service.check('B请求的退货规则', build())
+        observed['B'] = dict(service.usage)
+        if ending == 'cancel':
+            task.cancel()
+        else:
+            model.release.set()
+        with pytest.raises(asyncio.CancelledError if ending == 'cancel' else ServiceError):
+            await task
+    finally:
+        if not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    assert decision.useful and observed['B']['actual'] == 40
+    if ending == 'invalid':
+        assert observed['A']['actual'] == 14
+    else:
+        assert observed['A']['actual'] == observed['A']['actual_calls'] == 0
+        assert observed['A']['estimated_calls'] == 1 and observed['A']['estimated'] > 2048
+
+
 # 缺失模块时返回明确失败，避免收集错误掩盖行为 RED。
 def service_type():
     try:

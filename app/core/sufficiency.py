@@ -2,6 +2,7 @@
 import asyncio
 import math
 import re
+from contextvars import ContextVar
 from typing import Any, Literal
 
 import httpx
@@ -15,6 +16,9 @@ from app.core.extraction import invalid_output, validate_structured_output
 from app.core.memory import estimate_tokens
 from app.core.prompts import build_sufficiency_messages
 from app.agent.controls import UsageLedger, estimate_call_input, record_usage
+
+
+_SUFFICIENCY_USAGE: ContextVar[dict[int, dict[str, int]] | None] = ContextVar('sufficiency_usage', default=None)
 
 
 class _Assessment(BaseModel):
@@ -54,6 +58,18 @@ def _safe_kind(question: str, kind: str) -> Literal['knowledge', 'social', 'clar
 
 
 class SufficiencyService:
+    @property
+    def usage(self) -> dict[str, int]:
+        """读取当前调用任务的独立成本副本，不能借用其他会话的最后响应。"""
+        values = (_SUFFICIENCY_USAGE.get() or {}).get(id(self))
+        return dict(values) if values is not None else {
+            'actual': 0, 'estimated': 0, 'actual_calls': 0, 'estimated_calls': 0}
+
+    @usage.setter
+    def usage(self, value: dict[str, int]) -> None:
+        """整体替换上下文映射，避免子任务继承的可变对象被并发原地修改。"""
+        _SUFFICIENCY_USAGE.set({**(_SUFFICIENCY_USAGE.get() or {}), id(self): dict(value)})
+
     # 依赖由调用方拥有；服务不关闭模型，明确使用 SDK JSON 模式与原始输出。
     def __init__(self, model: Any, *, input_budget: int, timeout: float = 20,
                  minimum_rerank_score: float | None,

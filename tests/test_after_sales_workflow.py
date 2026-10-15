@@ -220,3 +220,42 @@ async def test_empty_owned_orders_finishes_without_policy_or_pause():
     assert '__interrupt__' not in trace and 'retrieve_policies' not in trace and 'agent' not in trace
     assert result['turn_status'] == 'completed' and '未找到可办理订单' in result['final_answer']
     assert not ctx.repository.refusals and result['refund_offer'] is None
+
+
+@pytest.mark.parametrize('ending', ['timeout', 'cancel'])
+async def test_concurrent_failed_assessment_emits_own_estimate(ending):
+    """真实服务共享时，节点失败usage事件不能串入另一会话的actual40。"""
+    from app.core.sufficiency import SufficiencyService
+    from app.core.errors import ServiceError
+    from app.workflow.nodes import assess_sufficiency
+    from tests.test_evidence import build
+    from tests.test_sufficiency import ConcurrentAssessmentModel
+    model = ConcurrentAssessmentModel(ending)
+    shared = SufficiencyService(model, input_budget=8000, minimum_rerank_score=.5)
+    a, b = context(), context()
+    a.sufficiency = b.sufficiency = shared
+    state_a = new_turn_state(conversation_id='1', user_message_id=7, raw_question='A请求的退货规则',
+        category=None, messages=[HumanMessage('A请求的退货规则')])
+    state_b = {**state_a, 'conversation_id': '2', 'resolved_question': 'B请求的退货规则'}
+    state_a['route'] = state_b['route'] = 'knowledge'
+    events = []
+    task = asyncio.create_task(assess_sufficiency(state_a, SimpleNamespace(context=a, stream_writer=events.append), build()))
+    try:
+        await asyncio.wait_for(model.started.wait(), 1)
+        decision, stages = await assess_sufficiency(state_b,
+            SimpleNamespace(context=b, stream_writer=lambda event: None), build())
+        assert decision.useful and stages['sufficiency']['actual'] == 40
+        if ending == 'cancel':
+            task.cancel()
+        else:
+            model.release.set()
+        with pytest.raises(asyncio.CancelledError if ending == 'cancel' else ServiceError):
+            await task
+    finally:
+        if not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    failure = events[0]['data']['stage_usage']['sufficiency']
+    assert failure['actual'] == failure['actual_calls'] == 0
+    assert failure['estimated_calls'] == 1 and failure['estimated'] > 2048
+    assert events[0]['data']['usage'] == state_a['usage']
