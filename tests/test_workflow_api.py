@@ -23,7 +23,7 @@ def service_type():
 
 def intent(name):
     """构造严格分类响应，只替换收费模型边界。"""
-    return AIMessage(json.dumps({'intent': name}, ensure_ascii=False), response_metadata={'finish_reason': 'stop'})
+    return AIMessage(json.dumps({'intent': name, 'confidence': 0.95}, ensure_ascii=False), response_metadata={'finish_reason': 'stop'})
 
 
 class Store(ConversationStore):

@@ -93,6 +93,21 @@ async def test_social_whole_turn_uses_no_model(question):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('label,confidence', [('其他', 0.95), ('退款退货', 0.69)])
+async def test_other_is_fixed_exit_without_retrieval_or_actions(label, confidence):
+    """未知诉求和低置信度不查工具、不进入知识不足池，只提交澄清提示。"""
+    context = workflow_runtime()
+    context.intent_model = ScriptedWorkflowModel(intent_replies=[AIMessage(json.dumps(
+        {'intent': label, 'confidence': confidence}), response_metadata={'finish_reason': 'stop'})])
+    trace, state = await run_outer(context, '蓝色星期八能替我给月亮签收吗？')
+    assert trace == ['resolve_reference','classify_intent','other_response','log_response']
+    assert state['intent'] == '其他' and state['route'] == 'other'
+    assert state['final_answer'] and state['suggested_actions'] == []
+    assert not context.faq_repository.calls and not context.sufficiency.calls
+    assert not context.repository.refusals and len(context.repository.messages) == 1
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('body,finish', [(' {"intent":"未知"}', 'stop'),
     ('{"intent":"订单","extra":1}', 'stop'), ('{"intent":"订单"', 'stop'),
     ('{"intent":"订单"}', 'length'), ('{"intent":"订单"}', None)])
@@ -124,12 +139,13 @@ async def test_classifier_rejects_tool_output_without_routing():
 async def test_classifier_preserves_original_and_records_actual_usage():
     """分类输入原样透传，合法 usage 优先于最大输出估算。"""
     classifier = implementation('intent').IntentClassifier
-    reply = AIMessage('{"intent":"售后"}', response_metadata={'finish_reason': 'stop'},
+    reply = AIMessage('{"intent":"售后","confidence":0.95}', response_metadata={'finish_reason': 'stop'},
         usage_metadata={'input_tokens': 12, 'output_tokens': 8, 'total_tokens': 20})
     model = ScriptedWorkflowModel(intent_replies=[reply])
     service = classifier(model, input_budget=8000, timeout_seconds=1)
     question = '  新买的商品不太会用\n能帮我看看吗？  '
-    assert await service.classify(question) == '售后'
+    result = await service.classify(question)
+    assert result.intent == result.raw_intent == '售后' and result.confidence == 0.95
     assert model.intent_inputs[0][-1].content == question
     assert service.usage == {'actual': 20, 'estimated': 0, 'actual_calls': 1, 'estimated_calls': 0}
 

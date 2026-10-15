@@ -18,6 +18,25 @@ def evaluation():
     return evaluate_workflow
 
 
+async def test_live_classifier_bridge_serializes_typed_result_without_network(monkeypatch):
+    """真实分类器的内部对象必须在旧评估器边界投影为可序列化有效标签。"""
+    from langchain_core.messages import AIMessage
+    from tests.fakes import fake_settings
+    from tests.workflow_fakes import ScriptedWorkflowModel
+    module = evaluation()
+    model = ScriptedWorkflowModel(intent_replies=[AIMessage('{"intent":"订单","confidence":0.95}',
+        response_metadata={'finish_reason': 'stop'})])
+    monkeypatch.setattr('app.config.load_settings', fake_settings)
+    monkeypatch.setattr('app.core.llm.create_model', lambda *args, **kwargs: model)
+    monkeypatch.setattr(module, 'load_intent_cases', lambda: [{'id': 'order', 'question': '订单1001状态是什么？',
+        'expected_intent': '订单', 'expected_route': 'business'}])
+    report = await module.live_intent()
+    assert report['cases'][0]['status'] == 'passed'
+    assert report['cases'][0]['actual_intent'] == '订单'
+    assert report['cases'][0]['raw_intent'] == '订单' and report['cases'][0]['confidence'] == 0.95
+    assert json.loads(json.dumps(report, ensure_ascii=False))['counts']['passed'] == 1
+
+
 def test_default_cli_never_calls_model(tmp_path):
     """默认CLI无配置仍能输出未执行报告，防止悄悄发起收费调用。"""
     evaluation()

@@ -132,7 +132,7 @@ def workflow_runtime(*, intent='商品咨询', payload=None, useful=True, error=
                 response_kind='knowledge', source=None if useful else 'self_check')
 
     repository = WorkflowRepository()
-    model = ScriptedWorkflowModel(intent_replies=[AIMessage(json.dumps({'intent': intent}, ensure_ascii=False),
+    model = ScriptedWorkflowModel(intent_replies=[AIMessage(json.dumps({'intent': intent, 'confidence': 0.95}, ensure_ascii=False),
         response_metadata={'finish_reason': 'stop'})])
     settings = SimpleNamespace(tool_input_token_budget=8000, llm_timeout_seconds=60,
         faq_timeout_seconds=90, rerank_min_score=.5, intent_max_output_tokens=2048)

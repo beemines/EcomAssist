@@ -1,5 +1,5 @@
 # 售后结构化抽取服务，校验输入预算、模型结束状态和输出 Schema。
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from langchain_core.messages import AIMessage
@@ -13,10 +13,13 @@ from app.schemas.extract import AfterSalesResult
 
 
 # 构造模型结构化输出无效时使用的统一上游错误。
-def invalid_output() -> ServiceError:
-    return ServiceError(
+def invalid_output(*, finish_reason: Literal['length', 'content_filter'] | None = None) -> ServiceError:
+    """保留有限安全结束诊断，公开错误码保持一致且不附带原始响应。"""
+    error = ServiceError(
         "invalid_structured_output", "模型返回的结构化结果无效，请稍后重试。", 502,
     )
+    error.finish_reason = finish_reason if finish_reason in ('length', 'content_filter') else None
+    return error
 
 
 # 同时校验原始 JSON 和解析结果，拒绝截断、解析错误或结果不一致。

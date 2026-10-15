@@ -1,13 +1,14 @@
-"""严格七意图 JSON 分类；明确整句社交使用零调用规则。"""
+"""严格八意图 JSON 分类；明确整句社交使用零调用规则。"""
 import asyncio
 import math
 import re
+from dataclasses import dataclass
 from typing import Literal
 
 import httpx
 from langchain_core.messages import AIMessage
 from openai import APITimeoutError, ContentFilterFinishReasonError, LengthFinishReasonError
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.agent.controls import UsageLedger, estimate_call_input, record_usage
 from app.core.errors import InputTooLong, ServiceError
@@ -15,16 +16,25 @@ from app.core.extraction import invalid_output, validate_structured_output
 from app.workflow.prompts import build_intent_messages
 
 
-Intent = Literal['物流','订单','商品咨询','退款退货','售后','投诉','闲聊']
-Route = Literal['knowledge','business','complaint','social']
+Intent = Literal['物流','订单','商品咨询','退款退货','售后','投诉','闲聊','其他']
+Route = Literal['knowledge','business','complaint','social','other']
 _SOCIAL = re.compile(r'(?:你好|您好|嗨|哈喽|谢谢(?:你|您)?|多谢|辛苦了|再见|拜拜|早上好|下午好|晚上好)[！!。.?？\s]*')
 _ROUTES = {'商品咨询': 'knowledge', '退款退货': 'knowledge', '物流': 'business',
-           '订单': 'business', '售后': 'business', '投诉': 'complaint', '闲聊': 'social'}
+           '订单': 'business', '售后': 'business', '投诉': 'complaint', '闲聊': 'social', '其他': 'other'}
+
+
+@dataclass(frozen=True)
+class IntentResult:
+    """模型原始标签与工程阈值后的有效标签独立保留。"""
+    raw_intent: Intent
+    intent: Intent
+    confidence: float
 
 
 class _IntentOutput(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     intent: Intent
+    confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
 
 
 def social_fast_path(raw_question: str) -> bool:
@@ -33,7 +43,7 @@ def social_fast_path(raw_question: str) -> bool:
 
 
 def route_intent(intent: Intent) -> Route:
-    """七类固定映射；非法标签显式报错，不能悄悄降级。"""
+    """八类固定映射；非法标签显式报错，不能悄悄降级。"""
     return _ROUTES[intent]
 
 
@@ -50,13 +60,13 @@ class IntentClassifier:
         self.input_budget, self.timeout_seconds = input_budget, timeout_seconds
         self.usage = {'actual': 0, 'estimated': 0, 'actual_calls': 0, 'estimated_calls': 0}
 
-    async def classify(self, raw_question: str) -> Intent:
+    async def classify(self, raw_question: str) -> IntentResult:
         """只处理本轮原话；无效 JSON、非 stop 或上游故障全部保持错误。"""
         if not isinstance(raw_question, str) or not raw_question.strip():
             raise ValueError('raw question must be nonempty')
         self.usage = dict.fromkeys(self.usage, 0)
         if social_fast_path(raw_question):
-            return '闲聊'
+            return IntentResult('闲聊', '闲聊', 1.0)
         messages = build_intent_messages(raw_question)
         cost = estimate_call_input(messages, [])
         if cost > self.input_budget:
@@ -64,8 +74,10 @@ class IntentClassifier:
         try:
             async with asyncio.timeout(self.timeout_seconds):
                 output = await self.model.ainvoke(messages)
-        except (LengthFinishReasonError, ContentFilterFinishReasonError) as exc:
-            raise invalid_output() from exc
+        except LengthFinishReasonError as exc:
+            raise invalid_output(finish_reason='length') from exc
+        except ContentFilterFinishReasonError as exc:
+            raise invalid_output(finish_reason='content_filter') from exc
         except (TimeoutError, httpx.TimeoutException, APITimeoutError) as exc:
             raise ServiceError('upstream_timeout', '模型响应超时，请稍后重试。', 504) from exc
         except Exception as exc:
@@ -73,9 +85,9 @@ class IntentClassifier:
         raw = output.get('raw') if isinstance(output, dict) else None
         if (not isinstance(raw, AIMessage) or raw.response_metadata.get('finish_reason') != 'stop'
                 or raw.tool_calls or raw.invalid_tool_calls or raw.additional_kwargs.get('tool_calls')):
-            raise invalid_output()
+            raise invalid_output(finish_reason=raw.response_metadata.get('finish_reason') if isinstance(raw, AIMessage) else None)
         result = validate_structured_output(output, _IntentOutput)
         ledger = UsageLedger()
         record_usage(raw, ledger, estimated_input=cost, output_limit=2048)
         self.usage = {key: getattr(ledger, key) for key in self.usage}
-        return result.intent
+        return IntentResult(result.intent, result.intent if result.confidence >= 0.70 else '其他', result.confidence)
