@@ -65,6 +65,17 @@ def service_parts(hits=(), rows=(), rerank_hits=()):
     return service, faq_payload, repo, embedder, index, planner, reranker
 
 
+async def test_recall_candidates_is_bounded_without_planning_or_finalizing():
+    """可复用召回入口只执行完整查询的嵌入和hybrid，重复首项不影响前50唯一项。"""
+    service, _, repo, embedder, index, planner, reranker = service_parts(
+        [VectorHit(2, .9), VectorHit(2, .8), VectorHit(1, .7),
+         *[VectorHit(i, .1) for i in range(3, 70)]])
+    candidates = await service.recall_candidates('完整问题', category='售后')
+    assert candidates[:2] == [VectorHit(2, .9), VectorHit(1, .7)] and len(candidates) == 50
+    assert embedder.texts == ['完整问题'] and index.calls[0][1:] == ('完整问题', 'hybrid', '售后')
+    assert repo.calls == planner.calls == reranker.calls == []
+
+
 # 错误分支、错误查询或错误分数标签都会破坏这四种策略的共同契约。
 @pytest.mark.parametrize('strategy,index_strategy,score_kind', [
     ('dense', 'dense', 'cosine'), ('bm25', 'bm25', 'bm25'),
