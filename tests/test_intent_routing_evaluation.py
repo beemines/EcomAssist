@@ -7,6 +7,38 @@ from langchain_core.messages import AIMessage
 from evals.evaluate_intent_routing import evaluate, score
 
 
+@pytest.mark.parametrize('identifier,query,valid', [
+    ('dialogue-6-2', '订单1002的保修期限是多久？', True),
+    ('dialogue-6-2', 'MH-WD100的保修期限是多久？', True),
+    ('dialogue-6-2', '订单1002的容量是多少？', False),
+    ('dialogue-6-2', '订单1002没有保修。', False),
+    ('dialogue-1-2', 'MH-LP200能退货吗？', False),
+    ('dialogue-1-2', '订单1001不能退货。', False),
+    ('dialogue-1-3', '订单1001的物流昨天到哪里了？', False),
+    ('dialogue-5-2', '订单1001不申请退货。', False),
+])
+def test_resolution_preserves_request_semantics(identifier, query, valid):
+    """同实体不同动作/否定/时间或伪造结论不能算消解成功。"""
+    from evals.evaluate_intent_routing import CASES, fixture_messages
+    case = next(json.loads(line) for line in CASES.read_text(encoding='utf-8').splitlines() if json.loads(line)['id'] == identifier)
+    checks = score(case, {'resolved_question': query, 'intent': case['expected_intent'], 'route': case['expected_route']},
+        fixture_messages(case.get('history_fixture', [])))
+    assert checks['resolvable'] is valid
+
+
+async def test_evaluation_retains_safe_sdk_finish_diagnostic():
+    """SDK直接抛截断时无raw响应，也必须保存白名单finish_reason。"""
+    from openai import LengthFinishReasonError
+    from openai.types.chat import ChatCompletion
+    from tests.workflow_fakes import ScriptedWorkflowModel
+    failure = LengthFinishReasonError(completion=ChatCompletion(id='test', model='test', object='chat.completion', created=0, choices=[]))
+    report = await evaluate(split='acceptance', live=True, case_id='dialogue-1-1',
+        model=ScriptedWorkflowModel(intent_replies=[failure]))
+    row = report['results'][0]
+    assert row['finish_reason'] == 'length' and row['model_calls'] == 1
+    assert row['raw_outputs'][0]['raw'] is None
+
+
 class ScriptedModel:
     """仅替换收费网络边界，真实理解/分类解析与计数保留。"""
     def __init__(self, outputs):

@@ -173,13 +173,13 @@ async def test_captured_policy_prose_remains_invalid_control_output(path):
 
 @pytest.mark.asyncio
 async def test_captured_factual_logistics_still_rejected_under_chosen_clarification():
-    """错误选择澄清后的真实物流正文仍被守卫拒绝，不覆盖模型模式或提交最终SQL。"""
+    """没有可信用户订单锚点的澄清仍不得包含事实，不因模型自行选单绕过守卫。"""
     from tests.test_workflow_agent import graph
     captured = ('您好，为您查询到订单1001的物流信息（此为模拟演示数据，仅供参考）：'
         '包裹目前已揽收，运单号为MOCK11540677，预计2天内送达。'
         '如需了解更多物流详情，建议以实际物流平台信息为准哦～')
     context, state = setup([workflow_call('query_logistics', {'order_id': '1001'}), control('clarification')],
-        question='订单1001的包裹到哪里了？', intent='物流', answer=captured)
+        question='包裹到哪里了？', intent='物流', answer=captured)
     parsed_modes = []
     with pytest.raises(ServiceError) as error:
         async for kind, data in graph().astream(state, context=context, stream_mode=['updates', 'custom']):

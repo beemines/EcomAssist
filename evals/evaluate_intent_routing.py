@@ -20,6 +20,28 @@ CASES = Path(__file__).with_name('intent_routing_cases.jsonl')
 BROWSER_SCENARIOS = ('policy-no-picker', 'logistics-refund-logistics', 'missing-order-select-resume',
                      'pause-refresh-restart-new-message', 'refund-form-cancel-submit',
                      'duplicate-and-cross-conversation', 'repair-no-refund', 'complaint-social-other')
+SCORER_VERSION = 'request-semantics-v2'
+
+
+def preserved_request(case, query):
+    """固定六条消解标注采用保守请求语法；不把实体匹配当作动作/极性/时间正确。"""
+    patterns = {
+        'dialogue-1-2': r'(?<!不)能(?:不能)?(?:申请)?退(?:货)?(?:吗|么|不)[？?]?$',
+        'dialogue-3-3': r'(?<!不)能(?:不能)?(?:申请)?退(?:货)?(?:吗|么|不)[？?]?$',
+        'dialogue-1-3': r'物流(?:现在|目前)到哪(?:里|儿)?了[？?]?$',
+        'dialogue-5-2': r'申请退货[。.!！]?$',
+        'dialogue-5-3': r'配送进度[。.!！？?]?$',
+        'dialogue-6-2': r'保修(?:期限|期|时间)?(?:是|有|为)?(?:多久|多长(?:时间)?|多少(?:年|个月|天))[？?]?$',
+    }
+    case_id = case.get('id')
+    if case_id is None and '保修' in case['expected_query']:
+        case_id = 'dialogue-6-2'
+    pattern = patterns.get(case_id)
+    if pattern is None or re.search(r'不要|不申请|不想|没有|不退|昨天|明天|以前|曾经|已经|已签收', query):
+        return False
+    if case_id == 'dialogue-5-3' and not re.search(r'查|查询', query):
+        return False
+    return bool(re.search(pattern, query.strip()))
 
 
 def digest(value):
@@ -68,8 +90,8 @@ def score(case, row, history):
         orders = explicit_order_ids(query or '')
         models = set(re.findall(r'[A-Z]+-[A-Z0-9]+', query or ''))
         order_match = bool(orders) and orders == {case['antecedent']}
-        model_match = bool(required_models) and required_models <= models
-        checks['resolvable'] = bool(query) and (order_match or model_match) and orders <= {case['antecedent']} and models <= required_models
+        model_match = case['expected_route'] == 'knowledge' and bool(required_models) and required_models <= models
+        checks['resolvable'] = bool(query) and (order_match or model_match) and orders <= {case['antecedent']} and models <= required_models and preserved_request(case, query)
     if case.get('preserve_ambiguity'):
         checks['ambiguity_zero_guess'] = query is not None and not (explicit_order_ids(query) - explicit_order_ids(case['query']))
     try:
@@ -89,7 +111,7 @@ async def evaluate(*, mode='understanding', split='acceptance', live=False, mode
     cases = [case for case in cases if case['split'] == split]
     if case_id and case_id not in {case['id'] for case in cases}:
         raise ValueError('case-id is not in selected split')
-    report = {'mode': mode, 'split': split, 'live': live, 'created_at': datetime.now(timezone.utc).isoformat(),
+    report = {'mode': mode, 'split': split, 'live': live, 'scorer_version': SCORER_VERSION, 'created_at': datetime.now(timezone.utc).isoformat(),
               'sample_hash': digest(cases), 'prompt_hash': digest([UNDERSTANDING_SYSTEM, INTENT_SYSTEM]),
               'implementation_hash': digest({name: (CASES.parents[1] / name).read_text(encoding='utf-8') for name in
                   ('app/workflow/understanding.py', 'app/workflow/intent.py', 'evals/evaluate_intent_routing.py')}),
@@ -145,6 +167,8 @@ async def evaluate(*, mode='understanding', split='acceptance', live=False, mode
             row['status'] = 'passed' if all(row['checks'].values()) else 'failed'
         except ServiceError as exc:
             row.update(status='failed', error=exc.code, error_message=exc.message)
+            if getattr(exc, 'finish_reason', None) in ('length', 'content_filter'):
+                row['finish_reason'] = exc.finish_reason
             row['checks'] = score(case, row, history)
         finally:
             row['usage'] = {'understanding': understanding.usage, 'classification': classifier.usage}

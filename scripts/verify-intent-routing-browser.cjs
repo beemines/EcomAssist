@@ -576,7 +576,7 @@ async function main() {
   try {
     const results = mode === "controlled" ? await runControlled(browser, output) : await runLive(browser, requestedUrl, output, args);
     fs.writeFileSync(path.join(output, "results.json"), JSON.stringify({ mode, requested_url: requestedUrl, executablePath, browser_version: browser.version(), sql_verified: false,
-      backend_source_hash: createHash("sha256").update(["app/workflow/prompts.py", "app/workflow/understanding.py", "app/refunds/repository.py", "app/orders/demo_orders.json"].map((file) => fs.readFileSync(path.join(root, file), "utf8")).join("\n")).digest("hex"),
+      backend_source_hash: createHash("sha256").update(["app/workflow/agent.py", "app/workflow/nodes.py", "app/workflow/prompts.py", "app/workflow/understanding.py", "app/refunds/repository.py", "app/orders/demo_orders.json"].map((file) => fs.readFileSync(path.join(root, file), "utf8")).join("\n")).digest("hex"),
       resumed_from: args.includes("--resume-evidence") ? path.resolve(args[args.indexOf("--resume-evidence") + 1]) : null, results }, null, 2) + "\n");
     console.log(`${results.filter((item) => item.status === "PASS").length}/${results.length} PASS; evidence=${output}`);
     process.exitCode = results.some((item) => item.status !== "PASS") ? 1 : 0;
