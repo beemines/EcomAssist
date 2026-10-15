@@ -242,10 +242,16 @@ async def test_parent_refund_gate_then_clarification(business_result, tail):
     from langgraph.checkpoint.memory import InMemorySaver
     from app.workflow.agent import build_agent_graph
     from app.workflow.graph import build_workflow_graph
-    replies = ([workflow_call()] if business_result else []) + [control('clarification')]
-    context, state = setup(replies, question='想退货，请帮我查看我的订单是否符合退货政策',
-        intent='退款退货', answer='请提供订单号。' + tail)
-    context.faq_repository.retrieve = faq_result(context, payload(('当前退货规则',)))
+    from tests.test_after_sales_workflow import context as after_sales_context
+    decision = control('clarification')
+    decision.content = json.dumps({'reply_mode': 'clarification', 'suggested_actions': [],
+        'refund_decision': 'ineligible', 'decision_reason': '当前诉求还需确认适用条件'})
+    replies = ([workflow_call()] if business_result else []) + [decision]
+    context, state = setup(replies, question='订单1001是否符合退货政策',
+        intent='退款退货', answer='请提供适用条件。' + tail)
+    provided = after_sales_context(data=payload(('当前退货规则',)))
+    context.order_provider, context.user_id = provided.order_provider, provided.user_id
+    context.expander, context.workflow_retriever = provided.expander, provided.workflow_retriever
     parent = build_workflow_graph(build_agent_graph(), checkpointer=InMemorySaver())
     events = []
     async def consume():
@@ -260,9 +266,9 @@ async def test_parent_refund_gate_then_clarification(business_result, tail):
         assert not any(m.type == 'ai' and not m.tool_calls for m in context.repository.messages)
     else:
         result = await consume()
-        assert result['turn_status'] == 'completed' and result['final_answer'] == '请提供订单号。'
+        assert result['turn_status'] == 'completed' and result['final_answer'] == '请提供适用条件。'
         assert result['citations'] == [] and result['quality']['response_kind'] == 'clarification'
         assert [e['data']['citations'] for e in events if e['event'] == 'citations'] == [[]]
-    assert context.faq_repository.calls and context.sufficiency.calls
-    original = json.loads(context.repository.messages[1].content)
+    assert context.sufficiency.calls
+    original = json.loads(context.repository.messages[3].content)
     assert original['matches'][0]['answer'] == '当前退货规则' and 'n' not in original['matches'][0]

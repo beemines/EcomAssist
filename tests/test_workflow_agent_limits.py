@@ -99,6 +99,16 @@ async def test_full_final_input_reserved_before_decision():
     assert result['suggested_actions'] == ['handoff']
 
 
+async def test_two_forced_tools_leave_only_two_optional_reads():
+    """父图已消费的两次逻辑工具计数必须计入原四次上限。"""
+    context, state = setup([workflow_call(args={'order_id': f'A-{i}'}, identifier=f'c{i}') for i in range(3)])
+    state['tool_call_count'] = 2
+    result, _ = await run(context, state)
+    assert result['tool_call_count'] == 4
+    assert len(context.repository.messages) == 4 and context.model.streams == 0
+    assert result['refund_offer'] is None
+
+
 @pytest.mark.asyncio
 async def test_final_cancellation_closes_upstream_without_committing():
     """最终模型等待期间取消会主动关闭流，父图不能提交未完成正文。"""

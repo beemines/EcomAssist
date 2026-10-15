@@ -60,6 +60,10 @@ class QueryUnderstanding:
         messages = build_tool_messages(SystemMessage(UNDERSTANDING_SYSTEM), completed_history(history),
             HumanMessage(raw_question), self.input_budget, tool_schema=[])
         cost = estimate_call_input(messages, [])
+        # 调用已开始即保守计费；有原始实测响应时在协议校验前替换。
+        ledger = UsageLedger()
+        record_usage(None, ledger, estimated_input=cost, output_limit=2048)
+        self.usage = {key: getattr(ledger, key) for key in self.usage}
         try:
             async with asyncio.timeout(self.timeout_seconds):
                 output = await self.model.ainvoke(messages)
@@ -72,12 +76,13 @@ class QueryUnderstanding:
         except Exception as exc:
             raise ServiceError('upstream_error', '模型服务暂时不可用，请稍后重试。', 502) from exc
         raw = output.get('raw') if isinstance(output, dict) else None
+        ledger = UsageLedger()
+        record_usage(raw, ledger, estimated_input=cost, output_limit=2048)
+        self.usage = {key: getattr(ledger, key) for key in self.usage}
         if (not isinstance(raw, AIMessage) or raw.response_metadata.get('finish_reason') != 'stop'
                 or raw.tool_calls or raw.invalid_tool_calls or raw.additional_kwargs.get('tool_calls')):
             raise invalid_output(finish_reason=raw.response_metadata.get('finish_reason') if isinstance(raw, AIMessage) else None)
         result = validate_structured_output(output, _UnderstandingOutput)
         validate_resolved_entities(raw_question, result.query, messages[1:-1])
-        ledger = UsageLedger()
-        record_usage(raw, ledger, estimated_input=cost, output_limit=2048)
-        self.usage = {key: getattr(ledger, key) for key in self.usage}
+
         return Resolution(result.query, result.query != raw_question)

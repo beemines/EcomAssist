@@ -50,7 +50,7 @@ def test_all_seven_routes():
     """错把政策或售后分到别的路径会打破七类固定契约。"""
     route_intent = implementation('intent').route_intent
     assert [route_intent(x) for x in ['商品咨询','退款退货','物流','订单','售后','投诉','闲聊']] == [
-        'knowledge','knowledge','business','business','business','complaint','social']
+        'knowledge','after_sales','business','business','after_sales','complaint','social']
 
 
 def test_greeting_with_order_is_not_social():
@@ -60,7 +60,7 @@ def test_greeting_with_order_is_not_social():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('intent', ['物流', '订单', '售后'])
+@pytest.mark.parametrize('intent', ['物流', '订单'])
 async def test_business_empty_evidence_bypasses_gate(intent):
     """业务无证据仍进入 Agent，不能被知识闸提前拒答。"""
     context = workflow_runtime(intent=intent)
@@ -172,5 +172,6 @@ def test_intent_cases_have_unique_ids_and_all_buckets():
     for intent in ['商品咨询','退款退货','物流','订单','售后','投诉','闲聊']:
         assert sum(case['expected_intent'] == intent for case in cases) >= 3
     for case in cases:
-        assert implementation('intent').route_intent(case['expected_intent']) == case['expected_route']
+        expected = 'after_sales' if case['expected_intent'] in ('退款退货', '售后') else case['expected_route']
+        assert implementation('intent').route_intent(case['expected_intent']) == expected
     assert any(case['should_clarify'] and case['expected_intent'] == '售后' for case in cases)

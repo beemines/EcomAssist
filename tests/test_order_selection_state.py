@@ -222,7 +222,10 @@ def test_invalid_active_time_fails_closed(elapsed):
 
 def test_runtime_optional_tail_keeps_existing_constructor():
     """旧runtime构造依然可用，新依赖仅在context中按需注入。"""
-    old = workflow_runtime()
+    fixture = workflow_runtime()
+    old = WorkflowRuntime(fixture.model, fixture.decision_model, fixture.intent_model,
+        fixture.repository, fixture.faq_repository, fixture.sufficiency, fixture.quality_repository,
+        fixture.registry, fixture.executor, fixture.settings, fixture.deadline)
     assert old.order_provider is None and old.understanding is None
     assert old.workflow_retriever is None and old.expander is None and old.user_id is None
     injected = replace(old, order_provider=DemoOrderProvider(), user_id='demo-user')

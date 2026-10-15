@@ -84,16 +84,31 @@ FINAL_SYSTEM = '''你是电商客服。最终回复只输出给用户看的简�
 '''
 
 
-def agent_decision_system(intent: str | None) -> SystemMessage:
+AFTER_SALES_SYSTEM = '''本轮为订单优先售后，已有当前订单及实际政策，不重复查询同单，不调用query_faq。
+控制JSON必须恰有reply_mode、suggested_actions、refund_decision、decision_reason四字段。
+refund_decision只能eligible/needs_review/ineligible/not_applicable；decision_reason为1到256字符非空说明。
+eligible仅已知条件支持申请；商品完好、二次销售等实物条件未知时用needs_review并说明待核验，不假定已符合全部条件。
+ineligible仅有政策明确不符合当前退款诉求；超过七天无理由不代表质量问题保修资格消失，不假定质量故障。
+售后维修只能not_applicable，不能转为退款；退款退货不能not_applicable。clarification不能eligible或needs_review。
+不追问退款原因，退款原因只在用户提交表单时必选。判断只决定申请入口，不执行退款或提交。
+示例：七天内退货但完好未知→{"reply_mode":"answer","suggested_actions":[],"refund_decision":"needs_review","decision_reason":"完好及二次销售条件待审核"}。
+示例：超七天要求寄修，政策仍有保修途径→{"reply_mode":"answer","suggested_actions":[],"refund_decision":"not_applicable","decision_reason":"维修按保修条件核验，与无理由退货期限分开"}。'''
+
+
+def agent_decision_system(intent: str | None, *, after_sales: bool = False) -> SystemMessage:
     """决策系统仅约束控制JSON和工具阶段；最终系统由独立调用完整计费并预留。"""
-    return SystemMessage(AGENT_SYSTEM + '\n当前意图：' + str(intent))
+    return SystemMessage(AGENT_SYSTEM + ('\n' + AFTER_SALES_SYSTEM if after_sales else '') + '\n当前意图：' + str(intent))
 
 
-def agent_final_system(intent: str | None, reply_mode: str | None) -> SystemMessage:
+def agent_final_system(intent: str | None, reply_mode: str | None, *, after_sales: bool = False,
+                       refund_decision: str | None = None, decision_reason: str | None = None) -> SystemMessage:
     """明确执行已经选定的模式含义，实际完整指令一并计费且不改写控制选择。"""
     mode = reply_mode or 'answer'
     instruction = {
         'answer': '本轮采用 answer：直接依据当前结果或编号证据回答，模拟结果必须保留模拟或演示说明。',
         'clarification': '本轮采用 clarification：只询问缺少的必要用户信息；不要复述或解释已有工具结果；不输出物流状态、运单号、预计天数或其他事实。',
     }[mode]
-    return SystemMessage(FINAL_SYSTEM + '\n当前意图：' + str(intent) + '\n回复模式：' + mode + '\n' + instruction)
+    extra = ('\n本轮售后判断：' + str(refund_decision) + '；说明：' + str(decision_reason)
+        + '。只依据当前订单和政策说明已知及待核验条件。退款申请必须待审核，未执行退款、未提交申请；不承诺到账日期。'
+        + '不追问退款原因，维修不转为退货；超过七天不一律否认质量保修。') if after_sales else ''
+    return SystemMessage(FINAL_SYSTEM + extra + '\n当前意图：' + str(intent) + '\n回复模式：' + mode + '\n' + instruction)

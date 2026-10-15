@@ -18,20 +18,42 @@ def _gate_route(state: WorkflowState):
     return 'agent' if state['quality']['useful'] else 'knowledge_fallback'
 
 
+def _order_route(state: WorkflowState):
+    """明确订单直接查询，其余先等待用户选择。"""
+    return 'load_order' if nodes.selected_order_id(state) else 'prepare_order_selection'
+
+
+def _loaded_route(state: WorkflowState):
+    """不存在或越权订单回到当前身份候选，不伪造成功订单。"""
+    return 'expand_queries' if state['order_snapshot'] else 'prepare_order_selection'
+
+
+def _selection_route(state: WorkflowState):
+    """无可办订单时明确结束，避免空候选卡片形成死暂停。"""
+    return 'await_order_selection' if state['order_selection']['cards'] else 'no_order_response'
+
+
 def build_workflow_graph(agent_graph: CompiledStateGraph, *, checkpointer: BaseCheckpointSaver) -> CompiledStateGraph:
     """父图使用显式官方 saver，受控/正式 Agent 共享同一状态和 Runtime。"""
     graph = StateGraph(WorkflowState, context_schema=WorkflowRuntime)
     for name in ('resolve_reference', 'classify_intent', 'retrieve_knowledge', 'confidence_gate',
-                 'knowledge_fallback', 'complaint_response', 'social_response', 'other_response', 'log_response'):
+                 'knowledge_fallback', 'complaint_response', 'social_response', 'other_response', 'log_response',
+                 'resolve_order', 'prepare_order_selection', 'await_order_selection', 'load_order', 'expand_queries', 'retrieve_policies', 'no_order_response'):
         graph.add_node(name, getattr(nodes, name))
     graph.add_node('agent', agent_graph)
     graph.add_edge(START, 'resolve_reference')
     graph.add_edge('resolve_reference', 'classify_intent')
     graph.add_conditional_edges('classify_intent', _intent_route, {'knowledge': 'retrieve_knowledge',
-        'business': 'agent', 'complaint': 'complaint_response', 'social': 'social_response', 'other': 'other_response'})
+        'business': 'agent', 'after_sales': 'resolve_order', 'complaint': 'complaint_response', 'social': 'social_response', 'other': 'other_response'})
+    graph.add_conditional_edges('resolve_order', _order_route)
+    graph.add_conditional_edges('prepare_order_selection', _selection_route)
+    graph.add_edge('await_order_selection', 'load_order')
+    graph.add_conditional_edges('load_order', _loaded_route)
+    graph.add_edge('expand_queries', 'retrieve_policies')
+    graph.add_edge('retrieve_policies', 'confidence_gate')
     graph.add_edge('retrieve_knowledge', 'confidence_gate')
     graph.add_conditional_edges('confidence_gate', _gate_route)
-    for name in ('agent', 'knowledge_fallback', 'complaint_response', 'social_response', 'other_response'):
+    for name in ('agent', 'knowledge_fallback', 'complaint_response', 'social_response', 'other_response', 'no_order_response'):
         graph.add_edge(name, 'log_response')
     graph.add_edge('log_response', END)
     return graph.compile(checkpointer=checkpointer)
