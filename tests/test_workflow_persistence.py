@@ -91,6 +91,31 @@ async def test_old_snapshot_survives_new_turn(tmp_path):
         assert [message.id for message in latest.values['messages']] == ['105', '104']
 
 
+async def test_v1_completed_snapshot_is_readable_without_refund_permission(tmp_path):
+    """旧完成根缺新增字段仍可只读，不能因此自动生成退款入口。"""
+    legacy = turn()
+    for key in ('state_version', 'raw_intent', 'confidence', 'order_selection', 'order_snapshot',
+                'retrieval_queries', 'retrieval_audit', 'refund_decision', 'decision_reason',
+                'refund_offer', 'stage_usage', 'active_elapsed_seconds', 'supersedes_turn_id'):
+        legacy.pop(key, None)
+    legacy['suggested_actions'] = ['create_ticket']
+    path = tmp_path / 'v1.sqlite'
+    async with open_checkpointer(path) as saver:
+        graph = saving_graph(saver)
+        await graph.ainvoke(legacy, checkpoint_config('c1'), context=runtime_context(), durability='sync')
+        original = await graph.aget_state(checkpoint_config('c1'))
+        old_id = original.config['configurable']['checkpoint_id']
+    async with open_checkpointer(path) as saver:
+        graph = saving_graph(saver)
+        old = await graph.aget_state(checkpoint_config('c1', checkpoint_id=old_id))
+        assert old.values['turn_status'] == 'completed' and old.next == ()
+        assert old.values['final_message_id'] == '104'
+        assert old.values['suggested_actions'] == ['create_ticket']
+        assert old.values.get('state_version', 1) == 1
+        assert old.values.get('order_selection') is None and old.values.get('refund_offer') is None
+        assert old.values == original.values
+
+
 async def test_invalid_path_fails_without_memory_fallback(tmp_path):
     """父路径是文件时明确失败，不能悄悄改用内存后端。"""
     parent = tmp_path / 'not-a-directory'
