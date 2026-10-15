@@ -20,28 +20,35 @@ CASES = Path(__file__).with_name('intent_routing_cases.jsonl')
 BROWSER_SCENARIOS = ('policy-no-picker', 'logistics-refund-logistics', 'missing-order-select-resume',
                      'pause-refresh-restart-new-message', 'refund-form-cancel-submit',
                      'duplicate-and-cross-conversation', 'repair-no-refund', 'complaint-social-other')
-SCORER_VERSION = 'request-semantics-v2'
+SCORER_VERSION = 'request-semantics-v3-whole-query'
 
 
 def preserved_request(case, query):
-    """固定六条消解标注采用保守请求语法；不把实体匹配当作动作/极性/时间正确。"""
+    """六条固定题的整句请求契约；未知表达保守失败，不是通用NLP判官。
+
+    主语、动作和疑问方式均显式枚举，只允许无语义标点变化及有限同义词。
+    fullmatch消费整句，故任意新增时间/否定/结论分句都不能借合法后缀通过。
+    只有通用保修题允许型号或唯一来源订单；具体退货必须保留订单身份。
+    """
+    lamp_order = r'订单1001(?:的(?:明辉护眼台灯)?MH-LP200)?'
+    dispenser = r'(?:明辉饮水机)?MH-WD100'
+    dispenser_order = rf'订单1002(?:的{dispenser})?'
+    eligibility = r'(?:能(?:申请)?退(?:货)?[吗么不]|能不能(?:申请)?退(?:货)?)[？?]?'
+    warranty_subject = rf'(?:{dispenser_order}|{dispenser})'
     patterns = {
-        'dialogue-1-2': r'(?<!不)能(?:不能)?(?:申请)?退(?:货)?(?:吗|么|不)[？?]?$',
-        'dialogue-3-3': r'(?<!不)能(?:不能)?(?:申请)?退(?:货)?(?:吗|么|不)[？?]?$',
-        'dialogue-1-3': r'物流(?:现在|目前)到哪(?:里|儿)?了[？?]?$',
-        'dialogue-5-2': r'申请退货[。.!！]?$',
-        'dialogue-5-3': r'配送进度[。.!！？?]?$',
-        'dialogue-6-2': r'保修(?:期限|期|时间)?(?:是|有|为)?(?:多久|多长(?:时间)?|多少(?:年|个月|天))[？?]?$',
+        'dialogue-1-2': rf'(?:请问)?{lamp_order}{eligibility}',
+        'dialogue-3-3': rf'(?:请问)?{dispenser_order}{eligibility}',
+        'dialogue-1-3': r'(?:请问)?订单1001的物流(?:现在|目前)到哪(?:里|儿)?了[？?]?',
+        'dialogue-5-2': r'(?:请为)?订单1001申请退货[。.!！]?',
+        'dialogue-5-3': r'(?:请)?(?:查|查询)订单1001的配送进度[。.!！？?]?',
+        'dialogue-6-2': rf'(?:请问)?{warranty_subject}的保修(?:期限|期|时间)?(?:是|有|为)?(?:多久|多长(?:时间)?|多少(?:年|个月|天))[？?]?',
     }
     case_id = case.get('id')
-    if case_id is None and '保修' in case['expected_query']:
+    # 兼容独立的同一保修契约测试，不将任意含“保修”的未知题套入本题。
+    if case_id is None and case['expected_query'] == 'MH-WD100的保修期限是多久？':
         case_id = 'dialogue-6-2'
     pattern = patterns.get(case_id)
-    if pattern is None or re.search(r'不要|不申请|不想|没有|不退|昨天|明天|以前|曾经|已经|已签收', query):
-        return False
-    if case_id == 'dialogue-5-3' and not re.search(r'查|查询', query):
-        return False
-    return bool(re.search(pattern, query.strip()))
+    return pattern is not None and re.fullmatch(pattern, query.strip()) is not None
 
 
 def digest(value):
@@ -86,7 +93,6 @@ def score(case, row, history):
         checks['full_passthrough'] = query == case['query']
     if case.get('resolvable'):
         required_models = set(re.findall(r'[A-Z]+-[A-Z0-9]+', case['expected_query']))
-        required_orders = explicit_order_ids(case['expected_query'])
         orders = explicit_order_ids(query or '')
         models = set(re.findall(r'[A-Z]+-[A-Z0-9]+', query or ''))
         order_match = bool(orders) and orders == {case['antecedent']}
