@@ -6,6 +6,7 @@ from typing import Any
 from langchain_core.tools import BaseTool
 
 from app.config import Settings
+from app.orders.types import OrderProvider
 
 
 @dataclass
@@ -23,3 +24,8 @@ class WorkflowRuntime:
     settings: Settings
     deadline: float
     upstream: Any = None
+    order_provider: OrderProvider | None = None
+    workflow_retriever: Any = None
+    understanding: Any = None
+    expander: Any = None
+    user_id: str | None = None

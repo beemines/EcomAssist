@@ -50,3 +50,16 @@ def test_turns_have_independent_mutable_containers():
     first['suggested_actions'].append('handoff')
     first['evidence_payload']['old'] = True
     assert second['suggested_actions'] == [] and second['evidence_payload'] == {}
+
+
+def test_v2_turn_containers_do_not_share_order_or_stage_data():
+    """新增列表和审计账本也必须每轮独立，防止跨轮事实污染。"""
+    first = new_turn_state(conversation_id='c1', user_message_id=1,
+        raw_question='退货', category=None, messages=[HumanMessage('退货')])
+    second = new_turn_state(conversation_id='c1', user_message_id=2,
+        raw_question='政策', category=None, messages=[HumanMessage('政策')])
+    first['retrieval_queries'].append('第一轮查询')
+    first['retrieval_audit']['source'] = 'first'
+    first['stage_usage']['understanding'] = {'actual': 12}
+    assert second['retrieval_queries'] == []
+    assert second['retrieval_audit'] == {} and second['stage_usage'] == {}
