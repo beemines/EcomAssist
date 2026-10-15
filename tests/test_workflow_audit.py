@@ -96,7 +96,7 @@ async def audit_scenarios(root):
             prepared = await service.prepare('1', 'SECRET_SENTINEL 订单')
             events = service.stream(prepared)
             async for event in events:
-                if event.event == 'delta':
+                if event.event == 'citations':
                     break
             await asyncio.wait_for(model.waiting.wait(), 3)
             if name == 'shutdown':

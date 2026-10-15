@@ -137,3 +137,31 @@ MySQL JSON往返使两个政策建议score各偏1ULP，严格Python字典比较�
 中间退款同样实际best0.087793961<0.3218679428；原查询`订单1001的MH-LP200能退货吗`，扩写含旧台灯名，实际chunk109为猫砂盆Max，名称矛盾另已纠正，但没有证据证明名字是低分唯一原因。无300题、无模型/依赖/校准值更换、无新收费循环。此记录供最终审查与用户决定余下修复范围。
 
 失败费用口径另有阻断：上述最后物流user256的终态审计仍为3次调用/3268tokens，但实际还启动并消费了第4个最终模型流。`finalize_answer`在`validate_answer`之后才`record_usage`，晚校验抛错导致该最终流usage未递交。保存的child/terminal记录与SSE只证明缺计路径，不能据此宣称真实全链路费用上限；统一后端修复波需覆盖失败最终流的同步记账。
+
+## 2026-10-16 最终审查修复增量（离线证据）
+
+C1、I1–I5及M2/M3已在统一修复波中处理：澄清先完整验证后公开；Agent两阶段及预算使用规范问题的临时消息；完整物流/订单的唯一可信目标需要当前对应成功读取，合成强制读如实标workflow且保留四工具/五决策预算，真实缺订单仍可澄清；Agent失败/取消尝试进入同步用量快照；固定消解评分增加动作/极性/时间/疑问校验；8003辅助脚本核对精确进程身份与启动来源，拒绝自动认领旧PID文件。详细测试与代码范围见final-fix-report.md。M1无默认未签收运输fixture，明确deferred。
+
+最终修复候选默认全量：**2148 passed、143 skipped、370.87秒**，`.superpowers/sdd/2026-10-15-intent-routing/final-fix-full.log`；真实3308随机自有schema的退款迁移/存储/actions：**27 passed、14.56秒**，`final-fix-mysql.log`。未删除或修改应用已有退款行。收到实际usage的最后一片恰遇期限时，先检查期限会保留估算而未采用收到的actual；额外离线探针已确认此窄记账边界，待控制器裁定，不把全量green覆盖到尚未修改的边界修正。
+
+原七份理解评估观测在最终scorer下追加离线重算：`.cache/intent-routing/offline-semantic-rescore-v2-final.json`，附源文件摘要与scorer实现摘要，**新模型调用0**；实际check和状态没有变化。原48仍43通过/3失败/2阻塞，五个后来定点与原批次分开。评分器曾可把容量请求/无保修结论视为消解通过的反例现在明确失败。
+
+此增量尚不声称新的线上物流通过或整体可交付。原浏览器6/8、两次物流失败、维修政策相关但低于校准闸、原中间退款低分都保留。只允许在控制器批准后复用cid58既有前序，单独执行最后物流点一次；维修不增加付费尝试，质量缺口待明确处置。
+
+### 已确认的最后记账边界修正
+
+收到实际usage片段后先合并账本素材，再检查deadline，过期仍零delta。永久回归先1 failed/17 deselected，修后计费/取消/实际服务审计相关**46 passed/19.50秒**（final-fix-final-accounting-green.log）。控制器明确批准因该新实证缺陷对最终源代码做一次必要全量复跑；2148/143为修正前快照，不冒称最终代码。MySQL27项未重复执行，因为最后变化仅流记账顺序。最终聚合日志为final-fix-final-full.log，实际结果另记。
+
+### 最终源代码与唯一物流定点结果
+
+最终源码聚合 **2149 passed、143 skipped、414.33秒**（6分54秒），`final-fix-final-full.log`，exit0；最终源码manifest在启动新服务后再次核验全部哈希一致。目标MySQL27项仍是相同存储代码验证，没有为最后流顺序修正重复MySQL。
+
+只执行批准的cid58末轮一次：run `85359724-1733-433f-aa07-5ea7e81c8cc3`，使用`--cases logistics-refund-logistics --resume-evidence <92ec17.../results.json>`。请求记录恰为pending-order GET及一条chat POST，原前两轮不重放，没有退款POST。新用户SQL263→模型选择的query_logistics请求264→成功工具结果265→最终助手266；工具结果是订单1001、智能猫砂盆Max、已签收2026-10-13、mock=true、业务日期2026-10-15。SSE中本轮tool_completed success先于任何delta，回答只展示这份当前结果并明确模拟演示，随后done；未再泄露旧台灯信息。截图已目检。
+
+新原始durable completed根为`1f1c8b66-4d7f-67aa-801d-517828cffc3a`，SQL助手与根一致，raw/resolved均`不要退款，我要查订单1001物流。`、intent物流、routebusiness、refund_offer=null、tool_call_count1。此实际点工具来源是**agent**，不是声称触发了工程合成；合成fallback由离线父图回归覆盖并如实标workflow。终态审计**5实际模型调用/6060实际tokens/0估算、2次控制决策/1工具**。源码摘要`66b28b15afa630e5ffa707ca695cb97e3ca57c3a5fd5bdc502d7b53b95d6b756`涵盖本次Agent/nodes修复。
+
+脚本合并来源现在 **7/8 PASS，exit1**；唯一新物流点PASS，退出1是保留的维修失败。不是独立重跑8组；旧六项沿用既有验证来源，原两次物流失败及维修/退款低分原记录不覆盖。baseline/final真实SQL退款仍1行且完整快照相同，工单快照相同；无新申请、删除或状态改写。
+
+旧Task9服务47276在精确CIM创建身份、命令、父进程和日志复验后停止，新helper验证19324→14568、精确工作树/解释器/app-dir及创建时间后保存owner JSON。额外scratch检查最初因CIM微秒与Get-Process100ns（.6262300Z/.6262307Z）精度差异安全拒绝且未停止；修正只用各API实际对应的精确身份，冻结产品helper未修改。8002 PID11740创建时间和命令保持原样。
+
+剩余：维修仍是政策相关但未达到原校准门槛的真实质量缺口，需控制器/用户明确处置；M1继续deferred。未追加维修调用、模型切换或8/48/300批次。整体交付/合并结论留待控制器的一次范围复审及验收处置。

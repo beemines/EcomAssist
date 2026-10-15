@@ -40,6 +40,11 @@ def log_node(state: WorkflowState, node: str, **metadata):
         'route': state['route'], **metadata})
 
 
+def prompt_current(state, current):
+    """规范问题仅投影到模型消息，保留SQL原文和身份不受提示构造影响。"""
+    return current.model_copy(update={'content': state['resolved_question']}, deep=True)
+
+
 def state_evidence(state: WorkflowState, context: WorkflowRuntime):
     """从稳定本轮用户身份拆出完整历史与原始配对，构造预算内证据。"""
     messages = state['messages']
@@ -58,7 +63,7 @@ def state_evidence(state: WorkflowState, context: WorkflowRuntime):
     pending = messages[index + 1:]
     payloads = [json.loads(message.content) for message in pending if isinstance(message, ToolMessage)]
     return build_agent_evidence(system=SystemMessage(EVIDENCE_SYSTEM), turns=turns,
-        current=messages[index], current_tool_messages=pending, payloads=payloads,
+        current=prompt_current(state, messages[index]), current_tool_messages=pending, payloads=payloads,
         budget=context.settings.tool_input_token_budget)
 
 

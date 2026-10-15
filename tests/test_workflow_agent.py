@@ -89,7 +89,7 @@ async def test_final_stream_hides_control_json():
 @pytest.mark.asyncio
 async def test_ticket_never_in_bound_tools():
     """模型可见注册表错误暴露写工具时，本轮实际绑定即失败。"""
-    context, state = setup([control('clarification')], answer='请提供订单号。')
+    context, state = setup([control('clarification')], question='查订单', answer='请提供订单号。')
     await run(context, state)
     assert context.decision_model.bound_tools
     assert 'create_ticket' not in {t.name for t in context.decision_model.bound_tools[0]}

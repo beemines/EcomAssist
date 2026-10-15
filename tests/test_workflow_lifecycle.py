@@ -39,7 +39,8 @@ async def test_disconnect_releases_every_resource(tmp_path, spec):
     store, model = Store(), BlockedModel()
     async with workflow_app(tmp_path, model=model, store=store) as app:
         service = app.state.chat_service
-        response = ManagedChatResponse(service, await service.prepare('1', '我的订单'))
+        prepared = await service.prepare('1', '我的订单')
+        response = ManagedChatResponse(service, prepared)
         disconnect, sent = asyncio.Event(), []
         async def send(message):
             """记录实际首增量，阻止通过缓存全量答案伪装流式。"""
@@ -47,10 +48,11 @@ async def test_disconnect_releases_every_resource(tmp_path, spec):
         task = asyncio.create_task(call_response(response, send, disconnect, spec))
         await asyncio.wait_for(model.waiting.wait(), 3)
         await asyncio.sleep(.02)
-        assert any(b'event: delta' in item.get('body', b'') for item in sent)
+        assert not any(b'event: delta' in item.get('body', b'') for item in sent)
         disconnect.set()
         await asyncio.wait_for(task, 3)
         assert model.closed and store.commits == 0
+        assert prepared.audit['usage']['actual_calls'] + prepared.audit['usage']['estimated_calls'] == 4
         assert not service._tasks
         service.locks.acquire('1').release()
 

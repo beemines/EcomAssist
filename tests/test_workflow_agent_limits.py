@@ -46,7 +46,7 @@ async def test_negative_usage_falls_back_to_estimate():
     """非法上游 usage 不减少预算，最终流缺 usage 也明确记估算。"""
     reply = control('clarification')
     reply.usage_metadata = {'input_tokens': -1, 'output_tokens': 1, 'total_tokens': 0}
-    context, state = setup([reply], answer='请提供订单号。')
+    context, state = setup([reply], question='查订单', answer='请提供订单号。')
     result, _ = await run(context, state)
     assert result['usage']['actual'] == 0 and result['usage']['estimated'] > 2560
     assert result['usage']['estimated_calls'] == 2
@@ -61,7 +61,7 @@ async def test_incomplete_or_faulty_final_never_commits(ending):
         chunks.append(ending)
     elif ending:
         chunks.append(AIMessageChunk('', response_metadata={'finish_reason': ending}))
-    context, state = setup([control('clarification')], chunks=chunks)
+    context, state = setup([control('clarification')], question='查订单', chunks=chunks)
     with pytest.raises((ServiceError, RuntimeError)):
         await run(context, state)
     assert not context.repository.messages and context.model.closed and context.upstream is None
@@ -73,7 +73,7 @@ async def test_malformed_finish_reason_is_service_error(reason):
     """不可哈希结束元数据也必须使用统一协议 ServiceError。"""
     reply = control('clarification')
     reply.response_metadata['finish_reason'] = reason
-    context, state = setup([reply], answer='请提供订单号。')
+    context, state = setup([reply], question='查订单', answer='请提供订单号。')
     with pytest.raises(ServiceError):
         await run(context, state)
     assert context.model.streams == 0 and not context.repository.messages
@@ -112,7 +112,7 @@ async def test_two_forced_tools_leave_only_two_optional_reads():
 @pytest.mark.asyncio
 async def test_final_cancellation_closes_upstream_without_committing():
     """最终模型等待期间取消会主动关闭流，父图不能提交未完成正文。"""
-    context, state = setup([control('clarification')], answer='请提供订单号。')
+    context, state = setup([control('clarification')], question='查订单', answer='请提供订单号。')
     context.model.block = asyncio.Event()
     task = asyncio.create_task(run(context, state))
     for _ in range(100):

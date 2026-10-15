@@ -5,6 +5,7 @@ import logging
 import time
 from dataclasses import asdict
 from typing import Literal
+from uuid import uuid4
 
 import httpx
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -24,8 +25,8 @@ from app.core.llm import model_with_output_budget
 from app.core.sufficiency import QualityDecision
 from app.tools.schemas import FAQArgs
 from app.tools.types import ToolCall
-from app.workflow.nodes import assess_sufficiency, log_node, remaining_timeout
-from app.workflow.after_sales import parse_after_sales_control
+from app.workflow.nodes import assess_sufficiency, log_node, remaining_timeout, prompt_current, observe_usage
+from app.workflow.after_sales import parse_after_sales_control, resolve_order_anchor
 from app.workflow.prompts import KNOWLEDGE_FALLBACK, agent_decision_system, agent_final_system
 from app.workflow.runtime import WorkflowRuntime
 from app.workflow.state import WorkflowState
@@ -48,6 +49,7 @@ class AgentControl(BaseModel):
 
 class _AgentState(WorkflowState, total=False):
     selected: AIMessage | None
+    selected_origin: Literal['agent', 'workflow']
     stop_reason: str | None
     tool_error: dict | None
 
@@ -105,7 +107,7 @@ def _packet(state, context, system: SystemMessage, schema=()):
     budget = context.settings.tool_input_token_budget - schema_cost
     if budget <= 0:
         raise InputTooLong()
-    return build_agent_evidence(system=system, turns=turns, current=current,
+    return build_agent_evidence(system=system, turns=turns, current=prompt_current(state, current),
         current_tool_messages=pending, payloads=payloads, budget=budget)
 
 
@@ -150,6 +152,42 @@ async def _check_evidence(state, runtime, packet):
     return decision.model_dump(), stages
 
 
+def _current_read(state):
+    """完整查单/物流只认可同轮同工具同订单的成功配对；失败读取禁止自动重试。"""
+    if state['route'] != 'business' or state['intent'] not in ('订单', '物流'):
+        return None
+    turns, _, pending, _ = _parts(state)
+    order = resolve_order_anchor(state['raw_question'], state['resolved_question'],
+        [message for turn in turns for message in turn])
+    if order is None:
+        return None
+    name = 'query_logistics' if state['intent'] == '物流' else 'query_order'
+    for request, result in zip(pending[::2], pending[1::2]):
+        if not isinstance(request, AIMessage) or not isinstance(result, ToolMessage):
+            continue
+        call = request.tool_calls[0]
+        if call['name'] == name and call['args'].get('order_id') == order and result.tool_call_id == call['id']:
+            payload = json.loads(result.content)
+            success = result.status == 'success' and 'error' not in payload and payload.get('order_id') == order
+            return name, order, 'success' if success else 'failed'
+    return name, order, 'missing'
+
+
+def _attempt(ledger, messages, schema, output):
+    """进入收费边界前保守记一次尝试，后续用实际usage替换本次估算。"""
+    estimate = estimate_call_input(messages, schema)
+    record_usage(None, ledger, estimated_input=estimate, output_limit=output)
+    return estimate
+
+
+def _settle(state, context, ledger, reply, estimate, output):
+    """替换本次预留并同步发布快照，失败/取消不依赖丢失的图更新。"""
+    ledger.estimated -= estimate + output
+    ledger.estimated_calls -= 1
+    record_usage(reply, ledger, estimated_input=estimate, output_limit=output)
+    observe_usage(context, {'usage': _usage(ledger), 'stage_usage': state['stage_usage']})
+
+
 async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dict:
     """最多五次决策并预留最终预算；协议失败仅记录不含正文的白名单诊断。"""
     context, limits = runtime.context, _limits(runtime.context)
@@ -171,6 +209,8 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
         return {'stop_reason': 'token_budget', 'selected': None}
     model = model_with_output_budget(context.decision_model, context.settings, limits.decision_output_tokens)
     bound = model.bind_tools(list(registry.values()), tool_choice='auto', parallel_tool_calls=False)
+    selected = None
+    estimate = _attempt(ledger, packet.messages, schema, limits.decision_output_tokens)
     try:
         async with asyncio.timeout(remaining_timeout(context, context.settings.llm_timeout_seconds)):
             selected = await bound.ainvoke(packet.messages)
@@ -180,9 +220,9 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
         raise
     except Exception as exc:
         raise ServiceError('upstream_error', '模型服务暂时不可用，请稍后重试。', 502) from exc
+    finally:
+        _settle(state, context, ledger, selected, estimate, limits.decision_output_tokens)
     ensure_answer_active(context.deadline)
-    record_usage(selected, ledger, estimated_input=estimate_call_input(packet.messages, schema),
-        output_limit=limits.decision_output_tokens)
     try:
         call = parse_tool_selection(selected, registry)
     except ToolProtocolError as exc:
@@ -192,13 +232,26 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
             'reason': exc.reason.value, **tool_protocol_diagnostic(selected), 'usage': _usage(ledger)},
             ensure_ascii=True, separators=(',', ':'), allow_nan=False))
         raise
-    update = {'decision_count': state['decision_count'] + 1, 'usage': _usage(ledger), 'selected': None, 'stop_reason': None}
+    update = {'decision_count': state['decision_count'] + 1, 'usage': _usage(ledger), 'selected': None, 'selected_origin': 'agent', 'stop_reason': None}
     log_node(state, 'llm_call', decision_count=update['decision_count'], usage=update['usage'])
     if ledger.remaining < final_reserve:
         return {**update, 'stop_reason': 'token_budget'}
     if call is None:
         control = parse_after_sales_control(selected, state['intent']) if state['route'] == 'after_sales' else _control(selected)
-        return {**update, **control.model_dump()}
+        required = _current_read(state)
+        if required is None:
+            return {**update, **control.model_dump()}
+        name, order, status = required
+        if status == 'failed':
+            raise ServiceError('invalid_answer', '当前订单读取未成功，请稍后重试。', 502)
+        if status == 'success':
+            return {**update, **control.model_dump(), 'reply_mode': 'answer'}
+        # 只替代缺当前观测的终止控制，不增加决策循环或绕过既有四次工具/预算检查。
+        identifier = 'agent_current_' + uuid4().hex
+        selected = AIMessage('', tool_calls=[{'id': identifier, 'name': name, 'args': {'order_id': order}}],
+            response_metadata={'finish_reason': 'tool_calls', 'origin': 'workflow'})
+        update['selected_origin'] = 'workflow'
+        call = ToolCall(identifier, name, {'order_id': order})
     if selected.text.strip():
         raise invalid_output()
     selected, call = _normalize(selected, call, state['raw_question'])
@@ -231,7 +284,8 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
     selected = state['selected'].model_copy(deep=True)
     call = parse_tool_selection(selected, _registry(state, context))
     selected.id = str(await context.repository.append_message(state['conversation_id'], selected))
-    identity = {'tool': call.name, 'tool_call_id': call.id, 'origin': 'agent'}
+    origin = state.get('selected_origin', 'agent')
+    identity = {'tool': call.name, 'tool_call_id': call.id, 'origin': origin}
     runtime.stream_writer({'event': 'status', 'data': {**identity, 'status': 'running'}})
     started = time.monotonic()
     # 同值外层工具期限会抢先取消执行器，必须只让执行器拥有匹配 tool_timeout 的机会。
@@ -241,7 +295,7 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
     result = ToolMessage(json.dumps(outcome.content, ensure_ascii=False, separators=(',', ':'), allow_nan=False),
         tool_call_id=call.id, name=call.name, status=outcome.status)
     result.id = str(await context.repository.append_message(state['conversation_id'], result))
-    trace = {'node': 'tool_node', 'origin': 'agent', 'name': call.name, 'tool_call_id': call.id,
+    trace = {'node': 'tool_node', 'origin': origin, 'name': call.name, 'tool_call_id': call.id,
         'status': outcome.status, 'attempts': outcome.attempts, 'elapsed_seconds': time.monotonic() - started}
     update = {'messages': [*state['messages'], selected, result], 'selected': None,
         'tool_trace': [*state['tool_trace'], trace], 'tool_call_count': state['tool_call_count'] + 1}
@@ -320,24 +374,28 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
     model = model_with_output_budget(context.model, context.settings, limits.final_output_tokens)
     runtime.stream_writer({'event': 'citations', 'data': {'citations': [] if clarification else [asdict(c) for c in packet.citations]}})
     collector, aggregate = FinalAnswerStream(), None
-    context.upstream = model.astream(packet.messages)
+    estimate = _attempt(ledger, packet.messages, [], limits.final_output_tokens)
     try:
+        context.upstream = model.astream(packet.messages)
         async with asyncio.timeout(remaining_timeout(context, context.settings.llm_timeout_seconds)):
             async for chunk in context.upstream:
+                aggregate = chunk if aggregate is None else aggregate + chunk
                 ensure_answer_active(context.deadline)
                 text = collector.accept(chunk)
-                aggregate = chunk if aggregate is None else aggregate + chunk
-                if text:
+                if text and not clarification:
                     runtime.stream_writer({'event': 'delta', 'data': {'text': text}})
         answer = collector.complete(context.deadline)
         if quality:
             validate_answer(answer, collector.reasons, packet, QualityDecision.model_validate(quality))
         if not clarification:
             validate_business_answer(answer, packet, payloads)
-        record_usage(aggregate, ledger, estimated_input=estimate_call_input(packet.messages, []), output_limit=limits.final_output_tokens)
+        _settle(state, context, ledger, aggregate, estimate, limits.final_output_tokens)
+        estimate = None
         if ledger.spent > ledger.budget:
             raise ServiceError('token_budget', '本轮模型预算不足，无法保存回答。', 422)
         ensure_answer_active(context.deadline)
+        if clarification:
+            runtime.stream_writer({'event': 'delta', 'data': {'text': answer}})
         log_node(state, 'finalize_answer', usage=_usage(ledger))
         return {'final_answer': answer, 'quality': quality, 'stage_usage': stages, 'usage': _usage(ledger), 'evidence_payload': packet.payload,
             'citations': [] if clarification else [asdict(c) for c in packet.citations]}
@@ -348,6 +406,8 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
     except Exception as exc:
         raise ServiceError('upstream_error', '模型服务暂时不可用，请稍后重试。', 502) from exc
     finally:
+        if estimate is not None:
+            _settle(state, context, ledger, aggregate, estimate, limits.final_output_tokens)
         upstream, context.upstream = context.upstream, None
         await close_answer_stream(upstream)
 

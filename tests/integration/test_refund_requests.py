@@ -13,7 +13,7 @@ from app.repositories.conversations import ConversationRepository
 from tests.integration.test_refund_migration import refund_schema
 
 
-async def draft_for(db, *, owner='demo-user', order='1001', offer=None, policy=None):
+async def draft_for(db, *, owner='demo-user', order='1001', offer=None, policy=None, reserve_gap=False):
     """由真实SQL消息和演示事实构造独立服务器草稿。"""
     from app.orders.demo import DemoOrderProvider
     from app.refunds.types import RefundDraft
@@ -21,6 +21,11 @@ async def draft_for(db, *, owner='demo-user', order='1001', offer=None, policy=N
     cid = await repo.create(owner)
     uid = await repo.append_message(cid, HumanMessage('订单退货'))
     aid = await repo.append_message(cid, AIMessage('需审核'))
+    if reserve_gap:
+        # 随机独占schema中移动一次端点后再签发草稿，预留中间ID不改变有效授权端点。
+        async with db.session() as session, session.begin():
+            await session.execute(text('UPDATE messages SET id=:new_id WHERE id=:id'), {'id': aid, 'new_id': aid + 1})
+        aid += 1
     snapshot = (await DemoOrderProvider().get_order(user_id='demo-user', order_id='1001')).model_dump(mode='json')
     snapshot.update(user_id=owner, order_id=order)
     return RefundDraft(conversation_id=cid, user_message_id=str(uid), assistant_message_id=str(aid),
@@ -143,17 +148,19 @@ async def test_non_duplicate_integrity_error_propagates(refund_schema):
 async def test_transaction_rechecks_owner_and_sql_turn(refund_schema, fault):
     """服务检查后的SQL变化在短事务再次核对，失效草稿不能写入。"""
     repo = await ready(refund_schema)
-    draft = await draft_for(refund_schema)
+    draft = await draft_for(refund_schema, reserve_gap=fault == 'intervening_user')
     async with refund_schema.session() as session, session.begin():
         if fault == 'owner':
             await session.execute(text("UPDATE conversations SET user_id='changed-owner' WHERE id=:id"), {'id': int(draft.conversation_id)})
         elif fault == 'user_role':
             await session.execute(text("UPDATE messages SET role='assistant' WHERE id=:id"), {'id': int(draft.user_message_id)})
         elif fault == 'intervening_user':
-            # 在已有用户消息与下一条助手之间的自有整数ID中插入新的用户记录。
-            await session.execute(text('UPDATE messages SET id=id+1 WHERE id=:id'), {'id': int(draft.assistant_message_id)})
+            # 草稿两端始终有效，只在预留整数间隙插入用户，隔离中途新轮次谓词。
             await session.execute(text("INSERT INTO messages(id,conversation_id,role,content) VALUES(:id,:cid,'user','新的问题')"),
-                {'id': int(draft.assistant_message_id), 'cid': int(draft.conversation_id)})
+                {'id': int(draft.assistant_message_id) - 1, 'cid': int(draft.conversation_id)})
+            endpoints = (await session.execute(text('SELECT id,role,content FROM messages WHERE id IN (:uid,:aid) ORDER BY id'),
+                {'uid': int(draft.user_message_id), 'aid': int(draft.assistant_message_id)})).all()
+            assert [(row.role, row.content) for row in endpoints] == [('user', draft.raw_question), ('assistant', draft.final_answer)]
         else:
             await session.execute(text('UPDATE messages SET content=:content WHERE id=:id'),
                 {'content': '后来被更改', 'id': int(draft.assistant_message_id)})
