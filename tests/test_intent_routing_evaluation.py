@@ -7,6 +7,89 @@ from langchain_core.messages import AIMessage
 from evals.evaluate_intent_routing import evaluate, score
 
 
+# 七份保存报告中的全部六种实际消解输出；不读取未跟踪的运行文件。
+OBSERVED_RESOLUTIONS = [
+    ('dialogue-1-2', '订单1001的MH-LP200能退货吗'),
+    ('dialogue-1-3', '订单1001的物流现在到哪里了？'),
+    ('dialogue-3-3', '订单1002能退吗'),
+    ('dialogue-5-2', '订单1001申请退货'),
+    ('dialogue-5-3', '请查订单1001的配送进度。'),
+    ('dialogue-6-2', '订单1002的明辉饮水机MH-WD100的保修期限是多久？'),
+]
+
+
+def resolution_checks(identifier, query):
+    """使用真实固定题和来源事实核验完整评分路径。"""
+    from evals.evaluate_intent_routing import CASES, fixture_messages
+    case = next(json.loads(line) for line in CASES.read_text(encoding='utf-8').splitlines()
+                if json.loads(line)['id'] == identifier)
+    return score(case, {'resolved_question': query, 'intent': case['expected_intent'],
+                        'route': case['expected_route']}, fixture_messages(case.get('history_fixture', [])))
+
+
+@pytest.mark.parametrize('identifier,query', OBSERVED_RESOLUTIONS + [
+    ('dialogue-1-2', '请问订单1001能不能申请退货？'),
+    ('dialogue-3-3', '订单1002的明辉饮水机MH-WD100能退货么？'),
+    ('dialogue-1-3', '请问订单1001的物流目前到哪儿了？'),
+    ('dialogue-5-2', '请为订单1001申请退货。'),
+    ('dialogue-5-3', '查询订单1001的配送进度'),
+    ('dialogue-6-2', 'MH-WD100的保修期有多长时间？'),
+    ('dialogue-6-2', '订单1002的保修期限是多少年？'),
+])
+def test_whole_request_accepts_observed_resolutions_and_legitimate_aliases(identifier, query):
+    """全部实际成功输出及有限同义表达仍通过实体与请求双重核验。"""
+    assert all(resolution_checks(identifier, query).values())
+
+
+@pytest.mark.parametrize('identifier,query', [
+    ('dialogue-5-2', '订单1001无需申请退货。'),
+    ('dialogue-5-3', '后天请查订单1001的配送进度。'),
+])
+def test_whole_request_rejects_actual_review_counterexamples(identifier, query):
+    """真实审查反例实体和路由正确，但请求极性或时间改变必须失败。"""
+    checks = resolution_checks(identifier, query)
+    assert checks['entity_preservation'] and checks['intent'] and checks['route']
+    assert checks['resolvable'] is False
+
+
+@pytest.mark.parametrize('negation', ['无需', '无须', '不用', '不必'])
+@pytest.mark.parametrize('template', ['订单1001{word}申请退货。', '{word}为订单1001申请退货。',
+                                      '订单1001申请退货，{word}办理。'])
+def test_whole_request_rejects_changed_polarity(negation, template):
+    """否定出现在主语前后或追加分句均不能靠合法请求尾部蒙混通过。"""
+    assert not resolution_checks('dialogue-5-2', template.format(word=negation))['resolvable']
+
+
+@pytest.mark.parametrize('identifier,query', OBSERVED_RESOLUTIONS)
+@pytest.mark.parametrize('when', ['明天', '后天'])
+@pytest.mark.parametrize('position', ['prefix', 'suffix'])
+def test_whole_request_rejects_new_time_anywhere(identifier, query, when, position):
+    """固定六题任何前后附加时间都改变原请求，不能只检查局部词组。"""
+    changed = when + query if position == 'prefix' else query.rstrip('。？?') + '，' + when
+    assert not resolution_checks(identifier, changed)['resolvable']
+
+
+@pytest.mark.parametrize('identifier,query', [
+    ('dialogue-5-2', '订单1001已经退款，申请退货。'),
+    ('dialogue-5-2', '取消订单1001申请退货。'),
+    ('dialogue-5-2', '订单1001申请退款。'),
+    ('dialogue-5-2', '订单1001可以申请退货。'),
+    ('dialogue-5-2', '订单1001能申请退货吗？'),
+    ('dialogue-5-3', '订单1001已签收，请查订单1001的配送进度。'),
+    ('dialogue-5-3', '不要查询订单1001的配送进度。'),
+    ('dialogue-5-3', '请修改订单1001的配送进度。'),
+    ('dialogue-1-2', '订单1001能退货。'),
+    ('dialogue-1-3', '订单1001的物流到哪里了？'),
+    ('dialogue-6-2', '订单1002无须保修，保修期限是多久？'),
+    ('dialogue-6-2', '订单1002的保修期限是三年。'),
+    ('dialogue-6-2', '订单1002的维修期限是多久？'),
+    ('dialogue-6-2', '据说订单1002的保修期限是多久？'),
+])
+def test_whole_request_rejects_conclusions_changed_actions_and_unsupported_wording(identifier, query):
+    """固定语法保守拒绝结论、改动作及未支持措辞，不冒充通用语义判官。"""
+    assert not resolution_checks(identifier, query)['resolvable']
+
+
 @pytest.mark.parametrize('identifier,query,valid', [
     ('dialogue-6-2', '订单1002的保修期限是多久？', True),
     ('dialogue-6-2', 'MH-WD100的保修期限是多久？', True),
