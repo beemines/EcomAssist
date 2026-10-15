@@ -443,3 +443,51 @@ async def test_cancelled_stage_audit_is_isolated_from_other_conversation(tmp_pat
         assert not service._tasks
         service.locks.acquire('1').release()
         service.locks.acquire('2').release()
+
+
+async def test_resume_sql_turn_validation_respects_saved_remaining_budget(tmp_path):
+    """原轮SQL流水读取必须按保存余量取消，不能等完整新期限才返回504。"""
+    import asyncio
+    import time
+    async with app_context(tmp_path) as (app, client):
+        service = app.state.chat_service
+        original_owner = service.repository.get_user_id
+        async def initial_owner(conversation_id):
+            """确定消费0.200秒原轮活动，保证错误的新全额期限明显长于余量。"""
+            await asyncio.sleep(.2)
+            return await original_owner(conversation_id)
+        service.repository.get_user_id = initial_owner
+        card, _ = await pause(client)
+        service.repository.get_user_id = original_owner
+        state = (await service.graph.aget_state(checkpoint_config('1'))).values
+        assert state['active_elapsed_seconds'] >= .2
+        # 已消费基线由真实预检计时持久化，不改暂停根/中断。
+        service.settings.chat_timeout_seconds = state['active_elapsed_seconds'] + .03
+        original = service.repository.load_messages
+        entered, cancelled = asyncio.Event(), asyncio.Event()
+        owner_calls = 0
+        async def slow_messages(conversation_id):
+            """记录SQL读取是否在原轮余量结束时被取消。"""
+            entered.set()
+            try:
+                await asyncio.sleep(.15)
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+            return await original(conversation_id)
+        async def owner(conversation_id):
+            """超时后不可再开始下一步owner查询。"""
+            nonlocal owner_calls
+            owner_calls += 1
+            return await original_owner(conversation_id)
+        service.repository.load_messages = slow_messages
+        service.repository.get_user_id = owner
+        started = time.monotonic()
+        response = await client.post('/api/conversations/1/actions/select-order', json=selection(card))
+        elapsed = time.monotonic() - started
+        assert response.status_code == 504
+        assert response.json()['code'] == 'upstream_timeout'
+        assert entered.is_set() and cancelled.is_set()
+        assert elapsed < .09, f'原轮仅余0.030秒，SQL预检却执行了{elapsed:.3f}秒'
+        assert owner_calls == 0
+        service.locks.acquire('1').release()

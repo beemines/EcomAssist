@@ -231,12 +231,12 @@ class WorkflowChatService:
                     and payload.order_id in {card['order_id'] for card in receipt.get('cards', [])})
                 if not matches or not (completed or pending and pending['checkpoint_id'] == payload.checkpoint_id):
                     raise ServiceError('selection_conflict', '', 409)
-                await self._verify_sql_turn(conversation_id, state, completed=completed)
                 remaining = remaining_active_seconds(state, limit=self.settings.chat_timeout_seconds)
                 if not completed and remaining <= time.monotonic() - started:
                     raise ServiceError('upstream_timeout', '', 504)
                 deadline = started + remaining
                 async with asyncio.timeout_at(deadline if not completed else started + self.settings.chat_timeout_seconds):
+                    await self._verify_sql_turn(conversation_id, state, completed=completed)
                     runtime = await self._runtime(conversation_id, int(payload.turn_id), state['raw_question'],
                         state.get('category'), deadline, started, state.get('active_elapsed_seconds', 0.0))
                 prepared = PreparedWorkflowChat(conversation_id, int(payload.turn_id), lease, deepcopy(state), runtime, deadline)
