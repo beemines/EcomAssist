@@ -233,6 +233,15 @@ class ConversationStore:
         if conversation_id in self.ended:
             raise ServiceError("conversation_ended", "Conversation has ended.", 409)
 
+    async def get_user_id(self, conversation_id):
+        """明确模拟SQL会话owner接口，不从请求或会话编号生成用户。"""
+        from app.core.errors import ServiceError
+        from app.repositories.conversations import _conversation_id
+        _conversation_id(conversation_id)
+        if conversation_id not in self.users:
+            raise ServiceError('conversation_not_found', 'Conversation does not exist.', 404)
+        return self.users[conversation_id]
+
     # 返回会话审计消息的副本，供历史恢复流程读取。
     async def load_messages(self, conversation_id):
         return list(self.rows.get(conversation_id, []))

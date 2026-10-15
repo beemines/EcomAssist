@@ -29,3 +29,8 @@ class WorkflowRuntime:
     understanding: Any = None
     expander: Any = None
     user_id: str | None = None
+    # 单调钟仅留Runtime；State只保存累计活动秒数，不计用户等候。
+    active_started_at: float | None = None
+    active_elapsed_baseline: float = 0.0
+    # 同步接收已观测计数，外层流取消也不依赖异步事件排空；每轮独立安装。
+    usage_observer: Any = None

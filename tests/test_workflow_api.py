@@ -52,6 +52,7 @@ class Store(ConversationStore):
 async def workflow_app(tmp_path, *, model=None, store=None, faq=None, saver=None, **settings):
     """应用真实拥有 SQLite 生命周期，模型与 SQL 使用离线注入。"""
     service_type()
+    store = store if store is not None else Store()
     app = create_app(fake_settings(workflow_checkpoint_path=tmp_path / 'checkpoints.sqlite', **settings),
         model=model if model is not None else ScriptedWorkflowModel(),
         repository=store if store is not None else Store(), faq_repository=faq or FAQStub(),

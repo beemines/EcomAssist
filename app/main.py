@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.chat import router as chat_router
 from app.api.chat_actions import router as chat_actions_router
+from app.api.order_actions import router as order_actions_router
 from app.api.conversations import router as conversations_router
 from app.api.extract import router as extract_router
 from app.api.rag_evaluations import create_router as evaluation_router
@@ -18,6 +19,9 @@ from app.rag_evaluation.store import RunStore
 from app.config import Settings, load_settings
 from app.workflow.service import WorkflowChatService
 from app.workflow.actions import TicketActionService
+from app.workflow.order_actions import OrderActionService
+from app.orders.demo import DemoOrderProvider
+from app.retrieval.multi import WorkflowRetriever
 from app.workflow.agent import build_agent_graph
 from app.workflow.graph import build_workflow_graph
 from app.workflow.persistence import open_checkpointer, checkpoint_path
@@ -60,8 +64,11 @@ def create_app(
     evaluation_manager: RunManager | None = None,
     chat_service: Any | None = None,
     checkpointer: Any | None = None,
+    order_provider: Any | None = None,
+    workflow_retriever: Any | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
+    order_provider = order_provider if order_provider is not None else DemoOrderProvider()
     owns_database = database is None and repository is None
     if not owns_database and database is None:
         database = getattr(repository, "database", None)
@@ -86,10 +93,15 @@ def create_app(
         if chat_service is not None:
             app.state.chat_service = chat_service
         elif checkpointer is not None:
+            retrieval = workflow_retriever
+            if retrieval is None and getattr(faq_repository, 'retriever', None) is not None:
+                retrieval = WorkflowRetriever(faq_repository.retriever)
             app.state.chat_service = WorkflowChatService(model, repository,
-                lambda context: build_registry(faq_repository, tickets, context), ConversationLocks(), settings,
+                lambda context: build_registry(faq_repository, tickets, context, order_provider=order_provider,
+                    owner_resolver=repository.get_user_id), ConversationLocks(), settings,
                 graph=build_workflow_graph(build_agent_graph(), checkpointer=checkpointer), checkpointer=checkpointer,
-                faq_repository=faq_repository, sufficiency_service=assessment, quality_repository=quality_repository)
+                faq_repository=faq_repository, sufficiency_service=assessment, quality_repository=quality_repository,
+                order_provider=order_provider, workflow_retriever=retrieval)
         service = getattr(app.state, 'chat_service', None)
         # 动作读取同一服务的当前注册表工厂，保留注入与测试的外部资源归属。
         def action_registry(context):
@@ -99,6 +111,7 @@ def create_app(
         app.state.ticket_action_service = (TicketActionService(service.graph, service.repository,
             action_registry, service.executor, service.locks)
             if isinstance(service, WorkflowChatService) else None)
+        app.state.order_action_service = OrderActionService(service) if isinstance(service, WorkflowChatService) else None
         app.state.extraction_service = ExtractionService(model, settings.input_token_budget)
 
     # 在应用启动时准备依赖，并在退出时按注册顺序的逆序释放资源。
@@ -168,6 +181,7 @@ def create_app(
     app.include_router(conversations_router)
     app.include_router(chat_router)
     app.include_router(chat_actions_router)
+    app.include_router(order_actions_router)
     app.include_router(extract_router)
     static_dir = Path(__file__).resolve().parent / "static"
     app.mount("/static", StaticFiles(directory=static_dir), name="static")

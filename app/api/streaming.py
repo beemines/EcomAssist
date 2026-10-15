@@ -53,7 +53,7 @@ class ManagedChatResponse(StreamingResponse):
         await send({"type": "http.response.start", "status": self.status_code, "headers": self.raw_headers})
         async for event in self.events:
             # 终止事件结束响应；服务已在产生 done 前提交完整回答。
-            terminal = event.event in {"done", "error"}
+            terminal = event.event in {"done", "error", "paused"}
             await send({"type": "http.response.body", "body": encode_sse(event), "more_body": not terminal})
             if terminal:
                 return
