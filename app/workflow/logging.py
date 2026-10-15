@@ -22,7 +22,7 @@ _ENUMS = {
     'reason_code': {'retrieval_low_conf', 'self_check'},
     'origin': {'workflow', 'agent'}, 'name': {'query_faq', 'query_order', 'query_logistics', 'query_product'},
     'status': {'success', 'error'}, 'turn_status': {'completed'}, 'action': {'create_ticket'},
-    'outcome': {'success', 'error', 'timeout', 'cancelled', 'disconnected'},
+    'outcome': {'success', 'error', 'timeout', 'cancelled', 'disconnected', 'paused'},
     'code': {'upstream_error', 'upstream_timeout', 'invalid_structured_output', 'invalid_answer',
         'invalid_answer_citations', 'input_too_long', 'token_budget', 'tool_execution_error',
         'tool_timeout', 'invalid_arguments', 'invalid_keyword', 'conversation_ended',
@@ -60,6 +60,11 @@ def safe_fields(values):
             result[key] = value
         elif key == 'usage' and isinstance(value, dict):
             result[key] = {k: v for k, v in value.items() if k in _USAGE and type(v) is int and v >= 0}
+        elif key == 'stage_usage' and isinstance(value, dict):
+            result[key] = {stage: {**safe_fields({'usage': data}).get('usage', {}),
+                **safe_fields({'elapsed_seconds': data.get('elapsed_seconds')})}
+                for stage, data in value.items() if stage in
+                {'understanding', 'classification', 'expansion', 'sufficiency', 'retrieval'} and isinstance(data, dict)}
         elif key in {'prior_pending', 'useful'} and type(value) is bool:
             result[key] = value
         elif key == 'elapsed_seconds' and type(value) in (int, float) and math.isfinite(value) and value >= 0:

@@ -1,5 +1,6 @@
 """订单选择暂停接口；运行依赖不写入检查点。"""
 import math
+import time
 from copy import deepcopy
 from uuid import UUID, uuid4
 
@@ -26,7 +27,15 @@ async def prepare_order_selection(state: WorkflowState, runtime: Runtime[Workflo
         # 此处还没有暂停根快照，禁止预造checkpoint_id。
         'pause_checkpoint_id': None,
     }
-    return {'order_selection': selection, 'turn_status': 'awaiting_order'}
+    return {'order_selection': selection, 'turn_status': 'awaiting_order',
+            'active_elapsed_seconds': active_elapsed(state, context)}
+
+
+def active_elapsed(state, context):
+    """将当前活动段与已消费基线合并；无运行计时的私有调用保留原值。"""
+    if context.active_started_at is None:
+        return state.get('active_elapsed_seconds', 0.0)
+    return context.active_elapsed_baseline + max(0.0, time.monotonic() - context.active_started_at)
 
 
 def await_order_selection(state: WorkflowState, runtime: Runtime[WorkflowRuntime]) -> dict:

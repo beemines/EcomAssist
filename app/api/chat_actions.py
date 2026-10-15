@@ -11,6 +11,9 @@ from app.schemas.chat_actions import TicketActionRequest
 
 
 ERRORS = {
+    'selection_conflict': (409, '选单已经失效或与本轮不匹配，请重新发起。'),
+    'service_unavailable': (503, '服务暂时不可用，请稍后重试。'),
+    'upstream_timeout': (504, '本轮处理超时，请重新发起。'),
     'origin_forbidden': (403, '请求来源不在本机白名单。'),
     'json_required': (415, '写请求必须使用 application/json。'),
     'invalid_request': (422, '请求参数不合法。'),
@@ -63,7 +66,8 @@ class ActionRoute(APIRoute):
         async def handle(request: Request):
             """只返回白名单错误码及安全消息，取消异常继续传播。"""
             try:
-                _guard_write(request)
+                if request.method != 'GET':
+                    _guard_write(request)
                 return await original(request)
             except RequestValidationError:
                 code = 'invalid_request'

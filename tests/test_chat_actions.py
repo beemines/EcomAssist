@@ -293,3 +293,30 @@ async def test_ticket_does_not_transfer_conversation():
         description='损坏', ticket_type='售后')
     assert result['status'] == '待处理' and len(rows) == 1
     assert conversation.status == '进行中'
+
+
+async def test_failed_final_root_cannot_authorize_ticket(tmp_path):
+    """即使最新aget_state投影pending writes为completed，历史定位仍不可创建工单。"""
+    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+    class Saver(AsyncSqliteSaver):
+        """实际saver只拒绝最终completed写入。"""
+        async def aput(self, config, checkpoint, metadata, new_versions):
+            """SQL提交之后留下真实pending writes，复现许可危险边界。"""
+            if checkpoint['channel_values'].get('turn_status') == 'completed':
+                raise OSError('controlled final save failure')
+            return await super().aput(config, checkpoint, metadata, new_versions)
+    tickets, store = Tickets(), Store()
+    async with Saver.from_conn_string(str(tmp_path / 'failed-ticket.sqlite')) as saver:
+        async with workflow_app(tmp_path, model=ScriptedWorkflowModel(intent_replies=[intent('投诉')]),
+                store=store, saver=saver) as app:
+            service = app.state.chat_service
+            service.registry_factory = lambda context: build_registry(FAQStub(), tickets, context)
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://localhost') as client:
+                response = await client.post('/api/chat', json={'conversation_id': '1', 'message': '我要投诉'})
+                assert decode_sse(response.text)[-1][0] == 'error'
+                projected = await service.graph.aget_state(checkpoint_config('1'))
+                assert projected.values['turn_status'] == 'completed'
+                result = await confirm(client, {'assistant_message_id': projected.values['final_message_id'],
+                    'checkpoint_id': projected.config['configurable']['checkpoint_id'],
+                    'ticket_type': '投诉', 'description': '投诉'})
+                assert result.status_code == 422 and tickets.rows == {} and tickets.calls == []

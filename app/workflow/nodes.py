@@ -69,6 +69,16 @@ def prior_history(state):
     return state['messages'][:index]
 
 
+def observe_usage(context, update):
+    """同步递交已记录阶段快照，审计接收失败不能遮蔽原模型异常或取消。"""
+    observer = context.usage_observer
+    if observer is not None:
+        try:
+            observer(update)
+        except Exception:
+            pass
+
+
 async def model_stage(state, runtime, stage, service, operation, messages, *, following=0):
     """预留后续输出和完整最终输入，成功及失败尝试都记录独立阶段成本。"""
     context = runtime.context
@@ -84,10 +94,13 @@ async def model_stage(state, runtime, stage, service, operation, messages, *, fo
             result = await operation()
     except BaseException:
         update = stage_update(state, stage, service, started, messages)
+        observe_usage(context, update)
         runtime.stream_writer({'event': 'usage', 'data': {'stage': stage, **update}})
         log_node(state, stage if stage != 'understanding' else 'resolve_reference', usage=update['usage'])
         raise
-    return result, stage_update(state, stage, service, started, messages)
+    update = stage_update(state, stage, service, started, messages)
+    observe_usage(context, update)
+    return result, update
 
 
 def stage_update(state, stage, service, started, messages):
@@ -268,10 +281,13 @@ async def assess_sufficiency(state, runtime, packet):
         async with asyncio.timeout(remaining_timeout(context, context.settings.llm_timeout_seconds)):
             decision = await context.sufficiency.check(state['resolved_question'], packet, **kwargs)
     except BaseException:
-        runtime.stream_writer({'event': 'usage', 'data': {'stage': 'sufficiency',
-            'stage_usage': consumption(), 'usage': state['usage']}})
+        update = {'stage_usage': consumption(), 'usage': state['usage']}
+        observe_usage(context, update)
+        runtime.stream_writer({'event': 'usage', 'data': {'stage': 'sufficiency', **update}})
         raise
-    return decision, consumption()
+    consumed = consumption()
+    observe_usage(context, {'stage_usage': consumed, 'usage': state['usage']})
+    return decision, consumed
 
 
 async def knowledge_fallback(state: WorkflowState, runtime: Runtime[WorkflowRuntime]) -> dict:
@@ -332,5 +348,7 @@ async def log_response(state: WorkflowState, runtime: Runtime[WorkflowRuntime]) 
         identifier = await runtime.context.repository.append_message(state['conversation_id'], answer)
     answer.id = str(identifier)
     log_node(state, 'log_response', final_message_id=str(identifier), turn_status='completed', usage=state['usage'])
-    update = {'messages': [*state['messages'], answer], 'final_message_id': str(identifier), 'turn_status': 'completed'}
+    from app.workflow.selection import active_elapsed
+    update = {'messages': [*state['messages'], answer], 'final_message_id': str(identifier), 'turn_status': 'completed',
+              'active_elapsed_seconds': active_elapsed(state, runtime.context)}
     return {**update, 'refund_offer': make_refund_offer({**state, **update})}

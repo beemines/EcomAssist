@@ -27,6 +27,20 @@ def checkpoint_config(conversation_id: str, *, checkpoint_id: str | None = None)
     return {'configurable': configurable}
 
 
+async def durable_completed_root(checkpointer, snapshot, conversation_id: str, *, checkpoint_id: str | None = None) -> bool:
+    """核验saver实际completed根，最新模式拒绝pending writes投影；历史模式只读指定根。"""
+    stored = await checkpointer.aget_tuple(checkpoint_config(conversation_id, checkpoint_id=checkpoint_id))
+    if stored is None or stored.config != snapshot.config:
+        return False
+    raw, final = stored.checkpoint['channel_values'], snapshot.values
+    identity = stored.config.get('configurable', {})
+    return (identity.get('thread_id') == conversation_id and identity.get('checkpoint_ns') == ''
+        and raw.get('turn_status') == 'completed' and raw.get('conversation_id') == conversation_id
+        and bool(raw.get('final_message_id')) and all(raw.get(key) == final.get(key) for key in
+        ('user_message_id', 'final_message_id', 'final_answer', 'order_selection', 'refund_offer',
+         'suggested_actions', 'citations')))
+
+
 def checkpoint_path(settings: Settings, project_root: Path) -> Path:
     """相对检查点路径始终锚定项目根目录，绝对配置不受进程 cwd 影响。"""
     configured = settings.workflow_checkpoint_path
