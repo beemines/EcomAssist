@@ -9,7 +9,7 @@ from app.core.tool_history import completed_turns
 from app.repositories.records import MessageRecord, record_from_message
 
 
-_ORDER = re.compile(r'(?:订单(?:号|编号)?\s*(?:为|是)?\s*[:：#]?\s*)([A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*)(?![A-Za-z0-9_-])')
+_ORDER = re.compile(r'(?:(?:订单(?:编号|号码|号)?|单号)\s*(?:为|是)?\s*[:：#]?\s*)([A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*)(?![A-Za-z0-9_-])')
 _MODEL = re.compile(r'(?<![A-Za-z0-9_-])[A-Za-z][A-Za-z0-9]*(?:[-_][A-Za-z0-9]+)+(?![A-Za-z0-9_-])')
 _QUANTITY = re.compile(r'\d+(?:\.\d+)?\s*(?:元|天|小时|个月|年|毫升|升|公斤|千克|克)')
 _DATE = re.compile(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}')
@@ -73,11 +73,13 @@ def validate_resolved_entities(raw_question: str, resolved_question: str, histor
     source = [raw_question]
     for turn in turns:
         turn_ids = _turn_orders(turn)
-        if (not raw_ids and len(latest) > 1) or (turn_ids and not turn_ids <= allowed):
+        if not raw_ids and len(latest) > 1:
             continue
-        source.append(turn[0].content)
+        if not turn_ids or turn_ids <= allowed:
+            source.append(turn[0].content)
         for fact in _order_facts(turn):
-            source.extend(str(fact[key]) for key in ('order_id', 'product_id', 'model', 'signed_at', 'as_of') if key in fact)
+            if fact['order_id'] in allowed:
+                source.extend(str(fact[key]) for key in ('order_id', 'product_id', 'model', 'signed_at', 'as_of') if key in fact)
     source_text = '\n'.join(source)
     for pattern in (_MODEL, _QUANTITY, _DATE):
         if not set(pattern.findall(resolved_question)) <= set(pattern.findall(source_text)):
