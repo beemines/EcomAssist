@@ -1,6 +1,8 @@
 """退款短事务与MySQL唯一键幂等，绝不执行支付或修改工单/订单。"""
 import hashlib
 import json
+import math
+import struct
 
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
@@ -28,6 +30,27 @@ def _receipt(row):
         amount_cents=row.amount_cents, currency=row.currency)
 
 
+def same_policy_snapshot(stored, original, path=()):
+    """仅matches[i].score允许已实测MySQL JSON往返的一ULP，业务/原文/结构严格相等。"""
+    if type(stored) is not type(original):
+        return False
+    if isinstance(stored, dict):
+        return stored.keys() == original.keys() and all(
+            same_policy_snapshot(stored[key], original[key], (*path, key)) for key in stored)
+    if isinstance(stored, list):
+        return len(stored) == len(original) and all(
+            same_policy_snapshot(a, b, (*path, index)) for index, (a, b) in enumerate(zip(stored, original)))
+    if (len(path) == 3 and path[0] == 'matches' and type(path[1]) is int and path[2] == 'score'
+            and type(stored) is float):
+        if not math.isfinite(stored) or not math.isfinite(original):
+            return False
+        # 不按十进制截断、不忽略score；仅相邻IEEE754 double表示被视为同一存储值。
+        first = struct.unpack('>Q', struct.pack('>d', stored))[0]
+        second = struct.unpack('>Q', struct.pack('>d', original))[0]
+        return abs(first - second) <= 1
+    return stored == original
+
+
 def _same_submission(row, draft, reason):
     """所有归属与原始业务字段相同才能返回原收据，绝不覆盖。"""
     return (row.offer_id == draft.offer_id and row.conversation_id == int(draft.conversation_id)
@@ -36,7 +59,7 @@ def _same_submission(row, draft, reason):
         and row.checkpoint_id == draft.checkpoint_id and row.user_id == draft.user_id
         and row.order_id == draft.order_id and row.reason == reason
         and row.amount_cents == draft.amount_cents and row.currency == draft.currency
-        and row.order_snapshot == draft.order_snapshot and row.policy_snapshot == draft.policy_snapshot
+        and row.order_snapshot == draft.order_snapshot and same_policy_snapshot(row.policy_snapshot, draft.policy_snapshot)
         and row.decision_snapshot == draft.decision_snapshot and row.status == '待审核')
 
 

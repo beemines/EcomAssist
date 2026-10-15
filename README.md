@@ -293,3 +293,40 @@ $env:WORKFLOW_CHROMIUM_PATH = 'C:/Users/beemines/AppData/Local/ms-playwright/chr
 第五步的完整原始需求、后续确认及页面纠偏见[第五步提示词](docs/prompts/step-05-workflow-agent.md)，根目录[prompt.md](prompt.md)提供各步入口；开发过程记录在[dev-notes/ch05.md](dev-notes/ch05.md)。
 
 第五步已按用户要求合并到`master`并推送`origin/master`。主分支冒烟2项通过；完整回归与计时测试修正专项分别保留，详见验收记录末尾。演示所用独立工作树继续保留运行资源。
+
+## 意图理解、选单与退款申请演示（2026-10-15）
+
+本次功能演示地址为 [http://127.0.0.1:8003/](http://127.0.0.1:8003/)，单 worker，检查点独立于仍保留的8002。八意图先理解再分类；整句固定社交零模型，纯政策FAQ不选单、不扩写；具体退货/维修先确认演示订单再检索政策。订单业务时间固定2026-10-15且标注mock。退款表单只有明确提交才保存“待审核”申请，不执行支付、不修改订单或人工状态。维修不转为退款。
+
+先核对当前 `.env` 的数据库目标（不打印密码），再显式准备申请表；启动过程只校验，不自动迁移：
+
+```powershell
+uv run --locked python -c "from app.config import load_settings; s=load_settings(); print(s.mysql_host,s.mysql_port,s.mysql_database,s.mysql_user)"
+uv run --locked python -m app.refunds.cli init
+uv run --locked python -m app.refunds.cli verify
+$env:WORKFLOW_CHECKPOINT_PATH = 'runtime/workflow/intent-routing-8003.sqlite'
+uv run --locked uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8003 --workers 1
+```
+
+订单卡片只在服务正式暂停后可点选，刷新会重新核验当前待选状态；新消息使旧卡失效。退款入口来自原始完成根的服务许可，表单六类原因必选、金额只读。取消/Esc不提交，成功另起服务通知气泡。相同申请重试幂等，不同会话针对已有同单待审申请返回409；不删除已有申请来制造新建成功。演示身份校验不等于生产鉴权。
+
+评估缺省全部未执行且零上游调用；真实执行必须遵守已批准的固定范围和gate，不循环整批刷分：
+
+```powershell
+uv run --locked python -m evals.evaluate_intent_routing --mode understanding --split acceptance --output .cache/intent-routing/new-dry.json
+# 经授权：acceptance固定16轮一次；协议/边界gate确认后development固定32轮一次。
+uv run --locked python -m evals.evaluate_intent_routing --mode understanding --split acceptance --live --output .cache/intent-routing/new-acceptance.json
+# 仅定点修复；--previous可重复传入已有有效观测报告，不重新调用前序。
+uv run --locked python -m evals.evaluate_intent_routing --mode understanding --split acceptance --live --case-id dialogue-1-4 --previous .cache/intent-routing/acceptance-live.json --output .cache/intent-routing/new-point.json
+# 真实浏览器固定八组；重启脚本只能操作自己启动的8003，不能停止8002。
+node scripts/verify-intent-routing-browser.cjs --url http://127.0.0.1:8003/ --mode live --restart-script scripts/start-intent-routing-demo.ps1
+# 导入浏览器已有SQL/SQLite证据；本命令不发送聊天、不重复申请。
+uv run --locked python -m evals.evaluate_intent_routing --mode chat --split acceptance --live --evidence .cache/intent-routing-browser/live/<实际run-id>/results.json --output .cache/intent-routing/new-chat-evidence.json
+```
+
+报告拒绝覆盖已有输出，保留所有失败、Prompt/样例哈希、原输出、真实分母及实际/估算usage。失败依赖轮blocked，不用金标补上下文；跨Prompt修复带历史来源，不能混算为独立单Prompt48题通过。默认测试和受控浏览器不证明真实模型质量。当前已执行范围、真实失败及SQL/根状态证据见[本次验收记录](docs/validation/2026-10-15-intent-routing-acceptance.md)，开发记录见[dev-notes/ch06.md](dev-notes/ch06.md)。
+
+本机锁定依赖已安装时，Windows受限环境实际验证等价使用 `.venv/Scripts/python.exe -m ...`，设置 `PYTHONUTF8=1`、`PYTHONPATH` 为本工作树完整路径；没有同步或更改依赖。真实存储专项为 `pytest tests/integration/test_refund_migration.py tests/integration/test_refund_requests.py tests/integration/test_workflow_actions.py --run-mysql -q`，只操作3308随机自有库，不清理应用业务行。
+
+
+当前真实验收仍有物流澄清最终流在校验前展示未验证历史事实的阻断项，以及维修政策低于原校准门槛的答复缺口；不能把定点修复混算为独立48题或八组全通过。原始失败、真实SQL申请与最终审查/回归边界均在上述验收记录中。

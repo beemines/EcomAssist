@@ -1,6 +1,7 @@
 """一次严格 JSON 调用完成指代理解和口语归一，不在此处分类或查询订单。"""
 import asyncio
 import math
+import re
 from dataclasses import dataclass
 
 import httpx
@@ -15,6 +16,17 @@ from app.core.tool_history import build_tool_messages
 from app.workflow.entities import completed_history, validate_resolved_entities
 from app.workflow.intent import social_fast_path
 from app.workflow.prompts import UNDERSTANDING_SYSTEM
+
+
+_LEADING_GREETING = re.compile(r'^(?:你好|您好|嗨|哈喽)[，,！!。\.\s]+')
+
+
+def preserve_dropped_greeting(raw_question: str, resolved_question: str) -> str:
+    """仅模型删去明确问候且后缀逐字相同时还原原话，不推断任何业务语义。"""
+    prefix = _LEADING_GREETING.match(raw_question)
+    if prefix is not None and raw_question[prefix.end():] == resolved_question:
+        return raw_question
+    return resolved_question
 
 
 @dataclass(frozen=True)
@@ -83,6 +95,7 @@ class QueryUnderstanding:
                 or raw.tool_calls or raw.invalid_tool_calls or raw.additional_kwargs.get('tool_calls')):
             raise invalid_output(finish_reason=raw.response_metadata.get('finish_reason') if isinstance(raw, AIMessage) else None)
         result = validate_structured_output(output, _UnderstandingOutput)
-        validate_resolved_entities(raw_question, result.query, messages[1:-1])
+        query = preserve_dropped_greeting(raw_question, result.query)
+        validate_resolved_entities(raw_question, query, messages[1:-1])
 
-        return Resolution(result.query, result.query != raw_question)
+        return Resolution(query, query != raw_question)
