@@ -50,6 +50,14 @@ class ConversationRepository:
         async with self.database.session() as session, session.begin():
             _require_conversation(await session.get(Conversation, identifier))
 
+    # 从 SQL 会话记录读取可信演示身份，不使用模型或浏览器携带的用户标识。
+    async def get_user_id(self, conversation_id: str) -> str:
+        identifier = _conversation_id(conversation_id)
+        async with self.database.session() as session, session.begin():
+            conversation = await session.get(Conversation, identifier)
+            _require_conversation(conversation, open_only=False)
+            return conversation.user_id
+
     # 校验消息及工具对应关系后入库，事务提交成功才返回消息主键。
     async def append_message(self, conversation_id: str, message: BaseMessage) -> int:
         identifier = _conversation_id(conversation_id)

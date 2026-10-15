@@ -1,0 +1,8 @@
+{
+  "orders": [
+    {"user_id":"demo-user","order_id":"1001","product_id":"MH-LP200","product_name":"明辉护眼台灯","model":"MH-LP200","category":"电子商品","status":"已签收","amount_cents":19900,"currency":"CNY","signed_at":"2026-10-13","as_of":"2026-10-15","mock":true,"fixture_version":"2026-10-15-v1"},
+    {"user_id":"demo-user","order_id":"1002","product_id":"MH-WD100","product_name":"明辉饮水机","model":"MH-WD100","category":"电子商品","status":"已签收","amount_cents":59900,"currency":"CNY","signed_at":"2026-09-15","as_of":"2026-10-15","mock":true,"fixture_version":"2026-10-15-v1"},
+    {"user_id":"demo-user","order_id":"1003","product_id":"MH-BG100","product_name":"明辉旅行背包","model":"MH-BG100","category":"箱包","status":"待发货","amount_cents":25900,"currency":"CNY","signed_at":null,"as_of":"2026-10-15","mock":true,"fixture_version":"2026-10-15-v1"},
+    {"user_id":"demo-user","order_id":"1004","product_id":"MH-CU100","product_name":"个人定制刻字水杯","model":"MH-CU100","category":"个人定制商品","status":"已签收","amount_cents":9900,"currency":"CNY","signed_at":"2026-10-13","as_of":"2026-10-15","mock":true,"fixture_version":"2026-10-15-v1"}
+  ]
+}
