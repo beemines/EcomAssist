@@ -9,7 +9,7 @@ from openai import ContentFilterFinishReasonError, LengthFinishReasonError
 from pydantic import ValidationError
 
 from app.core.errors import InputTooLong, ServiceError
-from app.knowledge.types import Embedder, embedding_text
+from app.knowledge.types import Embedder, VectorHit, embedding_text
 from app.repositories.knowledge import KnowledgeRepository
 from app.retrieval.milvus import HybridMilvusIndex
 from app.retrieval.query import QueryPlanner
@@ -76,6 +76,13 @@ def _log_rewrite_failure(exc: BaseException, *, degraded: bool = False) -> None:
     logger.warning(message, code, type(exc).__name__)
 
 
+def _ensure_active() -> None:
+    """下层吞掉计时器或调用方取消也不能让迟到结果进入下一阶段。"""
+    task = asyncio.current_task()
+    if task is not None and task.cancelling():
+        raise asyncio.CancelledError()
+
+
 class RetrievalService:
     # 只组合调用方管理的依赖，不创建客户端或改变其生命周期。
     def __init__(self, repository: KnowledgeRepository, embedder: Embedder,
@@ -138,18 +145,46 @@ class RetrievalService:
             [plan.standard, *plan.expansions, raw_question]))
         index_strategy = 'hybrid' if strategy == 'hybrid_rerank' else strategy
         hits = await self.index.recall(vector, text, strategy=index_strategy, category=category)
-        # 首次出现决定候选位置与召回分数；去重后才进入拒绝重复主键的仓储。
+        return await self.finalize_candidates(question=raw_question, plan=plan, candidates=hits,
+                                              category=category, strategy=strategy)
+
+    async def recall_candidates(self, query: str, *, category: str | None = None) -> list[VectorHit]:
+        """单条完整查询仅做嵌入与原生hybrid，去重截断50；不调用规划或重排。"""
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError('query must be nonempty text')
+        if len(query) > 512:
+            raise InputTooLong()
+        validate_category(category)
+        vectors = await self.embedder.embed([query])
+        _ensure_active()
+        hits = await self.index.recall(vectors[0], query, strategy='hybrid', category=category)
+        _ensure_active()
         by_id = {}
         for hit in hits:
             by_id.setdefault(hit.id, hit)
+        return list(by_id.values())[:50]
+
+    async def finalize_candidates(self, *, question: str, plan: QueryPlan, candidates: list[VectorHit],
+                                  category: str | None, strategy: str) -> RetrievalBundle:
+        """复用四策略的权威回填与至多一次重排，最终最多十条证据。"""
+        _ensure_active()
+        if strategy not in ('dense', 'bm25', 'hybrid', 'hybrid_rerank'):
+            raise ValueError('invalid retrieval strategy')
+        validate_category(category)
+        # 首次出现决定候选位置与召回分数；去重后才进入拒绝重复主键的仓储。
+        by_id = {}
+        for hit in candidates:
+            by_id.setdefault(hit.id, hit)
         candidates = list(by_id.values())[:50]
         rows = await self.repository.get_done([hit.id for hit in candidates]) if candidates else []
+        _ensure_active()
         authoritative = {row.id: row for row in rows if row.vectorize_status == 'done'
                          and (category is None or row.category == category)}
         valid = [(hit, authoritative[hit.id]) for hit in candidates if hit.id in authoritative]
         if strategy == 'hybrid_rerank' and valid:
             # 重排位置始终映射到实际提交的权威正文，不映射到含缺行的原召回列表。
-            ranked = await self.reranker.rank(raw_question, [embedding_text(row) for _, row in valid], top_n=10)
+            ranked = await self.reranker.rank(question, [embedding_text(row) for _, row in valid], top_n=10)
+            _ensure_active()
             matches = [ScoredChunk(valid[hit.index][1], hit.score, 'rerank') for hit in ranked[:10]]
         else:
             score_kind = {'dense': 'cosine', 'bm25': 'bm25', 'hybrid': 'rrf', 'hybrid_rerank': 'rerank'}[strategy]
