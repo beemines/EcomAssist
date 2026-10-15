@@ -9,8 +9,8 @@
   <title>MewHelp · 智能客服</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='14' fill='%23286659'/%3E%3Cpath d='M14 17h20v19H14zM19 17v-3a5 5 0 0 1 10 0v3' fill='none' stroke='white' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E">
   <!-- 先加载样式，defer 脚本等 DOM 解析完成后再绑定输入与按钮事件。 -->
-  <link rel="stylesheet" href="/static/chat.css?v=20261014-dialog2">
-  <script src="/static/chat.js?v=20261014-dialog2" defer></script>
+  <link rel="stylesheet" href="/static/chat.css?v=20261015-intent">
+  <script src="/static/chat.js?v=20261015-intent" defer></script>
 </head>
 <body>
   <!-- 复用同一组内联 SVG 图标，其他区域通过 use 引用，避免依赖外部图标请求。 -->
@@ -65,7 +65,7 @@
           <!-- 同一个按钮在回复期间切换为停止，键盘发送兼容中文输入法选词。 -->
           <div class="composer-bottom"><span id="composer-hint">Enter 发送 · Shift + Enter 换行</span><button type="submit" id="send-button" class="send-button" aria-label="发送消息" disabled><svg><use href="#icon-send"/></svg></button></div>
         </form>
-        <p class="fine-print">订单、商品与物流查询使用演示数据，转人工为页面模拟；建工单需要点击确认。</p>
+        <p class="fine-print">订单使用 2026-10-15 演示数据，转人工为页面模拟；工单和退款申请需亲自提交，退款仅登记待审核。</p>
       </footer>
     </main>
   </div>
@@ -99,6 +99,19 @@
         </fieldset>
         <p id="ticket-error" class="ticket-error" role="alert" hidden></p>
         <div class="ticket-footer"><button type="button" id="ticket-cancel" class="ticket-cancel">取消</button><button type="submit" id="ticket-submit" class="ticket-submit">提交工单</button></div>
+      </div>
+    </form>
+  </dialog>
+  <!-- 退款金额只读，原因由用户必选；只在明确提交时申请登记待审核。 -->
+  <dialog class="source-dialog ticket-dialog refund-dialog" id="refund-dialog" aria-labelledby="refund-title" aria-describedby="refund-intro">
+    <form id="refund-form">
+      <header class="source-header"><div><p class="source-eyebrow">售后申请</p><h2 id="refund-title">提交退款申请</h2></div><button type="button" id="refund-close" class="source-close" aria-label="关闭退款表单">×</button></header>
+      <div class="ticket-content">
+        <p class="ticket-intro" id="refund-intro">提交后登记为待审核，不会立即退款。订单为演示数据。</p>
+        <dl class="refund-summary"><dt>订单</dt><dd id="refund-order"></dd><dt>申请金额（只读）</dt><dd id="refund-amount"></dd></dl>
+        <fieldset id="refund-fields"><label for="refund-reason">退款原因 <span aria-hidden="true">*</span></label><select id="refund-reason" name="reason" required></select></fieldset>
+        <p id="refund-error" class="ticket-error" role="alert" hidden></p>
+        <div class="ticket-footer"><button type="button" id="refund-cancel" class="ticket-cancel">取消</button><button type="submit" id="refund-submit" class="ticket-submit">提交申请 · 待审核</button></div>
       </div>
     </form>
   </dialog>

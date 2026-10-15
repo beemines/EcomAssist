@@ -1067,6 +1067,20 @@ textarea:disabled {
 .ticket-submit { border:1px solid #346e5e; border-radius:10px; color:#fff; background:#286556; padding:11px 19px; font:inherit; font-size:13px }
 .ticket-submit:hover:not(:disabled) { background:#1e5548 }
 .ticket-submit:disabled { opacity:.6; cursor:wait }
+/* 订单摘要与退款沿用浅绿主题，窄屏卡片自动收为单列，长编号可换行。 */
+.order-selection { white-space:normal; margin-top:12px }
+.order-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr)); gap:10px }
+.order-card { border:1px solid #d5e2ce; border-radius:13px; padding:15px; background:#fbfdf8; min-width:0 }
+.order-card h3 { margin:0 0 8px; font-size:14px; font-weight:600 }
+.order-card p { margin:3px 0; font-size:12px; color:#718267; overflow-wrap:anywhere }
+.order-card button { margin-top:12px }
+.order-selection-status { font-size:12px; color:#7a896d; margin:10px 0 0 }
+.refund-summary { display:grid; grid-template-columns:1fr; gap:7px; padding:16px; margin:0 0 20px; background:#eef4e8; border:1px solid #dce7d4; border-radius:13px; overflow-wrap:anywhere }
+.refund-summary dt { font-size:11px; color:#7a8b70 }
+.refund-summary dd { margin:0 0 6px; font-size:14px; line-height:1.8 }
+.refund-dialog .ticket-content { background:#f9fcf5 }
+.refund-entry { margin-top:12px; white-space:normal }
+.order-card button:focus-visible,.refund-entry button:focus-visible { outline:2px solid #286659; outline-offset:3px }
 .source-header {
   display:flex;
   align-items:center;
