@@ -21,7 +21,9 @@ def refund_policy_question(question: str, order: OrderSnapshot) -> str:
         '于', '在', '，', ',', '。', '？', '?', '；', ';', '：', ':'))
     # 比较、多订单、未知型号或边界碰撞不做政策概括；不删除任何后缀实体。
     if (not starts_request or '退' not in suffix or re.search(r'[A-Za-z]', suffix)
-            or any(word in suffix for word in ('订单', '和', '与', '比', '或者', '还是', '以及', '另'))
+            or any(word in suffix for word in (
+                '订单', '和', '与', '比', '跟', '同', '一样', '一致', '区别', '差异',
+                '或者', '还是', '以及', '另'))
             or any(identity and identity in suffix for identity in (order.model, order.product_name))):
         return question
     punctuation = '' if suffix.endswith(('？', '?', '。', '.', '！', '!', '；', ';')) else '？'
