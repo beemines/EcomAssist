@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from app.core.errors import ServiceError
 from tests.test_evidence import payload
-from tests.test_workflow_agent import control, run, setup
+from tests.test_workflow_agent import NOTICE, control, run, setup
 from tests.workflow_fakes import workflow_call
 
 
@@ -85,10 +85,14 @@ async def test_second_turn_cannot_reuse_old_quality_or_citation():
 
 @pytest.mark.asyncio
 async def test_mock_business_answer_must_keep_mock_meaning():
-    """模拟工具结果不能被模型表述为真实订单已发货。"""
+    """服务器补说明后可完成；共享验证器仍拒绝没有说明的模拟事实。"""
+    from app.core.answer_validation import validate_business_answer
+    from app.core.evidence import EvidencePacket
     context, state = setup([workflow_call(), control()], answer='您的订单已发货。')
+    result, events = await run(context, state)
+    assert result['final_answer'] == NOTICE + '您的订单已发货。'
     with pytest.raises(ServiceError):
-        await run(context, state)
+        validate_business_answer('您的订单已发货。', EvidencePacket({}, [], [], None, 'none'), [{'mock': True}])
     assert len(context.repository.messages) == 2
 
 
@@ -215,7 +219,7 @@ async def test_captured_two_step_business_citations_remain_strictly_rejected():
     assert error.value.code == 'invalid_answer_citations'
     assert modes == ['answer']
     assert [event['data']['citations'] for event in events if event['event'] == 'citations'] == [[]]
-    assert ''.join(event['data']['text'] for event in events if event['event'] == 'delta') == captured
+    assert ''.join(event['data']['text'] for event in events if event['event'] == 'delta') == NOTICE + captured
     assert all(event['event'] != 'done' for event in events)
     assert [message.type for message in context.repository.messages] == ['ai', 'tool', 'ai', 'tool']
     assert context.model.streams == 1 and context.decision_model.decisions == 3
