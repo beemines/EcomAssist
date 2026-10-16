@@ -21,6 +21,20 @@ from app.workflow.prompts import UNDERSTANDING_SYSTEM
 _LEADING_GREETING = re.compile(r'^(?:你好|您好|嗨|哈喽)[，,！!。\.\s]+')
 
 
+def build_understanding_messages(raw_question: str, history: list[BaseMessage], budget: int) -> list[BaseMessage]:
+    """先校验完整轮次，再仅投影订单来源配对；原整轮预算裁剪仍最后执行。"""
+    turns = []
+    for turn in completed_history(history):
+        kept = [turn[0]]
+        for request, result in zip(turn[1:-1:2], turn[2:-1:2]):
+            if request.tool_calls[0]['name'] in {'query_order', 'query_logistics'}:
+                # 原错误结果也原样保留，事实资格仍由实际保留消息的实体校验决定。
+                kept.extend((request, result))
+        turns.append([*kept, turn[-1]])
+    return build_tool_messages(SystemMessage(UNDERSTANDING_SYSTEM), turns,
+        HumanMessage(raw_question), budget, tool_schema=[])
+
+
 def preserve_dropped_greeting(raw_question: str, resolved_question: str) -> str:
     """仅模型删去明确问候且后缀逐字相同时还原原话，不推断任何业务语义。"""
     prefix = _LEADING_GREETING.match(raw_question)
@@ -69,8 +83,7 @@ class QueryUnderstanding:
         self.usage = dict.fromkeys(self.usage, 0)
         if social_fast_path(raw_question):
             return Resolution(raw_question, False)
-        messages = build_tool_messages(SystemMessage(UNDERSTANDING_SYSTEM), completed_history(history),
-            HumanMessage(raw_question), self.input_budget, tool_schema=[])
+        messages = build_understanding_messages(raw_question, history, self.input_budget)
         cost = estimate_call_input(messages, [])
         # 调用已开始即保守计费；有原始实测响应时在协议校验前替换。
         ledger = UsageLedger()

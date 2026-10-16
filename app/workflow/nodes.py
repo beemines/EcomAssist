@@ -12,13 +12,12 @@ from app.core.errors import ServiceError
 from app.core.evidence import build_agent_evidence
 from app.core.llm import model_with_output_budget
 from app.agent.controls import UsageLedger, estimate_call_input, reserve_call
-from app.core.tool_history import build_tool_messages
 from app.orders.types import OrderSnapshot
 from app.workflow.after_sales import make_refund_offer, resolve_order_anchor
 from app.workflow.policy_scoring import refund_policy_question
-from app.workflow.entities import completed_history
+from app.workflow.understanding import build_understanding_messages
 from app.workflow.selection import prepare_order_selection, await_order_selection
-from app.workflow.prompts import UNDERSTANDING_SYSTEM, EXPANSION_SYSTEM, build_intent_messages, agent_final_system, agent_decision_system
+from app.workflow.prompts import EXPANSION_SYSTEM, build_intent_messages, agent_final_system, agent_decision_system
 from app.workflow.intent import IntentClassifier, route_intent, social_fast_path
 from app.workflow.prompts import COMPLAINT_RESPONSE, EVIDENCE_SYSTEM, KNOWLEDGE_FALLBACK, OTHER_RESPONSE, SOCIAL_RESPONSE
 from app.workflow.runtime import WorkflowRuntime
@@ -125,8 +124,7 @@ async def resolve_reference(state: WorkflowState, runtime: Runtime[WorkflowRunti
     if context.understanding is None:
         raise ValueError('query understanding is required')
     history = prior_history(state)
-    messages = build_tool_messages(SystemMessage(UNDERSTANDING_SYSTEM), completed_history(history),
-        HumanMessage(state['raw_question']), context.settings.tool_input_token_budget, tool_schema=[])
+    messages = build_understanding_messages(state['raw_question'], history, context.settings.tool_input_token_budget)
     result, update = await model_stage(state, runtime, 'understanding', context.understanding,
         lambda: context.understanding.resolve(state['raw_question'], history), messages, following=2)
     return {**update, 'resolved_question': result.query, 'turn_status': 'running'}
