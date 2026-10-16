@@ -86,12 +86,34 @@ async def test_sufficient_score_content_check_still_uses_complete_question():
     ('订单1001的MH-LP200与其他商品相比能退货吗', '订单1001的MH-LP200与其他商品相比能退货吗'),
     ('订单1001的MH-LP200，订单1002也能退吗', '订单1001的MH-LP200，订单1002也能退吗'),
     ('MH-LP200能退货吗', 'MH-LP200能退货吗'),
-    ('订单1001能退货吗', '订单1001能退货吗'),
+    ('订单1001能退货吗', SCORING),
     ('订单1001的MH-LP200', '订单1001的MH-LP200'),
 ])
 async def test_trusted_prefix_preserves_suffix_or_falls_back(question, expected):
     *_, reranker, plans = await run_retrieval(question)
     assert reranker.calls[0][0] == expected
+
+
+async def test_exact358_bare_bound_order_uses_policy_scoring_without_changing_recalls():
+    question = '订单1001能退吗'
+    state, update, quality, ctx, embedder, index, planner, reranker, plans = await run_retrieval(question)
+    expected = '电子商品于2026-10-13签收，能退吗？退货期限与适用条件是什么？'
+    assert reranker.calls[0][0] == update['retrieval_audit']['rerank_question'] == expected
+    assert len(reranker.calls) == 1 and len(index.calls) == 3
+    assert embedder.texts == [question, *QUERIES[1:]]
+    assert plans[0].standard == state['resolved_question'] == question
+    assert quality['quality']['source'] == 'retrieval_low_conf' and not ctx.sufficiency.calls
+
+
+@pytest.mark.parametrize('question', [
+    '订单10010能退吗', '订单1001A能退吗', '订单1001-2能退吗',
+    '订单1001的未知型号能退吗', '订单1001的MH-UNKNOWN能退吗',
+    '订单1001二代能退吗', '订单1001能退吗，跟猫窝一样吗',
+    '订单1001能退吗，订单1002也能退吗',
+])
+async def test_bare_order_extension_keeps_unknown_or_comparative_suffix(question):
+    *_, reranker, plans = await run_retrieval(question)
+    assert reranker.calls[0][0] == question
 
 
 @pytest.mark.parametrize('question', [

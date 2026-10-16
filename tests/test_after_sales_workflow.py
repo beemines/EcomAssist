@@ -28,9 +28,10 @@ def context(intent='退款退货', *, data=None):
             assert order.order_id in ('1001', '1002')
             return (question, order.model + '退货及保修政策')
     class Retrieve:
-        async def retrieve(self, *, question, queries, category):
+        async def retrieve(self, *, question, queries, category, rerank_question=None):
             """将原过滤条件和查询保存供真实图行为断言。"""
             ctx.retrieved = (question, queries, category)
+            ctx.rerank_question = rerank_question
             return WorkflowRetrieval(data if data is not None else payload(('七天内退货需完好；质量问题可申请保修。',)), {'query_count': len(queries)})
     ctx.expander, ctx.workflow_retriever = Expand(), Retrieve()
     return ctx
@@ -67,6 +68,7 @@ async def test_refund_loads_order_before_expand_and_policy():
     assert result['order_snapshot']['order_id'] == '1001'
     assert result['tool_call_count'] == 2 and result['retrieval_audit'] == {'query_count': 2}
     assert ctx.retrieved[2] == '售后'
+    assert ctx.rerank_question == '电子商品于2026-10-13签收，能退吗？退货期限与适用条件是什么？'
     current = result['messages'][1:-1]
     assert [m.type for m in current] == ['ai', 'tool', 'ai', 'tool']
     assert current[1].tool_call_id == current[0].tool_calls[0]['id']
