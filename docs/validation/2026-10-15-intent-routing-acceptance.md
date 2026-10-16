@@ -1,6 +1,8 @@
 # 意图分流：浏览器验收记录
 
-最新状态（2026-10-16）：本次结构化报错已按实际智谱契约修正为auto+json_object（08f0889）。相关394项通过、限定审查PASS；获授权的一次精确输入诊断及Computer Use三条固定问句全部通过，SQL最终答案与各轮done精确检查点一致，见文末。8003已加载，退款1/工单10不变。两条物流实际由既有Workflow当前读取保护执行，不能把本次结果称为Agent自主工具调用已验收；原48题、合并浏览器7/8和维修质量缺口仍未关闭。此前73c9原生控制修正的真实user286失败及所有历史证据保留，2266/143是该前版结果，不是当前增量全量结果。
+最新状态（2026-10-16，用户连续场景定点修复）：当前84b3626及本轮静态页面在8003 PID44084完成真实Computer Use四轮连续验收，SQL364–379与各轮精确done根核对PASS；退货判定needs_review并有申请入口，到货追问补全订单1001并重新查物流，乱码明确澄清。来源119原文、退款表单打开取消、实际加粗均已验证。相关回归129项、理解视图218项、最终流107项分别通过，限定审查均PASS；没有重跑或宣称本版全量。退款1/工单10保持，失败358产生的问题池id13原样保留（总13）。完整证据与中间失败见文末；原48题、合并7/8和维修质量缺口仍未关闭，不称整章全通过。
+
+前次状态（2026-10-16，结构化协议定点）：本次结构化报错已按实际智谱契约修正为auto+json_object（08f0889）。相关394项通过、限定审查PASS；获授权的一次精确输入诊断及Computer Use三条固定问句全部通过，SQL最终答案与各轮done精确检查点一致，见文末。8003已加载，退款1/工单10不变。两条物流实际由既有Workflow当前读取保护执行，不能把本次结果称为Agent自主工具调用已验收；原48题、合并浏览器7/8和维修质量缺口仍未关闭。此前73c9原生控制修正的真实user286失败及所有历史证据保留，2266/143是该前版结果，不是当前增量全量结果。
 
 前次结论（2026-10-16，历史）：实现任务及先前限定复审关闭C1/I1–I5/M2/M3；用户随后在会话64的原句暴露间歇性首个Agent决策协议错误，增量bbedb0e前置原生必需读取约束，相关352项回归及独立限定审查通过。Computer Use在同一会话提交原句一次已通过，SQL269–272与完成根一致，详见文末。完整2214通过/143跳过（394.84秒）属于增量前7398b27版本，不能冒充当前新增量全量结果；相关真实MySQL专项27项的存储代码未再改。原浏览器合并证据仍7/8，维修有效答复缺口未完成。原48题43通过/3失败/2阻塞及所有历史失败均保留，后续定点修复分开记录；不称独立48题或八组全通过，也不作生产就绪承诺。
 
@@ -267,3 +269,50 @@ Computer Use直接控制用户已有IAB tab4：先保存原两条失败截图，
 证据在.cache/intent-routing：bigmodel-json-browser-verification.json、bigmodel-json-final-verification.json、native-control-json-candidate-result.json、bigmodel-json-case1/2/3.png、case3-ax.txt及本次独立服务日志。根控制器已目检case2及case3截图。旧native-control-case1-failed.png、原生控制首次失败/SQL286–288、原48题43/3/2、合并浏览器7/8和维修有效答复缺口全部保留；本节仅关闭这三条固定场景的结构化报错，不作整章全通过或生产就绪承诺。未merge/push。
 
 演示：在本工作树执行 `pwsh -NoProfile -File scripts/start-intent-routing-demo.ps1`，打开 http://127.0.0.1:8003/ 。相关回归准确文件清单和保存日志见.cache/intent-routing/bigmodel-json-fix-report.md；本章过程见dev-notes/ch06.md。
+
+## 2026-10-16：连续退款追问修正的中间失败
+
+- user305已正确补全1001/MH-LP200，但原政策评分低。6438923/740c2bf仅限定已绑定已签收退款的独立评分输入，保留原召回问题、阈值、自评与条件待审核；三个固定BGE对照实际完成，不做大批量重校准。
+- user333到货追问误作退款，a61acbc补充物流/金融边界；离线174项及限定审查通过，不代替GLM准确率。
+- user338真实检索/充分性通过，但生成漏模拟说明导致最终失败。ab18b75由服务端固定说明，原始流/引用/预算/结束校验保留；107专项通过、限定审查PASS。
+- PID43884下真实343物流、347退款完整成功，119来源及1001/199元空白原因表单打开取消通过；353再问到货仍失败。精确离线重建发现8000预算下该轮理解实际没有任何历史（仅2消息），最新退款FAQ太大使整轮裁剪丢失订单。拟以同预算、同次模型调用的只读订单/物流历史投影统一预留与实际输入；候选7063/14消息保留1001，修正真实验收待后续记录。
+
+这些失败与截图、SQL和检查点继续保留。没有通过重放直到成功来覆盖原结果；每次修正对应一个已定位原因，不称本章全部通过。原48题43通过/3失败/2阻塞、合并7/8、维修质量缺口仍保持原计数。
+
+## 2026-10-16：本次定点最终真实验收
+
+源码84b362657dae5891b493cb3724a174b698230d92，页面JS版本20261016-refund-followup；单worker8003 PID44084，保留8002，仍用原模型/阈值/预算/零重试。Computer Use复用用户IAB tab4、会话64，不清理SQL或检查点历史、不注入金标或受控接口。以下四轮是在同一最终版本依次完成的真实聊天：
+
+| 原句 | SQL用户→最终 | 实际规范问题/分流 | 结果 |
+| --- | --- | --- | --- |
+| 我的订单1001到哪了 | 364→367 | 原样；物流/business | 当前query_logistics，已签收且明确模拟；真实strong节点“已签收”无字面星号 |
+| 这个能退吗 | 368→373 | 订单1001能退货吗；退款退货/after_sales | 先query_order再政策检索，useful=true、needs_review，有申请入口；不承诺必退或到账日期 |
+| 那大概什么时候到 | 374→377 | 订单1001的包裹大概什么时候到；物流/business | 重新query_logistics；据已签收状态说明无待配送预计时间，无退款选单 |
+| slkfnsiogn | 378→379 | 原样；其他/other | 明确“不太确定您的意思”并请补充具体问题，无工具或申请建议 |
+
+精确完成根（按终态done身份读取，不取下一轮prepare沿用字段）：
+
+- 364：1f1c95f2-f8cd-6a6f-80b2-ec1b9e85d379
+- 368：1f1c95f5-5778-668c-80bd-4f9e7413a8db
+- 374：1f1c95fa-f5d3-6160-80c3-8078076716e7
+- 378：1f1c95fc-c6f6-6efc-80c9-40ea0a53904c
+
+只读核验命令：`.venv/Scripts/python.exe .cache/intent-routing/verify-refund-followup-browser.py 364,368,374,378`，PYTHONUTF8=1、PYTHONPATH为本工作树。exit0/PASS，产物`.cache/intent-routing/refund-followup-browser-verification.json`。逐项核对原56消息未改、每轮唯一success、最终正文/SQL ID/完成检查点一致、工具配对、无控制JSON落SQL或协议错误、退款许可绑定1001与373、自评/实际评分问法、所有增量冻结哈希。退款1/工单10不变；问题池从12变13，新增id13来自已记录的358误拒答，原行/原因/时间严格保留且无再次入池，不伪称全程计数不变。该行快照`refund-followup-retained-failure.json`。
+
+368实际评分问法为“电子商品于2026-10-13签收，能退货吗？退货期限与适用条件是什么？”，原规范问题和3条召回查询不改。两条物流实际仍由既有Workflow当前读取保护执行，不冒充Agent原生自主工具选择。四轮主账本实际22154 tokens/17 calls，另368充分性自评1613 tokens/1 call，总23767/18；嵌入与重排调用另计。没有启动48/300大批量评估。
+
+页面点本轮[2]显示`退货退款政策/无理由退货/适用范围`、chunk119原文；点373的申请按钮展示主题表单：订单1001/只读199元、退款原因初始空白、固定六类、提交待审核；只取消，不提交。独立查看实际截图，正文、弹窗、输入区均正常，未只凭AX或状态徽章认定成功：
+
+- `.cache/intent-routing/refund-followup-final-refund.png`
+- `.cache/intent-routing/refund-followup-final-source.png`
+- `.cache/intent-routing/refund-followup-final-form.png`
+- `.cache/intent-routing/refund-followup-final-logistics-bold.png`
+- `.cache/intent-routing/refund-followup-final-delivery.png`
+- `.cache/intent-routing/refund-followup-final-clarification.png`
+- `.cache/intent-routing/refund-followup-final-ax.txt`
+
+实现/验证边界：6438923/740c2bf/84b3626限定政策评分及OTHER措辞；a61acbc补理解边界；ab18b75固定模拟说明；5d2a9e7统一理解来源视图。最终受影响评分五文件129通过（5.78秒），理解五文件218通过（9.01秒），最终流六文件107通过（9.09秒），均为各次有新变更后的相关检查，不相加冒充独立全量；之前120/174和前版2266/143各保留其版本归属。独立限定审查报告`refund-followup-review.md`、`followup333-review.md`、`refund338-notice-review.md`、`followup353-projection-review.md`、`refund358-bare-order-review.md`均在同cache。前端按Vibe例外直接修改，node --check通过；正文仅安全DOM加粗及本轮引用，不解析任意HTML。
+
+原305/333/338/353/358失败与相应诊断、截图、SQL/检查点均保留。CUA流式重绘期间一次数字引用目标失效，刷新AX后使用同一可见aria语义定位成功；一次waitFor虽给55秒但IAB约3秒超时，仅观察等待失败，没有重复发送聊天。没有为取证而重放已成功四轮或增加额外格式问句。本次仅关闭用户提供的连续退款/到货/乱码/格式问题；原48题43通过/3失败/2阻塞、合并7/8及维修质量缺口不变，未作生产就绪或整章通过承诺。
+
+演示：`pwsh -NoProfile -File scripts/start-intent-routing-demo.ps1`，打开`http://127.0.0.1:8003/`，依次发送表内四句。退款只在用户亲自提交表单后登记待审核。本次保留开发分支，没有merge/push。
