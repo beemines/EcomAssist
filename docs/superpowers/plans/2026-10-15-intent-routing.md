@@ -118,6 +118,8 @@ assert len(cases) == 48 and sum(c['split'] == 'acceptance' for c in cases) == 16
 - `QueryExpander(model,*,input_budget:int,timeout_seconds:float)`；`async expand(question:str,order:OrderSnapshot)->tuple[str,...]`，原始 JSON 恰为 queries；首条等于规范问题，总数 2～3，每条不空且 ≤512 字符，空白去重后仍满足数量；usage 与理解器同口径。
 - `RetrievalService.recall_candidates(query:str,*,category:str|None=None)->list[VectorHit]`：单查询 hybrid 前 50，不调用旧 planner/重排。
 - `RetrievalService.finalize_candidates(*,question:str,plan:QueryPlan,candidates:list[VectorHit],category:str|None,strategy:str)->RetrievalBundle`：提取原权威回填/重排尾段，原 retrieve 仍按既有四策略调用它，保留返回契约。
+
+2026-10-16退款追问修正补记：`finalize_candidates`与`WorkflowRetriever.retrieve`增加内部可选`rerank_question: str | None = None`，默认仍用规范问题；仅可信已签收退款的无歧义前置订单/商品身份锚可按设计§4.2补记产生独立政策评分问法，审计留实际值。单查询、其他策略、非退款/歧义保持原行为；首条与所有召回、原问题、自评、Agent和分数阈值不变。三次同50条文档的对比、风险裁决和限定回归见本轮退款追问开发记录，不扩大成整套评估。
 - `WorkflowRetrieval(payload:dict,audit:dict)`；`WorkflowRetriever(retriever:RetrievalService)` 的 `async retrieve(*,question:str,queries:tuple[str,...],category:str|None)->WorkflowRetrieval`。一条显式 QueryPlan(expansions=[])；多条独立召回后第二层 RRF；payload 仍用 faq_payload，额外 provenance/counts 只放 audit，不突破证据 Schema。
 
 - [ ] **Step 1 — 扩写样例核对：** 退款/维修各给明确检索角度；既有“商品完好未知”不得扩成“商品完好”，未提质量原因不得写成已确认质量故障。纯 FAQ 不调用本扩写器。

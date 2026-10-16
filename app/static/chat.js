@@ -433,28 +433,37 @@ sourceDialog.addEventListener("click", (event) => {
       event.clientY < bounds.top || event.clientY > bounds.bottom) closeSource();
 });
 
-// 重绘已收到的正文，完整且存在于本轮映射的 [n] 才变成可访问按钮。
-// 增量末尾的半个编号先隐藏，下一批到齐后再显示，其他文字仍按原文逐字绘制。
+// 仅用安全DOM呈现完整加粗和本轮引用，正文中的HTML、链接等仍作为文字显示。
+function appendAnswerContent(parent, text, citations) {
+  let offset = 0;
+  for (const match of text.matchAll(/\*\*([^*\n]+)\*\*|\[([1-9]\d*)\]/g)) {
+    let node;
+    if (match[1] !== undefined) {
+      node = document.createElement("strong");
+      appendAnswerContent(node, match[1], citations);
+    } else {
+      const citation = citations.get(match[2]);
+      if (!citation) continue;
+      node = document.createElement("button");
+      node.type = "button";
+      node.className = "citation-button";
+      node.textContent = match[0];
+      node.setAttribute("aria-label", "查看来源 " + citation.n + "：" + (citation.section_path || citation.question));
+      // 闭包仍绑定本轮来源，加粗里的引用也可以独立点开。
+      node.addEventListener("click", () => openSource(citation, node));
+    }
+    parent.append(document.createTextNode(text.slice(offset, match.index)), node);
+    offset = match.index + match[0].length;
+  }
+  parent.append(document.createTextNode(text.slice(offset)));
+}
+
+// 重绘已收到的正文；增量末尾的半个编号到齐后才显示。
 function renderAnswer(state) {
   let visible = state.visible;
   if (!state.networkFinished || state.queue.length) visible = visible.replace(/\[\d*$/, "");
   const fragment = document.createDocumentFragment();
-  let offset = 0;
-  for (const match of visible.matchAll(/\[([1-9]\d*)\]/g)) {
-    const citation = state.citations.get(match[1]);
-    if (!citation) continue;
-    fragment.append(document.createTextNode(visible.slice(offset, match.index)));
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "citation-button";
-    button.textContent = match[0];
-    button.setAttribute("aria-label", "查看来源 " + citation.n + "：" + (citation.section_path || citation.question));
-    // 点击闭包绑定当前回答的来源对象，后续回复的同号引用不会覆盖它。
-    button.addEventListener("click", () => openSource(citation, button));
-    fragment.append(button);
-    offset = match.index + match[0].length;
-  }
-  fragment.append(document.createTextNode(visible.slice(offset)));
+  appendAnswerContent(fragment, visible, state.citations);
   state.text.replaceChildren(fragment);
 }
 
