@@ -94,6 +94,18 @@ async def test_trusted_prefix_preserves_suffix_or_falls_back(question, expected)
     assert reranker.calls[0][0] == expected
 
 
+@pytest.mark.parametrize('question', [
+    '订单1001的MH-LP200能退货吗，跟猫窝的规则一样吗',
+    '订单1001的MH-LP200能退货吗，跟猫窝的规则不同吗',
+    '订单1001的MH-LP200能退货吗，同猫窝的规则一致吗',
+    '订单1001的MH-LP200能退货吗，猫窝的规则有何区别',
+])
+async def test_other_product_comparisons_retain_complete_scoring_question(question):
+    """泛化焦点商品会丢失比较适用性，常见中文比较必须保持原评分问句。"""
+    *_, reranker, plans = await run_retrieval(question)
+    assert reranker.calls[0][0] == question
+
+
 @pytest.mark.parametrize('overrides', [
     {'intent': '售后'}, {'intent': '商品咨询', 'route': 'knowledge'},
     {'owner': 'different-user'}, {'selected': '1002'},
