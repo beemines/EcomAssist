@@ -203,3 +203,15 @@ I4独立限定复审已完成：六条固定题的整句语义契约**ADDRESSED*
 本次只读健康检查8002和8003均HTTP200，原8002 PID11740、新8003 PID14568保持；没有聊天POST、退款/工单新记录或服务重启。现有功能入口为http://127.0.0.1:8003/；从此工作树启动命令为`powershell -NoProfile -File scripts/start-intent-routing-demo.ps1`。完整默认回归与显式MySQL命令见前文；143项默认跳过不等于对应集成全部通过，真实存储证明限定为单列的27项。
 
 全部执行裁决及判断错误时的代价，按账本顺序完整保存在[执行裁决记录](2026-10-16-intent-routing-decisions.md)。开发过程已逐阶段记于[dev-notes/ch06.md](../../dev-notes/ch06.md)。当前feat/intent-routing分支保留；未合并master、未推送远程，等待用户选择整合方式。
+
+## 2026-10-16：user64 原句失败的限定增量（离线已验证，线上待验）
+
+用户“我的订单1001到哪了”在cid64两次invalid_structured_output，原失败仍保留。日志显示理解/分类成功、Agent首决策无工具节点；旧原始响应未留存，不能确定坏载荷形状。同请求的一次诊断实际返回合法query_logistics，仅证明间歇性。现有唯一可信当前读取策略只在合法控制后fallback，首次仍auto，这是本次修复的具体边界缺口。
+
+首次business订单/物流且唯一可信目标、当前读取missing、对应工具确在注册表时，将同一规范工具名传入原生tool_choice；模型仍生成参数，既有执行器/所有权/SQL及四工具五决策、32000/60秒/零重试/2048控制/512最终预算保留。成功或失败读取后、无目标/多目标/明确未选单、knowledge/after_sales/其他意图均auto；合法注入模型控制的原fallback保留。官方bind_tools文档与锁定langchain-openai1.6.7支持exactname，离线真实SDK HTTP边界确认序列化为function/name，无新增依赖。
+
+控制校验失败与工具混正文分别输出固定control_schema/tool_body安全类别，只有可信会话/用户身份、有界计数、白名单finish和账本；没有原响应、字段名/值、问题历史、异常文本或推理内容。仍invalid_structured_output/502、仅尝试计费、无最终SQL、无重试。新增私密标记测试是观测性验证，不能称为原坏响应重现。
+
+有效RED：7failed/8passed/29deselected、7.67秒、exit1（user64-red-valid.log）；首次GREEN44passed、4.99秒；一次相关17文件回归352passed、42.80秒（user64-focused.log，精确文件见.cache/intent-routing/user64-fix-report.md）；清除测试旧死分支后该文件31passed、4.90秒。GREEN及后续回归exit0，git diff --check通过。无真实模型/SQL/服务/浏览器操作，无全量默认重跑；旧2214/143仍是本修复前证据。本增量等待控制器限定审查、拥有权复验重启及一次原句浏览器结果，未宣称线上已恢复。
+
+原48题43通过/3失败/2阻塞、合并来源浏览器7/8、维修有效答复缺口、M1未签收夹具待办全部保留；本修复不改变其分母或结论。未merge/push。
