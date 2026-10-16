@@ -128,20 +128,48 @@ async def test_finish_diagnostic_normalizes_values_and_bounds_counts(finish, nor
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('case', ['valid_tool', 'valid_control', 'control_error', 'upstream_error'])
+@pytest.mark.parametrize('case', ['valid_tool', 'valid_control', 'upstream_error'])
 async def test_success_and_non_protocol_failures_do_not_emit_protocol_warning(case, caplog):
     """成功申请、成功控制以及其他失败不能伪造或重复记录协议诊断。"""
     reply = workflow_call() if case == 'valid_tool' else control('clarification')
-    if case == 'control_error':
-        reply.content = SECRET
     if case == 'upstream_error':
         reply = ServiceError('upstream_error', SECRET, 502)
     context, state = setup([reply])
     with caplog.at_level(logging.WARNING):
-        if case in ('control_error', 'upstream_error'):
+        if case == 'upstream_error':
             with pytest.raises(ServiceError):
                 await llm_call(state, Runtime(context=context))
         else:
             result = await llm_call(state, Runtime(context=context))
             assert result['decision_count'] == 1
     assert not [record for record in caplog.records if record.name == 'app.workflow.agent']
+
+
+@pytest.mark.parametrize('case,reason', [('control_schema', 'control_schema'), ('tool_body', 'tool_body')])
+async def test_invalid_decision_stage_is_private_accounted_and_still_rejected(case, reason, caplog):
+    """新增可观测性用例，并不声称复现未保存的线上坏响应。"""
+    reply = workflow_call('query_logistics', {'order_id': '1001'}) if case == 'tool_body' else control()
+    reply.content = SECRET if case == 'tool_body' else json.dumps({SECRET: SECRET})
+    reply.additional_kwargs['reasoning_content'] = SECRET
+    reply.response_metadata.update(reasoning_content=SECRET, conversation_id=SECRET, user_message_id=SECRET)
+    reply.usage_metadata = {'input_tokens': 10, 'output_tokens': 5, 'total_tokens': 15}
+    context, state = setup([reply], question='我的订单1001到哪了', intent='物流')
+    observed = []
+    context.usage_observer = observed.append
+    with caplog.at_level(logging.WARNING), pytest.raises(ServiceError) as caught:
+        await llm_call(state, Runtime(context=context))
+    assert (caught.value.code, caught.value.status_code) == ('invalid_structured_output', 502)
+    records = [r for r in caplog.records if r.name == 'app.workflow.agent']
+    assert len(records) == 1 and records[0].exc_info is None
+    data = json.loads(records[0].getMessage())
+    assert data['event'] == 'agent_decision_protocol_failure' and data['reason'] == reason
+    assert data['conversation_id'] == 'session' and data['user_message_id'] == '1'
+    assert data['usage'] == observed[-1]['usage'] == {'actual': 15, 'actual_calls': 1,
+        'estimated': 0, 'estimated_calls': 0}
+    assert data['finish'] == ('tool_calls' if case == 'tool_body' else 'stop')
+    assert set(data) == {'event', 'conversation_id', 'user_message_id', 'reason', 'usage',
+        'tool_call_count', 'invalid_tool_call_count', 'raw_tool_call_count', 'finish',
+        'raw_tool_calls_invalid_type'}
+    assert SECRET not in caplog.text and SECRET not in str(caught.value)
+    assert not context.repository.messages and context.model.streams == 0
+    assert context.decision_model.decisions == 1

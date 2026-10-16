@@ -208,7 +208,10 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
             raise
         return {'stop_reason': 'token_budget', 'selected': None}
     model = model_with_output_budget(context.decision_model, context.settings, limits.decision_output_tokens)
-    bound = model.bind_tools(list(registry.values()), tool_choice='auto', parallel_tool_calls=False)
+    required = _current_read(state)
+    # 将既有必读策略提前传给原生工具协议，参数仍由模型及执行器校验。
+    choice = required[0] if required and required[2] == 'missing' and required[0] in registry else 'auto'
+    bound = model.bind_tools(list(registry.values()), tool_choice=choice, parallel_tool_calls=False)
     selected = None
     estimate = _attempt(ledger, packet.messages, schema, limits.decision_output_tokens)
     try:
@@ -237,8 +240,15 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
     if ledger.remaining < final_reserve:
         return {**update, 'stop_reason': 'token_budget'}
     if call is None:
-        control = parse_after_sales_control(selected, state['intent']) if state['route'] == 'after_sales' else _control(selected)
-        required = _current_read(state)
+        try:
+            control = parse_after_sales_control(selected, state['intent']) if state['route'] == 'after_sales' else _control(selected)
+        except ServiceError as exc:
+            if exc.code == 'invalid_structured_output':
+                logger.warning(json.dumps({'event': 'agent_decision_protocol_failure',
+                    'conversation_id': state['conversation_id'], 'user_message_id': state['user_message_id'],
+                    'reason': 'control_schema', **tool_protocol_diagnostic(selected), 'usage': _usage(ledger)},
+                    ensure_ascii=True, separators=(',', ':'), allow_nan=False))
+            raise
         if required is None:
             return {**update, **control.model_dump()}
         name, order, status = required
@@ -253,6 +263,10 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
         update['selected_origin'] = 'workflow'
         call = ToolCall(identifier, name, {'order_id': order})
     if selected.text.strip():
+        logger.warning(json.dumps({'event': 'agent_decision_protocol_failure',
+            'conversation_id': state['conversation_id'], 'user_message_id': state['user_message_id'],
+            'reason': 'tool_body', **tool_protocol_diagnostic(selected), 'usage': _usage(ledger)},
+            ensure_ascii=True, separators=(',', ':'), allow_nan=False))
         raise invalid_output()
     selected, call = _normalize(selected, call, state['raw_question'])
     _, _, pending, _ = _parts(state)
