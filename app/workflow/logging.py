@@ -21,6 +21,7 @@ _ENUMS = {
     'route': {'knowledge', 'business', 'complaint', 'social', 'other', 'after_sales'},
     'reason_code': {'retrieval_low_conf', 'self_check'},
     'origin': {'workflow', 'agent'}, 'name': {'query_faq', 'query_order', 'query_logistics', 'query_product'},
+    'decision_transport': {'business_tool', 'native_control', 'legacy_json'},
     'status': {'success', 'error'}, 'turn_status': {'completed'}, 'action': {'create_ticket', 'submit_refund'},
     'outcome': {'success', 'error', 'timeout', 'cancelled', 'disconnected', 'paused'},
     'code': {'upstream_error', 'upstream_timeout', 'invalid_structured_output', 'invalid_answer',

@@ -26,13 +26,14 @@ from app.core.sufficiency import QualityDecision
 from app.tools.schemas import FAQArgs
 from app.tools.types import ToolCall
 from app.workflow.nodes import assess_sufficiency, log_node, remaining_timeout, prompt_current, observe_usage
-from app.workflow.after_sales import parse_after_sales_control, resolve_order_anchor
+from app.workflow.after_sales import AfterSalesControl, parse_after_sales_control, resolve_order_anchor, validate_after_sales_control
 from app.workflow.prompts import KNOWLEDGE_FALLBACK, agent_decision_system, agent_final_system
 from app.workflow.runtime import WorkflowRuntime
 from app.workflow.state import WorkflowState
 
 
 logger = logging.getLogger(__name__)
+INTERNAL_RESPONSE_CONTROL = 'internal_response_control'
 
 
 class AgentControl(BaseModel):
@@ -195,7 +196,13 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
     if state['decision_count'] >= limits.max_decisions:
         return {'stop_reason': 'step_limit', 'selected': None}
     registry = _registry(state, context)
-    schema = [convert_to_openai_tool(tool) for tool in registry.values()]
+    if INTERNAL_RESPONSE_CONTROL in context.registry:
+        raise ValueError('Internal response control conflicts with business registry')
+    control_type = AfterSalesControl if state['route'] == 'after_sales' else AgentControl
+    control_schema = convert_to_openai_tool(control_type)
+    control_schema['function'].update(name=INTERNAL_RESPONSE_CONTROL,
+        description='内部响应控制：证据已足够或需要澄清时选择，只设置最终回复模式与建议，不执行业务动作。')
+    schema = [convert_to_openai_tool(tool) for tool in registry.values()] + [control_schema]
     ledger = _ledger(state, limits)
     try:
         packet = _packet(state, context, agent_decision_system(state['intent'], after_sales=state['route'] == 'after_sales'), schema)
@@ -210,8 +217,8 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
     model = model_with_output_budget(context.decision_model, context.settings, limits.decision_output_tokens)
     required = _current_read(state)
     # 将既有必读策略提前传给原生工具协议，参数仍由模型及执行器校验。
-    choice = required[0] if required and required[2] == 'missing' and required[0] in registry else 'auto'
-    bound = model.bind_tools(list(registry.values()), tool_choice=choice, parallel_tool_calls=False)
+    choice = required[0] if required and required[2] == 'missing' and required[0] in registry else 'required'
+    bound = model.bind_tools([*registry.values(), control_schema], tool_choice=choice, parallel_tool_calls=False)
     selected = None
     estimate = _attempt(ledger, packet.messages, schema, limits.decision_output_tokens)
     try:
@@ -227,7 +234,8 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
         _settle(state, context, ledger, selected, estimate, limits.decision_output_tokens)
     ensure_answer_active(context.deadline)
     try:
-        call = parse_tool_selection(selected, registry)
+        # 仅本次协议解析允许内部控制；执行器和持久化仍只持有业务注册表。
+        call = parse_tool_selection(selected, {**registry, INTERNAL_RESPONSE_CONTROL: control_type})
     except ToolProtocolError as exc:
         # 默认 WARNING 和普通消息格式也可见，不能附带上游异常或整个模型对象。
         logger.warning(json.dumps({'event': 'agent_tool_protocol_failure',
@@ -236,12 +244,33 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
             ensure_ascii=True, separators=(',', ':'), allow_nan=False))
         raise
     update = {'decision_count': state['decision_count'] + 1, 'usage': _usage(ledger), 'selected': None, 'selected_origin': 'agent', 'stop_reason': None}
-    log_node(state, 'llm_call', decision_count=update['decision_count'], usage=update['usage'])
+    native_control = call is not None and call.name == INTERNAL_RESPONSE_CONTROL
+    transport = 'native_control' if native_control else 'legacy_json' if call is None else 'business_tool'
+    log_node(state, 'llm_call', decision_count=update['decision_count'], usage=update['usage'], decision_transport=transport)
     if ledger.remaining < final_reserve:
         return {**update, 'stop_reason': 'token_budget'}
-    if call is None:
+    if call is not None and selected.text.strip():
+        logger.warning(json.dumps({'event': 'agent_decision_protocol_failure',
+            'conversation_id': state['conversation_id'], 'user_message_id': state['user_message_id'],
+            'reason': 'tool_body', **tool_protocol_diagnostic(selected), 'usage': _usage(ledger)},
+            ensure_ascii=True, separators=(',', ':'), allow_nan=False))
+        raise invalid_output()
+    _, _, pending, _ = _parts(state)
+    requests = [message for message in pending if isinstance(message, AIMessage)]
+    if call is not None and any(request.tool_calls[0]['id'] == call.id for request in requests):
+        raise ServiceError('upstream_error', '模型重复使用了工具调用标识。', 502)
+    if call is None or native_control:
         try:
-            control = parse_after_sales_control(selected, state['intent']) if state['route'] == 'after_sales' else _control(selected)
+            if native_control:
+                try:
+                    control = control_type.model_validate(call.args)
+                except ValidationError as exc:
+                    raise invalid_output() from exc
+                if state['route'] == 'after_sales':
+                    control = validate_after_sales_control(control, state['intent'])
+            else:
+                # 兼容旧/注入客户端的严格JSON，不修补正文，不作为请求协议。
+                control = parse_after_sales_control(selected, state['intent']) if state['route'] == 'after_sales' else _control(selected)
         except ServiceError as exc:
             if exc.code == 'invalid_structured_output':
                 logger.warning(json.dumps({'event': 'agent_decision_protocol_failure',
@@ -262,17 +291,7 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
             response_metadata={'finish_reason': 'tool_calls', 'origin': 'workflow'})
         update['selected_origin'] = 'workflow'
         call = ToolCall(identifier, name, {'order_id': order})
-    if selected.text.strip():
-        logger.warning(json.dumps({'event': 'agent_decision_protocol_failure',
-            'conversation_id': state['conversation_id'], 'user_message_id': state['user_message_id'],
-            'reason': 'tool_body', **tool_protocol_diagnostic(selected), 'usage': _usage(ledger)},
-            ensure_ascii=True, separators=(',', ':'), allow_nan=False))
-        raise invalid_output()
     selected, call = _normalize(selected, call, state['raw_question'])
-    _, _, pending, _ = _parts(state)
-    requests = [message for message in pending if isinstance(message, AIMessage)]
-    if any(request.tool_calls[0]['id'] == call.id for request in requests):
-        raise ServiceError('upstream_error', '模型重复使用了工具调用标识。', 502)
     if any(call_signature(ToolCall(request.tool_calls[0]['id'], request.tool_calls[0]['name'],
             request.tool_calls[0]['args'])) == call_signature(call) for request in requests):
         return {**update, 'stop_reason': 'repeat_call'}

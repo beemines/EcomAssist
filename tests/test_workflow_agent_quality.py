@@ -53,7 +53,7 @@ async def test_knowledge_does_not_query_faq_twice():
         ToolMessage(json.dumps(payload(('当前规则',))), tool_call_id='mandatory')]
     state['quality'] = {'useful': True, 'reason': '当前证据已检查', 'response_kind': 'knowledge', 'source': None}
     result, _ = await run(context, state)
-    assert 'query_faq' not in {t.name for t in context.decision_model.bound_tools[0]}
+    assert 'query_faq' not in {(t['function']['name'] if isinstance(t, dict) else t.name) for t in context.decision_model.bound_tools[0]}
     assert result['tool_call_count'] == 1 and not context.faq_repository.calls
     assert result['citations'][0]['answer'] == '当前规则'
 
