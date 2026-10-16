@@ -1,4 +1,4 @@
-"""当前必读策略必须进入原生工具请求，非必读阶段必须选择读取或内部控制。"""
+"""当前必读策略保留，提供方原生选择只使用auto并约束JSON控制。"""
 import json
 
 import httpx
@@ -19,8 +19,8 @@ from tests.workflow_fakes import workflow_call
     ('不要退款，我要查订单1002物流。', '不要退款，我要查订单1002物流。', 'query_logistics', '1002'),
     ('订单1001状态', '订单1001状态', 'query_order', '1001'),
 ])
-async def test_required_current_read_is_native_and_later_control_required(raw, resolved, name, order):
-    """把绑定退回auto会使首次必读约束缺失；成功后必须选择读取或内部控制。"""
+async def test_current_read_and_later_control_use_supported_auto(raw, resolved, name, order):
+    """实际业务读取保持agent来源，成功后仍由模型决策严格控制。"""
     context, state = setup([workflow_call(name, {'order_id': order}), control()], question=raw,
         intent='订单' if name == 'query_order' else '物流')
     state['resolved_question'] = resolved
@@ -34,8 +34,8 @@ async def test_required_current_read_is_native_and_later_control_required(raw, r
     second = await llm_call(current, Runtime(context=context))
     assert second['selected'] is None and second['reply_mode'] == 'answer'
     assert context.decision_model.bind_options == [
-        {'tool_choice': name, 'parallel_tool_calls': False},
-        {'tool_choice': 'required', 'parallel_tool_calls': False}]
+        {'tool_choice': 'auto', 'parallel_tool_calls': False},
+        {'tool_choice': 'auto', 'parallel_tool_calls': False}]
 
 
 @pytest.mark.parametrize('question,route,intent,missing_tool', [
@@ -47,7 +47,7 @@ async def test_required_current_read_is_native_and_later_control_required(raw, r
     ('订单1001商品', 'business', '商品咨询', False),
     ('订单1001物流', 'business', '物流', True),
 ])
-async def test_non_required_or_unavailable_current_read_requires_choice(question, route, intent, missing_tool):
+async def test_non_required_or_unavailable_current_read_uses_auto(question, route, intent, missing_tool):
     """缺少唯一可信目标、业务路由或可绑定工具不能被强迫执行。"""
     reply = control('clarification')
     if route == 'after_sales':
@@ -59,7 +59,7 @@ async def test_non_required_or_unavailable_current_read_requires_choice(question
     if missing_tool:
         del context.registry['query_logistics']
     await llm_call(state, Runtime(context=context))
-    assert context.decision_model.bind_options == [{'tool_choice': 'required', 'parallel_tool_calls': False}]
+    assert context.decision_model.bind_options == [{'tool_choice': 'auto', 'parallel_tool_calls': False}]
 
 
 async def test_failed_current_read_does_not_force_or_retry():
@@ -71,12 +71,12 @@ async def test_failed_current_read_does_not_force_or_retry():
     with pytest.raises(ServiceError) as caught:
         await llm_call(state, Runtime(context=context))
     assert caught.value.code == 'invalid_answer'
-    assert context.decision_model.bind_options == [{'tool_choice': 'required', 'parallel_tool_calls': False}]
+    assert context.decision_model.bind_options == [{'tool_choice': 'auto', 'parallel_tool_calls': False}]
     assert context.decision_model.decisions == 1 and not context.repository.messages
 
 
-async def test_locked_chatopenai_sends_named_current_read_without_network():
-    """实际SDK序列化必须保留生产必读约束及原生参数Schema。"""
+async def test_locked_chatopenai_sends_auto_json_current_read_without_network():
+    """实际SDK序列化使用支持的auto与JSON模式，保留业务参数Schema。"""
     requests = []
     def respond(request):
         requests.append(json.loads(request.content))
@@ -99,7 +99,8 @@ async def test_locked_chatopenai_sends_named_current_read_without_network():
             await model.root_async_client.close()
     assert result['selected_origin'] == 'agent' and result['selected'].tool_calls[0]['args'] == {'order_id': '1001'}
     assert len(requests) == 1
-    assert requests[0]['tool_choice'] == {'type': 'function', 'function': {'name': 'query_logistics'}}
+    assert requests[0]['tool_choice'] == 'auto'
+    assert requests[0]['response_format'] == {'type': 'json_object'}
     assert requests[0]['parallel_tool_calls'] is False and requests[0]['max_tokens'] == 2048
     tool = next(t for t in requests[0]['tools'] if t['function']['name'] == 'query_logistics')
     assert tool['function']['parameters']['required'] == ['order_id']
