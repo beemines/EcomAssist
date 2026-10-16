@@ -10,6 +10,7 @@ from uuid import uuid4
 import httpx
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.utils.function_calling import convert_to_openai_tool
+from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 from openai import APITimeoutError
@@ -215,10 +216,13 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
             raise
         return {'stop_reason': 'token_budget', 'selected': None}
     model = model_with_output_budget(context.decision_model, context.settings, limits.decision_output_tokens)
+    if isinstance(model, ChatOpenAI):
+        # BigModel仅支持auto；JSON模式经extra_body进入同次HTTP请求，避免SDK
+        # 顶层response_format触发strict工具自动解析。仅改副本，最终流不带该格式。
+        model = model.model_copy(update={'extra_body': {**(model.extra_body or {}),
+            'response_format': {'type': 'json_object'}}}, deep=False)
     required = _current_read(state)
-    # 将既有必读策略提前传给原生工具协议，参数仍由模型及执行器校验。
-    choice = required[0] if required and required[2] == 'missing' and required[0] in registry else 'required'
-    bound = model.bind_tools([*registry.values(), control_schema], tool_choice=choice, parallel_tool_calls=False)
+    bound = model.bind_tools([*registry.values(), control_schema], tool_choice='auto', parallel_tool_calls=False)
     selected = None
     estimate = _attempt(ledger, packet.messages, schema, limits.decision_output_tokens)
     try:
@@ -245,7 +249,7 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
         raise
     update = {'decision_count': state['decision_count'] + 1, 'usage': _usage(ledger), 'selected': None, 'selected_origin': 'agent', 'stop_reason': None}
     native_control = call is not None and call.name == INTERNAL_RESPONSE_CONTROL
-    transport = 'native_control' if native_control else 'legacy_json' if call is None else 'business_tool'
+    transport = 'native_control' if native_control else 'json_control' if call is None else 'business_tool'
     log_node(state, 'llm_call', decision_count=update['decision_count'], usage=update['usage'], decision_transport=transport)
     if ledger.remaining < final_reserve:
         return {**update, 'stop_reason': 'token_budget'}
@@ -269,7 +273,7 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
                 if state['route'] == 'after_sales':
                     control = validate_after_sales_control(control, state['intent'])
             else:
-                # 兼容旧/注入客户端的严格JSON，不修补正文，不作为请求协议。
+                # JSON模式只约束语法；正文仍按原严格Schema校验，不做修补。
                 control = parse_after_sales_control(selected, state['intent']) if state['route'] == 'after_sales' else _control(selected)
         except ServiceError as exc:
             if exc.code == 'invalid_structured_output':

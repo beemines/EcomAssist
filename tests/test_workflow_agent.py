@@ -161,9 +161,9 @@ async def test_actual_model_inputs_separate_decision_and_final_phase(path):
     assert len(context.decision_model.tool_inputs) == (1 if path == 'mandatory_faq' else 2)
     for messages in context.decision_model.tool_inputs:
         system = messages[0].text
-        assert '不需要继续读取时调用internal_response_control' in system
+        assert '不需要继续读取时正文只输出严格JSON' in system
         assert '需要进一步读取时申请一个业务读取工具' in system
-        assert '所有选择的正文必须为空' in system
+        assert '申请一个业务读取工具，正文必须为空' in system
         assert '不输出控制 JSON' not in system, 'decision request contains final-only no-JSON instruction'
         assert '不申请工具' not in system, 'decision request forbids its own read-tool phase'
         assert '最终回复只输出给用户看的简短中文正文' not in system
