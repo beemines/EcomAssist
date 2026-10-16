@@ -35,6 +35,7 @@ from app.workflow.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 INTERNAL_RESPONSE_CONTROL = 'internal_response_control'
+MOCK_DATA_NOTICE = '本轮订单、物流等业务信息为模拟演示数据，仅供参考。\n\n'
 
 
 class AgentControl(BaseModel):
@@ -411,6 +412,9 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
     model = model_with_output_budget(context.model, context.settings, limits.final_output_tokens)
     runtime.stream_writer({'event': 'citations', 'data': {'citations': [] if clarification else [asdict(c) for c in packet.citations]}})
     collector, aggregate = FinalAnswerStream(), None
+    notice = MOCK_DATA_NOTICE if not clarification and any(
+        p.get('mock') is True and 'error' not in p and 'matches' not in p for p in payloads) else ''
+    notice_sent = False
     estimate = _attempt(ledger, packet.messages, [], limits.final_output_tokens)
     try:
         context.upstream = model.astream(packet.messages)
@@ -419,9 +423,15 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
                 aggregate = chunk if aggregate is None else aggregate + chunk
                 ensure_answer_active(context.deadline)
                 text = collector.accept(chunk)
+                # 静态说明计入最终保存限制，但不进入原始流校验或模型usage。
+                if collector.characters + len(notice) > 20000 or collector.utf8_bytes + len(notice.encode('utf-8')) > 65535:
+                    raise ServiceError('upstream_error', '模型回复超出可保存长度。', 502)
                 if text and not clarification:
+                    if notice and not notice_sent:
+                        runtime.stream_writer({'event': 'delta', 'data': {'text': notice}})
+                        notice_sent = True
                     runtime.stream_writer({'event': 'delta', 'data': {'text': text}})
-        answer = collector.complete(context.deadline)
+        answer = notice + collector.complete(context.deadline)
         if quality:
             validate_answer(answer, collector.reasons, packet, QualityDecision.model_validate(quality))
         if not clarification:

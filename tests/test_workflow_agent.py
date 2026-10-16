@@ -13,6 +13,7 @@ from app.tools.types import ToolContext
 from app.workflow.state import new_turn_state
 from tests.workflow_fakes import ScriptedWorkflowModel, workflow_call, workflow_runtime
 
+NOTICE = '本轮订单、物流等业务信息为模拟演示数据，仅供参考。\n\n'
 
 def control(mode='answer', actions=()):
     """生成独立控制响应，确保正文只能来自最终流。"""
@@ -177,7 +178,7 @@ async def test_actual_model_inputs_separate_decision_and_final_phase(path):
     assert 'mock=true' in final_system and '模拟' in final_system and '演示' in final_system
     assert '澄清只询问必要信息，不包含政策、状态、期限或承诺' in final_system
     assert '转人工、创建工单仅为用户可确认的建议，不声称已执行' in final_system
-    assert result['final_answer'] == ('当前退货规则[1]。' if path == 'mandatory_faq' else '模拟物流查询：运输中。')
+    assert result['final_answer'] == ('当前退货规则[1]。' if path == 'mandatory_faq' else NOTICE + '模拟物流查询：运输中。')
 
 
 @pytest.mark.asyncio
@@ -219,7 +220,7 @@ async def test_annotated_reply_modes_have_explicit_meaning_in_actual_model_input
         assert '本轮采用 clarification：只询问缺少的必要用户信息' in final_system
         assert '不要复述或解释已有工具结果' in final_system
         assert '不输出物流状态、运单号、预计天数或其他事实' in final_system
-    assert result['reply_mode'] == mode and result['final_answer'] == answer
+    assert result['reply_mode'] == mode and result['final_answer'] == (NOTICE + answer if tool else answer)
 
 
 @pytest.mark.asyncio
@@ -257,4 +258,4 @@ async def test_final_model_input_distinguishes_business_results_from_faq_citatio
     numbered = [match for data in shown for match in data.get('matches', [])]
     assert [item['n'] for item in numbered] == ([1, 3, 2] if has_faq else [])
     assert [item['n'] for item in result['citations']] == ([1, 3, 2] if has_faq else [])
-    assert result['final_answer'] == answer and context.model.streams == 1
+    assert result['final_answer'] == (NOTICE + answer if business else answer) and context.model.streams == 1
