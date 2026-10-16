@@ -11,9 +11,13 @@ def refund_policy_question(question: str, order: OrderSnapshot) -> str:
     prefixes = {f'订单{order.order_id}的{identity}'
                 for identity in (order.model, order.product_name) if identity.strip()}
     matches = [prefix for prefix in prefixes if question.startswith(prefix)]
-    if len(matches) != 1:
+    if len(matches) > 1:
         return question
-    suffix = question[len(matches[0]):]
+    # 完整商品锚优先，只有未命中时才接受裸订单前缀；后续边界仍统一拒绝歧义。
+    prefix = matches[0] if matches else f'订单{order.order_id}'
+    if not question.startswith(prefix):
+        return question
+    suffix = question[len(prefix):]
     # 中文产品名无通用词界，仅接受明确的问句/条件开头；未知版本后缀保留原问。
     starts_request = suffix.lstrip().startswith((
         '能退', '能否退', '可以退', '可否退', '不能退', '不可以退', '不是', '不支持',
