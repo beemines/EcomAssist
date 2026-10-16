@@ -1,8 +1,8 @@
 # 意图分流：浏览器验收记录
 
-最新状态（2026-10-16）：用户再次报告“还是不行”，query_logistics成功后终止控制仍会返回非JSON。本次将内部响应控制改为原生Function Calling；冻结后唯一完整默认套件2266通过/143跳过、377.34秒，真实浏览器/限定复审待完成，不能以离线通过声称已全部修复。旧失败、48题与7/8分母、维修缺口全部保留；下段是前次验收结论。
+最新状态（2026-10-16）：本次结构化报错已按实际智谱契约修正为auto+json_object（08f0889）。相关394项通过、限定审查PASS；获授权的一次精确输入诊断及Computer Use三条固定问句全部通过，SQL最终答案与各轮done精确检查点一致，见文末。8003已加载，退款1/工单10不变。两条物流实际由既有Workflow当前读取保护执行，不能把本次结果称为Agent自主工具调用已验收；原48题、合并浏览器7/8和维修质量缺口仍未关闭。此前73c9原生控制修正的真实user286失败及所有历史证据保留，2266/143是该前版结果，不是当前增量全量结果。
 
-当前结论（2026-10-16）：实现任务及先前限定复审关闭C1/I1–I5/M2/M3；用户随后在会话64的原句暴露间歇性首个Agent决策协议错误，增量bbedb0e前置原生必需读取约束，相关352项回归及独立限定审查通过。Computer Use在同一会话提交原句一次已通过，SQL269–272与完成根一致，详见文末。完整2214通过/143跳过（394.84秒）属于增量前7398b27版本，不能冒充当前新增量全量结果；相关真实MySQL专项27项的存储代码未再改。原浏览器合并证据仍7/8，维修有效答复缺口未完成。原48题43通过/3失败/2阻塞及所有历史失败均保留，后续定点修复分开记录；不称独立48题或八组全通过，也不作生产就绪承诺。
+前次结论（2026-10-16，历史）：实现任务及先前限定复审关闭C1/I1–I5/M2/M3；用户随后在会话64的原句暴露间歇性首个Agent决策协议错误，增量bbedb0e前置原生必需读取约束，相关352项回归及独立限定审查通过。Computer Use在同一会话提交原句一次已通过，SQL269–272与完成根一致，详见文末。完整2214通过/143跳过（394.84秒）属于增量前7398b27版本，不能冒充当前新增量全量结果；相关真实MySQL专项27项的存储代码未再改。原浏览器合并证据仍7/8，维修有效答复缺口未完成。原48题43通过/3失败/2阻塞及所有历史失败均保留，后续定点修复分开记录；不称独立48题或八组全通过，也不作生产就绪承诺。
 
 I4离线收口索引：见本文末“评分器v3整句契约”记录。旧2149/143属于后端提交e329dd0的源码，后续新评分器的冻结全量结果单独记录。
 
@@ -243,3 +243,27 @@ Computer Use直接控制用户已有IAB tab4：先保存原两条失败截图，
 有效RED19失败/7通过，窄GREEN26通过。后续19文件相关验证381通过/2失败，均为旧提示词字面断言；仅修正测试预期并单文件复核，不改生产行为。冻结后的唯一完整默认套件结果随后追加。真实浏览器、SQL/根状态和限定独立审查由控制器负责且当前待完成，不能以离线通过代替。
 
 离线最终结果：冻结后唯一完整默认pytest为2266passed/143skipped、377.34秒、exit0（native-control-full.log）；242个app/tests文件哈希复核完全一致（native-control-verification.json）。旧提示词断言最后单文件13passed/4.16秒，之前失败日志完整保留，无生产改动。审查/真实浏览器/SQL与根状态验收仍待控制器执行，原48题、浏览器7/8和维修缺口保持原记录。
+
+## 2026-10-16：智谱协议修正后的三条真实定点复验
+
+用户连续反馈“还是不行”，最终确认的问题是实际供应商只承诺tool_choice=auto，而此前使用了通用OpenAI的named/required约束。官方依据：[工具调用](https://docs.bigmodel.cn/cn/guide/capabilities/function-calling)、[结构化输出](https://docs.bigmodel.cn/cn/guide/capabilities/struct-output.md)、[对话补全定义](https://docs.bigmodel.cn/api-reference/模型-api/对话补全.md)。原始官方文本留存.cache/intent-routing/bigmodel-*。
+
+源代码08f0889：每次决策auto，浅副本extra_body启用json_object，保留可选原生控制与严格普通/售后字段验证、当前读取保护、四工具/五决策限制；最终512正文流不带JSON模式，模型、2048控制上限、总预算、超时、零重试及数据均未改变。有效RED18失败/44通过→GREEN71通过；19个相关文件394通过/36.57秒。增量独立审查PASS，无Critical/Important；242个冻结app/tests哈希独立核对。前版73c9的2266/143完整套件结果不换名为本版全量。
+
+自动审批第一次在启动前拒绝诊断，未发HTTP；用户随后明确批准一次诊断及三轮页面复验，并追加“以后在页面测试glm都允许使用，只要不是上百次大量调用就好”。今后少量页面GLM测试持续授权，不逐次询问，上百次大批量另行确认。获授权诊断实际仅一次：保存的user286工具后状态，wire为open.bigmodel.cn/auto/json_object/2048/parallel=false、无strict，返回46字符合法JSON控制，1649actual tokens/1call，无业务工具执行或应用SQL写入。
+
+保护式重启自有8003到PID62496，保留8002 PID11740、原SQLite和会话64。Computer Use在原用户tab4真实键入以下问句，各一次，无重试。前端发现Workflow物流被误标“知识检索”，按前端Vibe例外将该标签仅限workflow+query_faq，其他按真实工具名；node --check通过，后两条使用新静态版本，正确显示“查询物流”和“知识检索”。
+
+| 原始问句 | 最终SQL | 精确完成根 | 主账本用量 |
+| --- | --- | --- | --- |
+| 订单 1001 的物流到哪了 | 289→292 | 1f1c94e9-0083-6fc5-8028-41b434dccaf3 | 5517 actual / 5 calls |
+| 我的订单1001到哪了 | 293→296 | 1f1c94ee-44fc-661d-802e-746390edfc9f | 6408 actual / 5 calls |
+| 退货政策是什么 | 297→300 | 1f1c94f0-02cc-6752-8036-4920fd9dfb64 | 5946 actual / 4 calls，另有sufficiency阶段1414 / 1 call |
+
+三轮控制均为json_control，最终唯一terminal=success；两条物流展示已签收/2026-10-13并明确模拟说明，政策回答包含可定位的[1][3][10][9][7][6]引用。两条物流的读取实际origin=workflow，由原有当前读取保护补足；不能据此声称Agent自主原生调用已验收。通用政策本轮分类为商品咨询、route=knowledge，走强制检索和useful=true闸；不称所有意图或指代行为均已验证。
+
+最终只读取证脚本第一次因“挑user的最新completed根”选到下一轮准备阶段含旧字段的新根而断言失败；已改为先取各轮唯一success终态中的精确checkpoint_id再读取原根，保留严格SQL/根/身份核对，没有重放问句或放宽产品验收。复核PASS：SQL最终正文与原根一致、业务申请/结果完整配对、无内部控制工具SQL、原19条消息及user286–288失败记录保留，refund_requests仍1、tickets仍10，未提交退款或工单。后端及测试冻结哈希仍一致，仅前述两个静态文件有预期修改。
+
+证据在.cache/intent-routing：bigmodel-json-browser-verification.json、bigmodel-json-final-verification.json、native-control-json-candidate-result.json、bigmodel-json-case1/2/3.png、case3-ax.txt及本次独立服务日志。根控制器已目检case2及case3截图。旧native-control-case1-failed.png、原生控制首次失败/SQL286–288、原48题43/3/2、合并浏览器7/8和维修有效答复缺口全部保留；本节仅关闭这三条固定场景的结构化报错，不作整章全通过或生产就绪承诺。未merge/push。
+
+演示：在本工作树执行 `pwsh -NoProfile -File scripts/start-intent-routing-demo.ps1`，打开 http://127.0.0.1:8003/ 。相关回归准确文件清单和保存日志见.cache/intent-routing/bigmodel-json-fix-report.md；本章过程见dev-notes/ch06.md。

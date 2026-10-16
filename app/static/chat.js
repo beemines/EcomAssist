@@ -593,7 +593,7 @@ function acceptStatus(payload, state) {
     badge.className = "tool-badge";
     state.tools.append(badge);
     state.tools.hidden = false;
-    const label = payload.origin === "workflow" ? "知识检索" : toolLabels[payload.tool_name];
+    const label = payload.origin === "workflow" && payload.tool_name === "query_faq" ? "知识检索" : toolLabels[payload.tool_name];
     trace = { badge, toolName: payload.tool_name, origin: payload.origin, label };
     state.toolBadges.set(payload.tool_call_id, trace);
   }
