@@ -3,7 +3,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 
 SOCIAL_RESPONSE = '您好，我是 MewHelp 智能客服，可以帮您查询订单、物流以及商品和售后问题。'
-OTHER_RESPONSE = '我可以协助查询订单、物流、商品及售后问题。请说明您想咨询的具体问题或办理的事项。'
+OTHER_RESPONSE = '抱歉，我不太确定您的意思。请说明您想咨询的具体问题或办理的事项，例如查询订单、物流、商品或售后问题。'
 COMPLAINT_RESPONSE = '很抱歉给您带来不好的体验。您可以选择转人工或建工单，我们会根据您的确认协助处理。'
 KNOWLEDGE_FALLBACK = '抱歉，当前资料不足以可靠回答这个问题。请补充具体商品或问题信息，也可以选择转人工协助。'
 EVIDENCE_SYSTEM = '你是电商客服助手。仅依据当前工具结果和编号 FAQ 证据回答；引用只能使用当前证据编号。'

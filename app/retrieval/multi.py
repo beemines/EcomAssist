@@ -23,7 +23,7 @@ class WorkflowRetriever:
         self.retriever = retriever
 
     async def retrieve(self, *, question: str, queries: tuple[str, ...],
-                       category: str | None) -> WorkflowRetrieval:
+                       category: str | None, rerank_question: str | None = None) -> WorkflowRetrieval:
         """每路唯一排名贡献1/(60+rank)，按分数降序和主键升序截断50。"""
         plan = QueryPlan(standard=question, expansions=[])
         validate_category(category)
@@ -31,6 +31,10 @@ class WorkflowRetriever:
                 or any(not isinstance(query, str) or not query.strip() or len(query) > 512 for query in queries)
                 or len({''.join(query.split()) for query in queries}) != len(queries)):
             raise ValueError('queries must contain the question first and one to three unique nonblank queries')
+        if rerank_question is not None and (
+                not isinstance(rerank_question, str) or not rerank_question.strip()
+                or len(rerank_question) > 512 or len(queries) == 1):
+            raise ValueError('rerank question requires bounded text and multiple recall queries')
         provenance, counts = {}, []
         try:
             _ensure_active()
@@ -57,7 +61,8 @@ class WorkflowRetriever:
                 candidates = [VectorHit(identifier, scores[identifier]) for identifier in sorted(
                     scores, key=lambda identifier: (-scores[identifier], identifier))[:50]]
                 bundle = await self.retriever.finalize_candidates(question=question, plan=plan,
-                    candidates=candidates, category=category, strategy='hybrid_rerank')
+                    candidates=candidates, category=category, strategy='hybrid_rerank',
+                    rerank_question=rerank_question)
             _ensure_active()
         except BaseException as exc:
             # 包装链不能把调用方取消或期限变成普通解析失败/部分成功。
@@ -71,6 +76,7 @@ class WorkflowRetriever:
             raise
         return WorkflowRetrieval(faq_payload(bundle), {
             'query_count': len(queries), 'lane_candidate_counts': counts,
+            'rerank_question': question if rerank_question is None else rerank_question,
             'candidate_count': len(candidates), 'union_count': len(provenance),
             'provenance': {hit.id: provenance[hit.id] for hit in candidates},
         })

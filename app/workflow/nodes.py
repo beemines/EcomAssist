@@ -15,6 +15,7 @@ from app.agent.controls import UsageLedger, estimate_call_input, reserve_call
 from app.core.tool_history import build_tool_messages
 from app.orders.types import OrderSnapshot
 from app.workflow.after_sales import make_refund_offer, resolve_order_anchor
+from app.workflow.policy_scoring import refund_policy_question
 from app.workflow.entities import completed_history
 from app.workflow.selection import prepare_order_selection, await_order_selection
 from app.workflow.prompts import UNDERSTANDING_SYSTEM, EXPANSION_SYSTEM, build_intent_messages, agent_final_system, agent_decision_system
@@ -229,6 +230,14 @@ async def retrieve_policies(state: WorkflowState, runtime: Runtime[WorkflowRunti
     if context.workflow_retriever is None:
         raise ValueError('workflow retriever is required')
     queries = tuple(state['retrieval_queries']) or (state['resolved_question'],)
+    scoring = {}
+    if (state['route'] == 'after_sales' and state['intent'] == '退款退货'
+            and len(queries) > 1 and state.get('order_snapshot')):
+        order = OrderSnapshot.model_validate_json(json.dumps(state['order_snapshot']))
+        if order.user_id == context.user_id and order.order_id == selected_order_id(state):
+            question = refund_policy_question(state['resolved_question'], order)
+            if question != state['resolved_question']:
+                scoring['rerank_question'] = question
     audit = {}
     async def retrieve():
         """仅成功的完整聚合结果成为本轮证据；失败不入低置信池。"""
@@ -236,7 +245,7 @@ async def retrieve_policies(state: WorkflowState, runtime: Runtime[WorkflowRunti
         try:
             async with asyncio.timeout(remaining_timeout(context, context.settings.faq_timeout_seconds)):
                 result = await context.workflow_retriever.retrieve(question=state['resolved_question'],
-                    queries=queries, category=state['category'])
+                    queries=queries, category=state['category'], **scoring)
         except TimeoutError as exc:
             raise ServiceError('upstream_timeout', '知识检索超时，请稍后重试。', 504) from exc
         audit = result.audit

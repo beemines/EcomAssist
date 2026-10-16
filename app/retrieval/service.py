@@ -165,11 +165,16 @@ class RetrievalService:
         return list(by_id.values())[:50]
 
     async def finalize_candidates(self, *, question: str, plan: QueryPlan, candidates: list[VectorHit],
-                                  category: str | None, strategy: str) -> RetrievalBundle:
+                                  category: str | None, strategy: str,
+                                  rerank_question: str | None = None) -> RetrievalBundle:
         """复用四策略的权威回填与至多一次重排，最终最多十条证据。"""
         _ensure_active()
         if strategy not in ('dense', 'bm25', 'hybrid', 'hybrid_rerank'):
             raise ValueError('invalid retrieval strategy')
+        if rerank_question is not None and (strategy != 'hybrid_rerank'
+                or not isinstance(rerank_question, str) or not rerank_question.strip()
+                or len(rerank_question) > 512):
+            raise ValueError('rerank question must be bounded text for hybrid_rerank')
         validate_category(category)
         # 首次出现决定候选位置与召回分数；去重后才进入拒绝重复主键的仓储。
         by_id = {}
@@ -183,7 +188,8 @@ class RetrievalService:
         valid = [(hit, authoritative[hit.id]) for hit in candidates if hit.id in authoritative]
         if strategy == 'hybrid_rerank' and valid:
             # 重排位置始终映射到实际提交的权威正文，不映射到含缺行的原召回列表。
-            ranked = await self.reranker.rank(question, [embedding_text(row) for _, row in valid], top_n=10)
+            ranked = await self.reranker.rank(question if rerank_question is None else rerank_question,
+                [embedding_text(row) for _, row in valid], top_n=10)
             _ensure_active()
             matches = [ScoredChunk(valid[hit.index][1], hit.score, 'rerank') for hit in ranked[:10]]
         else:
