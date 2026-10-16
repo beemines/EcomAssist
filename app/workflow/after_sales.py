@@ -47,6 +47,11 @@ def parse_after_sales_control(reply, intent: str) -> AfterSalesControl:
     except ValidationError as exc:
         raise invalid_output() from exc
     control = validate_structured_output({'raw': reply, 'parsed': parsed, 'parsing_error': None}, AfterSalesControl)
+    return validate_after_sales_control(control, intent)
+
+
+def validate_after_sales_control(control: AfterSalesControl, intent: str) -> AfterSalesControl:
+    """正文兼容与原生控制共用同一售后语义，不从回答推断许可。"""
     if (intent == '售后' and control.refund_decision != 'not_applicable'
             or intent == '退款退货' and control.refund_decision == 'not_applicable'
             or control.reply_mode == 'clarification' and control.refund_decision in ('eligible', 'needs_review')):

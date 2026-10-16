@@ -157,7 +157,7 @@ async def test_real_agent_conditional_answer_freezes_offer_after_sql():
     assert result['refund_offer']['policy_snapshot'] == result['evidence_payload']
     assert ctx.repository.messages[-1].content == result['final_answer']
     assert [c['n'] for c in result['citations']] == [1]
-    assert 'query_faq' not in {t.name for t in ctx.decision_model.bound_tools[0]}
+    assert 'query_faq' not in {(t['function']['name'] if isinstance(t, dict) else t.name) for t in ctx.decision_model.bound_tools[0]}
 
 
 async def test_all_policy_lanes_share_one_timeout_and_faults_never_pool():
