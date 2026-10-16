@@ -425,7 +425,8 @@ async def test_social_fullmatch_skips_both_models():
 @pytest.mark.asyncio
 async def test_understanding_drops_whole_old_turns_before_entity_validation():
     """被预算裁掉的订单不能继续作为理解来源，必需输入过大则不收费。"""
-    service, model = understanding('订单1001能退吗？', budget=2200)
+    # 容纳当前必需提示，但不足以容纳下方约9000字节的完整旧轮次。
+    service, model = understanding('订单1001能退吗？', budget=4000)
     previous = [HumanMessage('订单1001' + '旧' * 3000), AIMessage('旧答复')]
     with pytest.raises(ServiceError):
         await service.resolve('它能退吗？', previous)
