@@ -78,3 +78,33 @@ This implementer made **zero real API/browser/application-DB/restart calls**, no
 ## Documentation placement correction
 
 The implementer mistakenly force-added the temporary ignored SDD report path in commit `868cf8188d5a272de3874645bc179b1092b1107c`. The controller intended that location to remain ignored scratch. This docs-only correction preserves the report under `docs/superpowers/reports/2026-10-18-summary-prompt-fix.md` and removes the temporary path from Git tracking with `git rm --cached`, keeping its ignored physical copy for existing review references. Source commit `0a502c073027cbc78aa65ea61acb505b8f47337f` is unchanged. No source edits, tests, API calls, application access, or restarts were performed for this correction.
+
+## R1 — final candidate under the same authorization
+
+R1 base HEAD `62868c23b6fdefadac118c487dda02da633a5da4`; this appended section is committed with the R1 source. Candidate prompt SHA256: `58dd217fec066d1328851591690354425c66dcdf9461bbf2543de695e782ca64`. This is the one final candidate allowed within the existing minimal-prompt authorization. It does not authorize a third candidate if real validation fails again.
+
+### Prior candidate's actual failure and cost
+
+The acceptance owner ran only real contrast27, original range504–523, on candidate62868c2/prompt5d826ba1. It preserved historical/simulation labels and59900分 but omitted required model `MH-LP200`; unchanged `validate_summary` rejected it with `Summary omitted a source entity; use smaller complete batches.` StrictSTOP followed immediately. Contrast61/118, recovery, page recheck and restart did not run. Actual evidence is `runtime/context-evidence/ch07-demo-21-20261017/extra-minimum-validation/source-contrasts/result.json` plus `physical-packets.jsonl` (request/response index1, session `2026-10-18T00:10:51.152153+08:00`). Its `nonstream-replies.jsonl` exists but is empty; the actual response is retained in the physical capture and result wire, whose body equality is verified by the ignored annotation script.
+
+This cost1GLM/0embedding/0rerank: demo totals **119/16/16**, same hard150/50/25, remaining **31/34/9**. The old actual failure and its cost remain evidence, not a successful candidate result or reset ledger. Prior sections'118/16/16 describe the earlier stage only; this R1 section is the current handoff state.
+
+### Minimal clarification and actual annotations
+
+The only R1 production edit is one added `SUMMARY_SYSTEM` sentence: treat trusted orders, product_id/model, phone numbers and user-source identifiers as the mandatory `required_entities` completeness checklist; check each item before output and preserve every exact order/model, without replacing it by a product name or shortening the model for brevity. This makes the existing source-entity obligation explicit. `required_entities` and `validate_summary` remain unchanged; no validator/schema, source provenance, batch split, model, window, budget, threshold, config or manager edit. Earlier canonical history/mock, raw amount/time, action/negation/ambiguity rules remain intact.
+
+Ignored R1 artifact: `runtime/context-evidence/summary-prompt-fix-20261018/annotated-cases-r1.json`; script `.cache/summary-prompt-fix-r1-check.py`; log `.cache/summary-prompt-fix-r1-annotations.txt`. The previous `annotated-cases.json` remains unmodified and its hash is recorded in R1. R1 keeps the first13 actual negatives and adds the14th **actual prior-candidate model output**, with physical/result file hashes, original source hash, candidate identity/session/index and exact raw response. The sole missing entity is independently confirmed asMH-LP200. Its clearly marked **human-authored reference** restores that model to the order1001 clause and passes the unchanged guard. All14 actual negatives remain rejected and all14 human references pass; no R1 real model output is fabricated or implied.
+
+### Fresh R1 checks and capacities
+
+- `.venv/Scripts/python.exe .cache/summary-prompt-fix-r1-check.py`: **exit0**. Revalidates all14 actual negatives/references, physical/result actual body equality, original source identities, exact missing entity and pure actual factory budgets; previous annotation file is preserved. No API or app-DB call.
+- `.venv/Scripts/python.exe -m pytest tests/test_context_summarizer.py tests/test_context_prefix.py tests/test_context_budget.py tests/test_context_lifecycle.py tests/test_context_long_conversation.py tests/test_context_manager.py -q`: **exit0, 192 passed in34.74s**, `.cache/summary-prompt-fix-r1-focused.txt`. Same existing summary/protocol/entity/negation/action/ambiguity, prefix/budget, lifecycle/manager and both offline21 trajectory coverage; no new wording-mirroring test or full-suite rerun.
+- Both commands use PowerShell loginfalse, PYTHONUTF8/PYTHONUNBUFFERED1 and worktree PYTHONPATH, with the existing narrow elevated venv-launcher workaround. No dependency install. Scoped source diff contains only the one sentence; `git diff --check` is checked before commit.
+
+Fresh actual factory H is stilldefault59880/demo2691; layer1 41916/1883, layer2 17964/808; main decision prefixF2890 and derived turn caps1135879/174823 remain unchanged. R1 summary system estimate is **1163**, versus prior candidate1024 (**+139**) and original830 (**+333**). The selected27/61/118 candidate inputs are **7052/7193/12236**; the largest plus unchanged output512+safety540 is13288, within demo18000. No capacity was adjusted. The unchanged summary preflight remains authoritative for other batches.
+
+### Handoff limits
+
+R1 is source-ready/offline-verified only; original demo final-question acceptance remains incomplete. This implementer made zero real calls, browser/application-DB access or restarts and spawned no agents. Controller owns the one scoped R1 rereview and release of at most three revised saved-source contrasts27/61/118 within the original remaining cap, preserving the prior candidate failure. Another real failure closes the run honestly as unmet; no third candidate or full21 rerun. Recovery/page/conditional restart remain controller-owned and subject to the same cap and stop conditions.
+
+The acceptance owner has a separate dirty edit in `docs/superpowers/reports/2026-10-17-context-management-acceptance.md`; R1 leaves it untouched and unstaged. Only the summary prompt, append-only dev-notes and this public report are included in the R1 commit. The temporary SDD report remains an ignored physical copy, not a tracked deliverable.
