@@ -251,10 +251,13 @@ async def test_model_history_trim_never_replaces_checkpoint_raw_text(tmp_path):
     await store.seed('1', [HumanMessage('旧问题'), AIMessage(long_answer)])
     model = ScriptedWorkflowModel([control(mode='clarification')], intent_replies=[intent('订单')],
         final_chunks=[AIMessageChunk('请提供订单号。'), AIMessageChunk('', response_metadata={'finish_reason': 'stop'})])
-    async with workflow_app(tmp_path, store=store, model=model) as app:
+    async with workflow_app(tmp_path, store=store, model=model, model_context_window=18000,
+            max_output_tokens=2000, max_user_input_tokens=2000, max_agent_steps=3,
+            tool_result_max_tokens=1200, rerank_top_k=5) as app:
         assert decode_sse((await request(app, '想查订单')).text)[-1][0] == 'done'
         snapshot = await app.state.chat_service.graph.aget_state(checkpoint_config('1'))
         assert [m.id for m in snapshot.values['messages']] == ['1', '2', '3', '4']
         assert snapshot.values['messages'][1].content == long_answer
         assert all(m.content != long_answer for m in model.tool_inputs[0])
+        assert any(m.content == long_answer[:80] + '后文已截短' for m in model.tool_inputs[0])
         assert store.rows['1'][1].content == long_answer

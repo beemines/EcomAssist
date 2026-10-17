@@ -10,25 +10,29 @@ from uuid import uuid4
 
 import httpx
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 from openai import APITimeoutError
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import ValidationError
 
 from app.agent.bare import UNFINISHED_ANSWER
-from app.agent.controls import AgentLimits, ToolProtocolError, UsageLedger, call_signature, estimate_call_input, parse_tool_selection, record_usage, reserve_call, tool_protocol_diagnostic
+from app.agent.controls import AgentLimits, ToolProtocolError, UsageLedger, call_signature, parse_tool_selection, record_usage, tool_protocol_diagnostic
 from app.core.answer_validation import FinalAnswerStream, close_answer_stream, ensure_answer_active, validate_answer, validate_business_answer
 from app.core.errors import InputTooLong, ServiceError
-from app.core.evidence import build_agent_evidence
-from app.core.extraction import invalid_output, validate_structured_output
+from app.core.extraction import invalid_output
 from app.core.llm import model_with_output_budget
 from app.core.sufficiency import QualityDecision
 from app.tools.schemas import FAQArgs
 from app.tools.types import ToolCall
-from app.workflow.nodes import assess_sufficiency, log_node, remaining_timeout, prompt_current, observe_usage
-from app.workflow.after_sales import AfterSalesControl, parse_after_sales_control, resolve_order_anchor, validate_after_sales_control
+from app.workflow.nodes import assess_sufficiency, log_node, remaining_timeout, observe_usage
+from app.workflow.after_sales import resolve_order_anchor
+from app.workflow.controls import UnifiedAgentControl, parse_control, validate_control, stable_read_schema
+from app.workflow.context_budget import workflow_packet, runtime_settings, runtime_snapshot, turn_token_limit, reserve_context_call
+from app.context.tokens import estimate_payload as estimate_call_input
+from app.context.layers import ContextCapacityError
+from app.context.logging import log_model_call, log_calibration
+from app.workflow.entities import validate_snapshot_entities, explicit_order_ids
 from app.workflow.prompts import KNOWLEDGE_FALLBACK, agent_decision_system, agent_final_system
 from app.workflow.runtime import WorkflowRuntime
 from app.workflow.state import WorkflowState
@@ -40,16 +44,8 @@ INTERNAL_RESPONSE_CONTROL = 'internal_response_control'
 MOCK_DATA_NOTICE = '本轮订单、物流等业务信息为模拟演示数据，仅供参考。\n\n'
 
 
-class AgentControl(BaseModel):
-    model_config = ConfigDict(extra='forbid', strict=True)
-    reply_mode: Literal['answer', 'clarification']
-    suggested_actions: list[Literal['handoff', 'create_ticket']] = Field(max_length=2)
-
-    @field_validator('suggested_actions')
-    @classmethod
-    def unique_actions(cls, actions):
-        """保留原顺序去重，合法两项之外的长列表仍由 Schema 拒绝。"""
-        return list(dict.fromkeys(actions))
+AgentControl = UnifiedAgentControl
+reserve_call = reserve_context_call
 
 
 class _AgentState(WorkflowState, total=False):
@@ -60,16 +56,19 @@ class _AgentState(WorkflowState, total=False):
 
 
 def _limits(context: WorkflowRuntime) -> AgentLimits:
-    """读取已批准配置；决策五步和最终512输出保留固定上限。"""
-    return AgentLimits(max_tool_calls=getattr(context.settings, 'agent_max_tool_calls', 4),
-        total_token_budget=getattr(context.settings, 'agent_total_token_budget', 32000),
-        decision_output_tokens=getattr(context.settings, 'agent_decision_max_output_tokens', 2048),
-        input_token_budget=context.settings.tool_input_token_budget)
+    from app.workflow.context_budget import workflow_budget
+    settings = runtime_settings(context.settings)
+    budget = context.context_snapshot.budget if context.context_snapshot else workflow_budget(settings, context.registry)
+    return AgentLimits(max_tool_calls=settings.max_agent_steps, max_decisions=settings.max_agent_steps+1,
+        total_token_budget=turn_token_limit(settings, budget), final_output_tokens=settings.max_output_tokens,
+        decision_output_tokens=settings.agent_decision_max_output_tokens, input_token_budget=budget.window)
 
 
 def _ledger(state, limits):
     """从持久化四项成本恢复账本，包含父图已发生的分类成本。"""
-    return UsageLedger(budget=limits.total_token_budget, **state['usage'])
+    sufficiency = state['stage_usage'].get('sufficiency', {})
+    spent = sum(sufficiency.get(key, 0) for key in ('actual', 'estimated'))
+    return UsageLedger(budget=max(1, limits.total_token_budget-spent), **state['usage'])
 
 
 def _usage(ledger):
@@ -99,23 +98,7 @@ def _parts(state):
 
 
 def _packet(state, context, system: SystemMessage, schema=()):
-    """使用实际完整系统和全部原始结果计费，Schema 占用也从输入额度扣除。"""
-    turns, current, pending, payloads = _parts(state)
-    schema_cost = estimate_call_input([], list(schema)) - estimate_call_input([], [])
-    budget = context.settings.tool_input_token_budget - schema_cost
-    if budget <= 0:
-        raise InputTooLong()
-    return build_agent_evidence(system=system, turns=turns, current=prompt_current(state, current),
-        current_tool_messages=pending, payloads=payloads, budget=budget)
-
-
-def _control(reply):
-    """严格校验 untouched JSON 和 parsed 值，不接受回答正文或混合工具申请。"""
-    try:
-        parsed = AgentControl.model_validate_json(reply.text)
-    except ValidationError as exc:
-        raise invalid_output() from exc
-    return validate_structured_output({'raw': reply, 'parsed': parsed, 'parsing_error': None}, AgentControl)
+    return workflow_packet(state, context, phase='decision' if schema else 'final', tools=schema)
 
 
 def _normalize(selected, call, question):
@@ -150,13 +133,19 @@ async def _check_evidence(state, runtime, packet):
     return decision.model_dump(), stages
 
 
-def _current_read(state):
+def _current_read(state, context):
     """完整查单/物流只认可同轮同工具同订单的成功配对；失败读取禁止自动重试。"""
     if state['route'] != 'business' or state['intent'] not in ('订单', '物流'):
         return None
     turns, _, pending, _ = _parts(state)
-    order = resolve_order_anchor(state['raw_question'], state['resolved_question'],
-        [message for turn in turns for message in turn])
+    if context.context_snapshot is not None:
+        validate_snapshot_entities(state['raw_question'], state['resolved_question'],
+            context.context_snapshot, context.context_provenance)
+        identifiers = explicit_order_ids(state['raw_question']) or explicit_order_ids(state['resolved_question'])
+        order = next(iter(identifiers)) if len(identifiers) == 1 else None
+    else:
+        order = resolve_order_anchor(state['raw_question'], state['resolved_question'],
+            [message for turn in turns for message in turn])
     if order is None:
         return None
     name = 'query_logistics' if state['intent'] == '物流' else 'query_order'
@@ -195,19 +184,18 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
     registry = _registry(state, context)
     if INTERNAL_RESPONSE_CONTROL in context.registry:
         raise ValueError('Internal response control conflicts with business registry')
-    control_type = AfterSalesControl if state['route'] == 'after_sales' else AgentControl
-    control_schema = convert_to_openai_tool(control_type)
-    control_schema['function'].update(name=INTERNAL_RESPONSE_CONTROL,
-        description='内部响应控制：证据已足够或需要澄清时选择，只设置最终回复模式与建议，不执行业务动作。')
-    schema = [convert_to_openai_tool(tool) for tool in registry.values()] + [control_schema]
+    control_type = UnifiedAgentControl
+    schema = stable_read_schema(context.registry)
     ledger = _ledger(state, limits)
     try:
-        packet = _packet(state, context, agent_decision_system(state['intent'], after_sales=state['route'] == 'after_sales'), schema)
-        final_packet = _packet(state, context, agent_final_system(state['intent'], state['reply_mode'], after_sales=state['route'] == 'after_sales', refund_decision=state.get('refund_decision'), decision_reason=state.get('decision_reason')))
+        packet, evidence = _packet(state, context, agent_decision_system(None), schema)
+        final_packet, _ = _packet(state, context, agent_final_system(None, None))
         final_reserve = estimate_call_input(final_packet.messages, []) + limits.final_output_tokens
         reserve_call(packet.messages, schema, ledger, output_limit=limits.decision_output_tokens,
             final_reserve=final_reserve)
     except (InputTooLong, ServiceError) as exc:
+        if isinstance(exc, ContextCapacityError):
+            raise
         if exc.code not in ('input_too_long', 'token_budget'):
             raise
         return {'stop_reason': 'token_budget', 'selected': None}
@@ -217,10 +205,13 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
         # 顶层response_format触发strict工具自动解析。仅改副本，最终流不带该格式。
         model = model.model_copy(update={'extra_body': {**(model.extra_body or {}),
             'response_format': {'type': 'json_object'}}}, deep=False)
-    required = _current_read(state)
-    bound = model.bind_tools([*registry.values(), control_schema], tool_choice='auto', parallel_tool_calls=False)
+    required = _current_read(state, context)
+    bound = model.bind_tools(schema, tool_choice='auto', parallel_tool_calls=False)
     selected = None
     estimate = _attempt(ledger, packet.messages, schema, limits.decision_output_tokens)
+    log_model_call(context.context_logger, packet, conversation_id=state['conversation_id'],
+                   user_message_id=state['user_message_id'], phase='decision', call_index=state['decision_count']+1,
+                   on_packet=context.context_packet_observer)
     try:
         async with asyncio.timeout(remaining_timeout(context, context.settings.llm_timeout_seconds)):
             selected = await bound.ainvoke(packet.messages)
@@ -232,6 +223,8 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
         raise ServiceError('upstream_error', '模型服务暂时不可用，请稍后重试。', 502) from exc
     finally:
         _settle(state, context, ledger, selected, estimate, limits.decision_output_tokens)
+        log_calibration(context.context_logger, packet, selected, phase='decision',
+                        on_calibration=context.context_calibration_observer)
     ensure_answer_active(context.deadline)
     try:
         # 仅本次协议解析允许内部控制；执行器和持久化仍只持有业务注册表。
@@ -266,11 +259,10 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
                     control = control_type.model_validate(call.args)
                 except ValidationError as exc:
                     raise invalid_output() from exc
-                if state['route'] == 'after_sales':
-                    control = validate_after_sales_control(control, state['intent'])
+                control = validate_control(control, route=state['route'], intent=state['intent'])
             else:
                 # JSON模式只约束语法；正文仍按原严格Schema校验，不做修补。
-                control = parse_after_sales_control(selected, state['intent']) if state['route'] == 'after_sales' else _control(selected)
+                control = parse_control(selected, route=state['route'], intent=state['intent'])
         except ServiceError as exc:
             if exc.code == 'invalid_structured_output':
                 logger.warning(json.dumps({'event': 'agent_decision_protocol_failure',
@@ -301,9 +293,11 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
     placeholder = ToolMessage('{}', tool_call_id=call.id)
     try:
         future = {**state, 'messages': [*state['messages'], selected, placeholder]}
-        future_packet = _packet(future, context, agent_final_system(state['intent'], 'answer', after_sales=state['route'] == 'after_sales', refund_decision=state.get('refund_decision'), decision_reason=state.get('decision_reason')))
+        future_packet, _ = _packet(future, context, agent_final_system(None, None))
         reserve_call(future_packet.messages, [], ledger, output_limit=limits.final_output_tokens, final_reserve=0)
     except (InputTooLong, ServiceError) as exc:
+        if isinstance(exc, ContextCapacityError):
+            raise
         if exc.code not in ('input_too_long', 'token_budget'):
             raise
         return {**update, 'stop_reason': 'token_budget'}
@@ -315,7 +309,21 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
     context = runtime.context
     ensure_answer_active(context.deadline)
     selected = state['selected'].model_copy(deep=True)
-    call = parse_tool_selection(selected, _registry(state, context))
+    registry = _registry(state, context)
+    call = parse_tool_selection(selected, registry)
+    from app.repositories.faq import FAQRepository
+    if call.name == 'query_faq' and isinstance(context.faq_repository, FAQRepository):
+        from app.tools.business import contextual_tools
+        from app.tools.types import ToolContext
+        from app.retrieval.types import QueryPlan
+        # Bind backend-only options for this execution, leaving model schemas and
+        # other owner-bound registry tools unchanged. Injected legacy fakes keep
+        # their existing retrieve signature and never gain a shared mutable plan.
+        scoped = contextual_tools(context.faq_repository, None,
+            ToolContext(state['conversation_id'], int(state['user_message_id']), state['raw_question'], state['category']),
+            faq_options={'query_plan': QueryPlan(standard=state['resolved_question'], expansions=[]),
+                         'top_k': runtime_settings(context.settings).rerank_top_k})
+        registry = {**registry, 'query_faq': next(tool for tool in scoped if tool.name == 'query_faq')}
     selected.id = str(await context.repository.append_message(state['conversation_id'], selected))
     origin = state.get('selected_origin', 'agent')
     identity = {'tool': call.name, 'tool_call_id': call.id, 'origin': origin}
@@ -323,7 +331,7 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
     started = time.monotonic()
     # 同值外层工具期限会抢先取消执行器，必须只让执行器拥有匹配 tool_timeout 的机会。
     async with asyncio.timeout_at(context.deadline):
-        outcome = await context.executor.execute(call, _registry(state, context))
+        outcome = await context.executor.execute(call, registry)
     ensure_answer_active(context.deadline)
     result = ToolMessage(json.dumps(outcome.content, ensure_ascii=False, separators=(',', ':'), allow_nan=False),
         tool_call_id=call.id, name=call.name, status=outcome.status)
@@ -340,16 +348,16 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
             # 先形成完整状态更新，再由收敛节点抛服务错误，不能丢失配对和计数。
             return {**update, 'tool_error': error}
     try:
-        packet = _packet({**state, **update, 'messages': [*state['messages'], *update['messages']]}, context, agent_final_system(state['intent'], 'answer', after_sales=state['route'] == 'after_sales', refund_decision=state.get('refund_decision'), decision_reason=state.get('decision_reason')))
+        packet, evidence = _packet({**state, **update, 'messages': [*state['messages'], *update['messages']]}, context, agent_final_system(None, None))
         reserve_call(packet.messages, [], _ledger(state, _limits(context)),
             output_limit=_limits(context).final_output_tokens, final_reserve=0)
     except (InputTooLong, ServiceError) as exc:
         if exc.code not in ('input_too_long', 'token_budget'):
             raise
-        return {**update, 'stop_reason': 'token_budget'}
+        return {**update, 'stop_reason': 'context_capacity' if isinstance(exc, ContextCapacityError) else 'token_budget'}
     if call.name == 'query_faq' and outcome.status == 'success':
-        quality, stages = await _check_evidence(state, runtime, packet)
-        update.update(quality=quality, stage_usage=stages, evidence_payload=packet.payload, citations=[asdict(c) for c in packet.citations])
+        quality, stages = await _check_evidence(state, runtime, evidence)
+        update.update(quality=quality, stage_usage=stages, evidence_payload=evidence.payload, citations=[asdict(c) for c in evidence.citations])
     return update
 
 
@@ -364,7 +372,7 @@ def _after_tool(state):
 
 
 async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dict:
-    """证据闸后按实际回复模式验证唯一512流；两路澄清都必须通过非事实守卫。"""
+    """证据闸后按实际回复模式验证唯一最终流；澄清须通过非事实守卫。"""
     context, limits = runtime.context, _limits(runtime.context)
     ensure_answer_active(context.deadline)
     if state.get('tool_error'):
@@ -372,14 +380,18 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
         raise ServiceError(error.get('code', 'tool_execution_error'),
             error.get('message', '知识检索未能完成，请稍后重试。'), 502)
     if state.get('stop_reason'):
+        if state['stop_reason'] == 'context_capacity':
+            raise InputTooLong()
         runtime.stream_writer({'event': 'citations', 'data': {'citations': []}})
         runtime.stream_writer({'event': 'delta', 'data': {'text': UNFINISHED_ANSWER}})
         return {'final_answer': UNFINISHED_ANSWER, 'reply_mode': 'answer', 'suggested_actions': ['handoff'], 'quality': {}, 'citations': []}
     try:
-        packet = _packet(state, context, agent_final_system(state['intent'], state['reply_mode'], after_sales=state['route'] == 'after_sales', refund_decision=state.get('refund_decision'), decision_reason=state.get('decision_reason')))
+        packet, evidence = _packet(state, context, agent_final_system(None, None))
         ledger = _ledger(state, limits)
         reserve_call(packet.messages, [], ledger, output_limit=limits.final_output_tokens, final_reserve=0)
     except (InputTooLong, ServiceError) as exc:
+        if isinstance(exc, ContextCapacityError):
+            raise
         if exc.code not in ('input_too_long', 'token_budget'):
             raise
         runtime.stream_writer({'event': 'citations', 'data': {'citations': []}})
@@ -391,26 +403,33 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
     quality = {}
     stages = state['stage_usage']
     if has_faq:
-        if packet.payload == state['evidence_payload'] and state['quality']:
+        if evidence.payload == state['evidence_payload'] and state['quality']:
             quality = state['quality']
         else:
-            quality, stages = await _check_evidence(state, runtime, packet)
+            quality, stages = await _check_evidence(state, runtime, evidence)
         if not quality['useful']:
-            runtime.stream_writer({'event': 'citations', 'data': {'citations': [asdict(c) for c in packet.citations]}})
+            runtime.stream_writer({'event': 'citations', 'data': {'citations': [asdict(c) for c in evidence.citations]}})
             runtime.stream_writer({'event': 'delta', 'data': {'text': KNOWLEDGE_FALLBACK}})
             return {'quality': quality, 'stage_usage': stages, 'final_answer': KNOWLEDGE_FALLBACK, 'reply_mode': 'answer',
-                'suggested_actions': ['handoff'], 'citations': [asdict(c) for c in packet.citations], 'evidence_payload': packet.payload}
+                'suggested_actions': ['handoff'], 'citations': [asdict(c) for c in evidence.citations], 'evidence_payload': evidence.payload}
     elif not clarification and (state['route'] == 'knowledge' or not any('error' not in p and 'matches' not in p for p in payloads)):
         raise ServiceError('invalid_answer', '当前结果不足以生成事实回答，请补充必要信息。', 502)
     if clarification:
         quality = QualityDecision(useful=True, reason='本轮只追问必要业务参数。', response_kind='clarification', source=None).model_dump()
+    # Sufficiency is itemized separately, but its actual cost still reduces the
+    # same turn allowance before the final paid stream is opened.
+    ledger = _ledger({**state, 'stage_usage': stages}, limits)
+    reserve_call(packet.messages, [], ledger, output_limit=limits.final_output_tokens, final_reserve=0)
     model = model_with_output_budget(context.model, context.settings, limits.final_output_tokens)
-    runtime.stream_writer({'event': 'citations', 'data': {'citations': [] if clarification else [asdict(c) for c in packet.citations]}})
+    runtime.stream_writer({'event': 'citations', 'data': {'citations': [] if clarification else [asdict(c) for c in evidence.citations]}})
     collector, aggregate = FinalAnswerStream(), None
     notice = MOCK_DATA_NOTICE if not clarification and any(
         p.get('mock') is True and 'error' not in p and 'matches' not in p for p in payloads) else ''
     notice_sent = False
     estimate = _attempt(ledger, packet.messages, [], limits.final_output_tokens)
+    log_model_call(context.context_logger, packet, conversation_id=state['conversation_id'],
+        user_message_id=state['user_message_id'], phase='final', call_index=1,
+        on_packet=context.context_packet_observer)
     try:
         context.upstream = model.astream(packet.messages)
         async with asyncio.timeout(remaining_timeout(context, context.settings.llm_timeout_seconds)):
@@ -428,9 +447,9 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
                     runtime.stream_writer({'event': 'delta', 'data': {'text': text}})
         answer = notice + collector.complete(context.deadline)
         if quality:
-            validate_answer(answer, collector.reasons, packet, QualityDecision.model_validate(quality))
+            validate_answer(answer, collector.reasons, evidence, QualityDecision.model_validate(quality))
         if not clarification:
-            validate_business_answer(answer, packet, payloads)
+            validate_business_answer(answer, evidence, payloads)
         _settle(state, context, ledger, aggregate, estimate, limits.final_output_tokens)
         estimate = None
         if ledger.spent > ledger.budget:
@@ -439,8 +458,8 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
         if clarification:
             runtime.stream_writer({'event': 'delta', 'data': {'text': answer}})
         log_node(state, 'finalize_answer', usage=_usage(ledger))
-        return {'final_answer': answer, 'quality': quality, 'stage_usage': stages, 'usage': _usage(ledger), 'evidence_payload': packet.payload,
-            'citations': [] if clarification else [asdict(c) for c in packet.citations]}
+        return {'final_answer': answer, 'quality': quality, 'stage_usage': stages, 'usage': _usage(ledger), 'evidence_payload': evidence.payload,
+            'citations': [] if clarification else [asdict(c) for c in evidence.citations]}
     except (TimeoutError, httpx.TimeoutException, APITimeoutError) as exc:
         raise ServiceError('upstream_timeout', '模型响应超时，请稍后重试。', 504) from exc
     except ServiceError:

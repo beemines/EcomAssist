@@ -13,6 +13,8 @@ from app.core.extraction import invalid_output, validate_structured_output
 from app.core.memory import estimate_tokens
 from app.core.prompts import build_query_messages
 from app.retrieval.types import QueryPlan
+from app.workflow.context_budget import standalone_packet
+from app.context.logging import log_model_call, log_calibration
 
 
 # 只归一已知的完整问句模板，不能用子串替换去猜测任意品牌或限制条件。
@@ -67,22 +69,28 @@ def _safe_plan(raw_question: str, plan: QueryPlan) -> QueryPlan:
 
 class QueryPlanner:
     # 绑定严格原始 JSON 输出；预算和绝对期限由调用方提供，模型生命周期仍归调用方。
-    def __init__(self, model: Any, input_budget: int, timeout: float = 60):
+    def __init__(self, model: Any, input_budget: int, timeout: float = 60, *, context_logger=None,
+                 output_tokens=2048):
         if type(input_budget) is not int or input_budget <= 0:
             raise ValueError('input budget must be a positive integer')
         if type(timeout) not in (int, float) or not math.isfinite(timeout) or not 0 < timeout <= 60:
             raise ValueError('query timeout must be finite and in (0, 60]')
         self.structured_model = model.with_structured_output(QueryPlan, method='json_mode', include_raw=True)
         self.input_budget, self.timeout = input_budget, timeout
+        self.context_logger, self.output_tokens = context_logger, output_tokens
 
     # 限时理解本轮原话并复核原始 JSON，最后执行主题意图校验与有界同义扩展。
     # 外部模型由调用方关闭；取消不捕获、不重试，超时转换为统一上游错误。
-    async def plan(self, raw_question: str) -> QueryPlan:
+    async def plan(self, raw_question: str, *, context_logger=None, on_packet=None, on_calibration=None) -> QueryPlan:
         if not isinstance(raw_question, str) or not raw_question.strip():
             raise ValueError('raw question must be nonempty text')
         messages = build_query_messages(raw_question)
-        if len(raw_question) > 512 or estimate_tokens(messages) > self.input_budget:
+        packet = standalone_packet(messages, output_tokens=self.output_tokens)
+        if len(raw_question) > 512 or packet.estimated_tokens > self.input_budget:
             raise InputTooLong()
+        context_logger = context_logger or self.context_logger
+        log_model_call(context_logger, packet, phase='query_planner', on_packet=on_packet)
+        output = None
         try:
             async with asyncio.timeout(self.timeout):
                 output = await self.structured_model.ainvoke(messages)
@@ -92,6 +100,9 @@ class QueryPlanner:
             raise ServiceError('upstream_timeout', '模型响应超时，请稍后重试。', 504) from exc
         except Exception as exc:
             raise ServiceError('upstream_error', '模型服务暂时不可用，请稍后重试。', 502) from exc
+        finally:
+            log_calibration(context_logger, packet, output.get('raw') if isinstance(output, dict) else None,
+                            phase='query_planner', on_calibration=on_calibration)
         raw = output.get('raw') if isinstance(output, dict) else None
         if not isinstance(raw, AIMessage) or raw.response_metadata.get('finish_reason') != 'stop':
             raise invalid_output()

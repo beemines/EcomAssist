@@ -11,7 +11,7 @@ from app.orders.types import OrderProvider
 
 @dataclass
 class WorkflowRuntime:
-    """父图拥有模型与仓储；决策模型用于2048控制，model用于512最终流，upstream由收敛节点回收。"""
+    """父图拥有模型与仓储；控制与最终流采用配置输出，upstream由收敛节点回收。"""
     model: Any
     decision_model: Any
     intent_model: Any
@@ -37,3 +37,5 @@ class WorkflowRuntime:
     context_snapshot: Any = None
     context_provenance: tuple = ()
     context_logger: Any = None
+    context_packet_observer: Any = None
+    context_calibration_observer: Any = None

@@ -130,7 +130,7 @@ class WorkflowChatService:
         if registry is None:
             registry = self.registry_factory(ToolContext(conversation_id, identifier, message, category))
         control_model = model_with_output_budget(self.model, self.settings, self.settings.intent_max_output_tokens)
-        return WorkflowRuntime(model_with_output_budget(self.model, self.settings, 512),
+        return WorkflowRuntime(model_with_output_budget(self.model, self.settings, self.settings.max_output_tokens),
             model_with_output_budget(self.model, self.settings, self.settings.agent_decision_max_output_tokens),
             control_model, self.repository, self.faq_repository, self.sufficiency_service, self.quality_repository,
             registry, self.executor, self.settings, deadline, order_provider=self.order_provider,
@@ -159,6 +159,28 @@ class WorkflowChatService:
                     state['user_message_id'], rows, budget)
             # Pre-call check includes the full user text, summary JSON and output.
             understanding_packet(state['raw_question'], frozen, output_tokens=self.settings.intent_max_output_tokens)
+            if resume:
+                from app.workflow.context_budget import workflow_packet, stage_packet
+                from app.workflow.controls import stable_read_schema
+                from app.workflow.prompts import EXPANSION_SYSTEM
+                from app.core.prompts import build_sufficiency_messages, build_query_messages
+                from langchain_core.messages import SystemMessage
+                # Reuse the exact frozen view with today's output and native-result
+                # caps before resuming any graph node or initiating a paid call.
+                runtime.context_snapshot = frozen
+                workflow_packet(state, runtime, phase='decision', tools=stable_read_schema(runtime.registry))
+                _, evidence = workflow_packet(state, runtime, phase='final')
+                if state.get('order_snapshot'):
+                    stage_packet(frozen, system=SystemMessage(EXPANSION_SYSTEM), raw_question=state['raw_question'],
+                        attachment={'resolved_question': state['resolved_question'], 'order': state['order_snapshot']},
+                        output_tokens=self.settings.intent_max_output_tokens)
+                if evidence.citations:
+                    stage_packet(frozen, system=build_sufficiency_messages('', {})[0], raw_question=state['raw_question'],
+                        attachment={'resolved_question': state['resolved_question'], 'evidence': evidence.payload,
+                                    'order_context': state.get('order_snapshot')},
+                        output_tokens=self.settings.sufficiency_max_output_tokens)
+                stage_packet(frozen, system=build_query_messages('')[0], raw_question=state['raw_question'],
+                             attachment={}, output_tokens=self.settings.query_max_output_tokens)
         except ContextCapacityError as exc:
             if self.context_logger is not None:
                 self.context_logger.event('context_error', {'conversation_id': state['conversation_id'],

@@ -23,10 +23,13 @@ class WorkflowRetriever:
         self.retriever = retriever
 
     async def retrieve(self, *, question: str, queries: tuple[str, ...],
-                       category: str | None, rerank_question: str | None = None) -> WorkflowRetrieval:
+                       category: str | None, rerank_question: str | None = None, top_k: int = 10) -> WorkflowRetrieval:
         """每路唯一排名贡献1/(60+rank)，按分数降序和主键升序截断50。"""
         plan = QueryPlan(standard=question, expansions=[])
         validate_category(category)
+        if type(top_k) is not int or not 1 <= top_k <= 10:
+            raise ValueError('top_k must be in 1..10')
+        limit = {'top_k': top_k} if top_k != 10 else {}
         if (not isinstance(queries, tuple) or not 1 <= len(queries) <= 3 or queries[0] != question
                 or any(not isinstance(query, str) or not query.strip() or len(query) > 512 for query in queries)
                 or len({''.join(query.split()) for query in queries}) != len(queries)):
@@ -41,7 +44,7 @@ class WorkflowRetriever:
             if len(queries) == 1:
                 # 纯FAQ明确跳过旧planner，保留单查询原生hybrid候选及得分。
                 bundle = await self.retriever.retrieve(question, category=category,
-                    strategy='hybrid_rerank', query_plan=plan)
+                    strategy='hybrid_rerank', query_plan=plan, **limit)
                 candidates = bundle.candidates
                 counts.append(len(candidates))
                 provenance = {hit.id: [{'query_index': 0, 'rank': rank}]
@@ -62,7 +65,7 @@ class WorkflowRetriever:
                     scores, key=lambda identifier: (-scores[identifier], identifier))[:50]]
                 bundle = await self.retriever.finalize_candidates(question=question, plan=plan,
                     candidates=candidates, category=category, strategy='hybrid_rerank',
-                    rerank_question=rerank_question)
+                    rerank_question=rerank_question, **limit)
             _ensure_active()
         except BaseException as exc:
             # 包装链不能把调用方取消或期限变成普通解析失败/部分成功。

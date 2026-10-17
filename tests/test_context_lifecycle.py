@@ -106,13 +106,15 @@ async def test_restart_paused_snapshot_ignores_new_summary_and_rechecks_smaller_
             return ContextAnchors(None, None), ()
     context = Context()
     coordinator = ContextCoordinator(context, Notifications(), None)
-    def application(model, limits):
-        return create_app(fake_settings(workflow_checkpoint_path=tmp_path / 'resume.sqlite', agent_total_token_budget=100000),
+    from app.workflow.context_budget import workflow_budget
+    def application(model, **overrides):
+        config = fake_settings(workflow_checkpoint_path=tmp_path / 'resume.sqlite', agent_total_token_budget=100000, **overrides)
+        return create_app(config,
             model=model, repository=store, faq_repository=FAQStub(), quality_repository=store,
-            context_coordinator=coordinator, context_budget_provider=lambda registry: limits,
+            context_coordinator=coordinator, context_budget_provider=lambda registry: workflow_budget(config, registry),
             workflow_retriever=Retrieve())
     first = application(ScriptedWorkflowModel(intent_replies=[reply({'query': '这个能退吗？'}), intent('退款退货')]),
-                        budget(window=25000, history=12000, layer1=10000))
+                        model_context_window=25000)
     async with first.router.lifespan_context(first):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(first), base_url='http://localhost') as client:
             card, _ = await pause(client)
@@ -120,7 +122,7 @@ async def test_restart_paused_snapshot_ignores_new_summary_and_rechecks_smaller_
         saved_view = original.values['context_snapshot']
     context.changed = True
     failed_model = ScriptedWorkflowModel()
-    small = application(failed_model, budget(window=2000, history=100, layer1=70))
+    small = application(failed_model, model_context_window=18000,max_agent_steps=3,max_output_tokens=2000,rerank_top_k=5)
     async with small.router.lifespan_context(small):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(small), base_url='http://localhost') as client:
             response = await client.post('/api/conversations/1/actions/select-order', json=selection(card))
@@ -129,7 +131,7 @@ async def test_restart_paused_snapshot_ignores_new_summary_and_rechecks_smaller_
         assert unchanged.config == original.config and unchanged.values['context_snapshot'] == saved_view
         assert failed_model.intents == failed_model.decisions == 0
     resumed = application(ScriptedWorkflowModel(intent_replies=[reply({'queries': ['这个能退吗？', '退货政策']})]),
-                          budget(window=26000, history=12000, layer1=10000))
+                          model_context_window=26000)
     async with resumed.router.lifespan_context(resumed):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(resumed), base_url='http://localhost') as client:
             response = await client.post('/api/conversations/1/actions/select-order', json=selection(card))
@@ -170,11 +172,13 @@ async def test_legacy_pause_without_snapshot_is_established_only_for_resume(tmp_
     class EmptyContext:
         async def load(self, cid):
             return ContextAnchors(None, None), ()
-    app = create_app(fake_settings(workflow_checkpoint_path=tmp_path / 'resume.sqlite'),
+    from app.workflow.context_budget import workflow_budget
+    config = fake_settings(workflow_checkpoint_path=tmp_path / 'resume.sqlite')
+    app = create_app(config,
         model=ScriptedWorkflowModel(intent_replies=[reply({'queries': ['这个能退吗？', '退货政策']})]),
         repository=store, faq_repository=FAQStub(), quality_repository=store, workflow_retriever=Retrieve(),
         context_coordinator=ContextCoordinator(EmptyContext(), Notifications(), None),
-        context_budget_provider=lambda registry: budget())
+        context_budget_provider=lambda registry: workflow_budget(config, registry))
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://localhost') as client:
             response = await client.post('/api/conversations/1/actions/select-order', json=selection(card))

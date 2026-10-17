@@ -84,3 +84,9 @@
 - `ContextCoordinator.prepare`只做边界CAS和不可变视图构造；摘要notify保持同步且不等待生成。已有L>S积压导致当前H容量失败时仍通知管理器，避免每轮失败阻止后续恢复。
 - Task6采用显式`context_budget_provider(registry)`；Task7拥有唯一真实阶段工厂、默认激活与Agent/扩写/充分性/query planner调用包及日志。Task6日志阶段为history/understanding/classification/summary；摘要机器事件使用`summary_notify/trigger/start/done/skipped/failed`对应完整snake_case名，层降级为`context_downgrade`，不能用带空格的计划叙述进行字符串验收。
 - 理解/分类实际共享冻结段与层，来源校验仅取注入段原SQL范围内的用户表达或成功配对读取，与可见实体取完整token交集。有限身份/位置/手机号反例不是任意自然语言忠实度证明；否定和当前诉求提示仍需Task11真实有限样例验收。
+
+## Task7: stable native schema, nullable required fields and actual boundary capture
+
+- Consulted official [ChatOpenAI integration](https://docs.langchain.com/oss/python/integrations/chat/openai) and [Pydantic fields](https://pydantic.dev/docs/validation/latest/concepts/fields/) before implementing concrete bindings. Locked langchain-openai1.6.7 `chat_models/base.py:480` uses `message.name or message.additional_kwargs.get("name")`; estimator now matches even empty-name cases. `bind_tools` around2540 normalizes dicts with `convert_to_openai_tool`; stable OpenAI tool dictionaries are passed unchanged, `tool_choice=auto`, `parallel_tool_calls=False`, while decision-only JSON response format remains in extra_body.
+- Locked pydantic2.13.5 `json_schema.py:field_is_required` derives validation required fields from the absence of a default. Unified nullable fields deliberately have no default; both are required in actual captured native tool schemas. Strict local JSON/native validation retains route semantics.
+- Reused locked `_convert_message_to_dict` through ContextLogger at each actual invoke/stream boundary. No guessed node body, HTTP headers or client repr. Offline MockTransport samples compare messages and tools before response, including failed calls; capture compares non-stream input usage only, unknown remains null and calibrated remains false. No stream_usage override or live calibration in Task7.

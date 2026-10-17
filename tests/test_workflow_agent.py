@@ -17,7 +17,8 @@ NOTICE = '本轮订单、物流等业务信息为模拟演示数据，仅供参�
 
 def control(mode='answer', actions=()):
     """生成独立控制响应，确保正文只能来自最终流。"""
-    return AIMessage(json.dumps({'reply_mode': mode, 'suggested_actions': list(actions)}),
+    return AIMessage(json.dumps({'reply_mode': mode, 'suggested_actions': list(actions),
+                                'refund_decision': None, 'decision_reason': None}),
         response_metadata={'finish_reason': 'stop'})
 
 
@@ -209,17 +210,14 @@ async def test_annotated_reply_modes_have_explicit_meaning_in_actual_model_input
             annotated_examples[line.split('→')[0]] = AgentControl.model_validate_json(line[line.index('{'):].rstrip('。'))
     assert any('订单1001的包裹到哪里了？' in label and example.reply_mode == 'answer'
         for label, example in annotated_examples.items())
-    assert any('新买的商品不太会用' in label and example.reply_mode == 'clarification'
+    assert any('尚未提供商品或型号' in label and example.reply_mode == 'clarification'
         for label, example in annotated_examples.items())
     final_system = context.model.stream_inputs[0][0].text
-    assert f'回复模式：{mode}' in final_system
-    if mode == 'answer':
-        assert '本轮采用 answer：直接依据当前结果或编号证据回答' in final_system
-        assert '模拟结果必须保留模拟或演示说明' in final_system
-    else:
-        assert '本轮采用 clarification：只询问缺少的必要用户信息' in final_system
-        assert '不要复述或解释已有工具结果' in final_system
-        assert '不输出物流状态、运单号、预计天数或其他事实' in final_system
+    attachment = next(json.loads(m.content)['data'] for m in context.model.stream_inputs[0]
+                      if isinstance(m, HumanMessage) and m.content.startswith('{"kind":"context_data"'))
+    assert attachment['reply_mode'] == mode
+    assert 'answer直接依据当前结果或编号证据回答' in final_system
+    assert 'clarification只询问缺少的必要用户信息，不复述业务事实' in final_system
     assert result['reply_mode'] == mode and result['final_answer'] == (NOTICE + answer if tool else answer)
 
 
@@ -252,10 +250,13 @@ async def test_final_model_input_distinguishes_business_results_from_faq_citatio
     assert '混合业务与 FAQ 时，仅为 FAQ 知识事实标注其实际 n' in system
     assert 'mock=true' in system and '模拟' in system
     shown = [json.loads(message.content) for message in final_messages if isinstance(message, ToolMessage)]
-    business_payloads = [data for data in shown if 'matches' not in data]
+    business_payloads = [data for data in shown if 'evidence_in_attachment' not in data]
     assert len(business_payloads) == (2 if business else 0)
     assert all('n' not in data and data['mock'] is True for data in business_payloads)
-    numbered = [match for data in shown for match in data.get('matches', [])]
+    attachment = next(json.loads(m.content)['data'] for m in final_messages
+                      if isinstance(m, HumanMessage) and m.content.startswith('{"kind":"context_data"'))
+    numbered = attachment['evidence'].get('matches', [])
+    assert all('matches' not in data for data in shown)
     assert [item['n'] for item in numbered] == ([1, 3, 2] if has_faq else [])
     assert [item['n'] for item in result['citations']] == ([1, 3, 2] if has_faq else [])
     assert result['final_answer'] == (NOTICE + answer if business else answer) and context.model.streams == 1

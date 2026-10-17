@@ -93,7 +93,9 @@ class RetrievalService:
     # 单轮仅理解一次；结构无效时使用完整原话，其他依赖故障或取消直接传播。
     async def retrieve(self, raw_question: str, *, category: str | None = None,
                        strategy: Literal['dense', 'bm25', 'hybrid', 'hybrid_rerank'] = 'hybrid_rerank',
-                       query_plan: QueryPlan | None = None) -> RetrievalBundle:
+                       query_plan: QueryPlan | None = None, top_k: int = 10) -> RetrievalBundle:
+        if type(top_k) is not int or not 1 <= top_k <= 10:
+            raise ValueError('top_k must be in 1..10')
         if strategy not in ('dense', 'bm25', 'hybrid', 'hybrid_rerank'):
             raise ValueError('invalid retrieval strategy')
         if not isinstance(raw_question, str) or not raw_question.strip():
@@ -146,7 +148,7 @@ class RetrievalService:
         index_strategy = 'hybrid' if strategy == 'hybrid_rerank' else strategy
         hits = await self.index.recall(vector, text, strategy=index_strategy, category=category)
         return await self.finalize_candidates(question=raw_question, plan=plan, candidates=hits,
-                                              category=category, strategy=strategy)
+                                              category=category, strategy=strategy, top_k=top_k)
 
     async def recall_candidates(self, query: str, *, category: str | None = None) -> list[VectorHit]:
         """单条完整查询仅做嵌入与原生hybrid，去重截断50；不调用规划或重排。"""
@@ -166,9 +168,11 @@ class RetrievalService:
 
     async def finalize_candidates(self, *, question: str, plan: QueryPlan, candidates: list[VectorHit],
                                   category: str | None, strategy: str,
-                                  rerank_question: str | None = None) -> RetrievalBundle:
+                                  rerank_question: str | None = None, top_k: int = 10) -> RetrievalBundle:
         """复用四策略的权威回填与至多一次重排，最终最多十条证据。"""
         _ensure_active()
+        if type(top_k) is not int or not 1 <= top_k <= 10:
+            raise ValueError('top_k must be in 1..10')
         if strategy not in ('dense', 'bm25', 'hybrid', 'hybrid_rerank'):
             raise ValueError('invalid retrieval strategy')
         if rerank_question is not None and (strategy != 'hybrid_rerank'
@@ -189,12 +193,12 @@ class RetrievalService:
         if strategy == 'hybrid_rerank' and valid:
             # 重排位置始终映射到实际提交的权威正文，不映射到含缺行的原召回列表。
             ranked = await self.reranker.rank(question if rerank_question is None else rerank_question,
-                [embedding_text(row) for _, row in valid], top_n=10)
+                [embedding_text(row) for _, row in valid], top_n=top_k)
             _ensure_active()
-            matches = [ScoredChunk(valid[hit.index][1], hit.score, 'rerank') for hit in ranked[:10]]
+            matches = [ScoredChunk(valid[hit.index][1], hit.score, 'rerank') for hit in ranked[:top_k]]
         else:
             score_kind = {'dense': 'cosine', 'bm25': 'bm25', 'hybrid': 'rrf', 'hybrid_rerank': 'rerank'}[strategy]
-            matches = [ScoredChunk(row, hit.score, score_kind) for hit, row in valid[:10]]
+            matches = [ScoredChunk(row, hit.score, score_kind) for hit, row in valid[:top_k]]
         # 通用服务保留低分；证据门槛和自评由后续线上消费方执行。
         return RetrievalBundle(plan, strategy, candidates, matches)
 

@@ -153,7 +153,7 @@ def test_context_settings_reject_unsupported_steps_and_top_k(overrides):
 
 
 def test_steady_turn_fixture_contains_complete_business_shapes():
-    fixture = json.loads((Path(__file__).parent / 'fixtures/context/steady_turns.json').read_text(encoding='utf-8'))
+    fixture = json.loads((Path(__file__).parents[1] / 'app/context/steady_turns.json').read_text(encoding='utf-8'))
     assert fixture['estimator_version'] == ESTIMATOR_VERSION
     assert fixture['calibration']['provider_usage'] is None
     costs = []

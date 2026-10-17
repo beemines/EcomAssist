@@ -166,9 +166,19 @@ assert 'Authorization' not in log_text and runtime_api_key not in log_text
 
 ## Task 7: Agent稳定前缀、真实证据包和全链路预算接线
 
-**Files:** Create `app/workflow/controls.py`, `tests/test_context_{agent,prefix,evidence}.py`, `tests/fixtures/context/token-calibration.json`; Modify `app/workflow/{agent,after_sales,prompts,nodes,service,expansion}.py`, `app/core/{evidence,sufficiency}.py`, `app/retrieval/{service,multi,query}.py`, `app/agent/controls.py`, `app/main.py`, `tests/test_agent_native_control.py`, `tests/test_agent_final_boundary.py`。
+**Files:** Create `app/workflow/{controls,context_budget}.py`, `tests/test_context_{agent,prefix,evidence}.py`, `tests/fixtures/context/token-calibration.json`; Modify `app/workflow/{agent,after_sales,prompts,nodes,service,expansion,intent,understanding,runtime}.py`, `app/core/{evidence,sufficiency}.py`, `app/retrieval/{service,multi,query}.py`, `app/context/{tokens,logging}.py`, `app/agent/controls.py`, `app/main.py`, `tests/test_context_budget.py`, `tests/test_agent_native_control.py`, `tests/test_agent_final_boundary.py`。logging.py仅在现有model/event不足以承载实际校准hook时窄扩展，无需为文件清单强做改动。
 
 **Interfaces:** `UnifiedAgentControl(reply_mode, suggested_actions, refund_decision: Literal['eligible','needs_review','ineligible','not_applicable']|None, decision_reason: str|None)`；`parse_control(reply: AIMessage, *, route: str, intent: str) -> UnifiedAgentControl`；`stable_read_schema(registry: Mapping[str,BaseTool]) -> list[dict]`；`prepare_workflow_evidence(payloads: Sequence[dict], *, top_k: int, token_budget: int) -> WorkflowEvidence`。在core/evidence.py定义`WorkflowEvidence(payload, citations: tuple[Citation,...], best_score, strategy, tool_receipts)`，不借用旧EvidencePacket.messages占位；模型消息只由任务3的compose_call产生。`RetrievalService.retrieve/finalize_candidates`新增可选`top_k: int=10`，WorkflowRetriever透传线上Top-K，离线默认不变。
+
+**固定数据归属补充：** 将任务1的 `tests/fixtures/context/steady_turns.json` 原字节移动至 `app/context/steady_turns.json`，产品工厂与测试共同读取唯一版本；记录哈希不变，不复制内容到常量或保留两份。相同数据的路径消费者可修正，事实与估算系数保持不变；缺失或估算器版本不匹配须明确失败。
+
+**已证实的旧测试接缝：** `tests/test_workflow_agent.py`共享有效control、`tests/test_agent_native_current_read.py`和`tests/test_workflow_agent_quality.py`的有效响应纳入四字段契约迁移；已列native/final-boundary测试同步核对实际user附件及窗口/峰值/累计独立约束。保留所有业务、owner、usage、流式、原文和恶意输入断言；非法类型/actions/extra负例补齐其余合法字段以避免新增缺字段掩盖原非法点，缺字段另有独立负例。不修改早章独立协议，不全仓替换。 `tests/test_workflow_agent_limits.py`仅已证实的最终完整输入预留用例可改为合法输入与独立累计阈值，保留原断言；原超长输入另有明确拒绝覆盖。 `tests/test_context_lifecycle.py`仅两处已证实的恢复预算fixture接实际阶段工厂，保留冻结、原根字节、409与零调用断言；不放松未知阶段验证或虚增历史预算。 `tests/test_context_logging.py`仅取消用例更新为真实三事件顺序，实际usage/误差为null，保留单次计费和正文断言。
+
+**完整回归已证实的四用例：** `tests/test_context_state_history.py`仅降层不改原文用例改实际demo配置；`tests/test_conversation_api.py`及`tests/test_knowledge_lifecycle.py`仅owned生命周期补本地bind/空恢复仓储并证明成功进入后关闭，保留所有资源/异常断言；`tests/test_understanding_input_projection.py`仅捕获新预留helper并保留实际输入/来源一致。不得用这些测试迁移放宽产品保护。
+
+**Workflow FAQ隐含调用接缝：** 允许 `app/tools/business.py`、`app/repositories/faq.py`，必要时 `app/tools/registry.py` 最小可信可选参数或请求级包装。Workflow业务FAQ复用已理解问题/显式QueryPlan直检，跳过共享planner并透传线上Top-K；原raw连续keyword校验、SQLowner与早章/离线默认行为不变。参数不进入模型tool args，不共享usage或callback。覆盖真实检索服务的planner零调用、Top-5、raw与resolved分工及拒绝路径；独立QueryPlanner入口保留实际日志/采样。
+
+**动态附件容量：** Agent控制附件V上限640，构包时按同一估算强制检查；完整当前用户U单独保留，相同resolved_question不重复放附件。过大的重写/理由组合须显式容量错误，不截断、不进知识低置信度池、不发该阶段模型请求。可先在本计划scratch用任务10固定21轮、真实形状样本和生产分层函数作有界离线可行性探针；摘要50–80/200字符均是假设，不代表真实模型验收，也不替代任务10的完整图验证。
 
 ```python
 assert ordinary_decision_packet.prefix_hash == after_sales_decision_packet.prefix_hash
@@ -182,7 +192,7 @@ assert actual_http_body['messages'] == logged_model_context['messages']
 - [ ] **Green**：新测试及`tests/test_workflow_agent.py tests/test_workflow_agent_limits.py tests/test_workflow_agent_quality.py tests/test_agent_native_current_read.py tests/test_agent_native_control.py tests/test_agent_final_boundary.py tests/test_workflow_gate.py tests/test_refund_decision.py tests/test_refund_policy_scoring.py`；对原政策、两步订单物流、退款需审核、库外拒答各做离线完整图复验。
 - [ ] **其余阶段日志**：在Agent、扩写、充分性和query planner的实际invoke/stream边界补齐同口径载荷日志与可选回调；任务6不重建这些阶段的猜测输入。日志必须与实际客户端收到的消息及工具一致，失败/取消也保留发出前记录。
 
-- [ ] **默认激活**：复用任务6的 context_budget_provider(registry) 注入接口，在本任务交付唯一的实际阶段预算工厂及默认生命周期开启；启动使用同一工厂，不能让生产默认路径继续走旧8k裁剪或跳过上下文日志。任务6已测的可注入接线不能当作本条完成。
+- [ ] **默认激活**：复用任务6的 context_budget_provider(registry) 注入接口，在本任务交付唯一的实际阶段预算工厂及默认生命周期开启；启动使用同一工厂，不能让生产默认路径继续走旧8k裁剪或跳过上下文日志。无显式chat_service且使用真实DB或显式context_repository时自动启用；纯fake仓储且无DB/context_repository的注入接缝保留显式opt-in，不暗连真实库，也不作为生产默认验收。若direct Runtime需要临时模型视图，须从其实际完整原文构造，不能用空history绕过容量。任务6已测的可注入接线不能当作本条完成。
 
 - [ ] **首轮校准准备**：本任务交付实际序列化包与非流式prompt_tokens的采样/误差校核接线及离线验证。真实最多3轮校准移至任务11，在任务10的共享HTTP限额器就绪后、完整批次前运行，避免为任务7另建临时计数器。真实样本、系数版本和误差尚未取得时须明确标待验证，不宣称已校准；不为校准修改stream_usage或发明缺失usage，未知不能填0。
 - [ ] **提交**：记四项，`git commit -m "feat: apply stable agent prefixes and bounded context packets"`。

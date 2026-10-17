@@ -46,14 +46,14 @@ def faq_result(context, data):
 
 @pytest.mark.asyncio
 async def test_knowledge_does_not_query_faq_twice():
-    """强制检索过的知识轮不再向主力模型暴露 FAQ。"""
+    """强制检索后schema稳定，服务端执行许可仍拒绝重复FAQ。"""
     context, state = setup([control()], answer='当前规则[1]。')
     state.update(route='knowledge', intent='商品咨询', tool_call_count=1)
     state['messages'] += [workflow_call('query_faq', {'keyword': '订单'}, 'mandatory'),
         ToolMessage(json.dumps(payload(('当前规则',))), tool_call_id='mandatory')]
     state['quality'] = {'useful': True, 'reason': '当前证据已检查', 'response_kind': 'knowledge', 'source': None}
     result, _ = await run(context, state)
-    assert 'query_faq' not in {(t['function']['name'] if isinstance(t, dict) else t.name) for t in context.decision_model.bound_tools[0]}
+    assert 'query_faq' in {(t['function']['name'] if isinstance(t, dict) else t.name) for t in context.decision_model.bound_tools[0]}
     assert result['tool_call_count'] == 1 and not context.faq_repository.calls
     assert result['citations'][0]['answer'] == '当前规则'
 
@@ -80,7 +80,8 @@ async def test_second_turn_cannot_reuse_old_quality_or_citation():
     with pytest.raises(ServiceError):
         await run(context, state)
     assert context.model.streams == 0
-    assert [m.type for m in context.decision_model.tool_inputs[0]][1:] == ['human', 'ai', 'tool', 'ai', 'human']
+    assert [m.type for m in context.decision_model.tool_inputs[0]][1:] == ['human', 'ai', 'tool', 'ai', 'human', 'human']
+    assert json.loads(context.decision_model.tool_inputs[0][-1].content)['data']['evidence'] == {}
 
 
 @pytest.mark.asyncio
@@ -101,6 +102,10 @@ async def test_mock_business_answer_must_keep_mock_meaning():
     '{"reply_mode":"answer","suggested_actions":["delete"]}', '{"reply_mode":"answer"', 'plain answer'])
 async def test_control_schema_is_strict_and_not_answer_text(content):
     """非法字段、动作或破损JSON不能降级为最终正文。"""
+    try:
+        content = json.dumps({'refund_decision': None, 'decision_reason': None, **json.loads(content)})
+    except json.JSONDecodeError:
+        pass
     context, state = setup([AIMessage(content, response_metadata={'finish_reason': 'stop'})])
     with pytest.raises(ServiceError):
         await run(context, state)
@@ -191,7 +196,8 @@ async def test_captured_factual_logistics_still_rejected_under_chosen_clarificat
                 parsed_modes.append(data['llm_call']['reply_mode'])
     assert error.value.code == 'invalid_answer'
     assert parsed_modes == ['clarification']
-    assert '回复模式：clarification' in context.model.stream_inputs[0][0].text
+    assert next(json.loads(m.content)['data']['reply_mode'] for m in context.model.stream_inputs[0]
+        if isinstance(m, HumanMessage) and m.content.startswith('{"kind":"context_data"')) == 'clarification'
     assert [message.type for message in context.repository.messages] == ['ai', 'tool']
     assert context.model.streams == 1 and context.decision_model.decisions == 2
     assert not context.repository.refusals

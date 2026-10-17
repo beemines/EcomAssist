@@ -99,11 +99,12 @@ class QueryUnderstanding:
             raise InputTooLong()
         packet = understanding_packet(raw_question, snapshot, output_tokens=output_tokens) if snapshot else None
         messages = list(packet.messages) if packet else build_understanding_messages(raw_question, history, self.input_budget)
-        cost = estimate_call_input(messages, [])
+        cost = packet.estimated_tokens if packet is not None else estimate_call_input(messages, [])
         # 调用已开始即保守计费；有原始实测响应时在协议校验前替换。
         ledger = UsageLedger()
-        record_usage(None, ledger, estimated_input=cost, output_limit=2048)
+        record_usage(None, ledger, estimated_input=cost, output_limit=output_tokens)
         self.usage = {key: getattr(ledger, key) for key in self.usage}
+        output = None
         try:
             async with asyncio.timeout(self.timeout_seconds):
                 if context_logger is not None and packet is not None:
@@ -119,9 +120,14 @@ class QueryUnderstanding:
             raise ServiceError('upstream_timeout', '模型响应超时，请稍后重试。', 504) from exc
         except Exception as exc:
             raise ServiceError('upstream_error', '模型服务暂时不可用，请稍后重试。', 502) from exc
+        finally:
+            if packet is not None:
+                from app.context.logging import log_calibration
+                log_calibration(context_logger, packet, output.get('raw') if isinstance(output, dict) else None,
+                                phase='understanding')
         raw = output.get('raw') if isinstance(output, dict) else None
         ledger = UsageLedger()
-        record_usage(raw, ledger, estimated_input=cost, output_limit=2048)
+        record_usage(raw, ledger, estimated_input=cost, output_limit=output_tokens)
         self.usage = {key: getattr(ledger, key) for key in self.usage}
         if (not isinstance(raw, AIMessage) or raw.response_metadata.get('finish_reason') != 'stop'
                 or raw.tool_calls or raw.invalid_tool_calls or raw.additional_kwargs.get('tool_calls')):

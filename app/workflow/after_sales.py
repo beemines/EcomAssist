@@ -10,27 +10,9 @@ from app.core.extraction import invalid_output, validate_structured_output
 from app.workflow.entities import explicit_order_ids, validate_resolved_entities
 
 
-class AfterSalesControl(BaseModel):
-    """仅用于已过政策闸的订单售后出口，保留严格原始协议。"""
-    model_config = ConfigDict(extra='forbid', strict=True)
-    reply_mode: Literal['answer', 'clarification']
-    suggested_actions: list[Literal['handoff', 'create_ticket']] = Field(max_length=2)
-    refund_decision: Literal['eligible', 'needs_review', 'ineligible', 'not_applicable']
-    decision_reason: str = Field(min_length=1, max_length=256)
+from app.workflow.controls import UnifiedAgentControl, parse_control, validate_control
 
-    @field_validator('decision_reason')
-    @classmethod
-    def nonblank_reason(cls, value):
-        """拒绝空白理由，不能用缺失说明生成许可。"""
-        if not value.strip():
-            raise ValueError('decision reason must be nonblank')
-        return value
-
-    @field_validator('suggested_actions')
-    @classmethod
-    def unique_actions(cls, value):
-        """动作建议按首次出现顺序去重。"""
-        return list(dict.fromkeys(value))
+AfterSalesControl = UnifiedAgentControl
 
 
 def resolve_order_anchor(raw_question: str, resolved_question: str, history: list[BaseMessage]) -> str | None:
@@ -41,23 +23,11 @@ def resolve_order_anchor(raw_question: str, resolved_question: str, history: lis
 
 
 def parse_after_sales_control(reply, intent: str) -> AfterSalesControl:
-    """拒绝与办理方向或澄清相矛盾的申请判断，不从正文纠正。"""
-    try:
-        parsed = AfterSalesControl.model_validate_json(reply.text)
-    except ValidationError as exc:
-        raise invalid_output() from exc
-    control = validate_structured_output({'raw': reply, 'parsed': parsed, 'parsing_error': None}, AfterSalesControl)
-    return validate_after_sales_control(control, intent)
+    return parse_control(reply, route='after_sales', intent=intent)
 
 
 def validate_after_sales_control(control: AfterSalesControl, intent: str) -> AfterSalesControl:
-    """正文兼容与原生控制共用同一售后语义，不从回答推断许可。"""
-    if (intent == '售后' and control.refund_decision != 'not_applicable'
-            or intent == '退款退货' and control.refund_decision == 'not_applicable'
-            or control.reply_mode == 'clarification' and control.refund_decision in ('eligible', 'needs_review')):
-        raise invalid_output()
-    return control
-
+    return validate_control(control, route='after_sales', intent=intent)
 
 def make_refund_offer(state) -> dict | None:
     """SQL最终答案保存后冻结许可快照；根检查点确认及公开发布由服务负责。"""

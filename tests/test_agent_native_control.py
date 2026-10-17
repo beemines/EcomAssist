@@ -13,7 +13,7 @@ from app.core.errors import ServiceError
 from app.config import Settings
 from app.core.llm import create_model, model_with_output_budget
 from app.core.memory import estimate_tokens
-from app.agent.controls import estimate_call_input
+from app.context.tokens import estimate_payload as estimate_call_input
 from app.workflow.agent import llm_call
 from app.workflow.logging import safe_fields
 from tests.test_workflow_agent import setup, run, control
@@ -22,7 +22,8 @@ from tests.workflow_fakes import workflow_call
 
 def native(args=None):
     return workflow_call('internal_response_control', args if args is not None else
-        {'reply_mode': 'answer', 'suggested_actions': ['handoff']}, identifier='control_1')
+        {'reply_mode': 'answer', 'suggested_actions': ['handoff'],
+         'refund_decision': None, 'decision_reason': None}, identifier='control_1')
 
 
 @pytest.mark.parametrize('transport', ['json_control', 'native_control'])
@@ -34,17 +35,17 @@ async def test_post_logistics_sdk_uses_supported_json_mode_without_network(trans
         requests.append(payload)
         assert payload['tool_choice'] == 'auto'
         schema = next(t['function'] for t in payload['tools'] if t['function']['name'] == 'internal_response_control')
-        assert set(schema['parameters']['required']) == {'reply_mode', 'suggested_actions'}
+        assert set(schema['parameters']['required']) == {'reply_mode', 'suggested_actions', 'refund_decision', 'decision_reason'}
         assert schema['parameters']['additionalProperties'] is False
         assert schema['parameters']['properties']['suggested_actions']['maxItems'] == 2
         assert payload['parallel_tool_calls'] is False and payload['max_tokens'] == 2048
         assert payload['response_format'] == {'type': 'json_object'}
         assert all('strict' not in tool['function'] for tool in payload['tools'])
-        message = {'role': 'assistant', 'content': '{"reply_mode":"answer","suggested_actions":["handoff"]}'}
+        message = {'role': 'assistant', 'content': '{"reply_mode":"answer","suggested_actions":["handoff"],"refund_decision":null,"decision_reason":null}'}
         if transport == 'native_control':
             message.update(content=None, tool_calls=[{'id': 'control_1', 'type': 'function',
                 'function': {'name': 'internal_response_control',
-                    'arguments': '{"reply_mode":"answer","suggested_actions":["handoff"]}'}}])
+                    'arguments': '{"reply_mode":"answer","suggested_actions":["handoff"],"refund_decision":null,"decision_reason":null}'}}])
         return httpx.Response(200, json={'id': 'fake', 'object': 'chat.completion', 'created': 0,
             'model': 'offline', 'choices': [{'index': 0,
                 'finish_reason': 'tool_calls' if transport == 'native_control' else 'stop', 'message': message}],
@@ -88,6 +89,8 @@ async def test_native_control_is_not_business_execution_or_sql_or_badge(caplog):
     {'reply_mode': True, 'suggested_actions': []}, {'reply_mode': 'answer', 'suggested_actions': 'handoff'},
     {'reply_mode': 'answer', 'suggested_actions': ['refund']}, {'reply_mode': 'answer', 'suggested_actions': ['handoff'] * 3}])
 async def test_native_control_schema_failure_never_executes_or_streams(args):
+    if 'suggested_actions' in args:
+        args = {'refund_decision': None, 'decision_reason': None, **args}
     context, state = setup([native(args)], question='查物流', intent='物流')
     with pytest.raises(ServiceError) as caught:
         await run(context, state)
@@ -115,7 +118,7 @@ async def test_native_control_uses_whole_selection_guards(defect):
 @pytest.mark.parametrize('route,intent', [('business', '物流'), ('knowledge', '商品咨询'), ('after_sales', '退款退货')])
 async def test_actual_internal_schema_is_charged_and_can_block_call(route, intent):
     """漏算控制schema会让刚好只容业务schema的输入错误越过收费边界。"""
-    args = {'reply_mode': 'clarification', 'suggested_actions': []}
+    args = {'reply_mode': 'clarification', 'suggested_actions': [], 'refund_decision': None, 'decision_reason': None}
     if route == 'after_sales':
         args.update(refund_decision='ineligible', decision_reason='需要更多信息')
     context, state = setup([native(args)], question='请帮我', intent=intent)
@@ -128,16 +131,21 @@ async def test_actual_internal_schema_is_charged_and_can_block_call(route, inten
     if route == 'after_sales':
         params = internal[0]['function']['parameters']
         assert set(params['required']) == {'reply_mode', 'suggested_actions', 'refund_decision', 'decision_reason'}
-        assert params['properties']['decision_reason']['maxLength'] == 256
+        assert params['properties']['decision_reason']['anyOf'][0]['maxLength'] == 256
     assert result['usage']['estimated'] == estimate_call_input(messages, schemas) + 2048
-    business = [s for s in schemas if s['function']['name'] != 'internal_response_control']
-    context.settings.tool_input_token_budget = estimate_tokens(messages) + estimate_call_input([], business) - estimate_call_input([], [])
-    blocked = await llm_call(state, Runtime(context=context))
-    assert blocked['stop_reason'] == 'token_budget' and context.decision_model.decisions == 1
+    from dataclasses import replace
+    from app.workflow.context_budget import runtime_snapshot
+    frozen = runtime_snapshot(state, context)
+    context.context_snapshot = replace(frozen, budget=replace(frozen.budget,
+        window=estimate_call_input(messages, schemas) + 2048 + frozen.budget.safety - 1))
+    with pytest.raises(ServiceError) as caught:
+        await llm_call(state, Runtime(context=context))
+    assert caught.value.code == 'input_too_long' and context.decision_model.decisions == 1
 
 
 async def test_native_control_can_finalize_after_four_business_calls():
-    context, state = setup([native({'reply_mode': 'clarification', 'suggested_actions': []})],
+    context, state = setup([native({'reply_mode': 'clarification', 'suggested_actions': [],
+                                  'refund_decision': None, 'decision_reason': None})],
         question='查物流', intent='物流', answer='请提供订单号。')
     state.update(tool_call_count=4, decision_count=4)
     result, events = await run(context, state)
@@ -213,14 +221,22 @@ async def test_primary_json_control_remains_strict(reply, valid, caplog):
 
 
 @pytest.mark.parametrize('token_field', ['max_tokens', 'max_completion_tokens'])
-async def test_actual_factory_json_format_is_decision_only_and_preserves_model(token_field):
+@pytest.mark.parametrize('final_output', [512, 2000])
+async def test_actual_factory_json_format_is_decision_only_and_preserves_model(token_field, final_output, tmp_path):
     """决策副本泄漏JSON格式到最终流或改写共享factory参数会破坏真实HTTP契约。"""
     settings = Settings(_env_file=None, llm_base_url='https://offline.invalid/v1', llm_model='offline',
-        llm_api_key='offline', llm_token_limit_field=token_field, max_output_tokens=512)
+        llm_api_key='offline', llm_token_limit_field=token_field, max_output_tokens=final_output)
     requests = []
+    from app.context.logging import ContextLogger
+    path = tmp_path / 'app.log'
+    logger = ContextLogger(path)
     def respond(request):
         payload = json.loads(request.content)
         requests.append(payload)
+        records = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines()]
+        sent = [row for row in records if row['event'] == 'model_ctx'][-1]
+        assert sent['messages'] == payload['messages']
+        assert sent['tools'] == payload.get('tools', [])
         assert payload['reasoning_effort'] == 'low'
         if not payload.get('stream'):
             assert payload[token_field] == 2048 and payload['tool_choice'] == 'auto'
@@ -228,8 +244,8 @@ async def test_actual_factory_json_format_is_decision_only_and_preserves_model(t
             assert all('strict' not in tool['function'] for tool in payload['tools'])
             return httpx.Response(200, json={'id': 'control', 'object': 'chat.completion', 'created': 0,
                 'model': 'offline', 'choices': [{'index': 0, 'finish_reason': 'stop', 'message': {
-                    'role': 'assistant', 'content': '{"reply_mode":"clarification","suggested_actions":[]}'}}]})
-        assert payload[token_field] == 512 and 'response_format' not in payload
+                    'role': 'assistant', 'content': '{"reply_mode":"clarification","suggested_actions":[],"refund_decision":null,"decision_reason":null}'}}]})
+        assert payload[token_field] == final_output and 'response_format' not in payload
         assert 'tools' not in payload and 'tool_choice' not in payload
         pieces = [{'role': 'assistant', 'content': '请提供订单号。'}, {}]
         data = ''.join('data: ' + json.dumps({'id': 'final', 'object': 'chat.completion.chunk',
@@ -238,6 +254,7 @@ async def test_actual_factory_json_format_is_decision_only_and_preserves_model(t
         return httpx.Response(200, text=data + 'data: [DONE]\n\n', headers={'content-type': 'text/event-stream'})
     context, state = setup([], question='查物流', intent='物流')
     context.settings = settings
+    context.context_logger = logger
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
         model = create_model(settings, http_async_client=client, reasoning_effort='low')
         initial_extra = dict(model.extra_body)
@@ -246,12 +263,13 @@ async def test_actual_factory_json_format_is_decision_only_and_preserves_model(t
         try:
             result, _ = await run(context, state)
             assert result['final_answer'] == '请提供订单号。' and result['tool_call_count'] == 0
-            assert model.extra_body == initial_extra == {token_field: 512}
+            assert model.extra_body == initial_extra == {token_field: final_output}
             assert context.decision_model.extra_body == {token_field: 2048}
             assert context.model.extra_body == {token_field: 512}
             assert model.max_retries == 0 and context.decision_model.root_async_client is model.root_async_client
             assert len(requests) == 2
         finally:
+            logger.close()
             model.root_client.close()
             await model.root_async_client.close()
 
@@ -262,6 +280,12 @@ async def test_actual_factory_json_format_is_decision_only_and_preserves_model(t
     '```json\n{"reply_mode":"answer","suggested_actions":[]}\n```',
     '{"reply_mode":"answer","suggested_actions":[]}解释', '普通正文'])
 async def test_json_mode_does_not_relax_strict_control_validation(body):
+    try:
+        parsed = json.loads(body)
+        if 'suggested_actions' in parsed:
+            body = json.dumps({'refund_decision': None, 'decision_reason': None, **parsed})
+    except json.JSONDecodeError:
+        pass
     context, state = setup([AIMessage(body, response_metadata={'finish_reason': 'stop'})], question='查物流', intent='物流')
     with pytest.raises(ServiceError) as caught:
         await run(context, state)

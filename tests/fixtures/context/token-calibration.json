@@ -1,0 +1,11 @@
+{
+  "fixture_version": "workflow-token-calibration-capture-v1",
+  "estimator_version": "cjk-ascii-protocol-v1",
+  "status": "unvalidated",
+  "real_samples": [],
+  "real_prompt_tokens": null,
+  "real_error": null,
+  "offline_transport_samples_are_provider_measurements": false,
+  "capture": "At actual invocation boundaries; serialize exact messages and tools before dispatch, compare non-stream input usage only, unknown remains null.",
+  "deferred_acceptance": "Task11, after Task10 shared AcceptanceCallCap: at most three real calibration rounds before separately approved complete batches. No stream_usage change, no synthetic missing usage."
+}

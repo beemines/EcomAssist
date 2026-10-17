@@ -9,9 +9,12 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langgraph.runtime import Runtime
 
 from app.core.errors import InputTooLong, ServiceError
-from app.core.evidence import build_agent_evidence
+from app.core.evidence import prepare_workflow_evidence
+from app.workflow.context_budget import (runtime_settings, runtime_snapshot, workflow_packet, stage_packet,
+                                        turn_token_limit, reserve_context_call)
+from app.context.tokens import estimate_payload
 from app.core.llm import model_with_output_budget
-from app.agent.controls import UsageLedger, estimate_call_input, reserve_call
+from app.agent.controls import UsageLedger
 from app.orders.types import OrderSnapshot
 from app.workflow.after_sales import make_refund_offer, resolve_order_anchor
 from app.workflow.policy_scoring import refund_policy_question
@@ -19,9 +22,9 @@ from app.workflow.understanding import build_understanding_messages, understandi
 from app.workflow.intent import intent_packet
 from app.workflow.entities import validate_snapshot_entities, explicit_order_ids
 from app.workflow.selection import prepare_order_selection, await_order_selection
-from app.workflow.prompts import EXPANSION_SYSTEM, build_intent_messages, agent_final_system, agent_decision_system
+from app.workflow.prompts import EXPANSION_SYSTEM, build_intent_messages
 from app.workflow.intent import IntentClassifier, route_intent, social_fast_path
-from app.workflow.prompts import COMPLAINT_RESPONSE, EVIDENCE_SYSTEM, KNOWLEDGE_FALLBACK, OTHER_RESPONSE, SOCIAL_RESPONSE
+from app.workflow.prompts import COMPLAINT_RESPONSE, KNOWLEDGE_FALLBACK, OTHER_RESPONSE, SOCIAL_RESPONSE
 from app.workflow.runtime import WorkflowRuntime
 from app.workflow.state import WorkflowState
 from app.workflow.history import replay_turns
@@ -55,12 +58,12 @@ def state_evidence(state: WorkflowState, context: WorkflowRuntime):
         if isinstance(message, HumanMessage) and message.id == state['user_message_id']), None)
     if index is None:
         raise ValueError('current SQL user message identity missing')
-    turns = replay_turns(messages[:index])
+    replay_turns(messages[:index])
     pending = messages[index + 1:]
     payloads = [json.loads(message.content) for message in pending if isinstance(message, ToolMessage)]
-    return build_agent_evidence(system=SystemMessage(EVIDENCE_SYSTEM), turns=turns,
-        current=prompt_current(state, messages[index]), current_tool_messages=pending, payloads=payloads,
-        budget=context.settings.tool_input_token_budget)
+    settings = runtime_settings(context.settings)
+    return prepare_workflow_evidence(payloads, top_k=settings.rerank_top_k,
+        token_budget=runtime_snapshot(state, context).budget.evidence)
 
 
 def prior_history(state):
@@ -83,12 +86,14 @@ def observe_usage(context, update):
 async def model_stage(state, runtime, stage, service, operation, messages, *, following=0):
     """预留后续输出和完整最终输入，成功及失败尝试都记录独立阶段成本。"""
     context = runtime.context
-    ledger = UsageLedger(budget=getattr(context.settings, 'agent_total_token_budget', 32000), **state['usage'])
-    final = state_evidence(state, context).messages
-    final[0] = agent_final_system(state['intent'], 'answer', after_sales=state['route'] == 'after_sales')
-    control = [agent_decision_system(state['intent'], after_sales=state['route'] == 'after_sales'), HumanMessage(state['resolved_question'])]
-    reserve = estimate_call_input(final, []) + 512 + estimate_call_input(control, []) + 2048 + following * 2048
-    reserve_call(messages, [], ledger, output_limit=2048, final_reserve=reserve)
+    from app.workflow.controls import stable_read_schema
+    settings = runtime_settings(context.settings)
+    budget = runtime_snapshot(state, context).budget
+    ledger = UsageLedger(budget=turn_token_limit(settings, budget), **state['usage'])
+    final, _ = workflow_packet(state, context, phase='final')
+    control, _ = workflow_packet(state, context, phase='decision', tools=stable_read_schema(context.registry))
+    reserve = final.estimated_tokens + final.output_tokens + control.estimated_tokens + control.output_tokens + following * settings.intent_max_output_tokens
+    reserve_context_call(messages, [], ledger, output_limit=settings.intent_max_output_tokens, final_reserve=reserve)
     started = time.monotonic()
     try:
         async with asyncio.timeout(remaining_timeout(context, context.settings.llm_timeout_seconds)):
@@ -232,8 +237,15 @@ async def expand_queries(state: WorkflowState, runtime: Runtime[WorkflowRuntime]
     order = OrderSnapshot.model_validate_json(json.dumps(state['order_snapshot']))
     messages = [SystemMessage(EXPANSION_SYSTEM), HumanMessage(json.dumps(
         {'question': state['resolved_question'], 'order': state['order_snapshot']}, ensure_ascii=False))]
+    kwargs = {}
+    if context.context_snapshot is not None:
+        kwargs = dict(snapshot=context.context_snapshot, raw_question=state['raw_question'],
+                      context_logger=context.context_logger, output_tokens=context.settings.intent_max_output_tokens)
+        messages = stage_packet(context.context_snapshot, system=messages[0], raw_question=state['raw_question'],
+            attachment={'resolved_question': state['resolved_question'], 'order': state['order_snapshot']},
+            output_tokens=context.settings.intent_max_output_tokens).messages
     queries, update = await model_stage(state, runtime, 'expansion', context.expander,
-        lambda: context.expander.expand(state['resolved_question'], order), messages)
+        lambda: context.expander.expand(state['resolved_question'], order, **kwargs), messages)
     log_node(state, 'expand_queries', usage=update['usage'])
     return {**update, 'retrieval_queries': list(queries)}
 
@@ -252,6 +264,9 @@ async def retrieve_policies(state: WorkflowState, runtime: Runtime[WorkflowRunti
     if len(state['resolved_question']) > 512 or any(len(query) > 512 for query in queries):
         raise InputTooLong()
     scoring = {}
+    top_k = runtime_settings(context.settings).rerank_top_k
+    if top_k != 10:
+        scoring['top_k'] = top_k
     if (state['route'] == 'after_sales' and state['intent'] == '退款退货'
             and len(queries) > 1 and state.get('order_snapshot')):
         order = OrderSnapshot.model_validate_json(json.dumps(state['order_snapshot']))
@@ -300,13 +315,28 @@ async def assess_sufficiency(state, runtime, packet):
     """内部评估独立累计实测或估算，失败上报观测成本但不伪造成功更新。"""
     from app.core.prompts import build_sufficiency_messages
     context = runtime.context
+    settings = runtime_settings(context.settings)
     kwargs = {'order_context': state['order_snapshot']} if state['route'] == 'after_sales' else {}
     messages = build_sufficiency_messages(state['resolved_question'], packet.payload, **kwargs)
+    if context.context_snapshot is not None:
+        kwargs.update(snapshot=context.context_snapshot, original_question=state['raw_question'],
+            context_logger=context.context_logger, output_tokens=settings.sufficiency_max_output_tokens)
+        messages = stage_packet(context.context_snapshot, system=messages[0], raw_question=state['raw_question'],
+            attachment={'resolved_question': state['resolved_question'], 'evidence': packet.payload,
+                        'order_context': kwargs.get('order_context')},
+            output_tokens=settings.sufficiency_max_output_tokens).messages
+    previous = state['stage_usage'].get('sufficiency', {})
+    spent = sum(previous.get(key, 0) for key in ('actual', 'estimated'))
+    ledger = UsageLedger(budget=turn_token_limit(settings, runtime_snapshot(state, context).budget),
+        **{**state['usage'], 'estimated': state['usage']['estimated'] + spent})
+    final, _ = workflow_packet(state, context, phase='final')
+    reserve_context_call(messages, [], ledger, output_limit=settings.sufficiency_max_output_tokens,
+                         final_reserve=final.estimated_tokens + final.output_tokens)
     started = time.monotonic()
     def consumption():
-        """单列充分性累计，不混入32000账本。"""
+        """单列充分性累计，由本轮总预算共同约束。"""
         consumed = getattr(context.sufficiency, 'usage', None) or {
-            'actual': 0, 'estimated': estimate_call_input(messages, []) + 2048,
+            'actual': 0, 'estimated': estimate_payload(messages) + settings.sufficiency_max_output_tokens,
             'actual_calls': 0, 'estimated_calls': 1}
         old = state['stage_usage'].get('sufficiency', {})
         return {**state['stage_usage'], 'sufficiency': {
@@ -322,6 +352,8 @@ async def assess_sufficiency(state, runtime, packet):
         raise
     consumed = consumption()
     observe_usage(context, {'stage_usage': consumed, 'usage': state['usage']})
+    if sum(consumed['sufficiency'][key] + state['usage'][key] for key in ('actual', 'estimated')) > ledger.budget:
+        raise ServiceError('token_budget', '本轮模型预算不足，无法继续回答。', 422)
     return decision, consumed
 
 

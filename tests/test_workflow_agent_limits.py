@@ -92,8 +92,14 @@ def test_shared_parser_handles_unhashable_finish_reason(reason):
 @pytest.mark.asyncio
 async def test_full_final_input_reserved_before_decision():
     """只保留512输出而遗漏最终完整输入时，收费决策会错误开始。"""
-    context, state = setup([control('clarification')], question='查订单' * 800, answer='请提供订单号。')
-    context.settings.agent_total_token_budget = 11000
+    context, state = setup([control('clarification')], question='查订单' * 300, answer='请提供订单号。')
+    context.settings.agent_total_token_budget = 8000
+    from app.workflow.context_budget import workflow_packet
+    from app.workflow.controls import stable_read_schema
+    decision, _ = workflow_packet(state, context, phase='decision', tools=stable_read_schema(context.registry))
+    final, _ = workflow_packet(state, context, phase='final')
+    assert decision.estimated_tokens + decision.output_tokens < 8000
+    assert decision.estimated_tokens + decision.output_tokens + final.estimated_tokens + final.output_tokens > 8000
     result, _ = await run(context, state)
     assert context.decision_model.decisions == 0 and context.model.streams == 0
     assert result['suggested_actions'] == ['handoff']
