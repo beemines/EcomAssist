@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 
 from app.core.errors import InputTooLong
 from app.core.memory import estimate_tokens
-from app.repositories.records import MessageRecord, message_from_record, record_from_message
+from app.repositories.records import MessageRecord, decode_tool_calls, message_from_record, record_from_message
 
 
 # 校验完整或待回答轮次的顺序配对，并要求全轮工具调用标识唯一。
@@ -109,3 +109,37 @@ def build_tool_messages(
         total -= costs[dropped]
         dropped += 1
     return [system, *(message for turn in kept[dropped:] for message in turn), current, *pending]
+
+
+def completed_boundaries(rows: Sequence[MessageRecord]) -> set[int]:
+    """只承认本会话完整轮次的末条客服；工具往返未配对不能成为边界。
+
+    新user可结束之前取消/失败的残留，其原文仍留在待摘要批次中。
+    坏角色/损坏JSON明确诊断；孤立的合法工具行保留但不伪造成完成。
+    """
+    completed = set()
+    active, valid, pending = False, False, None
+    seen: set[str] = set()
+    for index, row in enumerate(rows):
+        record = MessageRecord(row.id, row.role, row.content, row.tool_calls, row.tool_call_id)
+        message_from_record(record)
+        if row.role == 'user':
+            active, valid, pending = True, True, None
+            seen = set()
+        elif row.role == 'tool':
+            if not active or pending is None or row.tool_call_id != pending:
+                valid = False
+            pending = None
+        elif row.tool_calls is not None:
+            if not active or pending is not None:
+                valid = False
+            pending = decode_tool_calls(row.tool_calls)[0]['id']
+            if pending in seen:
+                valid = False
+            seen.add(pending)
+        else:
+            next_is_user_or_end = index + 1 == len(rows) or rows[index + 1].role == 'user'
+            if active and valid and pending is None and next_is_user_or_end:
+                completed.add(row.id)
+            active = False
+    return completed

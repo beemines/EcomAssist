@@ -2,6 +2,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
+import json
 from types import MappingProxyType
 from typing import Any
 
@@ -98,3 +99,68 @@ class SummaryBatch:
 
     def __post_init__(self):
         object.__setattr__(self, 'source_rows', tuple(self.source_rows))
+
+
+@dataclass(frozen=True)
+class LayerPlan:
+    anchors: ContextAnchors
+    layer1: tuple[FrozenMessage, ...]
+    layer2: tuple[FrozenMessage, ...]
+    raw_layer2_rows: tuple[FrozenMessage, ...]
+    layer1_tokens: int
+    layer2_tokens: int
+    downgrade_ranges: tuple[tuple[int, int], ...]
+
+    def __post_init__(self):
+        for name in ('layer1', 'layer2', 'raw_layer2_rows'):
+            object.__setattr__(self, name, tuple(getattr(self, name)))
+        object.__setattr__(self, 'downgrade_ranges', tuple(tuple(pair) for pair in self.downgrade_ranges))
+
+
+@dataclass(frozen=True)
+class ContextSnapshot:
+    snapshot_id: str
+    conversation_id: str
+    user_message_id: str
+    anchors: ContextAnchors
+    summaries: tuple[SummarySegment, ...]
+    omitted_summary_seqs: tuple[int, ...]
+    layer1: tuple[FrozenMessage, ...]
+    layer2: tuple[FrozenMessage, ...]
+    budget: ContextBudget
+
+    def __post_init__(self):
+        for name in ('summaries', 'omitted_summary_seqs', 'layer1', 'layer2'):
+            object.__setattr__(self, name, tuple(getattr(self, name)))
+
+
+@dataclass(frozen=True, init=False)
+class ModelContextPacket:
+    """内部仅存序列化文本；每次出站取值均重建可变对象的防御性副本。"""
+    _messages_json: str
+    _tools_json: str
+    estimated_tokens: int
+    output_tokens: int
+    prefix_hash: str
+    snapshot_id: str
+
+    def __init__(self, messages, tools, estimated_tokens, output_tokens, prefix_hash, snapshot_id):
+        from langchain_core.messages import message_to_dict
+        from app.context.tokens import _plain_json
+
+        values = dict(_messages_json=json.dumps([message_to_dict(message) for message in messages],
+                      ensure_ascii=False, allow_nan=False),
+                      _tools_json=json.dumps(_plain_json(tools), ensure_ascii=False, allow_nan=False),
+                      estimated_tokens=estimated_tokens, output_tokens=output_tokens,
+                      prefix_hash=prefix_hash, snapshot_id=snapshot_id)
+        for name, value in values.items():
+            object.__setattr__(self, name, value)
+
+    @property
+    def messages(self):
+        from langchain_core.messages import messages_from_dict
+        return tuple(messages_from_dict(json.loads(self._messages_json)))
+
+    @property
+    def tools(self):
+        return tuple(json.loads(self._tools_json))

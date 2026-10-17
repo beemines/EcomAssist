@@ -50,3 +50,10 @@
 - MySQL服务器生成的`created_at`在flush后可能仍未加载，不能同步属性访问触发异步惰性IO。真实3308测试复现MissingGreenlet后，改用已有显式异步SELECT读取整段集合，再构造不可变返回值；不依赖MySQL未提供的INSERT RETURNING，也不加入新Session共享。
 - MySQL把ORM编译的INTEGER规范为INT；锁定`dialects/mysql/base.py:2470`确认INTEGER编译规则。用户SQL中seq仍原样INT、有符号，映射只做该同义类型比较，不能误改成INT UNSIGNED。
 - 两个用户DDL原文由控制者补入本计划scratch/task-2-user-ddl.md，实施文件`sql/ch07.sql`与`sql/ch07-layers.sql`保留其完整字段、中文注释、SET NAMES、索引、顺序及无FK设计。迁移契约从这些SQL读取，先核验全部已有结构再执行缺失项；不宣称事务能回滚已提交DDL。
+
+## 任务3实施：完整轮次候选和出站防御性副本
+
+- 实施前重新读取[LangChain官方短期记忆说明](https://docs.langchain.com/oss/python/langchain/short-term-memory#trim-messages)，并核对锁定langchain-core1.6.6的`messages/utils.py:1146`完整签名。使用`trim_messages(messages, max_tokens=..., token_counter=estimate_payload, strategy='last', allow_partial=False, start_on='human')`，随后按共享完整轮次扫描器对齐SQL边界；候选不替换持久化历史，也不承担工具配对正确性的证明。
+- 单独`trim_messages`参考页本次抓取返回不支持的text/markdown类型，未当作成功重读；官方短期记忆页及锁定源码均读取成功，已有设计期参考记录仍保留。
+- 读取官方[message_to_dict](https://reference.langchain.com/python/langchain-core/messages/base/message_to_dict)及[messages模块](https://reference.langchain.com/python/langchain-core/messages)，核对锁定1.6.6的`messages/base.py`和`messages/utils.py`：`message_to_dict(message: BaseMessage) -> dict[str, Any]`生成type/data字典，`messages_from_dict(messages: Sequence[dict[str, Any]]) -> list[BaseMessage]`重建消息。模型包内部持有JSON文本，取messages/tools时生成新副本，避免后台或调用方修改嵌套工具参数。
+- 冻结预算的phases含MappingProxyType，JSON边界沿用统一估算器的普通JSON副本转换，不调用`asdict(ContextBudget)`或对该代理deepcopy。摘要G计实际注入段的seq、字符串来源ID、正文及消息包装；最终整包另计同一user附件的其他字段、审计JSON、当前工具申请/结果和工具schema。
