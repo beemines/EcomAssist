@@ -360,6 +360,18 @@ def test_calibration_missing_usage_stays_unknown_and_version_unvalidated():
     assert present['prompt_tokens']==10 and present['absolute_error']==packet.estimated_tokens-10
 
 
+@pytest.mark.parametrize('observed', [1, 1000])
+def test_calibration_absolute_error_for_over_and_under_estimates(observed):
+    from langchain_core.messages import AIMessage
+    from app.context.tokens import calibration_sample
+    from app.workflow.context_budget import standalone_packet
+    packet = standalone_packet([HumanMessage('完整输入')], output_tokens=512)
+    sample = calibration_sample(packet, AIMessage('ok', usage_metadata={
+        'input_tokens': observed, 'output_tokens': 1, 'total_tokens': observed + 1}))
+    assert sample['absolute_error'] == abs(packet.estimated_tokens - observed)
+    assert sample['relative_error'] == (packet.estimated_tokens - observed) / observed
+
+
 @pytest.mark.parametrize('case', ['missing','version'])
 def test_factory_rejects_missing_or_incompatible_normative_turn_data(monkeypatch,case):
     from pathlib import Path

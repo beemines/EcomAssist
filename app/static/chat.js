@@ -318,14 +318,10 @@ function hydrateConversation(pageSet) {
   const fragment = document.createDocumentFragment(), replies = new Map();
   for (const page of pageSet.pages) for (const row of page.messages) {
     const metadata = page.turn_metadata[row.id];
-    if (row.role !== "assistant" || row.tool_calls) {
-      const item = addMessage(row.role === "user" ? "user" : "assistant", row.content || "", row.role === "tool" ? "原始工具结果" : row.tool_calls ? "原始工具请求" : undefined, fragment);
-      if (row.tool_calls || row.tool_call_id) {
-        const detail = document.createElement("details"); detail.className = "history-tool";
-        const label = document.createElement("summary"); label.textContent = "工具原始记录";
-        const text = document.createElement("pre"); text.textContent = JSON.stringify({ tool_calls: row.tool_calls, tool_call_id: row.tool_call_id }, null, 2);
-        detail.append(label, text); item.bubble.append(detail);
-      }
+    // API保留全部原文；聊天仅展示用户和最终答复，工具状态来自原轮元数据。
+    if (row.role === "system" || row.role === "tool" || row.tool_calls) continue;
+    if (row.role === "user") {
+      addMessage("user", row.content || "", undefined, fragment);
       continue;
     }
     const state = createReplyState(row.content || "", fragment);

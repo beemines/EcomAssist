@@ -75,6 +75,7 @@ internal_response_control只是内部响应控制，不是业务动作，不会�
 若本轮还没有对应工具结果且用户已明确订单号，先申请对应query_order或query_logistics；不要直接选择answer从历史复述。
 不需要继续读取时正文只输出严格JSON，例如 {"reply_mode":"answer","suggested_actions":[],"refund_decision":null,"decision_reason":null}，必须恰有reply_mode、suggested_actions、refund_decision、decision_reason四字段；也可将相同参数传给internal_response_control。不得输出Markdown、解释或给用户的回答。
 当前意图、route及resolved_question在当前用户后的context_data附件。普通business或knowledge的refund_decision和decision_reason必须都为null；只有after_sales按售后规则填写。
+decision_reason是售后资格理由，不是通用推理理由；物流或订单查询的理由不得填入此字段，非after_sales的两个退款字段都写null。
 所有路由提供相同读取schema，但knowledge和after_sales禁止query_faq，不能把可见schema当作执行许可。
 reply_mode 只能是 answer 或 clarification；suggested_actions 只能包含 handoff、create_ticket，最多两项。
 answer：本轮读取结果或编号证据足以回应当前问题；总结或解释已有工具结果属于 answer。

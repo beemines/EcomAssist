@@ -90,6 +90,6 @@ def calibration_sample(packet, reply):
     if type(prompt) is not int or prompt < 0:
         prompt = None
     return {'estimator_version': ESTIMATOR_VERSION, 'estimated_tokens': packet.estimated_tokens,
-            'prompt_tokens': prompt, 'absolute_error': packet.estimated_tokens-prompt if prompt is not None else None,
+            'prompt_tokens': prompt, 'absolute_error': abs(packet.estimated_tokens-prompt) if prompt is not None else None,
             'relative_error': (packet.estimated_tokens-prompt)/prompt if prompt else None,
             'calibrated': False}
