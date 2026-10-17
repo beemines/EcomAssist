@@ -1,6 +1,7 @@
 """各上下文任务共用的不可变预算载体。"""
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from types import MappingProxyType
 from typing import Any
 
@@ -58,3 +59,42 @@ class ContextBudget:
 
     def __post_init__(self):
         object.__setattr__(self, 'phases', _freeze(self.phases))
+
+
+@dataclass(frozen=True)
+class ContextAnchors:
+    summary_upto: int | None
+    layer1_from: int | None
+
+
+@dataclass(frozen=True)
+class SummarySegment:
+    seq: int
+    from_msg_id: int
+    upto_msg_id: int
+    content: str
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class FrozenMessage:
+    """JSON为序列化文本，避免后台任务共享可变工具参数。"""
+    id: str
+    role: str
+    content: str | None
+    tool_calls_json: str | None
+    tool_call_id: str | None
+
+
+@dataclass(frozen=True)
+class SummaryBatch:
+    conversation_id: str
+    expected_summary_upto: int | None
+    expected_seq: int
+    from_msg_id: int
+    upto_msg_id: int
+    source_rows: tuple[FrozenMessage, ...]
+    source_hash: str
+
+    def __post_init__(self):
+        object.__setattr__(self, 'source_rows', tuple(self.source_rows))
