@@ -234,7 +234,7 @@ assert.equal(fixture.ticketSubmissions, 0);
 
 ## Task 10: 固定21轮轨迹、离线级联和可复现演示工具
 
-**Files:** Create `tests/fixtures/context/long_conversation.json`, `tests/test_context_long_conversation.py`, `scripts/{start-context-demo,context-process-ownership}.ps1`, `scripts/context-storage-evidence.py`, `app/context/acceptance.py`, `tests/test_context_call_cap.py`, `docs/context-management-demo.md`; Modify `app/context/cli.py`, `scripts/verify-context-browser.cjs`, `app/main.py`, `README.md`及现有GLM/BGE客户端的可选注入接线。
+**Files:** Create `tests/fixtures/context/long_conversation.json`, `tests/test_context_long_conversation.py`, `scripts/{start-context-demo,context-process-ownership}.ps1`, `scripts/context-storage-evidence.py`, `app/context/{acceptance,replay}.py`, `tests/test_context_call_cap.py`, `docs/context-management-demo.md`; Modify `app/context/cli.py`, `scripts/verify-context-browser.cjs`, `app/main.py`, `README.md`及现有GLM/BGE客户端的可选注入接线。真实回放证实的前置软层预算借额缺口限定修改`app/context/layers.py`及`tests/test_context_layers.py`，保持历史硬上限、完整轮次及所有原文保护。
 
 **Interfaces:** CLI新增`budget --profile default|demo`和`replay --profile default|demo --output PATH`（完全离线）；PowerShell `start-context-demo.ps1 -Profile default|demo`只拥有8004，分别使用`runtime/workflow/context-{profile}-8004.sqlite`；证据脚本 `--conversation-id ID --output PATH`只读当前SQL/checkpoint。`AcceptanceCallCap(run_id, limits: Mapping[str,int], ledger_path: Path).reserve(provider: Literal['glm','embedding','rerank']) -> None`在真实HTTP派发前原子计数，超额拒绝（async hook中不得调用模型），失败请求也占次数；仅验收启动显式注入，普通运行关闭。启动器可另收`-RunId/-MaxGlmCalls/-MaxEmbeddingCalls/-MaxRerankCalls`，必须整组出现。浏览器脚本默认受控；真实示例为`node scripts/verify-context-browser.cjs --live --profile demo --run-id ch07-demo-001 --max-glm-calls 150 --max-embedding-calls 50 --max-rerank-calls 25 --output runtime/context-evidence/ch07-demo-001`，运行前校验与服务端run及限额完全一致。
 
@@ -244,7 +244,7 @@ assert {'context_downgrade', 'summary_trigger', 'summary_done'} <= set(demo_even
 assert real_http_dispatches == accepted_reservations  # 不计前端轮数冒充上游次数
 ```
 
-- [ ] **先标注数据**：冻结下列21轮原话及预期意图/实体/动作/摘要事实，保存哈希。第1/4/10/16/21轮走业务；第21轮允许“订单”或“物流”这两种合理分类，但必须恢复1001及原诉求，其余业务轮分别按物流/订单/物流/订单标注。其余轮为完整通用知识问题，不选单、不扩写。末轮必须区分最初1001与最近1002，并保留“没找到包裹、未申请退款”；不在中间反复提示1001。
+- [x] **先标注数据**：冻结下列21轮原话及预期意图/实体/动作/摘要事实，保存哈希。第1/4/10/16/21轮走业务；第21轮允许“订单”或“物流”这两种合理分类，但必须恢复1001及原诉求，其余业务轮分别按物流/订单/物流/订单标注。其余轮为完整通用知识问题，不选单、不扩写。末轮必须区分最初1001与最近1002，并保留“没找到包裹、未申请退款”；不在中间反复提示1001。
 
 ```text
 01 订单1001的物流到哪了？我还没找到包裹，先帮我查物流，不申请退款。
@@ -270,10 +270,10 @@ assert real_http_dispatches == accepted_reservations  # 不计前端轮数冒充
 21 最开始那个订单后来怎么说？我当时的诉求是什么？
 ```
 
-- [ ] **Red并确认**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_long_conversation.py tests/test_context_call_cap.py -q`，用真正图/SQLite、内存SQL边界替身、受控外部模型和固定真实形状工具结果，断言默认21轮不降级不摘要、演示真实计费触发级联，最初订单进摘要后才能继续理解；不能预置摘要/手改边界。回复被Event挂起摘要也能完成，所有上下文均有日志且在预算内，SQL/checkpoint原文一致。HTTP限额测试模拟聊天与两个摘要并发抢最后额度，只有一个出站；重启读取既有run账本、不清零掩盖次数。
-- [ ] **实现与Green**：完成离线replay/budget、只读证据、验收专属HTTP请求计数hook及启动器；重跑测试和两profile replay，输出实际H/H1/H2和所有扣项。所有真实GLM/BGE客户端包括后台摘要共享同一run上限，不能只数前端POST；注入客户端的资源所有权仍由创建者负责。启动器复用上一章进程身份核验方式，必须检查PID创建时间、命令行/工作区和监听所有权；已有未知8004直接拒绝，不停8002/8003，Start-Process用WindowStyle Hidden。Profile显式解决旧steps别名和累计费用配置冲突，不修改用户.env、不暗增限制。
-- [ ] **文档和自检**：文档给出`.venv/Scripts/python.exe -m app.context.cli migrate`、`verify`、`budget --profile demo`、`replay --profile demo --output runtime/context-evidence/offline-demo.json`、`pwsh -NoProfile -File scripts/start-context-demo.ps1 -Profile demo`；标明migrate显式DDL、在线启动只读核验，原有DDL前置。进程脚本测试不允许以PID文件单独授权停止。所有命令必须实际验证，不把这里的预期当成运行成绩。
-- [ ] **提交**：记四项，`git commit -m "test: add reproducible layered-context acceptance profiles"`。
+- [x] **Red并确认**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_long_conversation.py tests/test_context_call_cap.py -q`，用真正图/SQLite、内存SQL边界替身、受控外部模型和固定真实形状工具结果，断言默认21轮不降级不摘要、演示真实计费触发级联，最初订单进摘要后才能继续理解；不能预置摘要/手改边界。回复被Event挂起摘要也能完成，所有上下文均有日志且在预算内，SQL/checkpoint原文一致。HTTP限额测试模拟聊天与两个摘要并发抢最后额度，只有一个出站；重启读取既有run账本、不清零掩盖次数。
+- [x] **实现与Green**：完成离线replay/budget、只读证据、验收专属HTTP请求计数hook及启动器；重跑测试和两profile replay，输出实际H/H1/H2和所有扣项。所有真实GLM/BGE客户端包括后台摘要共享同一run上限，不能只数前端POST；注入客户端的资源所有权仍由创建者负责。启动器复用上一章进程身份核验方式，必须检查PID创建时间、命令行/工作区和监听所有权；已有未知8004直接拒绝，不停8002/8003，Start-Process用WindowStyle Hidden。Profile显式解决旧steps别名和累计费用配置冲突，不修改用户.env、不暗增限制。
+- [x] **文档和自检**：文档给出`.venv/Scripts/python.exe -m app.context.cli migrate`、`verify`、`budget --profile demo`、`replay --profile demo --output runtime/context-evidence/offline-demo.json`、`pwsh -NoProfile -File scripts/start-context-demo.ps1 -Profile demo`；标明migrate显式DDL、在线启动只读核验，原有DDL前置。进程脚本测试不允许以PID文件单独授权停止。所有命令必须实际验证，不把这里的预期当成运行成绩。
+- [x] **提交**：记四项，`git commit -m "test: add reproducible layered-context acceptance profiles"`。
 
 ## Task 11: 校准、真实页面验收、评审与交付
 
