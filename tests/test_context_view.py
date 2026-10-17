@@ -163,3 +163,22 @@ def test_prefix_hash_includes_actual_system_name():
     first = compose_call(snapshot(), system=SystemMessage('same', name='one'), **args)
     second = compose_call(snapshot(), system=SystemMessage('same', name='two'), **args)
     assert first.prefix_hash != second.prefix_hash
+
+
+@pytest.mark.parametrize('left_name,left_kwargs,right_name,right_kwargs,same_prefix', [
+    (None, {'name': 'one'}, None, {'name': 'two'}, False),
+    (None, {'name': 'one'}, 'one', {}, True),
+    ('explicit', {'name': 'ignored-one'}, 'explicit', {'name': 'ignored-two'}, True),
+    ('', {'name': 'one'}, 'one', {}, True),
+    ('', {}, None, {}, True),
+    (None, {'name': ''}, None, {}, False),
+])
+def test_prefix_hash_uses_effective_provider_system_name(
+        left_name, left_kwargs, right_name, right_kwargs, same_prefix):
+    from app.context.view import compose_call
+
+    frozen = snapshot()
+    args = dict(current=HumanMessage('q'), attachment={}, pending=(), tools=(), output_tokens=512)
+    left = compose_call(frozen, system=SystemMessage('same', name=left_name, additional_kwargs=left_kwargs), **args)
+    right = compose_call(frozen, system=SystemMessage('same', name=right_name, additional_kwargs=right_kwargs), **args)
+    assert (left.prefix_hash == right.prefix_hash) is same_prefix
