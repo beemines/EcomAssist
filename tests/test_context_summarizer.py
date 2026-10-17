@@ -188,6 +188,63 @@ def test_actual_unresolved_order_reference_cannot_be_summarized_as_distinguished
         validate_summary('用户已明确分别查询订单 O-101 和订单 O-202 的物流。', batch(user, '请确认要查哪一单。'))
 
 
+def order_sequence(*turns):
+    first = batch(*turns[0])
+    rows = first.source_rows
+    for index, turn in enumerate(turns[1:], start=1):
+        rows += batch(*turn, start=2*index+1).source_rows
+    return replace(first, source_rows=rows, upto_msg_id=len(rows), source_hash=_source_hash(rows))
+
+
+def test_cross_turn_unresolved_reference_cannot_select_an_order():
+    from app.context.summarizer import validate_summary
+    source = order_sequence(('订单 O-101 和 O-202 都买过。', '请问需要查询哪一单？'),
+                            ('帮我看看那个到哪里了。', '请确认具体订单。'))
+    with pytest.raises(ValueError):
+        validate_summary('用户查询订单 O-101 的物流，订单 O-202 是其另一笔订单。', source)
+    faithful = '用户提到订单 O-101 和 O-202，随后询问那个订单的物流，但仍未明确是哪一单，待确认具体订单。'
+    assert validate_summary(faithful, source) == faithful
+
+
+@pytest.mark.parametrize('followup', [None, '我也买过订单 O-101。', '可能是订单 O-101，我还不确定是哪单。'])
+def test_clarification_remains_pending_until_an_explicit_user_selection(followup):
+    from app.context.summarizer import validate_summary
+    turns = [('订单 O-101 和 O-202 都买过。', '请问需要查询哪一单？')]
+    if followup:
+        turns.append((followup, '请确认具体订单。'))
+    with pytest.raises(ValueError):
+        validate_summary('用户查询订单 O-101 的物流，订单 O-202 是其另一笔订单。', order_sequence(*turns))
+
+
+@pytest.mark.parametrize('first_user', ['订单 O-101 和 O-202 都买过。',
+                                      '订单 O-101 和 O-202 都买过，帮我看看那个到哪里了。'])
+def test_later_explicit_selection_resolves_earlier_uncertainty(first_user):
+    from app.context.summarizer import validate_summary
+    source = order_sequence((first_user, '请问需要查询哪一单？'),
+                            ('帮我看看那个到哪里了。', '请确认具体订单。'),
+                            ('我选订单 O-202，请查这单物流。', '会按您选定的订单核实。'))
+    summary = '用户提过订单 O-101 和 O-202，后来明确选择订单 O-202 查询物流，尚无查询结果。'
+    assert validate_summary(summary, source) == summary
+
+
+@pytest.mark.parametrize('reference', ['最开始那个订单', '第一笔订单'])
+def test_explicit_positional_reference_does_not_invent_ambiguity(reference):
+    from app.context.summarizer import validate_summary
+    source = order_sequence(('订单 O-101 和 O-202 都买过，帮我看看那个到哪里了。', '请确认具体订单。'),
+                            (f'我说的是{reference}，请查物流。', '会核实其物流。'))
+    summary = '用户提及订单 O-101 和 O-202，随后明确要查最开始的订单 O-101 的物流；尚无查询结果。'
+    assert validate_summary(summary, source) == summary
+
+
+def test_reference_after_distinct_clear_turns_uses_recent_narrowed_scope():
+    from app.context.summarizer import validate_summary
+    source = order_sequence(('请查订单 O-101 的物流。', '会核实。'),
+                            ('订单 O-202 我要申请退款。', '尚无处理结果。'),
+                            ('那个订单的退款怎么样了？', '需要查询进度。'))
+    summary = '用户先查订单 O-101 的物流，后询问订单 O-202 的退款申请及进度，尚无处理结果。'
+    assert validate_summary(summary, source) == summary
+
+
 async def test_full_wrappers_output_safety_and_timeout_are_enforced():
     from app.context.summarizer import SummaryGenerator
     model = ReplyModel('{"content":"订单 O-101 的包裹未找到。"}')
