@@ -217,7 +217,7 @@ assert model_calls_after_get == model_calls_before_get
 
 ## Task 9: 主题内多会话侧栏和原文回载
 
-**Files:** Create `app/static/conversations.js`, `scripts/verify-context-browser.cjs`; Modify `app/static/{index.html,chat.css,chat.js}`。
+**Files:** Create `app/static/conversations.js`, `scripts/verify-context-browser.cjs`; Modify `app/static/{index.html,chat.css,chat.js}`及`scripts/verify-intent-routing-browser.cjs`（仅受控夹具静态资源与GET/POST/原文分页接缝，保留全部原验收断言）。
 
 **Interfaces:** `ConversationSidebar({onSelect, onNew, getBusy}).refresh()/setActive(id)/setBusy(bool)`；聊天页提供async `switchConversation(id)`、`hydrateConversation(pageSet)`、`createConversation()`，复用`addMessage/renderAnswer/acceptCitations/acceptStatus`安全渲染。conversations.js在chat.js之前defer加载，UI类不复制SSE解析器。
 
@@ -227,10 +227,10 @@ assert.equal(fixture.refundSubmissions, 0);
 assert.equal(fixture.ticketSubmissions, 0);
 ```
 
-- [ ] **Red（浏览器交互）**：先扩展独立临时端口fixture server，断言侧栏完整翻页、两个[1]各开原chunk、大ID无精度损失、切换旧GET迟到不会覆盖新选择、列表500仍可输入发送、流式期间不能切换。无需为CSS写镜像单测；用真实Chromium跑新场景确认现状失败。
-- [ ] **实现**：复用现有颜色、圆角、对话滚动区，桌面侧栏新在前/首问预览/已摘要标记，手机收起可打开。全部原文页加载成功才切换；失败保留当前会话，列表失败静默。切换前关闭未提交表单、不提交业务，旧abort/代号结果不能覆盖新会话。新对话立即POST新身份，旧会话保留；刷新回载原文、pending选择器/原退款入口按既有GET恢复。转人工仍另起通知和小猫气泡，满意度只前端；不用confirm/alert黑框或innerHTML渲染历史。
-- [ ] **Green**：`node --check app/static/conversations.js`、`node --check app/static/chat.js`、`node scripts/verify-context-browser.cjs`及既有`node scripts/verify-intent-routing-browser.cjs`；测试受控服务GET/POST按method区分，新增GET不能被旧“所有/api/conversations都返回创建回执”的替身误处理。
-- [ ] **记录截图与提交**：保存桌面/窄屏、旧引用、切回继续聊截图及机器结果，明确是受控浏览器还是实际应用证据；记四项，`git commit -m "feat: add themed conversation sidebar and history hydration"`。
+- [x] **Red（浏览器交互）**：先扩展独立临时端口fixture server，断言侧栏完整翻页、两个[1]各开原chunk、大ID无精度损失、切换旧GET迟到不会覆盖新选择、列表500仍可输入发送、流式期间不能切换。无需为CSS写镜像单测；用真实Chromium跑新场景确认现状失败。
+- [x] **实现**：复用现有颜色、圆角、对话滚动区，桌面侧栏新在前/首问预览/已摘要标记，手机收起可打开。全部原文页加载成功才切换；失败保留当前会话，列表失败静默。切换前关闭未提交表单、不提交业务，旧abort/代号结果不能覆盖新会话。新对话立即POST新身份，旧会话保留；刷新回载原文、pending选择器/原退款入口按既有GET恢复。转人工仍另起通知和小猫气泡，满意度只前端；不用confirm/alert黑框或innerHTML渲染历史。
+- [x] **Green**：`node --check app/static/conversations.js`、`node --check app/static/chat.js`、`node scripts/verify-context-browser.cjs`及既有`node scripts/verify-intent-routing-browser.cjs`；测试受控服务GET/POST按method区分，新增GET不能被旧“所有/api/conversations都返回创建回执”的替身误处理。
+- [x] **记录截图与提交**：保存桌面/窄屏、旧引用、切回继续聊截图及机器结果，明确是受控浏览器还是实际应用证据；记四项，`git commit -m "feat: add themed conversation sidebar and history hydration"`。
 
 ## Task 10: 固定21轮轨迹、离线级联和可复现演示工具
 
