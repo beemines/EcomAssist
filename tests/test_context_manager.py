@@ -201,22 +201,49 @@ async def test_frozen_target_splits_contiguous_complete_raw_turns(repository):
     assert len(triggers) == 1 and triggers[0]['upto_msg_id'] == '106' and triggers[0]['target_l'] == '106'
 
 
-async def test_empty_greeting_segment_covers_range_and_is_not_recovered_again(repository):
+@pytest.mark.parametrize('answer', ['您好', '您好！有什么可以帮您的吗？'])
+async def test_empty_greeting_segment_covers_range_and_is_not_recovered_again(repository, answer):
     from app.context.manager import SummaryManager
     from app.context.summarizer import SummaryGenerator
     await seed(repository)
     async with repository.database.session() as session, session.begin():
-        await session.execute(text("UPDATE messages SET content=CASE role WHEN 'user' THEN '你好' ELSE '您好' END WHERE conversation_id=1"))
+        await session.execute(text("UPDATE messages SET content=CASE role WHEN 'user' THEN '你好' ELSE :answer END WHERE conversation_id=1"), {'answer':answer})
     model, events = ReplyModel('{"content":""}'), Events()
     manager = SummaryManager(repository, SummaryGenerator(model, settings()), budget_provider=budget, event_logger=events)
     manager.notify('1', layer2_tokens=100, budget=budget())
-    await events.wait('summary_done')
-    await manager.aclose()
+    try:
+        await events.wait('summary_done')
+    finally:
+        await manager.aclose()
     anchors, segments = await repository.load('1')
     assert anchors.summary_upto == 102 and len(segments) == 1 and segments[0].content == ''
     restarted = SummaryManager(repository, SummaryGenerator(model, settings()), budget_provider=budget)
     await restarted.startup()
     await restarted.aclose()
+    assert len(model.calls) == 1
+
+
+@pytest.mark.parametrize('separate_turns', [False, True])
+async def test_explicit_distinct_orders_commit_without_ambiguity_marker(repository, separate_turns):
+    from app.context.manager import SummaryManager
+    from app.context.summarizer import SummaryGenerator
+    await seed(repository, turns=2 if separate_turns else 1)
+    async with repository.database.session() as session, session.begin():
+        await session.execute(text('UPDATE messages SET content=:content WHERE id=101'),
+            {'content':'请查订单 O-101 的物流。' if separate_turns else '请查订单 O-101 的物流；另外订单 O-202 我要申请退款。'})
+        await session.execute(text('UPDATE messages SET content=:content WHERE id=103'),
+            {'content':'订单 O-202 我要申请退款。'})
+    expected = '用户查询订单 O-101 的物流，另希望针对订单 O-202 申请退款；两项诉求分别对应已明确的订单，物流和退款均尚无处理结果。'
+    model, events = ReplyModel(json.dumps({'content':expected}, ensure_ascii=False)), Events()
+    manager = SummaryManager(repository, SummaryGenerator(model, settings()), budget_provider=budget, event_logger=events)
+    manager.notify('1', layer2_tokens=100, budget=budget())
+    try:
+        await events.wait('summary_done')
+    finally:
+        await manager.aclose()
+    anchors, segments = await repository.load('1')
+    assert anchors.summary_upto == (104 if separate_turns else 102)
+    assert len(segments) == 1 and segments[0].from_msg_id == 101 and segments[0].content == expected
     assert len(model.calls) == 1
 
 

@@ -27,6 +27,7 @@ _POSITIVE_ACTIONS = (r'已(?:经)?退款(?:成功)?|退款(?:已)?成功|退款�
                      r'已(?:经)?收到|已(?:经)?找到(?:包裹)?|已签收')
 _STAGES = (r'已(?:经)?申请(?:退款)?', r'打开.{0,4}表单', r'待审核')
 _REJECTED_ORDER = re.compile(r'不是\s*(?:订单)?\s*([A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*)')
+_UNRESOLVED_ORDER = re.compile(r'待确认|未明确|没(?:有)?明确|未区分|没(?:有)?区分|不明确|不确定|哪(?:一)?单|哪个|那个|那(?:一)?单|其中一单')
 
 
 def _tokens(text):
@@ -78,8 +79,10 @@ def validate_summary(content: str, batch: SummaryBatch) -> str:
     if not isinstance(content, str) or len(content) > 200 or (content and not content.strip()):
         raise ValueError('Summary must be text of at most 200 characters.')
     users, facts = _sources(batch)
-    all_text = [row.content or '' for row in batch.source_rows]
-    social = not facts and all(_SOCIAL.fullmatch(value.strip()) for value in all_text)
+    # Ordinary assistant offers of help are not new trusted business facts.
+    # User business text and any tool activity still prevent empty coverage.
+    social = (bool(users) and not facts and all(_SOCIAL.fullmatch(value.strip()) for value in users)
+              and not any(row.role == 'tool' or row.tool_calls_json is not None for row in batch.source_rows))
     if social:
         if content:
             raise ValueError('Pure greetings must not invent summary facts.')
@@ -109,7 +112,8 @@ def validate_summary(content: str, batch: SummaryBatch) -> str:
                 raise ValueError('Summary lost the explicit order switch.')
             if set(_REJECTED_ORDER.findall('\n'.join(users))) != set(_REJECTED_ORDER.findall(content)):
                 raise ValueError('Summary changed which order was explicitly rejected.')
-        elif not re.search(r'待确认|未明确|未区分|不明确|没有区分', content):
+        elif (any(len(explicit_order_ids(user)) > 1 and _UNRESOLVED_ORDER.search(user) for user in users)
+              and not re.search(r'待确认|未明确|未区分|不明确|没有区分', content)):
             raise ValueError('Multiple orders must retain unresolved identity.')
     if facts and not re.search(r'当时|曾|历史', content):
         raise ValueError('Tool facts must be labelled as historical.')

@@ -141,6 +141,53 @@ def test_known_action_stages_and_direction_must_not_be_lost(user, summary):
         validate_summary(summary, batch(user, '等待核实。'))
 
 
+@pytest.mark.parametrize('answer', ['您好！有什么可以帮您的吗？',
+                                   '您好！我是客服小助手，可以为您解答问题。',
+                                   '欢迎咨询，我能为您提供什么帮助？'])
+def test_greeting_with_help_boilerplate_accepts_empty_summary(answer):
+    from app.context.summarizer import validate_summary
+    assert validate_summary('', batch('你好', answer)) == ''
+
+
+@pytest.mark.parametrize('source', [
+    batch('你好，请查订单 O-101 的物流。', '您好！有什么可以帮您的吗？'),
+    batch('你好', '您好！有什么可以帮您的吗？', {'order_id':'O-101','status':'运输中','mock':True}),
+    batch('你好', '查询失败。', {'order_id':'O-101','error':'not_found'}),
+])
+def test_greeting_cannot_erase_user_business_or_tool_history(source):
+    from app.context.summarizer import validate_summary
+    with pytest.raises(ValueError):
+        validate_summary('', source)
+
+
+def test_independently_specified_orders_in_same_request_are_not_ambiguous():
+    from app.context.summarizer import validate_summary
+    source = batch('请查订单 O-101 的物流；另外订单 O-202 我要申请退款。', '会分别核实。')
+    summary = '用户查询订单 O-101 的物流，另希望针对订单 O-202 申请退款；两项诉求分别对应已明确的订单，物流和退款均尚无处理结果。'
+    assert validate_summary(summary, source) == summary
+
+
+def test_separate_clear_complete_turns_can_share_summary_without_invented_uncertainty():
+    from app.context.summarizer import validate_summary
+    first = batch('请查订单 O-101 的物流。', '等待物流结果。')
+    second = batch('订单 O-202 我要申请退款。', '还未提交申请。', start=3)
+    rows = first.source_rows + second.source_rows
+    combined = replace(first, source_rows=rows, upto_msg_id=4, source_hash=_source_hash(rows))
+    summary = '用户先查询订单 O-101 的物流，后希望针对订单 O-202 申请退款；这两项诉求各有明确订单，尚无处理结果。'
+    assert validate_summary(summary, combined) == summary
+
+
+@pytest.mark.parametrize('user', [
+    '订单 O-101 和 O-202 都买过，帮我看看那个到哪里了。',
+    '订单 O-101 和 O-202 我还没区分，想查其中一单的物流。',
+    '请查订单 O-101 和 O-202 中的一单，还没有明确具体是哪单。',
+])
+def test_actual_unresolved_order_reference_cannot_be_summarized_as_distinguished(user):
+    from app.context.summarizer import validate_summary
+    with pytest.raises(ValueError):
+        validate_summary('用户已明确分别查询订单 O-101 和订单 O-202 的物流。', batch(user, '请确认要查哪一单。'))
+
+
 async def test_full_wrappers_output_safety_and_timeout_are_enforced():
     from app.context.summarizer import SummaryGenerator
     model = ReplyModel('{"content":"订单 O-101 的包裹未找到。"}')
