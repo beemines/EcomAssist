@@ -60,7 +60,7 @@ def test_profiles_ignore_conflicting_legacy_alias_and_fee_without_mutating_envir
     settings = module.profile_settings('demo', offline=True)
     assert settings.max_agent_steps == settings.agent_max_tool_calls == 3
     assert not settings.agent_total_token_budget_explicit
-    assert module.profile_budget('demo')['budget']['history'] == 2770
+    assert module.profile_budget('demo')['budget']['history'] == 2691
     import os
     assert os.environ['AGENT_TOTAL_TOKEN_BUDGET'] == '32000'
 

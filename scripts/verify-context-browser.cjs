@@ -44,6 +44,7 @@ async function live(config) {
   const { chromium, executablePath } = loadBrowser();
   const browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
   const results = [], errors = [];
+  let failure = null, after = null, finalHealthError = null, closeError = null;
   try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const page = await context.newPage(); page.setDefaultTimeout(250000);
@@ -64,11 +65,17 @@ async function live(config) {
       if ([1,4,10,16,21].includes(row.turn)) await page.screenshot({ path: path.join(output, `turn-${row.turn}.png`), fullPage: true });
     }
     assert.deepEqual(errors, []);
+  } catch (error) {
+    failure = error;
   } finally {
-    await browser.close();
-    const after = await fetch(url+'/health').then((response) => response.json()); validateHealth(after, config);
-    fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify({ mode: 'live', profile: config.profile, fixture_sha256: fixture.sha256, before, after, results, pageErrors: errors, sql_verified: false }, null, 2));
+    try { await browser.close(); } catch (error) { closeError = error; }
+    try {
+      const response = await fetch(url+'/health'); assert.equal(response.status, 200);
+      after = await response.json(); validateHealth(after, config);
+    } catch (error) { finalHealthError = error; }
+    fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify({ mode: 'live', profile: config.profile, fixture_sha256: fixture.sha256, before, after, results, pageErrors: errors, failure: failure?.stack || null, finalHealthError: finalHealthError?.stack || null, closeError: closeError?.stack || null, sql_verified: false }, null, 2));
   }
+  if (failure || closeError || finalHealthError) throw failure || closeError || finalHealthError;
   console.log(`21 live rounds completed; inspect answers and collect SQL evidence: ${output}`);
 }
 function loadBrowser() {
@@ -166,7 +173,11 @@ async function main(config = options(process.argv.slice(2))) {
       await page.screenshot({ path: path.join(output, "old-citation.png") }); await page.locator("#source-close").click();
       await page.locator(".citation-button").last().click(); assert.equal(await page.locator("#source-answer").innerText(), secondChunkText); await page.locator("#source-close").click();
       assert.equal(await page.locator("#messages img, #messages script").count(), 0);
-      assert.match(await page.locator("#messages").innerText(), /SQL原始工具正文/);
+      assert.doesNotMatch(await page.locator("#messages .answer-text").allTextContents().then((texts) => texts.join('\n')), /SQL原始工具正文/);
+      assert.doesNotMatch(await page.locator('#messages').innerText(), /SQL原始工具正文|call-original|tool_calls|原始工具/);
+      const rawResponse = await page.request.get(new URL(`/api/conversations/${oldId}/messages`, page.url()).href);
+      assert.equal((await rawResponse.json()).messages.find((row) => row.id === '104').content, 'SQL原始工具正文', 'API retains raw tool content');
+      assert.equal(await page.locator('.history-tool').count(), 0);
       assert.match(await page.locator(".tool-badge").innerText(), /已完成/);
       assert.ok(state.records.some((r) => r.path.endsWith("/messages") && r.query.includes("after_id=104") && r.query.includes("upto_id=107")));
       assert.equal(state.refundSubmissions, 0); assert.equal(state.ticketSubmissions, 0);
@@ -235,7 +246,8 @@ async function main(config = options(process.argv.slice(2))) {
       await page.locator("#conversation-toggle").click(); assert.equal(await page.locator(".sidebar").isVisible(), true);
       await page.screenshot({ path: path.join(output, "mobile-drawer-open.png") });
       await select(page, oldId); await loaded(page, "第二轮答复 [1]"); assert.equal(await page.locator(".sidebar").isVisible(), false);
-      await page.locator(".history-tool").first().locator("summary").click();
+      assert.equal(await page.locator('.history-tool').count(), 0);
+      assert.doesNotMatch(await page.locator('#messages').innerText(), /SQL原始工具正文|call-original|tool_calls|原始工具/);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     }, {}, { width: 390, height: 844 });
   } finally { await browser.close(); }

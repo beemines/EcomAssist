@@ -48,6 +48,21 @@ def test_control_route_semantics(route, intent, decision, reason, valid):
             parser(reply, route=route, intent=intent)
 
 
+@pytest.mark.parametrize('reason,valid', [
+    ('已提供订单号，需查询实际物流轨迹核实包裹状态。', False), (None, True)])
+def test_real_logistics_control_reason_is_not_general_reasoning(reason, valid):
+    """Real Task11 negative and annotated counterpart; guard was already correct."""
+    reply = AIMessage(json.dumps({'decision_reason': reason, 'refund_decision': None,
+        'reply_mode': 'answer', 'suggested_actions': []}, ensure_ascii=False),
+        response_metadata={'finish_reason': 'stop'})
+    if valid:
+        assert controls().parse_control(reply, route='business', intent='物流').decision_reason is None
+    else:
+        with pytest.raises(ServiceError) as caught:
+            controls().parse_control(reply, route='business', intent='物流')
+        assert caught.value.code == 'invalid_structured_output'
+
+
 def test_missing_nullable_fields_and_length_finish_are_not_success():
     parser = controls().parse_control
     for body, finish in [('{"reply_mode":"answer","suggested_actions":[]}', 'stop'),
