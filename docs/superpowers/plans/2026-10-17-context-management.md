@@ -52,7 +52,7 @@
 
 - [x] 确认`git status --short --branch`只有预期文档提交；读取原spec、API记录和各任务现有源码。本章产品基线结果另外记入dev-notes，不能用设计检查代替。
 - [x] 在该worktree使用`uv sync --frozen --offline`准备锁定依赖（从本机既有缓存安装77包）；未复制含密钥的环境内容到报告。PowerShell设`$env:PYTHONUTF8='1'`，以下命令均在该worktree执行。
-- [ ] 运行`.venv/Scripts/python.exe -m pytest -q`记录基线实际数量。MySQL集成测试用现有3308随机自有库夹具，显式`--run-mysql`；不清空3307应用库。基线失败须先分清既有失败和环境缺失，不写“基线通过”。
+- [x] 运行`.venv/Scripts/python.exe -m pytest -q`记录基线实际数量。MySQL集成测试用现有3308随机自有库夹具，显式`--run-mysql`；不清空3307应用库。基线失败须先分清既有失败和环境缺失，不写“基线通过”。
 
 各任务的代码块是必须落实的核心测试断言；其中变量由该Task的测试布置，不代表仓库已有这些fixture或这些测试已经运行。
 
@@ -68,11 +68,11 @@ assert budget.layer1 == budget.history * 70 // 100
 assert budget.layer1 + budget.layer2 == budget.history
 ```
 
-- [ ] **Red**：写`test_same_counter_covers_cjk_json_schema_and_call_ids`、`test_budget_formula_has_no_unaccounted_attachment`、`test_alias_conflict_and_explicit_total_limit`、`test_no_full_turn_fails_without_paid_startup`。断言`A=W-F-U-E-G-V-O-M-P`、`H=min(D,min(A))`、`H1=floor(.7H)`、`H1+H2=H`；工具schema/JSON/关联ID都会增加输入估算；MAX_AGENT_STEPS=3与显式旧4冲突；显式32000保留。
-- [ ] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_budget.py -q`，因新增模块/计算缺失失败，不接受凭据或数据库连接失败冒充Red。
-- [ ] **实现**：类型及六项配置、输入数值严格校验（排除bool/非有限值/非法Top-K，步数仍≤4）、中文与ASCII/协议分项计数、F/U/E/G/V/O/M/P/D计算和启动最低业务轮次校验。稳态夹具包含真实形状的单工具订单、物流、Top-10 FAQ及短回答，T取这些完整轮次的最大估算值、启动最小轮次取最小值，不使用问候或填充文本。估算器参数单独版本化，初始依据及不确定性写入夹具说明；任务7完成实际序列化接线后用实测usage校准，任务11复核，不按目标滑窗倒推系数。旧工具预算仅从Workflow调用链退出，不改离线评估阈值；累计额度缺省可推导，显式值仍生效。
-- [ ] **Green**：同一命令通过，再运行`tests/test_config.py tests/test_agent_controls.py tests/test_db_config.py`；已有成本账本实测值不被新估算覆盖，派生上限不当作已花费用。
-- [ ] **提交**：追记本任务四项和真实Red/Green结果；`git add`仅本任务文件及ch07记录，`git commit -m "feat: derive workflow context budgets from model window"`。
+- [x] **Red**：写`test_same_counter_covers_cjk_json_schema_and_call_ids`、`test_budget_formula_has_no_unaccounted_attachment`、`test_alias_conflict_and_explicit_total_limit`、`test_no_full_turn_fails_without_paid_startup`。断言`A=W-F-U-E-G-V-O-M-P`、`H=min(D,min(A))`、`H1=floor(.7H)`、`H1+H2=H`；工具schema/JSON/关联ID都会增加输入估算；MAX_AGENT_STEPS=3与显式旧4冲突；显式32000保留。
+- [x] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_budget.py -q`，因新增模块/计算缺失失败，不接受凭据或数据库连接失败冒充Red。
+- [x] **实现**：类型及六项配置、输入数值严格校验（排除bool/非有限值/非法Top-K，步数仍≤4）、中文与ASCII/协议分项计数、F/U/E/G/V/O/M/P/D计算和启动最低业务轮次校验。稳态夹具包含真实形状的单工具订单、物流、Top-10 FAQ及短回答，T取这些完整轮次的最大估算值、启动最小轮次取最小值，不使用问候或填充文本。估算器参数单独版本化，初始依据及不确定性写入夹具说明；任务7完成实际序列化接线后用实测usage校准，任务11复核，不按目标滑窗倒推系数。旧工具预算仅从Workflow调用链退出，不改离线评估阈值；累计额度缺省可推导，显式值仍生效。
+- [x] **Green**：同一命令通过，再运行`tests/test_config.py tests/test_agent_controls.py tests/test_db_config.py`；已有成本账本实测值不被新估算覆盖，派生上限不当作已花费用。
+- [x] **提交**：追记本任务四项和真实Red/Green结果；`git add`仅本任务文件及ch07记录，`git commit -m "feat: derive workflow context budgets from model window"`。
 
 ## Task 2: 用户DDL、边界仓储和追加式摘要事务
 
