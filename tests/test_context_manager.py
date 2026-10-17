@@ -274,6 +274,30 @@ async def test_cross_turn_uncertainty_only_commits_after_source_selection(reposi
     assert len(model.calls) == 1
 
 
+async def test_definite_selection_with_order_state_uncertainty_commits(repository):
+    from app.context.manager import SummaryManager
+    from app.context.summarizer import SummaryGenerator
+    await seed(repository, turns=2)
+    async with repository.database.session() as session, session.begin():
+        await session.execute(text('UPDATE messages SET content=:content WHERE id=:id'), [
+            {'id':101,'content':'订单 O-101 和 O-202 都买过，帮我看看那个到哪里了。'},
+            {'id':102,'content':'请确认具体订单。'},
+            {'id':103,'content':'我选订单 O-101，请查物流，可能是订单还没发货。'},
+            {'id':104,'content':'会按您确认的订单核实。'}])
+    candidate = '用户提及订单 O-101 和 O-202，随后确认查询订单 O-101 的物流，尚无查询结果。'
+    model, events = ReplyModel(json.dumps({'content':candidate}, ensure_ascii=False)), Events()
+    manager = SummaryManager(repository, SummaryGenerator(model, settings()), budget_provider=budget, event_logger=events)
+    manager.notify('1', layer2_tokens=100, budget=budget())
+    try:
+        await events.wait('summary_done')
+    finally:
+        await manager.aclose()
+    anchors, segments = await repository.load('1')
+    assert anchors.summary_upto == 104
+    assert [(segment.from_msg_id, segment.upto_msg_id, segment.content) for segment in segments] == [(101, 104, candidate)]
+    assert len(model.calls) == 1
+
+
 async def test_entity_dense_batches_split_before_generation_without_losing_identities(repository):
     from app.context.manager import SummaryManager
     await seed(repository, turns=2)
