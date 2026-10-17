@@ -149,6 +149,19 @@ def plan_layers(rows: Sequence[MessageRecord], anchors: ContextAnchors, budget: 
                 break
     raw_layer2 = tuple(row for row in frozen if int(row.id) <= l)
     layer2 = _compact_layer2(raw_layer2)
+    # H1/H2 are soft allocations. A large compact backlog may require another
+    # complete-turn downgrade even though L1 already fits its own soft line.
+    for boundary in sorted(boundaries):
+        if history_tokens((*layer2, *layer1)) <= budget.history:
+            break
+        if boundary <= l:
+            continue
+        prefix = [int(row.id) for row in layer1 if int(row.id) <= boundary]
+        ranges.append((prefix[0], boundary))
+        l = boundary
+        layer1 = tuple(row for row in frozen if int(row.id) > l)
+        raw_layer2 = tuple(row for row in frozen if int(row.id) <= l)
+        layer2 = _compact_layer2(raw_layer2)
     t1, t2 = history_tokens(layer1), history_tokens(layer2)
     # 单层是软线；只可借另一历史层的剩余额度。
     if history_tokens((*layer2, *layer1)) > budget.history:

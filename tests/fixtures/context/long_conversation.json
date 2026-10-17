@@ -1,0 +1,275 @@
+{
+  "version": 1,
+  "annotation": "Controlled offline fixtures; general questions must not select orders or expand queries. No provider semantic acceptance.",
+  "hash_algorithm": "SHA256 of UTF-8 questions joined by LF, no trailing LF",
+  "turns": [
+    {
+      "turn": 1,
+      "question": "订单1001的物流到哪了？我还没找到包裹，先帮我查物流，不申请退款。",
+      "intents": [
+        "物流"
+      ],
+      "entities": [
+        "1001"
+      ],
+      "actions": [
+        "query_logistics"
+      ],
+      "summary_facts": "模拟记录显示已签收，用户没找到包裹，仅查物流，未申请退款。"
+    },
+    {
+      "turn": 2,
+      "question": "退换货政策是怎样的？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询通用退换货政策，未提交申请。"
+    },
+    {
+      "turn": 3,
+      "question": "运费怎么算？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询通用运费计算。"
+    },
+    {
+      "turn": 4,
+      "question": "订单1002现在是什么状态？",
+      "intents": [
+        "订单"
+      ],
+      "entities": [
+        "1002"
+      ],
+      "actions": [
+        "query_order"
+      ],
+      "summary_facts": "查询订单1002状态。"
+    },
+    {
+      "turn": 5,
+      "question": "电子商品的保修期多长？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询电子商品保修期限。"
+    },
+    {
+      "turn": 6,
+      "question": "MH-LP200可以装多少猫砂？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [
+        "MH-LP200"
+      ],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询MH-LP200猫砂容量。"
+    },
+    {
+      "turn": 7,
+      "question": "发票如何开具？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询开票方式。"
+    },
+    {
+      "turn": 8,
+      "question": "现货商品多久发货？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询现货发货时间。"
+    },
+    {
+      "turn": 9,
+      "question": "会员运费权益有哪些？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询会员运费权益。"
+    },
+    {
+      "turn": 10,
+      "question": "订单1002的物流到哪了？",
+      "intents": [
+        "物流"
+      ],
+      "entities": [
+        "1002"
+      ],
+      "actions": [
+        "query_logistics"
+      ],
+      "summary_facts": "查询订单1002物流。"
+    },
+    {
+      "turn": 11,
+      "question": "价格保护怎么申请？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询价格保护申请方式。"
+    },
+    {
+      "turn": 12,
+      "question": "可以用信用卡付款吗，支持线下转账吗？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询信用卡和线下转账支付方式。"
+    },
+    {
+      "turn": 13,
+      "question": "积分按什么规则累计？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询积分累计规则。"
+    },
+    {
+      "turn": 14,
+      "question": "MH-W40的水箱有多大？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [
+        "MH-W40"
+      ],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询MH-W40水箱容量。"
+    },
+    {
+      "turn": 15,
+      "question": "人工客服的服务时间是什么？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询人工客服服务时间。"
+    },
+    {
+      "turn": 16,
+      "question": "订单1002的商品名称和订单状态是什么？",
+      "intents": [
+        "订单"
+      ],
+      "entities": [
+        "1002"
+      ],
+      "actions": [
+        "query_order"
+      ],
+      "summary_facts": "查询订单1002商品名称和状态。"
+    },
+    {
+      "turn": 17,
+      "question": "换货的期限和流程是什么？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询通用换货期限流程。"
+    },
+    {
+      "turn": 18,
+      "question": "无理由退货的退回运费由谁承担？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询无理由退货运费承担方。"
+    },
+    {
+      "turn": 19,
+      "question": "金卡会员有哪些专属售后权益？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询金卡会员售后权益。"
+    },
+    {
+      "turn": 20,
+      "question": "申请发票需要准备什么信息？",
+      "intents": [
+        "商品咨询"
+      ],
+      "entities": [],
+      "actions": [
+        "query_faq"
+      ],
+      "summary_facts": "咨询申请发票资料。"
+    },
+    {
+      "turn": 21,
+      "question": "最开始那个订单后来怎么说？我当时的诉求是什么？",
+      "intents": [
+        "订单",
+        "物流"
+      ],
+      "entities": [
+        "1001"
+      ],
+      "actions": [
+        "query_order"
+      ],
+      "summary_facts": "恢复最初订单1001，区别最近1002，保留没找到包裹和未申请退款。"
+    }
+  ],
+  "sha256": "152d826b2b683b69708d51315fa745b585433ecb11793b4a599c81a4da9d2501"
+}

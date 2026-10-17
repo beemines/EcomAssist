@@ -17,3 +17,5 @@ runtime/rag-evaluation/
 runtime/workflow/
 # Actual model contexts contain full conversation text and remain local.
 log/app.log
+# Acceptance logs, screenshots, call ledger and replay results are local evidence.
+runtime/context-evidence/

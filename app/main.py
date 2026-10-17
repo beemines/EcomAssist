@@ -2,6 +2,7 @@
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 import math
+import httpx
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -82,8 +83,12 @@ def create_app(
     context_logger: Any | None = None,
     context_repository: Any | None = None,
     context_budget_provider: Any | None = None,
+    acceptance_call_cap: Any | None = None,
+    acceptance_profile: str | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
+    if acceptance_call_cap is not None and settings.rag_evaluation_enabled:
+        raise ValueError('Acceptance cap requires evaluation jobs disabled')
     order_provider = order_provider if order_provider is not None else DemoOrderProvider()
     owns_database = database is None and repository is None
     if not owns_database and database is None:
@@ -162,20 +167,32 @@ def create_app(
             if repository is None:
                 repository = ConversationRepository(database)
             if owns_model:
+                clients = {}
+                if acceptance_call_cap is not None:
+                    clients['http_client'] = resources.enter_context(httpx.Client(
+                        event_hooks={'request': [acceptance_call_cap.sync_hook('glm')]}))
+                    clients['http_async_client'] = await resources.enter_async_context(httpx.AsyncClient(
+                        event_hooks={'request': [acceptance_call_cap.async_hook('glm')]}))
                 # 缺省保持原工厂调用形状；仅在线显式启用低思考时传入额外参数。
-                model = (create_model(settings) if settings.online_reasoning_effort is None else
-                         create_model(settings, reasoning_effort=settings.online_reasoning_effort))
+                model = (create_model(settings, **clients) if settings.online_reasoning_effort is None else
+                         create_model(settings, reasoning_effort=settings.online_reasoning_effort, **clients))
                 # 资源按后进先出关闭：异步模型客户端、同步客户端，最后是数据库。
                 resources.callback(model.root_client.close)
                 resources.push_async_callback(model.root_async_client.close)
             if faq_repository is None:
-                embedder = SiliconFlowEmbedder(settings)
+                embedding_client = rerank_client = None
+                if acceptance_call_cap is not None:
+                    embedding_client = await resources.enter_async_context(httpx.AsyncClient(
+                        event_hooks={'request': [acceptance_call_cap.async_hook('embedding')]}))
+                    rerank_client = await resources.enter_async_context(httpx.AsyncClient(
+                        event_hooks={'request': [acceptance_call_cap.async_hook('rerank')]}))
+                embedder = SiliconFlowEmbedder(settings, **({'http_client': embedding_client} if embedding_client else {}))
                 resources.push_async_callback(embedder.aclose)
                 index = HybridMilvusIndex(str(settings.milvus_uri), collection=settings.milvus_collection,
                                           timeout=settings.milvus_timeout_seconds)
                 resources.push_async_callback(index.aclose)
                 await index.ensure_collection(create_if_missing=False)
-                reranker = SiliconFlowReranker(settings)
+                reranker = SiliconFlowReranker(settings, **({'http_client': rerank_client} if rerank_client else {}))
                 resources.push_async_callback(reranker.aclose)
                 planner = QueryPlanner(model_with_output_budget(model, settings, settings.query_max_output_tokens),
                     settings.model_context_window - settings.query_max_output_tokens - max(256, (settings.model_context_window*3+99)//100),
@@ -259,6 +276,11 @@ def create_app(
     # 返回进程存活状态，供健康检查使用。
     @app.get("/health")
     async def health():
-        return {"status": "ok"}
+        result = {"status": "ok"}
+        if acceptance_profile is not None:
+            result['context_profile'] = acceptance_profile
+        if acceptance_call_cap is not None:
+            result['acceptance'] = acceptance_call_cap.status()
+        return result
 
     return app

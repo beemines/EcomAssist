@@ -8,6 +8,69 @@ const assert = require("node:assert/strict");
 const { createRequire } = require("node:module");
 const { randomUUID } = require("node:crypto");
 const root = path.resolve(__dirname, "..");
+function options(argv) {
+  const result = { live: false, profile: 'default' }, allowed = new Set(['profile', 'run-id', 'max-glm-calls', 'max-embedding-calls', 'max-rerank-calls', 'output']);
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--live') { if (result.live) throw Error('Duplicate --live'); result.live = true; continue; }
+    const key = argv[i].replace(/^--/, '');
+    if (!argv[i].startsWith('--') || !allowed.has(key) || i + 1 >= argv.length || argv[i+1].startsWith('--') || Object.hasOwn(result, key) && key !== 'profile') throw Error('Invalid or duplicate option');
+    result[key] = argv[++i];
+  }
+  if (!['default','demo'].includes(result.profile)) throw Error('Invalid profile');
+  const keys = ['run-id','max-glm-calls','max-embedding-calls','max-rerank-calls'];
+  if (result.live && (keys.some((key) => result[key] === undefined) || !result.output)) throw Error('Live requires run-id, all three provider limits, and output');
+  if (!result.live && keys.some((key) => result[key] !== undefined)) throw Error('Run limits require explicit --live');
+  if (result.live) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(result['run-id'])) throw Error('Invalid run-id');
+    for (const key of keys.slice(1)) { if (!/^\d+$/.test(result[key]) || !Number.isSafeInteger(Number(result[key]))) throw Error('Invalid provider limit'); result[key] = Number(result[key]); }
+  }
+  return result;
+}
+function validateHealth(health, config) {
+  assert.equal(health.context_profile, config.profile, 'server profile mismatch');
+  assert.equal(health.acceptance?.run_id, config['run-id'], 'server run mismatch');
+  assert.deepEqual(health.acceptance?.limits, { glm: config['max-glm-calls'], embedding: config['max-embedding-calls'], rerank: config['max-rerank-calls'] }, 'server limits mismatch');
+}
+async function live(config) {
+  // Fixed owned demo port; no arbitrary URL or silently uncapped fallback.
+  const url = 'http://127.0.0.1:8004';
+  const healthResponse = await fetch(url + '/health');
+  assert.equal(healthResponse.status, 200);
+  const before = await healthResponse.json(); validateHealth(before, config);
+  const fixture = JSON.parse(fs.readFileSync(path.join(root, 'tests/fixtures/context/long_conversation.json'), 'utf8'));
+  const { createHash } = require('node:crypto');
+  assert.equal(createHash('sha256').update(fixture.turns.map((row) => row.question).join('\n')).digest('hex'), fixture.sha256);
+  const output = path.resolve(config.output); fs.mkdirSync(output, { recursive: true });
+  const { chromium, executablePath } = loadBrowser();
+  const browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
+  const results = [], errors = [];
+  try {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const page = await context.newPage(); page.setDefaultTimeout(250000);
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.route('**/actions/**', (route) => route.request().method() === 'POST' ? route.abort() : route.continue());
+    await page.goto(url);
+    await page.locator('#new-chat').click();
+    await page.waitForFunction(() => !document.querySelector('#message-input').disabled);
+    for (const row of fixture.turns) {
+      const responsePromise = page.waitForResponse((response) => response.url() === url+'/api/chat' && response.request().method() === 'POST');
+      await page.locator('#message-input').fill(row.question);
+      await page.locator('#chat-form').evaluate((form) => form.requestSubmit());
+      const response = await responsePromise;
+      const body = await response.text();
+      results.push({ turn: row.turn, question: row.question, status: response.status(), body });
+      assert.equal(response.status(), 200); assert.match(body, /event: done/); assert.doesNotMatch(body, /event: (?:error|paused)/);
+      await page.waitForFunction(() => !document.querySelector('#message-input').disabled);
+      if ([1,4,10,16,21].includes(row.turn)) await page.screenshot({ path: path.join(output, `turn-${row.turn}.png`), fullPage: true });
+    }
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+    const after = await fetch(url+'/health').then((response) => response.json()); validateHealth(after, config);
+    fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify({ mode: 'live', profile: config.profile, fixture_sha256: fixture.sha256, before, after, results, pageErrors: errors, sql_verified: false }, null, 2));
+  }
+  console.log(`21 live rounds completed; inspect answers and collect SQL evidence: ${output}`);
+}
 function loadBrowser() {
   let playwright;
   try { playwright = require("playwright"); } catch {
@@ -71,8 +134,9 @@ async function fixtureServer(settings = {}) {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   return { server, state, url: `http://127.0.0.1:${server.address().port}/` };
 }
-async function main() {
-  const output = path.join(root, ".cache/context-browser", randomUUID()); fs.mkdirSync(output, { recursive: true });
+async function main(config = options(process.argv.slice(2))) {
+  if (config.live) return live(config);
+  const output = config.output ? path.resolve(config.output) : path.join(root, ".cache/context-browser", randomUUID()); fs.mkdirSync(output, { recursive: true });
   const { chromium, executablePath } = loadBrowser();
   const browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
   const results = [];
@@ -179,4 +243,5 @@ async function main() {
   console.log(`${results.filter((r) => r.status === "PASS").length}/${results.length} PASS; controlled evidence=${output}`);
   process.exitCode = results.some((r) => r.status !== "PASS") ? 1 : 0;
 }
-main().catch((e) => { console.error(e.stack); process.exitCode = 1; });
+if (require.main === module) main().catch((e) => { console.error(e.message); process.exitCode = 1; });
+module.exports = { options, validateHealth };
