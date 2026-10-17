@@ -74,6 +74,25 @@ svg {
   flex-direction:column
 }
 
+.conversation-list { overflow-y:auto; min-height:60px; margin:0 -4px 12px; }
+.history-label { margin-top:20px; }
+.conversation-item { display:flex; width:100%; align-items:center; gap:8px; text-align:left; border:1px solid transparent; background:transparent; border-radius:10px; color:#476254; padding:12px 10px; margin-bottom:5px; font-size:12px; }
+.conversation-item>span { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.conversation-item small { font-size:10px; color:var(--green); white-space:nowrap; }
+.conversation-item:hover,.conversation-item[aria-current="true"] { background:#e6ede3; border-color:#dfe7dc; }
+.conversation-item:disabled { opacity:.55; }
+.history-status { margin:0; padding:10px 24px; background:#f1f4ef; color:var(--green); font-size:12px; }
+.history-status[hidden] { display:none; }
+.conversation-toggle,.conversation-close,.conversation-backdrop { display:none; }
+.history-tool { font-size:12px; color:#66786f; white-space:pre-wrap; overflow-wrap:anywhere; }
+.history-tool pre { white-space:pre-wrap; }
+@media(max-width:740px) {
+  .conversation-toggle { display:block; width:31px; height:31px; border:1px solid #e0e8d9; border-radius:9px; color:var(--green); background:#f0f4e9; }
+  .sidebar.open { display:flex; position:fixed; inset:0 auto 0 0; width:min(300px,85vw); z-index:20; box-shadow:12px 0 40px #203d3422; }
+  .conversation-close { display:block; align-self:flex-end; background:transparent; border:0; color:var(--green); font-size:25px; }
+  .app-shell:has(.sidebar.open) .conversation-backdrop { display:block; position:fixed; inset:0; border:0; background:#203d3444; z-index:19; }
+}
+
 /* 品牌标识与文字样式，购物袋图标复用内联 SVG。 */
 .brand {
   display:flex;
