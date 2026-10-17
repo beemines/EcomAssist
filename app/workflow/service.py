@@ -15,7 +15,7 @@ from app.core.chat import StreamEvent
 from app.core.conversation_locks import Lease
 from app.core.errors import ServiceError
 from app.core.llm import model_with_output_budget
-from app.core.tool_history import build_tool_messages, completed_turns
+from app.core.tool_history import build_tool_messages
 from app.retrieval.types import validate_category
 from app.tools.executor import ToolExecutor
 from app.tools.types import ToolContext
@@ -26,6 +26,7 @@ from app.agent.controls import estimate_call_input
 from app.core.errors import InputTooLong
 from app.workflow.runtime import WorkflowRuntime
 from app.workflow.state import WorkflowState, new_turn_state
+from app.workflow.history import prepare_history_update, replay_turns, sql_messages
 from app.workflow.order_actions import pending_selection
 from app.workflow.selection import remaining_active_seconds
 from app.workflow.understanding import QueryUnderstanding
@@ -57,20 +58,8 @@ class PreparedWorkflowChat:
 
 
 def _history(rows):
-    """按完整 SQL 轮次恢复稳定身份，忽略未完成申请及孤立审计。"""
-    result, group = [], []
-    for row in sorted(rows, key=lambda item: item.id):
-        if row.role == 'user':
-            group = []
-        group.append(row)
-        if row.role == 'assistant' and row.tool_calls is None:
-            turns = completed_turns(group)
-            if turns:
-                for message, stored in zip(turns[0], group):
-                    message.id = str(stored.id)
-                result.extend(turns)
-            group = []
-    return result
+    """旧预算预检仅使用合法回放；State 始终从全部 SQL 原文恢复。"""
+    return replay_turns(sql_messages(rows))
 
 
 def _status(data):
@@ -177,13 +166,16 @@ class WorkflowChatService:
                 actual = [convert_to_openai_tool(tool) for name, tool in registry.items() if name != 'create_ticket']
                 if actual != schema:
                     raise ServiceError('tool_schema_changed', '工具定义发生变化，请稍后重试。', 500)
+                rows = await self.repository.load_messages(conversation_id)
+                history_update, bootstrap = prepare_history_update(previous.values, rows, current_user_id=identifier)
                 state = new_turn_state(conversation_id=conversation_id, user_message_id=identifier,
-                    raw_question=message, category=category, messages=[*(m for turn in turns for m in turn), current])
+                    raw_question=message, category=category, messages=sql_messages(rows))
+                state['context_bootstrap'] = bootstrap
                 if pending_selection(previous, conversation_id):
                     state['supersedes_turn_id'] = previous.values['user_message_id']
                 runtime = await self._runtime(conversation_id, identifier, message, category, deadline, started, registry=registry)
                 prepared = PreparedWorkflowChat(conversation_id, identifier, lease, state, runtime, deadline)
-                prepared.graph_input = state
+                prepared.graph_input = {**state, 'messages': history_update}
                 self._register(prepared)
                 log_lifecycle(prepared, 'prepared', prior_pending=bool(previous.next))
                 return prepared

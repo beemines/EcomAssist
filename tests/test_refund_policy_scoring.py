@@ -10,6 +10,7 @@ from app.workflow import nodes
 from app.workflow.state import new_turn_state
 from tests.test_after_sales_workflow import context
 from tests.test_multi_query_retrieval import workflow
+from tests.workflow_fakes import apply_workflow_update
 
 
 QUESTION = '订单1001的MH-LP200能退货吗'
@@ -48,7 +49,9 @@ async def run_retrieval(question=QUESTION, *, intent='退款退货', route='afte
         order_selection={'selected_order_id': selected})
     runtime = SimpleNamespace(context=ctx, stream_writer=lambda event: None)
     update = await nodes.retrieve_policies(state, runtime)
-    quality = await nodes.confidence_gate({**state, **update}, runtime)
+    updated = dict(state)
+    apply_workflow_update(updated, update)
+    quality = await nodes.confidence_gate(updated, runtime)
     return state, update, quality, ctx, embedder, index, planner, reranker, plans
 
 

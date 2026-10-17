@@ -32,9 +32,10 @@ def saving_graph(checkpointer):
     def save(state: WorkflowState, runtime: Runtime[WorkflowRuntime]):
         """从运行 context 读期限，但只把本轮最终结果返回 State。"""
         assert runtime.context.deadline == 123.0
-        return {'final_answer': '离线已完成', 'final_message_id': '104',
+        identifier = str(int(state['user_message_id']) + 3)
+        return {'final_answer': '离线已完成', 'final_message_id': identifier,
                 'turn_status': 'completed',
-                'messages': [*state['messages'], AIMessage('离线已完成', id='104')]}
+                'messages': [AIMessage('离线已完成', id=identifier)]}
 
     builder = StateGraph(WorkflowState, context_schema=WorkflowRuntime)
     builder.add_node('save', save)
@@ -72,7 +73,7 @@ async def test_sqlite_reopen_recovers_state(tmp_path):
 
 
 async def test_old_snapshot_survives_new_turn(tmp_path):
-    """新输入应替换消息与动作，旧 checkpoint_id 仍可跨重开读取。"""
+    """新输入累积消息并清空动作，旧 checkpoint_id 仍可跨重开读取。"""
     path = tmp_path / 'history.sqlite'
     async with open_checkpointer(path) as saver:
         graph = saving_graph(saver)
@@ -88,7 +89,7 @@ async def test_old_snapshot_survives_new_turn(tmp_path):
         assert old.values['suggested_actions'] == ['handoff', 'create_ticket']
         assert old.values['user_message_id'] == '101'
         assert latest.values['suggested_actions'] == []
-        assert [message.id for message in latest.values['messages']] == ['105', '104']
+        assert [message.id for message in latest.values['messages']] == ['101', '104', '105', '108']
 
 
 async def test_v1_completed_snapshot_is_readable_without_refund_permission(tmp_path):

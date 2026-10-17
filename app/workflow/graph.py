@@ -2,6 +2,8 @@
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.runtime import Runtime
+from langchain_core.runnables import RunnableConfig
 
 from app.workflow import nodes
 from app.workflow.runtime import WorkflowRuntime
@@ -40,7 +42,14 @@ def build_workflow_graph(agent_graph: CompiledStateGraph, *, checkpointer: BaseC
                  'knowledge_fallback', 'complaint_response', 'social_response', 'other_response', 'log_response',
                  'resolve_order', 'prepare_order_selection', 'await_order_selection', 'load_order', 'expand_queries', 'retrieve_policies', 'no_order_response'):
         graph.add_node(name, getattr(nodes, name))
-    graph.add_node('agent', agent_graph)
+    async def call_agent(state: WorkflowState, config: RunnableConfig, runtime: Runtime[WorkflowRuntime]):
+        """Preserve child runtime/stream lineage while returning only new messages."""
+        from app.workflow.agent import agent_delta
+        before_ids = frozenset(message.id for message in state['messages'])
+        result = await agent_graph.ainvoke(state, config=config, context=runtime.context)
+        return agent_delta(before_ids, result)
+
+    graph.add_node('agent', call_agent)
     graph.add_edge(START, 'resolve_reference')
     graph.add_edge('resolve_reference', 'classify_intent')
     graph.add_conditional_edges('classify_intent', _intent_route, {'knowledge': 'retrieve_knowledge',

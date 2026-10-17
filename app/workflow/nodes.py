@@ -22,6 +22,7 @@ from app.workflow.intent import IntentClassifier, route_intent, social_fast_path
 from app.workflow.prompts import COMPLAINT_RESPONSE, EVIDENCE_SYSTEM, KNOWLEDGE_FALLBACK, OTHER_RESPONSE, SOCIAL_RESPONSE
 from app.workflow.runtime import WorkflowRuntime
 from app.workflow.state import WorkflowState
+from app.workflow.history import replay_turns
 from app.workflow.logging import log_audit
 
 
@@ -52,14 +53,7 @@ def state_evidence(state: WorkflowState, context: WorkflowRuntime):
         if isinstance(message, HumanMessage) and message.id == state['user_message_id']), None)
     if index is None:
         raise ValueError('current SQL user message identity missing')
-    turns, turn = [], []
-    for message in messages[:index]:
-        if isinstance(message, HumanMessage) and turn:
-            turns.append(turn)
-            turn = []
-        turn.append(message)
-    if turn:
-        turns.append(turn)
+    turns = replay_turns(messages[:index])
     pending = messages[index + 1:]
     payloads = [json.loads(message.content) for message in pending if isinstance(message, ToolMessage)]
     return build_agent_evidence(system=SystemMessage(EVIDENCE_SYSTEM), turns=turns,
@@ -71,7 +65,7 @@ def prior_history(state):
     """按本轮SQL消息身份截断，理解只接收已完成历史。"""
     index = next(i for i, message in enumerate(state['messages'])
         if isinstance(message, HumanMessage) and message.id == state['user_message_id'])
-    return state['messages'][:index]
+    return [message for turn in replay_turns(state['messages'][:index]) for message in turn]
 
 
 def observe_usage(context, update):
@@ -183,7 +177,7 @@ async def workflow_tool(state, runtime, node, name, args, operation):
         'elapsed_seconds': time.monotonic() - started}
     log_node(state, node, **{k: v for k, v in trace.items() if k != 'node'})
     runtime.stream_writer({'event': 'status', 'data': {**identity, 'status': 'completed', 'result_status': 'success'}})
-    return {'messages': [*state['messages'], request, result], 'tool_trace': [*state['tool_trace'], trace],
+    return {'messages': [request, result], 'tool_trace': [*state['tool_trace'], trace],
         'tool_call_count': state['tool_call_count'] + 1}
 
 
@@ -250,7 +244,7 @@ async def retrieve_policies(state: WorkflowState, runtime: Runtime[WorkflowRunti
         return result.payload
     update = await workflow_tool(state, runtime, node, 'query_faq',
         {'keyword': state['resolved_question'][:128]}, retrieve)
-    packet = state_evidence({**state, **update}, context)
+    packet = state_evidence({**state, **update, 'messages': [*state['messages'], *update['messages']]}, context)
     return {**update, 'retrieval_queries': list(queries), 'retrieval_audit': audit,
         'evidence_payload': packet.payload, 'citations': [asdict(citation) for citation in packet.citations]}
 
@@ -361,6 +355,6 @@ async def log_response(state: WorkflowState, runtime: Runtime[WorkflowRuntime]) 
     answer.id = str(identifier)
     log_node(state, 'log_response', final_message_id=str(identifier), turn_status='completed', usage=state['usage'])
     from app.workflow.selection import active_elapsed
-    update = {'messages': [*state['messages'], answer], 'final_message_id': str(identifier), 'turn_status': 'completed',
+    update = {'messages': [answer], 'final_message_id': str(identifier), 'turn_status': 'completed',
               'active_elapsed_seconds': active_elapsed(state, runtime.context)}
     return {**update, 'refund_offer': make_refund_offer({**state, **update})}

@@ -1,7 +1,8 @@
 """Workflow 可持久化状态，运行客户端另由 Runtime 管理。"""
-from typing import Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
 from langchain_core.messages import BaseMessage, HumanMessage
+from langgraph.graph.message import add_messages
 
 
 class OrderSelection(TypedDict):
@@ -15,6 +16,11 @@ class OrderSelection(TypedDict):
 
 class WorkflowState(TypedDict):
     state_version: int
+    context_version: int
+    context_bootstrap: bool
+    context_snapshot_id: str | None
+    context_anchors: dict[str, str | None]
+    context_budget: dict[str, Any]
     conversation_id: str
     user_message_id: str
     raw_question: str
@@ -34,8 +40,8 @@ class WorkflowState(TypedDict):
     stage_usage: dict[str, dict[str, Any]]
     active_elapsed_seconds: float
     supersedes_turn_id: str | None
-    # 消息使用替换语义；调用节点负责按顺序返回完整列表，不叠加历史。
-    messages: list[BaseMessage]
+    # SQL 原文完整保留；普通节点只提交带稳定 SQL ID 的新消息。
+    messages: Annotated[list[BaseMessage], add_messages]
     evidence_payload: dict[str, Any]
     citations: list[dict[str, Any]]
     quality: dict[str, Any]
@@ -59,6 +65,11 @@ def new_turn_state(*, conversation_id: str, user_message_id: int, raw_question: 
         prepared[-1].id = str(user_message_id)
     return {
         'state_version': 2,
+        'context_version': 1,
+        'context_bootstrap': False,
+        'context_snapshot_id': None,
+        'context_anchors': {'summary_upto': None, 'layer1_from': None},
+        'context_budget': {},
         'conversation_id': conversation_id,
         'user_message_id': str(user_message_id),
         'raw_question': raw_question,
