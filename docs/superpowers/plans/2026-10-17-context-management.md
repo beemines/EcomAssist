@@ -158,11 +158,11 @@ assert any(row['event'] == 'history_ctx' and row['sent'] is False for row in soc
 assert 'Authorization' not in log_text and runtime_api_key not in log_text
 ```
 
-- [ ] **Red**：测试固定闲聊sent=false仍有history_ctx、理解和分类实际读同一层、后台提交不改变当前快照、摘要实体只能按实际注入段追溯且不能从助手正文造订单。测试新手机号/否定/多个订单和“最开始”与最近订单不同；测试暂停后部署换小窗口时恢复调用会重新核验预算，装不下则明确配置冲突而非超窗发出；logger实际正文含完整摘要/工具JSON且无运行时Authorization；关闭顺序先结束聊天/摘要再关客户端/SQL。
-- [ ] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_workflow.py tests/test_context_lifecycle.py tests/test_context_logging.py -q`。
-- [ ] **实现**：prepare取得本会话快照并按expected边界推进L；State携带可序列化版本，运行期客户端只在Runtime。替换理解器旧过滤投影、分类器仅当前字符串入口；当前诉求优先、summary只定位身份，业务结果必须本轮重读。理解query长度与20k SQL文本/输出预算联合检查，不能截到旧512；路由检索自身512上限仍返回明确输入限制。专用UTF-8 log/app.log逐JSON行，不放宽workflow.audit白名单；本任务在history/understanding/intent/summary实际边界记payload，失败/取消不丢已发记录；Agent/扩写/充分性/query planner的实际调用包日志随任务7预算接线交付，不在节点重建猜测payload。本任务通过显式注入 context_budget_provider(registry) 完成共享视图及lifespan摘要管理器接线、verify_context只读核验；生产默认预算工厂与默认开启在任务7同实际阶段构造一起交付，不在此造临时预算算法。注入替身资源仍由调用方拥有，测试不偷连真实库。
-- [ ] **Green**：新测试及`tests/test_workflow_lifecycle.py tests/test_workflow_audit.py tests/test_intent_contract.py tests/test_online_chat_reliability.py`；确认闭包与单次Runtime不共享可变快照，任务结束/cancel只有一次成本结算。
-- [ ] **提交**：记四项，`git commit -m "feat: share layered history and log actual model contexts"`。
+- [x] **Red**：测试固定闲聊sent=false仍有history_ctx、理解和分类实际读同一层、后台提交不改变当前快照、摘要实体只能按实际注入段追溯且不能从助手正文造订单。测试新手机号/否定/多个订单和“最开始”与最近订单不同；测试暂停后部署换小窗口时恢复调用会重新核验预算，装不下则明确配置冲突而非超窗发出；logger实际正文含完整摘要/工具JSON且无运行时Authorization；关闭顺序先结束聊天/摘要再关客户端/SQL。
+- [x] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_workflow.py tests/test_context_lifecycle.py tests/test_context_logging.py -q`。
+- [x] **实现**：prepare取得本会话快照并按expected边界推进L；State携带可序列化版本，运行期客户端只在Runtime。替换理解器旧过滤投影、分类器仅当前字符串入口；当前诉求优先、summary只定位身份，业务结果必须本轮重读。理解query长度与20k SQL文本/输出预算联合检查，不能截到旧512；路由检索自身512上限仍返回明确输入限制。专用UTF-8 log/app.log逐JSON行，不放宽workflow.audit白名单；本任务在history/understanding/intent/summary实际边界记payload，失败/取消不丢已发记录；Agent/扩写/充分性/query planner的实际调用包日志随任务7预算接线交付，不在节点重建猜测payload。本任务通过显式注入 context_budget_provider(registry) 完成共享视图及lifespan摘要管理器接线、verify_context只读核验；生产默认预算工厂与默认开启在任务7同实际阶段构造一起交付，不在此造临时预算算法。注入替身资源仍由调用方拥有，测试不偷连真实库。
+- [x] **Green**：新测试及`tests/test_workflow_lifecycle.py tests/test_workflow_audit.py tests/test_intent_contract.py tests/test_online_chat_reliability.py`；确认闭包与单次Runtime不共享可变快照，任务结束/cancel只有一次成本结算。
+- [x] **提交**：记四项，`git commit -m "feat: share layered history and log actual model contexts"`。
 
 ## Task 7: Agent稳定前缀、真实证据包和全链路预算接线
 
