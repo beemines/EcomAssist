@@ -102,6 +102,16 @@ class SummaryBatch:
 
 
 @dataclass(frozen=True)
+class SummaryRequest:
+    """In-memory admission record; target SQL boundary is frozen at task start."""
+    task_id: str
+    conversation_id: str
+    layer2_tokens: int
+    budget: ContextBudget
+    created_at: float
+
+
+@dataclass(frozen=True)
 class LayerPlan:
     anchors: ContextAnchors
     layer1: tuple[FrozenMessage, ...]
