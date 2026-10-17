@@ -32,8 +32,11 @@ _ORDER_DOUBT = re.compile(
     r'待确认|未明确|没(?:有)?明确|未区分|没(?:有)?区分|不明确|不确定|哪(?:一)?单|哪个'
     # Known tentative identity phrases must not clear a pending candidate scope.
     # Keep these tied to identity, rather than any uncertainty or polite "吧".
+    # An order noun needs a following ID; shipping/state predicates are not identity.
     r'|(?:可能|也许|大概|好像|应该|或许|估计|似乎|我猜)\s*(?:就)?是\s*'
-    r'(?:订单|最开始|最早|第一(?:个|笔)订单|上一(?:个|笔)?订单|上一单|[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*)'
+    r'(?:(?:订单(?:编号|号码|号)?\s*(?:为|是)?\s*[:：#]?\s*)?'
+    r'[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*'
+    r'|最开始|最早|第一(?:个|笔)订单|上一(?:个|笔)?订单|上一单)'
     r'|(?:就是|是)\s*(?:订单)?\s*[A-Za-z0-9_-]+\s*吧')
 _ORDER_SELECTION = re.compile(r'我选|选择|选定|就是|请查|查询|我要|我说的是|指的是|换成|换单|改查|改为')
 _POSITIONAL_ORDER = re.compile(r'(?:最开始|最早)(?:的)?(?:那个|那笔)?订单|第一(?:个|笔)订单|上一(?:个|笔)?订单|上一单')

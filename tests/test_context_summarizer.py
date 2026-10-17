@@ -217,7 +217,8 @@ def test_clarification_remains_pending_until_an_explicit_user_selection(followup
 
 
 @pytest.mark.parametrize('followup', [
-    '可能就是订单 O-101。', '也许就是订单 O-101。', '大概就是订单 O-101。',
+    '可能就是订单 O-101。', '可能就是订单O-101。', '也许就是订单 O-101。', '大概就是订单 O-101。',
+    '可能就是订单编号 O-101。', '可能就是订单号为 O-101。', '可能是订单：O-101。',
     '好像就是订单 O-101。', '应该就是订单 O-101。', '或许就是订单 O-101。',
     '估计就是订单 O-101。', '似乎就是订单 O-101。', '我猜就是订单 O-101。',
     '就是订单 O-101 吧。', '可能是最开始那个订单，请查物流。',
@@ -241,6 +242,20 @@ def test_tentative_selection_keeps_identity_pending_until_later_confirmation(fol
     '我选订单 O-101，请查物流，可能是运输延误。',
 ])
 def test_definite_identity_selection_allows_politeness_and_shipping_uncertainty(confirmation):
+    from app.context.summarizer import validate_summary
+    source = order_sequence(('订单 O-101 和 O-202 都买过，帮我看看那个到哪里了。', '请确认具体订单。'),
+                            (confirmation, '会按您确认的订单核实。'))
+    candidate = '用户提及订单 O-101 和 O-202，随后确认查询订单 O-101 的物流，尚无查询结果。'
+    assert validate_summary(candidate, source) == candidate
+
+
+@pytest.mark.parametrize('confirmation', [
+    '我选订单 O-101，请查物流，可能是订单还没发货。',
+    '我选订单 O-101，请查物流，也许是订单在等揽收。',
+    '我选订单 O-101，请查物流，大概就是订单物流更新慢了。',
+    '我选订单 O-101，请查物流，应该是订单信息还没更新。',
+])
+def test_order_state_uncertainty_does_not_veto_explicit_identity_selection(confirmation):
     from app.context.summarizer import validate_summary
     source = order_sequence(('订单 O-101 和 O-202 都买过，帮我看看那个到哪里了。', '请确认具体订单。'),
                             (confirmation, '会按您确认的订单核实。'))
