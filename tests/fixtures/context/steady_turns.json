@@ -1,0 +1,140 @@
+{
+  "fixture_version": "steady-business-turns-v1",
+  "estimator_version": "cjk-ascii-protocol-v1",
+  "calibration": {
+    "provider_usage": null,
+    "basis": "Initial heuristic only: non-ASCII 1.5 estimated tokens/Unicode code point; ASCII ceil(chars/3); 8 protocol units/message plus roles and serialized JSON. No provider tokenizer claim or usage measurement.",
+    "uncertainty": "Chinese segmentation, ASCII/JSON splitting and upstream protocol overhead vary. Conservative starting coefficients and independent window safety; Task7 calibrates against actual serialized prompt_tokens, Task11 reviews error. Coefficients were not selected to reach a target window.",
+    "selection": "Full single-tool order, logistics, numbered Top-10 FAQ and concise product-answer turns. T=max(all complete-turn estimates), minimum=min(all complete-turn estimates). FAQ evidence appears once as its actual tool payload in this historical fixture; live-phase receipt and E separation is caller-owned."
+  },
+  "turns": [
+    {
+      "name": "order",
+      "messages": [
+        {
+          "role": "user",
+          "content": "帮我查一下订单1001现在的状态，我还没有收到退款。"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "call_order",
+              "name": "query_order",
+              "args": {
+                "order_id": "1001"
+              },
+              "type": "tool_call"
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_order",
+          "content": "{\"user_id\":\"demo-user\",\"order_id\":\"1001\",\"product_id\":\"P1001\",\"product_name\":\"便携水杯\",\"model\":\"CUP-350\",\"category\":\"日用\",\"status\":\"已签收\",\"amount_cents\":12900,\"currency\":\"CNY\",\"signed_at\":\"2026-10-13\",\"as_of\":\"2026-10-15\",\"mock\":true,\"fixture_version\":\"orders-v1\"}"
+        },
+        {
+          "role": "assistant",
+          "content": "模拟订单1001已于2026年10月13日签收，金额129元；当前读取未显示退款结果。您提到还没收到退款，我会继续按您的具体诉求核对。"
+        }
+      ]
+    },
+    {
+      "name": "logistics",
+      "messages": [
+        {
+          "role": "user",
+          "content": "订单1001的物流到哪儿了？"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "call_logistics",
+              "name": "query_logistics",
+              "args": {
+                "order_id": "1001"
+              },
+              "type": "tool_call"
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_logistics",
+          "content": "{\"user_id\":\"demo-user\",\"order_id\":\"1001\",\"product_id\":\"P1001\",\"product_name\":\"便携水杯\",\"model\":\"CUP-350\",\"category\":\"日用\",\"status\":\"已签收\",\"amount_cents\":12900,\"currency\":\"CNY\",\"signed_at\":\"2026-10-13\",\"as_of\":\"2026-10-15\",\"mock\":true,\"fixture_version\":\"orders-v1\",\"logistics_status\":\"已签收\",\"tracking_no\":\"MOCK1001\",\"estimated_delivery_days\":null}"
+        },
+        {
+          "role": "assistant",
+          "content": "模拟物流显示订单1001已签收，跟踪编号MOCK1001。这是2026年10月15日的演示快照。"
+        }
+      ]
+    },
+    {
+      "name": "faq_top_10",
+      "messages": [
+        {
+          "role": "user",
+          "content": "我想知道退货期限、运费和退款到账规则。"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "call_faq_top_10",
+              "name": "query_faq",
+              "args": {
+                "keyword": "退货"
+              },
+              "type": "tool_call"
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_faq_top_10",
+          "content": "{\"found\":true,\"matches\":[{\"id\":\"101\",\"n\":1,\"section_path\":\"售后政策/退货期限\",\"question\":\"退货期限\",\"answer\":\"签收后七日内可申请无理由退货，商品应保持完好且不影响二次销售；定制商品等特殊品类不适用。\",\"score\":0.99,\"score_kind\":\"rerank\"},{\"id\":\"102\",\"n\":2,\"section_path\":\"售后政策/退货运费\",\"question\":\"退货运费\",\"answer\":\"非质量问题的无理由退货运费由消费者承担；经核实的质量问题按售后规则由商家承担合理运费。\",\"score\":0.98,\"score_kind\":\"rerank\"},{\"id\":\"103\",\"n\":3,\"section_path\":\"售后政策/退款进度\",\"question\":\"退款进度\",\"answer\":\"仓库验收退回商品后办理退款，款项原路返回。实际到账时间以支付机构处理结果为准，提交申请不代表已经退款。\",\"score\":0.97,\"score_kind\":\"rerank\"},{\"id\":\"104\",\"n\":4,\"section_path\":\"售后政策/包装要求\",\"question\":\"包装要求\",\"answer\":\"退回时请保留商品主体、配件、说明书及赠品。缺少配件或包装破损可能影响验收，请先与客服核对具体情况。\",\"score\":0.96,\"score_kind\":\"rerank\"},{\"id\":\"105\",\"n\":5,\"section_path\":\"售后政策/质量问题\",\"question\":\"质量问题\",\"answer\":\"发现破损或功能异常时请保留照片、订单号和问题描述，客服将核对售后条件，未经核实不承诺补偿金额。\",\"score\":0.95,\"score_kind\":\"rerank\"},{\"id\":\"106\",\"n\":6,\"section_path\":\"售后政策/换货流程\",\"question\":\"换货流程\",\"answer\":\"符合换货条件时可提交售后申请，经确认后退回原商品。换货库存与发出时间需以当前业务读取和审核结果为准。\",\"score\":0.94,\"score_kind\":\"rerank\"},{\"id\":\"107\",\"n\":7,\"section_path\":\"售后政策/发票处理\",\"question\":\"发票处理\",\"answer\":\"已开具发票的订单退货时需按实际情况办理红冲或退票。电子发票处理方式由财务规则决定，客服可协助查询。\",\"score\":0.9299999999999999,\"score_kind\":\"rerank\"},{\"id\":\"108\",\"n\":8,\"section_path\":\"售后政策/特殊商品\",\"question\":\"特殊商品\",\"answer\":\"食品、贴身用品和已激活数字商品等可能适用特殊退货规则。请提供商品型号或订单号后查询对应完整政策条款。\",\"score\":0.9199999999999999,\"score_kind\":\"rerank\"},{\"id\":\"109\",\"n\":9,\"section_path\":\"售后政策/拒收说明\",\"question\":\"拒收说明\",\"answer\":\"拒收包裹不等于自动完成退款。需要核对物流退回状态及仓库验收结果，再按订单支付方式处理后续退款。\",\"score\":0.91,\"score_kind\":\"rerank\"},{\"id\":\"110\",\"n\":10,\"section_path\":\"售后政策/售后申请\",\"question\":\"售后申请\",\"answer\":\"售后表单用于表达申请意向，打开或取消表单不会执行退款。用户提交后仍需审核，客服应明确当前处理状态。\",\"score\":0.9,\"score_kind\":\"rerank\"}],\"retrieval\":{\"strategy\":\"hybrid\",\"match_count\":10,\"candidate_count\":10}}"
+        },
+        {
+          "role": "assistant",
+          "content": "通常签收后七日内可申请无理由退货，需保持商品完好[1]；非质量问题运费由消费者承担[2]。仓库验收后办理原路退款，实际到账以支付机构为准[3]。"
+        }
+      ]
+    },
+    {
+      "name": "short_answer",
+      "messages": [
+        {
+          "role": "user",
+          "content": "便携水杯P1001还有库存吗？"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "call_short_answer",
+              "name": "query_product",
+              "args": {
+                "product_id": "P1001"
+              },
+              "type": "tool_call"
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_short_answer",
+          "content": "{\"product_id\":\"P1001\",\"mock\":true,\"name\":\"便携水杯\",\"price\":129,\"stock\":18}"
+        },
+        {
+          "role": "assistant",
+          "content": "模拟查询显示便携水杯P1001库存18件。"
+        }
+      ]
+    }
+  ]
+}
