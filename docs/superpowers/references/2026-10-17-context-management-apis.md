@@ -65,3 +65,14 @@
 - `types.py:1050`的`Overwrite(value: Any)`由`channels/binop.py`识别并绕过reducer，同一super-step不能多个Overwrite。仅完整SQL首次引入/旧根规范化使用，正常节点与语义裁剪均不发Overwrite，不直接修改已有completed根。
 - 子图适配核对`pregel/main.py`实际`ainvoke(input, config=None, *, context=None, stream_mode='values', ..., durability=None)`；显式传入父节点RunnableConfig与runtime.context，保留callbacks、namespace和stream上下文。其默认durability从config的CONFIG_KEY_DURABILITY继承；父服务仍使用sync。真实父子图custom/updates回归确认父agent只发新增SQL消息，子图工具增量和正文仍可见。
 - sqlite/aio.py:324/367/524核对官方表、aget_tuple和aput：checkpoint以thread_id/namespace/checkpoint_id定位，序列化值写入checkpoint BLOB；新轮沿当前thread产生新ID，不调用update_state改旧根。真实pytest tmp SQLite关闭重开两次、旧root checkpoint/metadata字节相等、原locator历史模式验证共同覆盖该约束。
+
+## 任务5实施：严格摘要、原文窗口与有界后台任务
+
+- 使用[Python 3.13 asyncio任务文档](https://docs.python.org/3.13/library/asyncio-task.html#asyncio.wait)核对：`wait(tasks, timeout=5)`返回done/pending，超时不自动取消；管理器随后逐个cancel并gather等待清理。任务保存强引用；CancelledError清理后重新抛出。查询的是3.13兼容接口，不使用新版3.15新增API。
+- [官方ChatOpenAI集成文档](https://docs.langchain.com/oss/python/integrations/chat/openai)用于核对现有客户端与结构化输出能力；具体json_mode以锁定langchain-openai 1.6.7的`chat_models/base.py:2804`为准，其绑定`response_format={"type":"json_object"}`。本任务直接取得原始AIMessage，在本地拒绝重复键、非唯一content字段、非字符串、非stop、工具调用、refusal与超长输出，不使用宽松Markdown JSON解析。
+- 锁定源码`base.py:1470`将`max_retries`传入实际SDK客户端，`base.py:2018`合并绑定参数并构造Chat Completions消息。沿用`create_model`的零重试；SummaryGenerator拒绝重试配置非零的ChatOpenAI/根异步客户端。`model_with_output_budget`只复制配置、共享资源所有权，摘要覆盖输出预留为512，支持两个已存在的token-limit字段。离线httpx MockTransport捕获真实请求，500只请求一次；没有请求真实GLM。
+- `summary_messages(batch)`只序列化冻结SQL原文行与字符串范围ID，完整system/user及JSON包装按同一`estimate_payload`计数，另加512与部署安全余量。管理器按共享`completed_boundaries`选连续完整轮次，不把旧摘要或层2截断文本喂给生成器；过多实体用完整轮次拆批。单轮不能容纳就失败，不靠缩短原话通过预算。
+- 最小新增`ContextRepository.list_downgraded(*, after_id=0, limit=100)`经控制者批准；只筛L非NULL且L>coalesce(S,0)，会话ID升序keyset分页，页大小限制1..100。临时SQLite实测NULL S、已覆盖/未降级排除、跨页顺序；没有改既有append/CAS锁区或应用数据库。
+- `SummaryManager(repository, generator, *, budget_provider, event_logger=None)`保留指定位置参数。event_logger同步接收`(event_name, fields)`，可接Task6/10的ContextLogger.event；字段只有任务/会话ID、段号、SQL范围、S/目标L、阈值/用量、时间/耗时、运行/等待数及固定原因码，不含客户端、密钥或异常正文。notify同步仅登记/入队；`summary_notify`范围未知。首个短SQL读取冻结L后才发带真实范围的`summary_trigger`；每子段start/done带真实段范围。队列中的后续任务仍在自己的首次读取时冻结L。单段失败保留以前已提交段，失败段不推进S，不自动重试。
+- `SummaryRequest`是冻结内存记录，不是持久任务表。startup每个候选重取budget_provider当前预算，按真实层2投影重算阈值，按同一2运行/8等待规则调度而不等待上游；关闭丢弃等待项、给运行项5秒，再取消并等清理。仅一个应用所有者创建管理器；Workflow/lifespan接线留Task6。
+- 12项人工标注样例见`tests/fixtures/context/summary_cases.json`；离线协议/词法与标注事实断言均通过，反例均拒绝。它们不是模型生成质量报告，真实prompt检查留Task11。词法实体/否定/动作守卫只覆盖已知形式，不能证明任意自然语言的完整忠实度。

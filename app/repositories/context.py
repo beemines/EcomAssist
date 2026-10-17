@@ -3,7 +3,7 @@ from dataclasses import astuple
 import hashlib
 import json
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.context.tokens import estimate_text_tokens
@@ -50,6 +50,17 @@ def _projection(segments: tuple[SummarySegment, ...], budget: int) -> str:
 class ContextRepository:
     def __init__(self, database: Database):
         self.database = database
+
+    async def list_downgraded(self, *, after_id: int = 0, limit: int = 100) -> tuple[str, ...]:
+        """Keyset recovery page; never scan or summarize untouched legacy conversations."""
+        if type(after_id) is not int or after_id < 0 or type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError('Recovery requires a nonnegative cursor and page size 1..100.')
+        statement = select(Conversation.id).where(
+            Conversation.id > after_id, Conversation.layer1_from_msg_id.is_not(None),
+            Conversation.layer1_from_msg_id > func.coalesce(Conversation.summary_upto_msg_id, 0),
+        ).order_by(Conversation.id).limit(limit)
+        async with self.database.session() as session, session.begin():
+            return tuple(str(identifier) for identifier in await session.scalars(statement))
 
     async def _conversation(self, session, identifier: int, *, lock: bool = False):
         statement = select(Conversation).where(Conversation.id == identifier)
