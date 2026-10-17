@@ -11,7 +11,7 @@ from app.context.types import ContextAnchors, FrozenMessage, SummaryBatch, Summa
 from app.db.models import Conversation, ConversationSummary, Message
 from app.db.session import Database
 from app.repositories.conversations import _conversation_id, _require_conversation
-from app.repositories.records import MessageRecord, decode_tool_calls, message_from_record
+from app.core.tool_history import completed_boundaries as _completed_boundaries
 
 
 def _anchors(row: Conversation) -> ContextAnchors:
@@ -34,35 +34,6 @@ def _frozen(rows) -> tuple[FrozenMessage, ...]:
 def _source_hash(rows: tuple[FrozenMessage, ...]) -> str:
     payload = json.dumps([astuple(row) for row in rows], ensure_ascii=False, separators=(',', ':'), allow_nan=False)
     return hashlib.sha256(payload.encode('utf-8')).hexdigest()
-
-
-def _completed_boundaries(rows) -> set[int]:
-    """只承认本会话完整轮次的末条客服；工具往返未配对不能成为边界。
-
-    新user可结束之前取消/失败的残留，其原文仍留在待摘要批次中。
-    坏角色/损坏JSON明确诊断；孤立的合法工具行保留但不伪造成完成。
-    """
-    completed = set()
-    active, valid, pending = False, False, None
-    for index, row in enumerate(rows):
-        record = MessageRecord(row.id, row.role, row.content, row.tool_calls, row.tool_call_id)
-        message_from_record(record)
-        if row.role == 'user':
-            active, valid, pending = True, True, None
-        elif row.role == 'tool':
-            if not active or pending is None or row.tool_call_id != pending:
-                valid = False
-            pending = None
-        elif row.tool_calls is not None:
-            if not active or pending is not None:
-                valid = False
-            pending = decode_tool_calls(row.tool_calls)[0]['id']
-        else:
-            next_is_user_or_end = index + 1 == len(rows) or rows[index + 1].role == 'user'
-            if active and valid and pending is None and next_is_user_or_end:
-                completed.add(row.id)
-            active = False
-    return completed
 
 
 def _projection(segments: tuple[SummarySegment, ...], budget: int) -> str:
