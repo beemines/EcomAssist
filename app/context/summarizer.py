@@ -28,7 +28,13 @@ _POSITIVE_ACTIONS = (r'已(?:经)?退款(?:成功)?|退款(?:已)?成功|退款�
 _STAGES = (r'已(?:经)?申请(?:退款)?', r'打开.{0,4}表单', r'待审核')
 _REJECTED_ORDER = re.compile(r'不是\s*(?:订单)?\s*([A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*)')
 _UNRESOLVED_ORDER = re.compile(r'待确认|未明确|没(?:有)?明确|未区分|没(?:有)?区分|不明确|不确定|哪(?:一)?单|哪个|那个|那(?:一)?单|其中一单')
-_ORDER_DOUBT = re.compile(r'待确认|未明确|没(?:有)?明确|未区分|没(?:有)?区分|不明确|不确定|哪(?:一)?单|哪个')
+_ORDER_DOUBT = re.compile(
+    r'待确认|未明确|没(?:有)?明确|未区分|没(?:有)?区分|不明确|不确定|哪(?:一)?单|哪个'
+    # Known tentative identity phrases must not clear a pending candidate scope.
+    # Keep these tied to identity, rather than any uncertainty or polite "吧".
+    r'|(?:可能|也许|大概|好像|应该|或许|估计|似乎|我猜)\s*(?:就)?是\s*'
+    r'(?:订单|最开始|最早|第一(?:个|笔)订单|上一(?:个|笔)?订单|上一单|[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*)'
+    r'|(?:就是|是)\s*(?:订单)?\s*[A-Za-z0-9_-]+\s*吧')
 _ORDER_SELECTION = re.compile(r'我选|选择|选定|就是|请查|查询|我要|我说的是|指的是|换成|换单|改查|改为')
 _POSITIONAL_ORDER = re.compile(r'(?:最开始|最早)(?:的)?(?:那个|那笔)?订单|第一(?:个|笔)订单|上一(?:个|笔)?订单|上一单')
 _ORDER_CLARIFICATION = re.compile(r'哪(?:一)?单|哪个订单|确认(?:一下)?(?:具体|要查的)?订单')

@@ -216,6 +216,38 @@ def test_clarification_remains_pending_until_an_explicit_user_selection(followup
         validate_summary('用户查询订单 O-101 的物流，订单 O-202 是其另一笔订单。', order_sequence(*turns))
 
 
+@pytest.mark.parametrize('followup', [
+    '可能就是订单 O-101。', '也许就是订单 O-101。', '大概就是订单 O-101。',
+    '好像就是订单 O-101。', '应该就是订单 O-101。', '或许就是订单 O-101。',
+    '估计就是订单 O-101。', '似乎就是订单 O-101。', '我猜就是订单 O-101。',
+    '就是订单 O-101 吧。', '可能是最开始那个订单，请查物流。',
+])
+def test_tentative_selection_keeps_identity_pending_until_later_confirmation(followup):
+    from app.context.summarizer import validate_summary
+    turns = [('订单 O-101 和 O-202 都买过，帮我看看那个到哪里了。', '请确认具体订单。'),
+             (followup, '请确认具体订单。')]
+    candidate = '用户查询订单 O-101 的物流，订单 O-202 是其另一笔订单。'
+    with pytest.raises(ValueError, match='unresolved identity'):
+        validate_summary(candidate, order_sequence(*turns))
+    faithful = '用户提到订单 O-101 和 O-202，希望查询物流，具体订单仍待确认。'
+    assert validate_summary(faithful, order_sequence(*turns)) == faithful
+    turns.append(('我确认就是订单 O-101，请查这单物流。', '会按您确认的订单核实。'))
+    assert validate_summary(candidate, order_sequence(*turns)) == candidate
+
+
+@pytest.mark.parametrize('confirmation', [
+    '我确认就是订单 O-101，请查吧。',
+    '我选订单 O-101，请查物流，可能明天到。',
+    '我选订单 O-101，请查物流，可能是运输延误。',
+])
+def test_definite_identity_selection_allows_politeness_and_shipping_uncertainty(confirmation):
+    from app.context.summarizer import validate_summary
+    source = order_sequence(('订单 O-101 和 O-202 都买过，帮我看看那个到哪里了。', '请确认具体订单。'),
+                            (confirmation, '会按您确认的订单核实。'))
+    candidate = '用户提及订单 O-101 和 O-202，随后确认查询订单 O-101 的物流，尚无查询结果。'
+    assert validate_summary(candidate, source) == candidate
+
+
 @pytest.mark.parametrize('first_user', ['订单 O-101 和 O-202 都买过。',
                                       '订单 O-101 和 O-202 都买过，帮我看看那个到哪里了。'])
 def test_later_explicit_selection_resolves_earlier_uncertainty(first_user):
