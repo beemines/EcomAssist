@@ -186,16 +186,16 @@ assert len(demo_evidence.citations) <= 5
 assert actual_http_body['messages'] == logged_model_context['messages']
 ```
 
-- [ ] **Red**：跨普通/知识/售后轮断言同阶段prefix hash与tools字节一致、没有动态system、普通控制后两字段必须null、售后四字段语义仍严格；模拟越权FAQ/写工具在执行前拒绝。证据Top-5/Top-10、整块预算/首尾引用、实际选入集合过闸；捕获出站请求体与model_ctx相等。巨量工具返回、输入/输出/峰值/累计额度分别有明确终态，不能length JSON当成功。
-- [ ] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_agent.py tests/test_context_prefix.py tests/test_context_evidence.py -q`。
-- [ ] **实现**：把现有AgentControl/AfterSalesControl解析统一到独立controls模块，动态意图/回复模式/售后理由进用户附件。固定四个读取schema和内部控制schema，服务端保留执行权限；最终阶段不绑工具。从ContextBudget取窗口、MAX_AGENT_STEPS、配置最终输出，不再硬编码512或8000；累计预算独立。FAQ正文只在附件，当前原生回执仍配对，业务结果完整类型副本保留关键字段。top_k只限制线上最终证据，不改Milvus dense/BM25各50或重排模型，不重校准既有得分阈值。
-- [ ] **Green**：新测试及`tests/test_workflow_agent.py tests/test_workflow_agent_limits.py tests/test_workflow_agent_quality.py tests/test_agent_native_current_read.py tests/test_agent_native_control.py tests/test_agent_final_boundary.py tests/test_workflow_gate.py tests/test_refund_decision.py tests/test_refund_policy_scoring.py`；对原政策、两步订单物流、退款需审核、库外拒答各做离线完整图复验。
-- [ ] **其余阶段日志**：在Agent、扩写、充分性和query planner的实际invoke/stream边界补齐同口径载荷日志与可选回调；任务6不重建这些阶段的猜测输入。日志必须与实际客户端收到的消息及工具一致，失败/取消也保留发出前记录。
+- [x] **Red**：跨普通/知识/售后轮断言同阶段prefix hash与tools字节一致、没有动态system、普通控制后两字段必须null、售后四字段语义仍严格；模拟越权FAQ/写工具在执行前拒绝。证据Top-5/Top-10、整块预算/首尾引用、实际选入集合过闸；捕获出站请求体与model_ctx相等。巨量工具返回、输入/输出/峰值/累计额度分别有明确终态，不能length JSON当成功。
+- [x] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_agent.py tests/test_context_prefix.py tests/test_context_evidence.py -q`。
+- [x] **实现**：把现有AgentControl/AfterSalesControl解析统一到独立controls模块，动态意图/回复模式/售后理由进用户附件。固定四个读取schema和内部控制schema，服务端保留执行权限；最终阶段不绑工具。从ContextBudget取窗口、MAX_AGENT_STEPS、配置最终输出，不再硬编码512或8000；累计预算独立。FAQ正文只在附件，当前原生回执仍配对，业务结果完整类型副本保留关键字段。top_k只限制线上最终证据，不改Milvus dense/BM25各50或重排模型，不重校准既有得分阈值。
+- [x] **Green**：新测试及`tests/test_workflow_agent.py tests/test_workflow_agent_limits.py tests/test_workflow_agent_quality.py tests/test_agent_native_current_read.py tests/test_agent_native_control.py tests/test_agent_final_boundary.py tests/test_workflow_gate.py tests/test_refund_decision.py tests/test_refund_policy_scoring.py`；对原政策、两步订单物流、退款需审核、库外拒答各做离线完整图复验。
+- [x] **其余阶段日志**：在Agent、扩写、充分性和query planner的实际invoke/stream边界补齐同口径载荷日志与可选回调；任务6不重建这些阶段的猜测输入。日志必须与实际客户端收到的消息及工具一致，失败/取消也保留发出前记录。
 
-- [ ] **默认激活**：复用任务6的 context_budget_provider(registry) 注入接口，在本任务交付唯一的实际阶段预算工厂及默认生命周期开启；启动使用同一工厂，不能让生产默认路径继续走旧8k裁剪或跳过上下文日志。无显式chat_service且使用真实DB或显式context_repository时自动启用；纯fake仓储且无DB/context_repository的注入接缝保留显式opt-in，不暗连真实库，也不作为生产默认验收。若direct Runtime需要临时模型视图，须从其实际完整原文构造，不能用空history绕过容量。任务6已测的可注入接线不能当作本条完成。
+- [x] **默认激活**：复用任务6的 context_budget_provider(registry) 注入接口，在本任务交付唯一的实际阶段预算工厂及默认生命周期开启；启动使用同一工厂，不能让生产默认路径继续走旧8k裁剪或跳过上下文日志。无显式chat_service且使用真实DB或显式context_repository时自动启用；纯fake仓储且无DB/context_repository的注入接缝保留显式opt-in，不暗连真实库，也不作为生产默认验收。若direct Runtime需要临时模型视图，须从其实际完整原文构造，不能用空history绕过容量。任务6已测的可注入接线不能当作本条完成。
 
-- [ ] **首轮校准准备**：本任务交付实际序列化包与非流式prompt_tokens的采样/误差校核接线及离线验证。真实最多3轮校准移至任务11，在任务10的共享HTTP限额器就绪后、完整批次前运行，避免为任务7另建临时计数器。真实样本、系数版本和误差尚未取得时须明确标待验证，不宣称已校准；不为校准修改stream_usage或发明缺失usage，未知不能填0。
-- [ ] **提交**：记四项，`git commit -m "feat: apply stable agent prefixes and bounded context packets"`。
+- [x] **首轮校准准备**：本任务交付实际序列化包与非流式prompt_tokens的采样/误差校核接线及离线验证。真实最多3轮校准移至任务11，在任务10的共享HTTP限额器就绪后、完整批次前运行，避免为任务7另建临时计数器。真实样本、系数版本和误差尚未取得时须明确标待验证，不宣称已校准；不为校准修改stream_usage或发明缺失usage，未知不能填0。
+- [x] **提交**：记四项，`git commit -m "feat: apply stable agent prefixes and bounded context packets"`。
 
 ## Task 8: 只读会话分页、原文和原轮引用恢复
 
