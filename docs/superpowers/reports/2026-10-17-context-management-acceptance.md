@@ -1,6 +1,6 @@
 # 第七章上下文管理验收：Stage A
 
-状态：原六个付费页面轮次后，用户另批准两个定点复验，两轮已通过；两组真实21轮已获有条件批准、尚未运行，须等待最终full通过。当前不能宣布本章真实验收完成。基线为 `e73eb57410aa417b56305ddd27d8331e635d7acf`，工作树 `feat/context-management`，无合并或推送。
+状态：修后两页及最终full已通过；默认真实21批在第3轮理解器返回错误JSON契约后停止，仅2轮done、累计11/1/1；demo尚未运行。当前不能宣布本章真实验收完成。StageA产品HEAD `cdd141f630185bae33b625adfb3368b3b2418470`，基线 `e73eb57410aa417b56305ddd27d8331e635d7acf`，无合并或推送。
 
 ## 源码与边界
 
@@ -81,15 +81,15 @@
 - 3308本章指定三文件：41 passed14.89s；仅fixture拥有的随机schema，不操作3307。
 - 受控上下文浏览器10/10；受控意图浏览器11/11。意图脚本首条命令漏必需--url，启动前用法拒绝；更正后通过。记录独立，不把子集累加成全量。
 - 真实历史工具JSON缺陷新增浏览器RED桌面/窄屏2失败（8/10）；最小渲染修复后再次10/10和11/11，原API工具content、完成徽章、原引用、安全切换均保留。
-- 修订前全量在69%时通过原exec Ctrl+C中断，因第6轮新增真实证据后获批变更prompt/F；第二次在64%因实际历史JSON缺陷中断。分别保留 `.cache/task11-final-full.txt`、`.cache/task11-final-source-full.txt`，均不计通过。随后冻结源码全量为2698 passed、184 skipped、1 failed（435.66s）；唯一长原话建单夹具旧预算8000小于新增提示后的8073（原7904）。单例RED复现后只将该例测试预算显式9000，原2104字符/手填描述/票据断言不变；动作模块40 passed10.90s。最终全量复跑中，未计通过。
+- 修订前全量在69%时通过原exec Ctrl+C中断，因第6轮新增真实证据后获批变更prompt/F；第二次在64%因实际历史JSON缺陷中断。分别保留 `.cache/task11-final-full.txt`、`.cache/task11-final-source-full.txt`，均不计通过。随后冻结源码全量为2698 passed、184 skipped、1 failed（435.66s）；唯一长原话建单夹具旧预算8000小于新增提示后的8073（原7904）。单例RED复现后只将该例测试预算显式9000，原2104字符/手填描述/票据断言不变；动作模块40 passed10.90s。修后最终全量 **2699 passed、184 skipped，551.94s，exit0**（`.cache/task11-final-green-full.txt`）。
 
 服务重启后页面选择旧会话65、点击原政策引用，与原SSE引用正文相同。修后390宽窄屏无横向溢出，pageErrors为空；桌面/窄屏截图已查看，另等待入场动画结束保存稳定图。原六页后的只读取证会话65/66/67各原文与最新checkpoint相等，S/L均null、段数0，不能称已经证明真实级联或真实跨摘要恢复。
 
 ## 已批准、待前置门槛执行
 
-追加修订后两个页面复验已明确授权并执行成功。随后两组21轮也已明确批准，前置条件为这两个页面与最终full通过；当前等待最终full。small run剩余14GLM/10嵌入/4重排，没有授权继续增加小额页面。
+追加修订后两个页面复验已明确授权并执行成功。随后两组21轮也已明确批准，前置条件为这两个页面与最终full通过；最终full已通过；默认批第3轮失败已停止，demo尚未启动。small run剩余14GLM/10嵌入/4重排，没有授权继续增加小额页面。
 
-按已批准条件，在最终离线全绿后，使用同一固定 `tests/fixtures/context/long_conversation.json` 原话先default21、再demo21。预计每组100–140GLM（含后台摘要），每组硬上限150GLM/50嵌入/25重排；到限或失败停止，保留原批次，不自动重跑或加额。准备命令如下，**不是已执行结果**：
+按已批准条件，在最终离线全绿后，使用同一固定 `tests/fixtures/context/long_conversation.json` 原话先default21、再demo21。预计每组100–140GLM（含后台摘要），每组硬上限150GLM/50嵌入/25重排；到限或失败停止，保留原批次，不自动重跑或加额。原批准命令如下；默认已执行但第3轮失败，demo尚未执行：
 
 ```powershell
 pwsh -NoProfile -File scripts/start-context-demo.ps1 -Profile default -RunId ch07-default-21-20261017 -MaxGlmCalls 150 -MaxEmbeddingCalls 50 -MaxRerankCalls 25
@@ -100,6 +100,19 @@ D:/vue/node.exe scripts/verify-context-browser.cjs --live --profile demo --run-i
 
 每组须核对实际答案、done、调用账本、原文哈希、源范围/注入段、后台事件、SQL/checkpoint及本轮业务重新读取；重启owned8004后再回到两个旧会话继续聊并检查引用。预留的每组硬上限也涵盖这些同组后续调用，不能另开run逃逸计数。
 
-开放限制：原1001物流提示仅一条修后真实复验通过，非普遍正确性证明；OTHER边界未充分验证；最终摘要版本只复验三题；真实两个21轮/原始订单跨摘要注入/真实后台不阻塞尚未验证；旧200字摘要遗漏风险仍存在；仓储全历史O(N)锁内读取为既有性能minor，未开展无关重构。
+开放限制：原1001物流提示仅一条修后真实复验通过，非普遍正确性证明；OTHER边界未充分验证；最终摘要版本只复验三题；默认仅2/21完成，demo未运行；原始订单跨摘要注入/真实后台不阻塞尚未验证；旧200字摘要遗漏风险仍存在；仓储全历史O(N)锁内读取为既有性能minor，未开展无关重构。
 
 原始证据：`runtime/context-evidence/ch07-small-20261017/`、`task11-migration.json`、`task11-final-budget-*.json`、`task11-final-offline-*.json`、`.cache/task11-*`。真实内容/日志/截图/SQL证据均留忽略目录，不进Git。
+
+
+取证形态与环境提示：故障harness的2/2 Green当时直接输出于exec stdout（`live failure evidence preservation 2/2 PASS`），没有单独日志文件，不补造路径或重复运行。真实摘要首轮与三项复验的日志首行有langchain-openai默认socket-options customtransport禁用系统proxy autodetection提示；实际响应及usage独立保留，未改transport。大批ignored wrapper首次因跨VM realm对象比较在health预检失败，计数仍0/0/0；改为同realm Node Module加载后原严格限额核验通过，产品源码/固定21句未变。Node v24.19.0当前运行时的_compile/_nodeModulePaths定义摘要保存于.cache/context-management/node-module-source.txt。
+
+
+## 默认真实批：保留失败，未通过21轮验收
+
+run `ch07-default-21-20261017` / 会话68，固定fixture原话未变；第1轮1001物流和第2轮政策done，第3轮“运费怎么算？”在understanding返回HTTP200/finish_reason=stop，但content为 `{"kind":"tool_call","name":"query_faq","arguments":{"keyword":"运费怎么算？"}}`。schema要求唯一query，实际缺query且三个额外字段被拒；这是新的理解输出契约失败，不是此前decision_reason问题。原request无tools，response_format=json_object，系统提示与当前源完全一致；历史合法native工具消息是否诱导模型只是未证假设。没有修改源码/栈/阈值、真实重试或整批重跑。
+
+实际账本11GLM/1embedding/1rerank，剩余139/49/24；物理hook捕获11请求、9个非流usage（输入合计14151），流usage仍未知。两个done、第三个error均保存，逐轮所有原文哈希未变化，最终SQL/checkpoint相等，S/L为null、摘要0。尚未到21轮，不能据两轮推断默认全程锚点或跨摘要能力。原包/body/usage、SSE/health、每轮API原文、SQL/checkpoint和离线schema拒绝证据在run目录。demo尚未启动，不拿剩余额度视为自动重试授权。
+
+
+实际默认调用入口为忽略脚本 `.cache/context-management/captured-live.cjs`，以同realm装载同一 `scripts/verify-context-browser.cjs` live函数，仅补每轮health/SSE、API原文和时间取证。完整参数与上述默认命令相同；未改fixture或任何生产协议。源/取证脚本SHA见该run的source-versions.json。父控已要求两批均暂停，等待最终整分支发现合并为一次修复/复验范围，不新增真实调用或修改产品源码；已用额度不重置。
