@@ -90,7 +90,7 @@ def compose_call(snapshot: ContextSnapshot, *, system: SystemMessage, current: H
     if actual + output_tokens + snapshot.budget.safety > snapshot.budget.window:
         raise ContextCapacityError('window input + output + safety limit')
     system_prefix = {'role': 'system', 'content': system.content}
-    if system.name is not None:
-        system_prefix['name'] = system.name
+    if (name := system.name or system.additional_kwargs.get('name')) is not None:
+        system_prefix['name'] = name
     prefix = hashlib.sha256(_json({'system': system_prefix, 'tools': tools}).encode('utf-8')).hexdigest()
     return ModelContextPacket(messages, tools, actual, output_tokens, prefix, snapshot.snapshot_id)
