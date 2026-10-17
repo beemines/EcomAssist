@@ -63,3 +63,6 @@ node scripts/verify-context-browser.cjs --live --profile demo --run-id ch07-demo
 12个真实标注摘要首版9/12被validator接受；三项近义状态表达被拒。仅补规范表达提示后，这三项各一次复验3/3，未重跑全12套，两个版本分开保留。真实O-101摘要经来源范围提取并被真实理解调用恢复，不能代替真实21轮的1001保留验收。小额SQL取证会话65/66/67原文与检查点相等，S/L均未前进，没有真实长会话级联证据。
 
 新提示后的离线CLI两profile各21轮，default105/demo110模型包，原文与检查点相等；demo末轮注入最早订单摘要。200字摘要遗漏负例仍要求安全澄清。真实两组21轮预计每组100–140次GLM（包含后台摘要），申请的硬上限各150GLM/50嵌入/25重排；人类已明确有条件批准，修后两页已通过，最终full全绿才启动；达到上限或任一轮失败立即终止并保留原批次。完整状态见 `docs/superpowers/reports/2026-10-17-context-management-acceptance.md`。
+
+
+Task11最终源码full为2699 passed/184 skipped（551.94s）；修后两页通过后已执行获批默认真实批，但第3句“运费怎么算？”的理解输出误成工具动作JSON，严格query schema拒绝，2/21 done后即停，run累计11GLM/1嵌入/1重排。没有重试或改schema；demo尚未启动。原始失败与SQL/hash/usage证据见详细验收报告。父控正合并最终整分支发现，后续真实调用须等明确整合修复/复验范围；原run不重置。
