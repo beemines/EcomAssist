@@ -14,7 +14,8 @@ UNICODE_TOKEN_DENOMINATOR = 2
 MESSAGE_PROTOCOL_TOKENS = 8
 
 
-def _text_tokens(text: str) -> int:
+def estimate_text_tokens(text: str) -> int:
+    """与载荷估算共用的纯文本计数；不包含附件元数据或协议包装。"""
     ascii_count = sum(ord(character) < 128 for character in text)
     unicode_count = len(text) - ascii_count
     return ((ascii_count + ASCII_CHARS_PER_TOKEN - 1) // ASCII_CHARS_PER_TOKEN
@@ -57,9 +58,9 @@ def estimate_payload(messages: Sequence[BaseMessage], tools: Sequence[dict] = ()
             role = 'tool'
         else:
             raise ValueError('Unsupported context message role.')
-        total += MESSAGE_PROTOCOL_TOKENS + _text_tokens(role) + _text_tokens(message.content)
+        total += MESSAGE_PROTOCOL_TOKENS + estimate_text_tokens(role) + estimate_text_tokens(message.content)
         if message.name is not None:
-            total += _text_tokens(_json_text({'name': message.name}))
+            total += estimate_text_tokens(_json_text({'name': message.name}))
         if isinstance(message, AIMessage):
             if message.invalid_tool_calls:
                 raise ValueError('Cannot estimate invalid tool calls as a valid request.')
@@ -69,11 +70,11 @@ def estimate_payload(messages: Sequence[BaseMessage], tools: Sequence[dict] = ()
                     'name': call['name'], 'arguments': json.dumps(
                         _plain_json(call['args']), ensure_ascii=False, allow_nan=False)}}
                     for call in message.tool_calls]
-                total += _text_tokens(_json_text({'tool_calls': calls}))
+                total += estimate_text_tokens(_json_text({'tool_calls': calls}))
             elif message.additional_kwargs.get('tool_calls'):
-                total += _text_tokens(_json_text({'tool_calls': message.additional_kwargs['tool_calls']}))
+                total += estimate_text_tokens(_json_text({'tool_calls': message.additional_kwargs['tool_calls']}))
         elif isinstance(message, ToolMessage):
-            total += _text_tokens(_json_text({'tool_call_id': message.tool_call_id}))
+            total += estimate_text_tokens(_json_text({'tool_call_id': message.tool_call_id}))
     if tools:
-        total += _text_tokens(_json_text({'tools': tools}))
+        total += estimate_text_tokens(_json_text({'tools': tools}))
     return total

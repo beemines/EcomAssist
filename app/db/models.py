@@ -19,6 +19,9 @@ class Conversation(Base):
     id: Mapped[int] = mapped_column(BIGINT(unsigned=True), primary_key=True, autoincrement=True, comment="会话主键")
     user_id: Mapped[str] = mapped_column(VARCHAR(64), nullable=False, comment="用户标识")
     status: Mapped[str] = mapped_column(ENUM("进行中", "已转人工", "已结束"), nullable=False, server_default=text("'进行中'"), comment="处理状态")
+    summary: Mapped[str | None] = mapped_column(TEXT, nullable=True, comment='最近几段梗概拼成的投影,拼装时跟证据一起挂在用户那句之后')
+    summary_upto_msg_id: Mapped[int | None] = mapped_column(BIGINT(unsigned=True), nullable=True, comment='摘要已覆盖到哪条消息,滑窗从其后接原文')
+    layer1_from_msg_id: Mapped[int | None] = mapped_column(BIGINT(unsigned=True), nullable=True, comment='层1(原文)起点;此 id 之后原样,之前渲染成半压形态')
     created_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"), comment="开启时间")
     updated_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"), server_onupdate=FetchedValue(), comment="更新时间")
 
@@ -35,6 +38,22 @@ class Message(Base):
     tool_calls: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON(none_as_null=True), nullable=True, comment="assistant 消息带的工具调用申请单")
     tool_call_id: Mapped[str | None] = mapped_column(VARCHAR(64), nullable=True, comment="tool 消息对应的申请单 id,回灌时对号入座")
     created_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"), comment="产生时间")
+
+
+class ConversationSummary(Base):
+    """用户DDL的追加式摘要段；不新增原DDL未定义的外键或索引。"""
+    __tablename__ = 'conversation_summaries'
+    __table_args__ = (Index('uk_conv_seq', 'conversation_id', 'seq', unique=True),
+        Index('idx_conv_upto', 'conversation_id', 'upto_msg_id'),
+        {'mysql_engine': 'InnoDB', 'mysql_charset': 'utf8mb4', 'comment': '分段摘要,一段一行只追加'})
+
+    id: Mapped[int] = mapped_column(BIGINT(unsigned=True), primary_key=True, autoincrement=True)
+    conversation_id: Mapped[int] = mapped_column(BIGINT(unsigned=True), nullable=False)
+    seq: Mapped[int] = mapped_column(INTEGER, nullable=False, comment='第几段,从 1 开始')
+    from_msg_id: Mapped[int] = mapped_column(BIGINT(unsigned=True), nullable=False, comment='这段覆盖的消息区间,闭区间')
+    upto_msg_id: Mapped[int] = mapped_column(BIGINT(unsigned=True), nullable=False)
+    content: Mapped[str] = mapped_column(TEXT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 
 
 # 映射既有 FAQ 表的原始问答与分类字段。

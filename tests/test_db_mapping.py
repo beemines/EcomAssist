@@ -15,9 +15,10 @@ def mappings():
 # 验证业务映射保持原约束，并纳入质量表及显式提交的退款表。
 def test_mapping_matches_all_supplied_columns_and_constraints():
     Conversation, FAQ, Message, Ticket = mappings()
-    from app.db.models import RefundRequest
+    from app.db.models import ConversationSummary, RefundRequest
     expected = {
-        Conversation: ["id", "user_id", "status", "created_at", "updated_at"],
+        Conversation: ['id', 'user_id', 'status', 'summary', 'summary_upto_msg_id', 'layer1_from_msg_id', 'created_at', 'updated_at'],
+        ConversationSummary: ['id', 'conversation_id', 'seq', 'from_msg_id', 'upto_msg_id', 'content', 'created_at'],
         Message: ["id", "conversation_id", "role", "content", "tool_calls", "tool_call_id", "created_at"],
         FAQ: ["id", "question", "answer", "category", "created_at", "updated_at"],
         Ticket: ["ticket_no", "conversation_id", "description", "ticket_type", "status", "created_at"],
@@ -25,7 +26,7 @@ def test_mapping_matches_all_supplied_columns_and_constraints():
             'checkpoint_id', 'offer_id', 'user_id', 'order_id', 'pending_key', 'reason', 'amount_cents',
             'currency', 'status', 'order_snapshot', 'policy_snapshot', 'decision_snapshot', 'created_at'],
     }
-    assert set(Conversation.metadata.tables) == {"conversations", "messages", "faq", "tickets", "knowledge_chunks", "qa_extraction_staging", "low_confidence_questions", "faith_cases", 'refund_requests'}
+    assert set(Conversation.metadata.tables) == {"conversations", "conversation_summaries", "messages", "faq", "tickets", "knowledge_chunks", "qa_extraction_staging", "low_confidence_questions", "faith_cases", 'refund_requests'}
     for model, columns in expected.items():
         table = model.__table__
         assert list(table.columns.keys()) == columns

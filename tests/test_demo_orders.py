@@ -90,7 +90,7 @@ async def test_order_tool_uses_sql_owner_not_model_arg(tmp_path):
     engine = create_async_engine('sqlite+aiosqlite:///' + str(tmp_path / 'owners.sqlite'))
     try:
         async with engine.begin() as connection:
-            await connection.execute(text('CREATE TABLE conversations (id INTEGER PRIMARY KEY, user_id TEXT, status TEXT, created_at DATETIME, updated_at DATETIME)'))
+            await connection.execute(text('CREATE TABLE conversations (id INTEGER PRIMARY KEY, user_id TEXT, status TEXT, summary TEXT, summary_upto_msg_id BIGINT, layer1_from_msg_id BIGINT, created_at DATETIME, updated_at DATETIME)'))
             await connection.execute(text("INSERT INTO conversations (id,user_id,status) VALUES (10,'demo-user','进行中'),(20,'other-owner','进行中')"))
         repository = ConversationRepository(SimpleNamespace(session=async_sessionmaker(engine)))
         assert await repository.get_user_id('10') == 'demo-user'

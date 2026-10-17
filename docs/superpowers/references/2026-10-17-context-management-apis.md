@@ -42,3 +42,11 @@
 ## 当前模型窗口
 
 官方智谱域名下精确搜索`GLM-5.3-Flash`未得到可用窗口规格。这不证明该模型不支持现有调用，也不作为更换模型的理由。窗口必须由部署配置明确给出，不能在设计文档中虚构已验证的供应商上限。既有密钥与模型保持，任何窗口默认值须在设计阶段交代依据。
+
+## 任务2实施：独立Session、唯一键冲突与MySQL默认值
+
+- 实施前重读[SQLAlchemy异步并发约束](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html#using-asyncsession-with-concurrent-tasks)、[IntegrityError与原始DBAPI异常](https://docs.sqlalchemy.org/en/20/core/exceptions.html#sqlalchemy.exc.IntegrityError)和[MySQL8.4隐式提交](https://dev.mysql.com/doc/refman/8.4/en/implicit-commit.html)。网页SQLAlchemy为2.0.55，实际使用锁定2.0.54，不升级依赖。
+- 锁定源码`sqlalchemy/sql/selectable.py:4009`再次确认无参`with_for_update()`；`ext/asyncio/session.py:779/940`确认`await flush()`与`async with session.begin()`；`exc.py:550`附近确认DBAPI异常保存在`orig`；PyMySQL1.2.3的`constants/ER.py:64`定义`DUP_ENTRY=1062`。只在上下文退出、事务回滚后把1062转成None竞争结果，其他完整性错误继续抛出。
+- MySQL服务器生成的`created_at`在flush后可能仍未加载，不能同步属性访问触发异步惰性IO。真实3308测试复现MissingGreenlet后，改用已有显式异步SELECT读取整段集合，再构造不可变返回值；不依赖MySQL未提供的INSERT RETURNING，也不加入新Session共享。
+- MySQL把ORM编译的INTEGER规范为INT；锁定`dialects/mysql/base.py:2470`确认INTEGER编译规则。用户SQL中seq仍原样INT、有符号，映射只做该同义类型比较，不能误改成INT UNSIGNED。
+- 两个用户DDL原文由控制者补入本计划scratch/task-2-user-ddl.md，实施文件`sql/ch07.sql`与`sql/ch07-layers.sql`保留其完整字段、中文注释、SET NAMES、索引、顺序及无FK设计。迁移契约从这些SQL读取，先核验全部已有结构再执行缺失项；不宣称事务能回滚已提交DDL。
