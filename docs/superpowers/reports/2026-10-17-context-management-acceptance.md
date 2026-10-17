@@ -1,15 +1,82 @@
-# 第七章上下文管理验收：Stage A
+# 第七章上下文管理实际验收记录（2026-10-18）
 
-状态：修后两页及最终full已通过；默认真实21批在第3轮理解器返回错误JSON契约后停止，仅2轮done、累计11/1/1；demo尚未运行。当前不能宣布本章真实验收完成。StageA产品HEAD `cdd141f630185bae33b625adfb3368b3b2418470`，基线 `e73eb57410aa417b56305ddd27d8331e635d7acf`，无合并或推送。
+**状态：真实验收未完成，所有真实调用已停止。** 默认配置在产品a82上完成固定21轮及单独重启续聊；demo原批20/21完成，第21轮容量拒绝。人类随后批准的最小摘要提示修订，在第一个真实来源对照中仍因遗漏必需型号被拒；剩余两项、启动恢复、原末句复验及demo续聊均未执行。不得称本章全部通过，也不得把既有20轮与后续对照拼成新源码21轮。
 
-## 源码与边界
+基线 `e73eb57410aa417b56305ddd27d8331e635d7acf`；StageA产品 `cdd141f630185bae33b625adfb3368b3b2418470`；集中修复产品 `a82f27e84810247e70d2ee82186c266e51137038`，其验收文档HEAD `ba7db6906116e73feec9d0b649b92f05d4f0397b`；最新仅摘要提示产品 `0a502c073027cbc78aa65ea61acb505b8f47337f`，真实对照HEAD `62868c23b6fdefadac118c487dda02da633a5da4`。本次收口只改文档，无merge/push。
 
-- 修正估算器 `absolute_error` 为绝对值，保留有符号 `relative_error` 与未知usage=null。
-- live浏览器无论最终health或关闭浏览器是否失败，都先写已捕获轮次/pageErrors；优先报告原始轮次失败。未增加公开调试接口。
-- 真实摘要三项被词法守卫拒绝后，仅规定改选、歧义、取消表单的表达短语，保持JSON协议及guard不变。
-- 原物流完整问句定点复验捕获 `decision_reason` 被当作通用理由；仅补AGENT_SYSTEM售后字段含义，未修改schema/guard、模型、超时、自动重试或窗口参数。获批新增两轮已验证business/knowledge均使用null退款字段并done。
-- 实际历史截图暴露原工具JSON正文被hydrateConversation直接渲染。按原设计修正为仅user与最终assistant气泡，工具状态沿用原轮metadata徽章；完整SQL/API工具记录不变，未增加调试折叠气泡。
-- 本地3307/customer_service迁移前，在实际DDL连接内核对Docker映射、hostname/server_uuid、数据库、内部端口、CONNECTION_ID/CURRENT_USER/VERSION；迁移及verify通过。隐藏8004仅由现有创建身份/解释器/命令/祖先/监听守卫启动重启，8002/8003未操作。
+## 验证版本与实际门槛
+
+| 版本/范围 | 已保存的实际结果 | 实际覆盖界限 |
+| --- | --- | --- |
+| a82最终全量 | 2720 passed / 184 skipped，427.06s，exit0；`.cache/final-fix-source-final-full.txt` | 最后一次全分支pytest；不含随后0a502摘要提示 |
+| a82集中修复定向 | 340项、history40；上下文浏览器13/13 | 原四项发现source-addressed，定向复审无新P1/P2 |
+| 3308指定集成 | 41 passed，14.89s | 本章三个指定文件、fixture拥有的随机schema；后续纯prompt/UI未重复此未受影响集 |
+| 两套受控浏览器 | 上下文最终13/13；意图11/11 | 最终历史工具徽章、未完成历史等覆盖；不是付费实测 |
+| 0a502摘要提示 | 192 passed，31.61s，exit0；`.cache/summary-prompt-fix-focused.txt` | 摘要/前缀/预算/生命周期/manager/两profile离线21；未再跑full |
+| 0a502人工标注 | 13原负例仍拒绝，13人工规范参考被守卫接受 | 人工参考不是新模型输出；不能推断真实质量 |
+| 0a502真实对照 | 第一个来源504–523失败，后两项未调用 | 具体失败见下；SOURCE APPROVED不等于live通过 |
+
+整分支单次审查及集中修复定向复审已由父控完成；追加摘要提示只有一次独立范围审查，结论SOURCE APPROVED、无新增可行动问题。实际证据收尾由同一评审续读，不新增源码扫描。测试日志只按各自源码和范围报告，不将子集相加冒充全量。
+
+## 不可变真实调用账本
+
+账本 `runtime/context-evidence/call-ledger.sqlite`。最后已结算：
+
+| run | 固定硬上限 GLM/嵌入/重排 | 累计已用 | 物理余额 |
+| --- | --- | --- | --- |
+| ch07-small-20261017 | 60/12/6 | 46/2/2 | 14/10/4 |
+| ch07-default-21-20261017 | 150/50/25 | 126/18/18 | 24/32/7 |
+| ch07-demo-21-20261017 | 150/50/25 | 119/16/16 | 31/34/9 |
+| 合计 | 三个独立既定run | **291/36/36** | 余额不构成新页面授权 |
+
+包括所有失败、后台摘要和探针；未重置run、提升上限、另开run掩盖费用。SDK自动重试为0；生产的后续notify是不同后台job，确实可再次生成相同或扩展的来源，不能笼统称“没有任何重试”。没有工单/退款业务提交，旧8002/8003未操作。
+
+## 默认实际21轮与重启续聊
+
+同一default run分开保留四部分：
+
+| 部分 | 会话 | 页面结果 | GLM/嵌入/重排增量 | 累计 |
+| --- | --- | --- | --- | --- |
+| 原失败批 | 68 | 2done/3attempted，第三句理解JSON契约失败 | 11/1/1 | 11/1/1 |
+| a82原句定点 | 68 | “运费怎么算？”一次done | 5/1/1 | 16/2/2 |
+| a82新固定批 corrected-attempt-1 | 69 | 固定21/21 done | 105/16/16 | 121/18/18 |
+| 单独post-batch-continuation-1 | 69 | exact-owned重启后“订单1002现在是什么状态？”一次done | 5/0/0 | 126/18/18 |
+
+原失败HTTP200/stop内容是 `{"kind":"tool_call","name":"query_faq","arguments":{"keyword":"运费怎么算？"}}`，缺少唯一query字段且含额外字段，strict schema正确拒绝；是否由native历史工具对诱导未被证明。a82只明确理解输出角色/协议，未放宽schema。原文件、403–411行含失败行、原native工具对均未改写。定点请求真实返回query契约，原失败仍保留。
+
+会话69固定21每轮原文未变、SQL/checkpoint相等，S/L始终null、摘要0。末轮实际新调用 `query_logistics({"order_id":"1001"})`，恢复最早订单1001、未找到包裹、不申请退款；不能把实际物流工具名改写成夹具中预想的query_order。此前最新其他订单为1002。105个物理请求对应账本增量，84个非流usage的prompt_tokens合计1071282；流usage未知。
+
+固定21结果先封存，随后重启同run再单独续聊1002，实际新query_order；原固定批文件哈希不变。桌面/390窄屏旧会话、原政策引用正文相同，pageErrors空，无横向溢出，截图已查看。证据在default run的 `corrected-attempt-1/semantic-inspection.json` 和 `post-batch-continuation-1/result.json`，第22页不计入固定21。
+
+语义观察仍保留：会话68修后运费回答额外提及“订单1001金额199元，已满99元包邮门槛”，来自历史成功tool405，并未在该政策轮重新读取订单。协议通过不代表所有答复事实都来自当前读取，不能补造一次新业务工具成功。
+
+## demo实际20/21与后台摘要失败
+
+a82、会话70，同一demo150/50/25：原 `original-attempt-1/results.json` 保存前6轮done与helper暂停；获父控纠正后，`resumed-turns-7-21/results.json` 只续7–21，14done加末轮HTTP422。没有重播1–6、重启或新会话。原六轮文件哈希全部保持，不能将原暂停文件覆盖成clean21。
+
+第6轮以前的首次摘要将59900分表达为599元，保守词法守卫因新token599拒绝；随后同轮正常完成通知启动另一job，157字合法seq1提交。页面6一直done，前台classification发生于首个后台job期间。最初ignored helper“任意summary_failed即整批停止”比spec更严格；父控查明后撤销该额外条件，允许原会话继续，原暂停证据仍在。
+
+截至第20轮：seq1覆盖504–523，含1001、MH-LP200、未找到包裹、不申请退款；seq2覆盖524–547。后续实际冻结snapshot和understanding包注入过seq1/2，未省略最早段。共有18个独立生产摘要job，**2 committed、16 rejected**：seq1一次失败后成功；seq2四次失败后成功；seq3十一项均失败。每个body、task ID、时间与来源区间均保留。失败原因包括FAQ工具事实缺“当时/曾/历史”、59900分转599元，以及原“9:00 至 22:00”变为“9:00-22:00”产生不在原文中的词法token00-22；不是只有金额一种原因。
+
+**第21轮实际失败**：原句“最开始那个订单后来怎么说？我当时的诉求是什么？”返回HTTP422，body为 `{"code":"context_capacity","message":"当前上下文无法放入部署窗口，请检查上下文预算配置。"}`。S547/L579，H2691/H1=1883/H2=808；将548–583全部合法压为Layer2仍2744>2691。离线对原保存行调用未改plan_layers得到同一ContextCapacityError。user584没有任何前台model_ctx，原始用户行保存在SQL；最新完成checkpoint仍user580/第20轮，故该失败状态SQL/checkpoint不相等。wrapper随后SQL相等断言覆盖了错误摘要，但实际422 body早已单独保存；二者不可混为一项生产数据丢失。
+
+此时demo账本118/16/16：100个前台物理GLM（20done），18个后台摘要。第21轮容量拒绝还触发最后一个正常notify，已计入18且失败结束；无后台未结算尾巴。最早段在第20轮被注入，不等于末轮已恢复1001；末轮未进入模型、没有本轮1001工具调用。demo批后重启/续聊未进行。
+
+主要证据：`original-attempt-1/summary-failure-analysis.json`、`resumed-turns-7-21/final-failure-analysis.json`、每轮raw/history/storage/context、全部summary-request/response-*。最终原批20done/21attempted及容量负例保留。
+
+## 追加最小摘要提示及真实定点失败
+
+人类明确批准在原demo余32GLM内仅修改SUMMARY_SYSTEM并定点复验，不再跑21、不改guard/schema/模型/容量/SDKretry。产品0a502只补工具含FAQ的历史标记、原金额单位与时间分隔表达；prompt SHA `5d826ba18a7a3c43de1214dc7131081a9bd0b8ac458a2a447202909f0dae5d27`。保存的[修订来源与离线报告](2026-10-18-summary-prompt-fix.md)记录192项及人工标注。
+
+计划只取三个实际失败来源：request27[504–523]、request61[524–539]、request118[548–579]，各一次、不得append旧段。控制器最初将第二范围误称524–547，核对后纠正为真实失败61，未拿已成功源替代负例，也未增加第四例。
+
+实际只执行第一个对照，HTTP200/stop；prompt_tokens4320、completion_tokens91。内容为：
+
+> 用户称订单1001未找到包裹、明确不申请退款，当时查得模拟数据已签收（签收2026-10-13，运单MOCK1001）。另查订单1002明辉饮水机MH-WD100模拟已签收（2026-09-15，59900分）。当时咨询退换货政策、运费及电子商品保修12个月。
+
+它保留了当时、模拟及59900分，但**遗漏必需型号MH-LP200**，未改guard报 `Summary omitted a source entity; use smaller complete batches.`。首失败即停，后两源未调用；未重启、未触发启动恢复、未重发原末句、未做条件1002续聊。没有DBappend或旧段重压。此次+1/0/0，demo最终119/16/16，总291/36/36。新提示实际有效性门槛未通过；不再自行修改提示或消费余额。
+
+证据 `runtime/context-evidence/ch07-demo-21-20261017/extra-minimum-validation/source-contrasts/result.json`，含版本、原源文件SHA、完整wire/usage、前后计数和旧文件哈希不变。三个固定源中仅1 attempted/0 valid；不能写成3项已复验。
 
 ## 真实小额账本
 
@@ -60,59 +127,25 @@
 
 “通过”是实际SummaryGenerator及其validator接受，不代表任意语言忠实度已证明。原生成内容、字面must_keep缺项、拒绝理由和每次wire/usage均保留。O-101单例真实理解恢复的是实际生成摘要，未伪造摘要、未放宽类型来源守卫；它不等同于真实21轮1001保留证明。
 
-## 校准与最终预算
+## 校准、预算与保留限制
 
-前三付费页面轮得到11组实际非流式prompt_tokens，合计14351；平均绝对误差1217.09，带符号相对误差+81.83%至+114.35%，全部为保守高估。保持 `cjk-ascii-protocol-v1` 参数。流式最终回复usage未知，不计作0。样本很少，不证明供应商128000窗口或通用误差界。
+首最多三付费页面内取得11组真实非流prompt_tokens配对，合计14351；平均绝对误差1217.09、相对误差+81.83%至+114.35%，估计约实际1.82–2.14倍。保持cjk-ascii-protocol-v1参数。流式usage未知，不填0；有限样本不是供应商128000窗口或通用tokenizer精度证明。
 
-真实小额运行的AGENT_SYSTEM SHA256为 `153d527bc471791ab82f174f4d238209a228bbcf9868a70267ef5b6c9ddd4b16`；新增售后字段提示后为 `dc05070ed551e1d37b7066fd1150ec0229666461dad30214a446388a8735d69b`，F2811→2890。校准样本保留原提示版本，不把最后新增79token开销伪称为同包实测。
+决策提示早期F2811，补售后字段语义后F2890；该阶段prompt SHA从153d527bc471791ab82f174f4d238209a228bbcf9868a70267ef5b6c9ddd4b16变为dc05070ed551e1d37b7066fd1150ec0229666461dad30214a446388a8735d69b。a82理解提示SHA ebe42f1b40f1e0b49ab1968479b821ae252c9b550c13e94367b4b1d681a4c5bb。原校准保留其旧source版本，不假称新增开销已同包校准。
 
-| Profile | H | H1 | H2 | G | 派生单轮累计预算 |
-|---|---:|---:|---:|---:|---:|
-| default W128000 | 59880 | 41916 | 17964 | 2000 | 1135519 |
-| demo W18000 | 2691 | 1883 | 808 | 563 | 174463 |
+| Profile | H | H1 | H2 | G | 最新派生每轮累计额度 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| default W128000 | 59880 | 41916 | 17964 | 2000 | 1135879 |
+| demo W18000 | 2691 | 1883 | 808 | 563 | 174823 |
 
-最终两profile离线固定21轮各通过，default105/demo110模型包；原SQL与checkpoint一致。demo触发降级/摘要并从实际注入summary恢复1001；200字摘要负例仍遗漏最早段并安全澄清，不隐藏负例、不固定保留首话题、不回炉旧摘要。
+早期1135519/174463是旧理解提示下历史数值。当前SUMMARY_SYSTEM新增194估算token，自己的prefix830→1024；最大已检查来源输入12097+输出512+安全540=13149<18000。主工作流H和费用未变；不改变阈值补偿质量问题。累计额度是应用容量，不是实际token费用或请求次数。
 
-## 验证记录
+已完成边界：3307/customer_service迁移前在同一DDL连接核对容器、hostname/server_uuid、数据库、端口、连接与身份，migrate/verify通过；8004重启使用exact-owned创建时间/解释器/完整命令/祖先/监听守卫和Hidden窗口；未触碰8002/8003。历史API/SQL原始工具流水保留，UI仅user/最终assistant气泡，工具徽章沿用原完成根元数据。原始JSON气泡缺陷的桌面/窄屏RED8/10、修后10/10及最终集中修复13/13均有独立版本证据。
 
-- 两修复RED：低估absolute_error返回-984而非984；最终health失联覆盖原503。修后26项Python、2/2浏览器故障证据和cap/health参数守卫通过。
-- 新摘要prompt标注/协议回归75 passed3.34s。
-- 最后AGENT_SYSTEM修改后的prefix/budget/agent/cap/两profile及200字负例：123 passed20.72s。
-- 3308本章指定三文件：41 passed14.89s；仅fixture拥有的随机schema，不操作3307。
-- 受控上下文浏览器10/10；受控意图浏览器11/11。意图脚本首条命令漏必需--url，启动前用法拒绝；更正后通过。记录独立，不把子集累加成全量。
-- 真实历史工具JSON缺陷新增浏览器RED桌面/窄屏2失败（8/10）；最小渲染修复后再次10/10和11/11，原API工具content、完成徽章、原引用、安全切换均保留。
-- 修订前全量在69%时通过原exec Ctrl+C中断，因第6轮新增真实证据后获批变更prompt/F；第二次在64%因实际历史JSON缺陷中断。分别保留 `.cache/task11-final-full.txt`、`.cache/task11-final-source-full.txt`，均不计通过。随后冻结源码全量为2698 passed、184 skipped、1 failed（435.66s）；唯一长原话建单夹具旧预算8000小于新增提示后的8073（原7904）。单例RED复现后只将该例测试预算显式9000，原2104字符/手填描述/票据断言不变；动作模块40 passed10.90s。修后最终全量 **2699 passed、184 skipped，551.94s，exit0**（`.cache/task11-final-green-full.txt`）。
+历史返工不隐藏：两次旧full因后续确认的prompt/UI修订而Ctrl+C中断于69%/64%，不是pass。随后2698 passed/184 skipped/1 failed，唯一长原话夹具8000<新增系统开销后8073（原7904）；单例RED后仅该例显式9000，保留2104字符/手填description/票据断言，Actions40通过。StageA修后full2699/184，551.94s；其后a82最终full2720/184，427.06s。两定向修复absolute_error与live-finally先RED，再26项Python和2/2故障harness通过；2/2 Green仅原exec stdout“live failure evidence preservation 2/2 PASS”，没有独立原始日志，不为补路径重跑。
 
-服务重启后页面选择旧会话65、点击原政策引用，与原SSE引用正文相同。修后390宽窄屏无横向溢出，pageErrors为空；桌面/窄屏截图已查看，另等待入场动画结束保存稳定图。原六页后的只读取证会话65/66/67各原文与最新checkpoint相等，S/L均null、段数0，不能称已经证明真实级联或真实跨摘要恢复。
+原真实摘要日志出现langchain-openai customtransport禁用proxy autodetection警告，追加对照同样出现；实际响应/usage独立保存，不作为新的服务失败、不改变transport。最早ignored wrapper跨VM realm导致health对象比较失败时计数0/0/0；改为同realm模块加载后保留严格cap核验，无产品代码绕过。
 
-## 已批准、待前置门槛执行
+剩余限制：真实demo末轮/恢复/重启续聊门槛未通过；新提示对照漏型号，不能保证语义忠实；首12摘要只9/12、旧提示三负例定点3/3不等于最终全12重测；OTHER未充分证明。200字离线摘要遗漏最早段时安全澄清的负例保留，无最早主题固定保留、无旧段回炉。历史O(N)锁内读取性能minor未改。两项停放P3为回载等待选单旧提示可能保留至刷新，以及启动minimum_reservation漏一个理解输出预留；保守上界及runtime guard仍有效，未放宽费用限制。
 
-追加修订后两个页面复验已明确授权并执行成功。随后两组21轮也已明确批准，前置条件为这两个页面与最终full通过；最终full已通过；默认批第3轮失败已停止，demo尚未启动。small run剩余14GLM/10嵌入/4重排，没有授权继续增加小额页面。
-
-按已批准条件，在最终离线全绿后，使用同一固定 `tests/fixtures/context/long_conversation.json` 原话先default21、再demo21。预计每组100–140GLM（含后台摘要），每组硬上限150GLM/50嵌入/25重排；到限或失败停止，保留原批次，不自动重跑或加额。原批准命令如下；默认已执行但第3轮失败，demo尚未执行：
-
-```powershell
-pwsh -NoProfile -File scripts/start-context-demo.ps1 -Profile default -RunId ch07-default-21-20261017 -MaxGlmCalls 150 -MaxEmbeddingCalls 50 -MaxRerankCalls 25
-D:/vue/node.exe scripts/verify-context-browser.cjs --live --profile default --run-id ch07-default-21-20261017 --max-glm-calls 150 --max-embedding-calls 50 --max-rerank-calls 25 --output runtime/context-evidence/ch07-default-21-20261017
-pwsh -NoProfile -File scripts/start-context-demo.ps1 -Profile demo -RunId ch07-demo-21-20261017 -MaxGlmCalls 150 -MaxEmbeddingCalls 50 -MaxRerankCalls 25
-D:/vue/node.exe scripts/verify-context-browser.cjs --live --profile demo --run-id ch07-demo-21-20261017 --max-glm-calls 150 --max-embedding-calls 50 --max-rerank-calls 25 --output runtime/context-evidence/ch07-demo-21-20261017
-```
-
-每组须核对实际答案、done、调用账本、原文哈希、源范围/注入段、后台事件、SQL/checkpoint及本轮业务重新读取；重启owned8004后再回到两个旧会话继续聊并检查引用。预留的每组硬上限也涵盖这些同组后续调用，不能另开run逃逸计数。
-
-开放限制：原1001物流提示仅一条修后真实复验通过，非普遍正确性证明；OTHER边界未充分验证；最终摘要版本只复验三题；默认仅2/21完成，demo未运行；原始订单跨摘要注入/真实后台不阻塞尚未验证；旧200字摘要遗漏风险仍存在；仓储全历史O(N)锁内读取为既有性能minor，未开展无关重构。
-
-原始证据：`runtime/context-evidence/ch07-small-20261017/`、`task11-migration.json`、`task11-final-budget-*.json`、`task11-final-offline-*.json`、`.cache/task11-*`。真实内容/日志/截图/SQL证据均留忽略目录，不进Git。
-
-
-取证形态与环境提示：故障harness的2/2 Green当时直接输出于exec stdout（`live failure evidence preservation 2/2 PASS`），没有单独日志文件，不补造路径或重复运行。真实摘要首轮与三项复验的日志首行有langchain-openai默认socket-options customtransport禁用系统proxy autodetection提示；实际响应及usage独立保留，未改transport。大批ignored wrapper首次因跨VM realm对象比较在health预检失败，计数仍0/0/0；改为同realm Node Module加载后原严格限额核验通过，产品源码/固定21句未变。Node v24.19.0当前运行时的_compile/_nodeModulePaths定义摘要保存于.cache/context-management/node-module-source.txt。
-
-
-## 默认真实批：保留失败，未通过21轮验收
-
-run `ch07-default-21-20261017` / 会话68，固定fixture原话未变；第1轮1001物流和第2轮政策done，第3轮“运费怎么算？”在understanding返回HTTP200/finish_reason=stop，但content为 `{"kind":"tool_call","name":"query_faq","arguments":{"keyword":"运费怎么算？"}}`。schema要求唯一query，实际缺query且三个额外字段被拒；这是新的理解输出契约失败，不是此前decision_reason问题。原request无tools，response_format=json_object，系统提示与当前源完全一致；历史合法native工具消息是否诱导模型只是未证假设。没有修改源码/栈/阈值、真实重试或整批重跑。
-
-实际账本11GLM/1embedding/1rerank，剩余139/49/24；物理hook捕获11请求、9个非流usage（输入合计14151），流usage仍未知。两个done、第三个error均保存，逐轮所有原文哈希未变化，最终SQL/checkpoint相等，S/L为null、摘要0。尚未到21轮，不能据两轮推断默认全程锚点或跨摘要能力。原包/body/usage、SSE/health、每轮API原文、SQL/checkpoint和离线schema拒绝证据在run目录。demo尚未启动，不拿剩余额度视为自动重试授权。
-
-
-实际默认调用入口为忽略脚本 `.cache/context-management/captured-live.cjs`，以同realm装载同一 `scripts/verify-context-browser.cjs` live函数，仅补每轮health/SSE、API原文和时间取证。完整参数与上述默认命令相同；未改fixture或任何生产协议。源/取证脚本SHA见该run的source-versions.json。父控已要求两批均暂停，等待最终整分支发现合并为一次修复/复验范围，不新增真实调用或修改产品源码；已用额度不重置。
+所有运行内容、SQL、日志、截图和捕获helper留忽略目录，不进Git。真实调用当前已停止，物理余额不构成继续授权。父控继续同一评审的证据关闭；本报告不宣称Task11或整章验收完成。
