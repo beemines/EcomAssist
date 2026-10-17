@@ -29,6 +29,11 @@
 - [CompiledStateGraph官方成员列表](https://reference.langchain.com/python/langgraph/graph/state/CompiledStateGraph)确认历史读取继承`aget_state_history`；锁定1.2.15的`pregel/main.py:1554`为`aget_state_history(config, *, filter=None, before=None, limit=None) -> AsyncIterator[StateSnapshot]`，SQLite saver3.1.2的`aio.py:448`为`alist(config, *, filter=None, before=None, limit=None) -> AsyncIterator[CheckpointTuple]`。GET历史装饰器使用真实方法，不能编造`alist_state_history`。旧graphs/锚点地址及单方法页抓取失败已区分，不能把这些失败页计为签名核对成功。
 - 本次工具元数据重新检查仍无Context7，继续使用本章已批准的官方资料＋锁定源码方式。真实费用HTTP钩子的用法在任务10实现前另核对HTTPX0.28.1官方事件钩子和安装签名。
 
+## 任务1实施前：Pydantic显式配置与别名
+
+- [BaseModel官方属性](https://pydantic.dev/docs/validation/latest/api/pydantic/base_model/)及[Settings环境变量命名](https://pydantic.dev/docs/validation/latest/concepts/pydantic_settings/)已先读取；旧docs.pydantic.dev地址重定向到该官方站点，不以站点latest标签替代本地版本核对。
+- 本地pydantic2.13.5的`main.py:307`：`model_fields_set(self) -> set[str]`返回显式赋值字段（非默认填充）；pydantic-settings2.15.0的`main.py:132/193`确认现有BaseSettings构造入口。新旧工具步数别名以及“缺省推导/显式费用上限”需要区别默认值与显式环境值，不能仅比较是否等于旧默认数值。具体新增validator仍需实现者按实际使用接口核对，不借此改动未接线的旧消费者。
+
 ## FastAPI：后台任务生命周期
 
 - [lifespan 官方说明](https://fastapi.tiangolo.com/advanced/events/)：应用启动/关闭资源在同一生命周期内管理，项目已有该接线。拟用它拥有后台摘要任务及关闭清理，避免请求取消或应用退出留下无主任务。
