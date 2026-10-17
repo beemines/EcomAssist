@@ -122,11 +122,11 @@ assert len({m.id for m in latest.values['messages']}) == len(sql_rows)
 assert original_completed_root == reread_original_root
 ```
 
-- [ ] **Red**：真实SQLite开关两次，测试两轮历史累积、新消息仅出现一次、父子图无重复、SQL ID排序；模拟旧根缺较早消息、旧根无context_version、取消后新轮和pending选单恢复。断言历史根字节不变、state_version仍2、语义裁剪不减少messages。
-- [ ] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_state_history.py tests/test_workflow_state.py tests/test_workflow_persistence.py -q`。
-- [ ] **实现**：messages挂官方add_messages，各工具/最终节点先保存SQL再给返回消息设置SQL ID，只返回delta；子图出入口显式处理父图再次合并。只有旧根规范化允许Overwrite完整SQL原文；没有原文可恢复就报错。保持未完成流水可审计、模型投影只回放合法完整轮次；同步调整现有`agent._parts`等读者，不能在任务7接线前把完整审计流水直接送入旧完整轮次校验。旧测试中重复使用相同最终ID的替身改为递增真实形状，不能仅删除“历史不重复”的断言。
-- [ ] **Green**：上述测试及`tests/test_after_sales_workflow.py tests/test_workflow_routes.py tests/test_workflow_api.py tests/test_refund_actions.py tests/test_chat_actions.py`通过；原locator完成根仍能核验，暂停恢复不新建重复用户轮次。
-- [ ] **提交**：记四项，`git commit -m "refactor: preserve complete workflow history with message deltas"`。
+- [x] **Red**：真实SQLite开关两次，测试两轮历史累积、新消息仅出现一次、父子图无重复、SQL ID排序；模拟旧根缺较早消息、旧根无context_version、取消后新轮和pending选单恢复。断言历史根字节不变、state_version仍2、语义裁剪不减少messages。
+- [x] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_state_history.py tests/test_workflow_state.py tests/test_workflow_persistence.py -q`。
+- [x] **实现**：messages挂官方add_messages，各工具/最终节点先保存SQL再给返回消息设置SQL ID，只返回delta；子图出入口显式处理父图再次合并。只有旧根规范化允许Overwrite完整SQL原文；没有原文可恢复就报错。保持未完成流水可审计、模型投影只回放合法完整轮次；同步调整现有`agent._parts`等读者，不能在任务7接线前把完整审计流水直接送入旧完整轮次校验。旧测试中重复使用相同最终ID的替身改为递增真实形状，不能仅删除“历史不重复”的断言。
+- [x] **Green**：上述测试及`tests/test_after_sales_workflow.py tests/test_workflow_routes.py tests/test_workflow_api.py tests/test_refund_actions.py tests/test_chat_actions.py`通过；原locator完成根仍能核验，暂停恢复不新建重复用户轮次。
+- [x] **提交**：记四项，`git commit -m "refactor: preserve complete workflow history with message deltas"`。
 
 ## Task 5: 标注摘要样例、严格生成器和有界后台管理器
 
