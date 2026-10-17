@@ -51,6 +51,7 @@ from app.context.logging import ContextLogger, budget_fields
 from app.context.manager import SummaryManager
 from app.context.summarizer import SummaryGenerator
 from app.context.service import ContextCoordinator
+from app.context.history_reader import HistoryReader
 from app.context.migration import verify_context
 from app.repositories.context import ContextRepository
 from app.tools.types import ToolContext
@@ -128,6 +129,8 @@ def create_app(
                 context_coordinator=context_coordinator, context_logger=context_logger,
                 context_budget_provider=context_budget_provider)
         service = getattr(app.state, 'chat_service', None)
+        app.state.history_reader = HistoryReader(checkpointer if checkpointer is not None else
+            getattr(service, 'checkpointer', None), repository)
         # 动作读取同一服务的当前注册表工厂，保留注入与测试的外部资源归属。
         def action_registry(context):
             """按原轮可信上下文复用聊天服务的既有业务工具。"""
