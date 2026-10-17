@@ -241,6 +241,9 @@ async function restorePending(id) {
   const result = await response.json();
   if (conversationId !== id || !result.pending) return;
   const payload = validateSelection(result.pending);
+  const historicalNote = [...messages.querySelectorAll('[data-history-turn-id]')]
+    .find((note) => note.dataset.historyTurnId === payload.turn_id);
+  if (historicalNote) markAwaitingOrder(historicalNote);
   lockSelections();
   welcome.hidden = true;
   const state = createReplyState(payload.prompt);
@@ -314,16 +317,33 @@ async function readConversationPages(id, signal) {
 }
 
 // Build in a detached fragment. Invalid metadata cannot partially replace the current chat.
+function markAwaitingOrder(note) {
+  note.dataset.historyTurnStatus = 'awaiting_order';
+  note.textContent = '此轮等待选择订单。';
+}
+
 function hydrateConversation(pageSet) {
-  const fragment = document.createDocumentFragment(), replies = new Map();
+  const fragment = document.createDocumentFragment(), replies = new Map(), incomplete = new Map();
+  let turn = null;
+  const finishTurn = () => {
+    if (turn && !turn.completed) {
+      turn.note.dataset.historyTurnStatus = 'incomplete';
+      turn.note.dataset.historyTurnId = turn.id;
+      turn.note.textContent = '此轮未完成，可能已中断或失败。';
+      incomplete.set(turn.id, turn.note);
+    }
+  };
   for (const page of pageSet.pages) for (const row of page.messages) {
     const metadata = page.turn_metadata[row.id];
     // API保留全部原文；聊天仅展示用户和最终答复，工具状态来自原轮元数据。
     if (row.role === "system" || row.role === "tool" || row.tool_calls) continue;
     if (row.role === "user") {
-      addMessage("user", row.content || "", undefined, fragment);
+      finishTurn();
+      const user = addMessage("user", row.content || "", undefined, fragment);
+      turn = { id: row.id, note: user.note, completed: false };
       continue;
     }
+    if (turn) turn.completed = true;
     const state = createReplyState(row.content || "", fragment);
     state.conversationId = pageSet.id;
     state.messageId = row.id;
@@ -353,7 +373,8 @@ function hydrateConversation(pageSet) {
     renderAnswer(state);
     replies.set(row.id, state);
   }
-  return { fragment, replies };
+  finishTurn();
+  return { fragment, replies, incomplete };
 }
 
 async function switchConversation(id) {
@@ -389,6 +410,9 @@ async function switchConversation(id) {
       pending = result.pending ? validateSelection(result.pending) : null;
     } catch { pendingError = true; }
     if (revision !== historyRevision) return false;
+    if (pending && hydrated.incomplete.has(pending.turn_id)) {
+      markAwaitingOrder(hydrated.incomplete.get(pending.turn_id));
+    }
     selectionGroups.clear(); refundLocators = [];
     conversationId = id;
     messages.replaceChildren(hydrated.fragment);

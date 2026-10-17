@@ -1,5 +1,6 @@
 """Actual workflow phase inventory and pure packet composition."""
 from dataclasses import replace
+from types import SimpleNamespace
 import json
 from pathlib import Path
 
@@ -56,10 +57,61 @@ def workflow_budget(settings, registry):
 
 
 def turn_token_limit(settings, budget):
+    return resolve_turn_token_limit(settings, budget, call_limits=workflow_call_limits(settings))
+
+
+def workflow_call_limits(settings):
     limits = dict(understanding=1, classification=1, expansion=1,
                   sufficiency=settings.max_agent_steps + 2, query_planner=0,
                   decision=settings.max_agent_steps + 1, final=1)
-    return resolve_turn_token_limit(settings, budget, call_limits=limits)
+    return limits
+
+
+def fee_cap_diagnostic(settings, budget, registry):
+    """Shortest model path: understanding + OTHER classification, no tools.
+
+    Count actual canonical packets for a one-token question, then add the target
+    history to each input. The runtime reserves decision/final even on this path.
+    Below the initial reservation is incompatible. Between it and the fallback
+    (unknown usage) path cost is usage-dependent, not a proven compatible cap.
+    Pure social turns make zero calls and are reported separately.
+    """
+    from app.context.budget import derive_turn_token_limit
+    from app.context.types import ContextSnapshot
+    from app.workflow.state import new_turn_state
+    from app.workflow.understanding import understanding_packet
+    from app.workflow.intent import intent_packet
+    if set(budget.phases) != set(workflow_call_limits(settings)):
+        # Explicit dependency-injection budgets can omit the phase inventory;
+        # report that limitation rather than inventing a derived cap at startup.
+        explicit = settings.agent_total_token_budget if settings.agent_total_token_budget_explicit else None
+        return {'explicit_limit': explicit, 'effective_limit': explicit, 'derived_limit': None,
+                'history_allowance': budget.history, 'compatibility': 'unavailable',
+                'reason': 'injected_budget_without_workflow_phase_inventory'}
+    snapshot = ContextSnapshot('startup-diagnostic', '0', '1', ContextAnchors(None, None),
+                               (), (), (), (), budget)
+    state = new_turn_state(conversation_id='0', user_message_id=1, raw_question='?',
+                           category=None, messages=[HumanMessage('?', id='1')])
+    context = SimpleNamespace(settings=settings, registry=registry, context_snapshot=snapshot)
+    understanding = understanding_packet('?', snapshot, output_tokens=settings.intent_max_output_tokens)
+    classification = intent_packet('?', snapshot, output_tokens=settings.intent_max_output_tokens)
+    final, _ = workflow_packet(state, context, phase='final')
+    decision, _ = workflow_packet(state, context, phase='decision', tools=stable_read_schema(registry))
+    def reservation(packet):
+        return budget.history + packet.estimated_tokens + packet.output_tokens
+    # model_stage(following=1) retains this additional classification output.
+    following = reservation(final) + reservation(decision) + settings.intent_max_output_tokens
+    minimum = max(reservation(understanding), reservation(classification)) + following
+    conservative = reservation(understanding) + reservation(classification) + following
+    effective = turn_token_limit(settings, budget)
+    return {'explicit_limit': settings.agent_total_token_budget if settings.agent_total_token_budget_explicit else None,
+            'effective_limit': effective,
+            'derived_limit': derive_turn_token_limit(budget, call_limits=workflow_call_limits(settings)),
+            'history_allowance': budget.history, 'shortest_model_calls': 2, 'social_fast_path_calls': 0,
+            'basis': 'estimated_shortest_model_path_without_summary_or_tools',
+            'minimum_reservation': minimum, 'conservative_shortest_path_cap': conservative,
+            'compatibility': 'incompatible' if effective < minimum else
+                'compatible' if effective >= conservative else 'usage_dependent'}
 
 
 def reserve_context_call(messages, tools, ledger, *, output_limit, final_reserve):

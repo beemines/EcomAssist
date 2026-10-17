@@ -200,13 +200,15 @@ async def workflow_tool(state, runtime, node, name, args, operation):
     identity = {'tool': name, 'tool_call_id': identifier, 'origin': 'workflow'}
     runtime.stream_writer({'event': 'status', 'data': {**identity, 'status': 'running'}})
     payload = await operation()
+    result_status = 'error' if isinstance(payload, dict) and 'error' in payload else 'success'
     result = ToolMessage(json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False),
-        tool_call_id=identifier, name=name)
+        tool_call_id=identifier, name=name, status=result_status)
     result.id = str(await context.repository.append_message(state['conversation_id'], result))
     trace = {'node': node, 'origin': 'workflow', 'name': name, 'tool_call_id': identifier,
+        'status': result_status,
         'elapsed_seconds': time.monotonic() - started}
     log_node(state, node, **{k: v for k, v in trace.items() if k != 'node'})
-    runtime.stream_writer({'event': 'status', 'data': {**identity, 'status': 'completed', 'result_status': 'success'}})
+    runtime.stream_writer({'event': 'status', 'data': {**identity, 'status': 'completed', 'result_status': trace['status']}})
     return {'messages': [request, result], 'tool_trace': [*state['tool_trace'], trace],
         'tool_call_count': state['tool_call_count'] + 1}
 

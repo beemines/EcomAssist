@@ -118,12 +118,22 @@ async function fixtureServer(settings = {}) {
     const match = /^\/api\/conversations\/(\d+)\/messages$/.exec(url.pathname);
     if (match && req.method === "GET") {
       const id = match[1], after = url.searchParams.get("after_id");
+      if (id === oldId && state.incompleteHistory) {
+        const rows = [row('101', 'user', '已完成的问题'), row('102', 'assistant', '已完成的回答'),
+          row('103', 'user', '跨页中断的问题'), row('104', 'assistant', null, { tool_calls: [{ id: 'interrupted', name: 'query_order', args: {} }] }),
+          row('105', 'tool', '未完成的工具原文', { tool_call_id: 'interrupted' }),
+          row('106', 'user', '中断之后的问题'), row('107', 'assistant', '中断之后的回答'), row('108', 'user', '最后取消的问题')];
+        return json({ messages: after ? rows.slice(4) : rows.slice(0, 4), upto_id: '108', next_after_id: after ? null : '104', turn_metadata: {} });
+      }
       const value = id === oldId ? { messages: after ? raw.slice(4) : raw.slice(0, 4), upto_id: "107", next_after_id: after ? null : "104", turn_metadata: after ? { "106": { turn_status: "completed", citations: [citation(secondChunkText, "9007199254741041")], tool_badges: [], refund_offer: { assistant_message_id: "106", checkpoint_id: checkpoint, offer_id: offerId } } } : { "103": { turn_status: "completed", citations: [citation(originalChunkText, "9007199254741031")], tool_badges: [{ name: "query_faq", tool_call_id: "call-original", status: "success" }], actions } } } : { messages: id === freshId ? [] : [row("201", "user", id === nextId ? "新选择问题" : "迟到的问题"), row("202", "assistant", id === nextId ? "新选择答复" : "迟到旧答复")], upto_id: id === freshId ? null : "202", next_after_id: null, turn_metadata: {} };
       if (id === oldId && after && state.pageFailure) return json({}, 503);
       if (id === slowId) { setTimeout(() => json(value), 700); return; }
       return json(value);
     }
-    if (url.pathname.endsWith("/pending-order") && req.method === "GET") return json({ pending: state.withPending && url.pathname.includes(oldId) ? pending : null });
+    if (url.pathname.endsWith("/pending-order") && req.method === "GET") {
+      if (state.pendingFailureOnce && url.pathname.includes(oldId)) { state.pendingFailureOnce = false; return json({}, 503); }
+      return json({ pending: state.withPending && url.pathname.includes(oldId) ? { ...pending, turn_id: state.incompleteHistory ? '108' : pending.turn_id } : null });
+    }
     if (url.pathname.endsWith("/refund-offer") && req.method === "GET") return json(offer);
     if (url.pathname.endsWith("/actions/refund") && req.method === "POST") { state.refundSubmissions++; return json({}, 500); }
     if (url.pathname.endsWith("/actions/ticket") && req.method === "POST") { state.ticketSubmissions++; return json({}, 500); }
@@ -163,6 +173,33 @@ async function main(config = options(process.argv.slice(2))) {
   const loaded = (page, text) => page.getByText(text, { exact: true }).waitFor();
   const send = async (page, text) => { await page.locator("#message-input").fill(text); await page.locator("#message-input").press("Enter"); await loaded(page, "继续聊的受控答复"); await page.waitForFunction(() => !document.querySelector("#message-input").disabled); };
   try {
+    await scenario('incomplete-history-cross-page-tail-and-continue', async (page, state) => {
+      await select(page, oldId); await loaded(page, '中断之后的回答');
+      assert.equal(await page.locator('[data-history-turn-status="incomplete"]').count(), 2);
+      for (const question of ['跨页中断的问题', '最后取消的问题']) {
+        assert.match(await page.locator('.message.user').filter({ hasText: question }).innerText(), /未完成.*中断或失败/);
+      }
+      assert.equal(await page.locator('.message.assistant').count(), 2, 'no invented assistant answer');
+      assert.doesNotMatch(await page.locator('#messages').innerText(), /未完成的工具原文|interrupted/);
+      await send(page, '继续这个会话');
+      assert.equal(state.records.find((r) => r.path === '/api/chat').body.conversation_id, oldId);
+      await select(page, nextId); await loaded(page, '新选择答复');
+      await select(page, oldId); await loaded(page, '中断之后的回答');
+      assert.equal(await page.locator('[data-history-turn-status="incomplete"]').count(), 2);
+    }, { incompleteHistory: true });
+    await scenario('pending-current-turn-is-not-failed-history', async (page, state) => {
+      await select(page, oldId); await page.locator('.order-card').waitFor();
+      assert.equal(await page.locator('[data-history-turn-status="incomplete"]').count(), 1);
+      assert.equal(await page.locator('[data-history-turn-status="awaiting_order"]').count(), 1);
+      assert.match(await page.locator('.message.user').filter({ hasText: '最后取消的问题' }).innerText(), /等待选择订单/);
+      assert.equal(state.records.filter((r) => r.path.endsWith('/actions/select-order')).length, 0);
+    }, { incompleteHistory: true, withPending: true });
+    await scenario('pending-retry-updates-incomplete-indicator', async (page) => {
+      await select(page, oldId); await page.getByRole('button', { name: '重新读取待选订单' }).click();
+      await page.locator('.order-card').waitFor();
+      assert.equal(await page.locator('[data-history-turn-status="awaiting_order"]').count(), 1);
+      assert.equal(await page.locator('[data-history-turn-status="incomplete"]').count(), 1);
+    }, { incompleteHistory: true, withPending: true, pendingFailureOnce: true });
     await scenario("desktop-pagination-original-citations", async (page, state) => {
       await page.locator(`[data-conversation-id="${slowId}"]`).waitFor();
       assert.deepEqual(await page.locator("[data-conversation-id]").evaluateAll((nodes) => nodes.map((n) => n.dataset.conversationId)), [nextId, oldId, slowId]);

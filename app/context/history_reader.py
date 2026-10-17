@@ -1,12 +1,49 @@
 """只读原轮完成根的展示元数据，不运行图、检索、业务或摘要。"""
 from copy import deepcopy
 from contextlib import aclosing
+import json
+
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from app.schemas.conversation import MessagePage
 from app.workflow.persistence import completed_history_roots
 
 
 _ACTION_LABELS = {'handoff': '转人工', 'create_ticket': '建工单'}
+
+
+def _trace_status(trace, state):
+    if trace.get('status') in ('success', 'error'):
+        return trace['status']
+    # Only old Workflow producers omitted status. Require their actual paired
+    # receipt inside this completed turn, never infer completion from a request.
+    if ('status' in trace or trace.get('origin') != 'workflow' or not isinstance(trace.get('node'), str)
+            or (trace.get('node'), trace.get('name')) not in {
+                ('load_order', 'query_order'), ('retrieve_knowledge', 'query_faq'),
+                ('retrieve_policies', 'query_faq')}):
+        return None
+    messages = state.get('messages')
+    if not isinstance(messages, list):
+        return None
+    start = next((i for i, message in enumerate(messages) if isinstance(message, HumanMessage)
+                  and message.id == state.get('user_message_id')), None)
+    if start is None:
+        return None
+    for request, result in zip(messages[start+1:], messages[start+2:]):
+        if isinstance(request, HumanMessage) or isinstance(result, HumanMessage):
+            break
+        if (isinstance(request, AIMessage) and len(request.tool_calls) == 1
+                and request.tool_calls[0].get('id') == trace['tool_call_id']
+                and request.tool_calls[0].get('name') == trace['name']
+                and isinstance(result, ToolMessage) and result.tool_call_id == trace['tool_call_id']):
+            try:
+                payload = json.loads(result.content)
+            except (TypeError, ValueError):
+                return None
+            if not isinstance(payload, dict):
+                return None
+            return 'error' if result.status == 'error' or 'error' in payload else 'success'
+    return None
 
 
 def _citations(values):
@@ -63,7 +100,9 @@ class HistoryReader:
             traces = state.get('tool_trace')
             for trace in traces if isinstance(traces, list) else []:
                 if (isinstance(trace, dict) and isinstance(trace.get('name'), str)
-                        and isinstance(trace.get('tool_call_id'), str) and trace.get('status') in ('success', 'error')):
-                    item['tool_badges'].append({key: trace[key] for key in ('name', 'tool_call_id', 'status')})
+                        and isinstance(trace.get('tool_call_id'), str)):
+                    status = _trace_status(trace, state)
+                    if status is not None:
+                        item['tool_badges'].append({key: trace[key] for key in ('name', 'tool_call_id')} | {'status': status})
             metadata[final_id] = item
         return page.model_copy(update={'turn_metadata': metadata}, deep=True)
