@@ -18,9 +18,16 @@
 
 ## SQLAlchemy：并发异步事务
 
-- [AsyncSession 并发任务约束](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html#using-asyncsession-with-concurrent-tasks)：每个并发任务独立Session。官方2.0.54与项目相同。
+- [AsyncSession 并发任务约束](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html#using-asyncsession-with-concurrent-tasks)：每个并发任务独立Session。项目锁定2.0.54；计划阶段重查官方2.0页已标2.0.55，实际用法仍核对本地2.0.54，不跟随网站版本自动升级。
 - 摘要生成不持有聊天事务或数据库行锁；保存分段与推进覆盖边界放在独立短事务，并核对生成时的边界快照。具体锁/CAS接口在确定实施方案后继续核对，不把此处概述当成已写代码。
 - 已补查[SQLAlchemy官方DML说明](https://docs.sqlalchemy.org/en/20/core/dml.html)，用于短事务内更新边界；实施具体`select(...).with_for_update()`及条件更新前仍须按实际使用的方法核对锁定版本签名。
+
+## 计划阶段补充核对
+
+- [FOR UPDATE官方接口](https://docs.sqlalchemy.org/en/20/core/selectable.html#sqlalchemy.sql.expression.Select.with_for_update)：当前网页为2.0.55；本地2.0.54的`sql/selectable.py:4009`签名为`with_for_update(self, *, nowait=False, read=False, of=None, skip_locked=False, key_share=False)`。计划只用无参数行锁，不把其他数据库的NOWAIT行为套到MySQL。
+- [MySQL8.4隐式提交](https://dev.mysql.com/doc/refman/8.4/en/implicit-commit.html)：项目compose同为mysql:8.4；ALTER TABLE等DDL会隐式提交，迁移必须识别部分完成状态，不宣称包在SQLAlchemy事务里就能整体回滚。
+- [CompiledStateGraph官方成员列表](https://reference.langchain.com/python/langgraph/graph/state/CompiledStateGraph)确认历史读取继承`aget_state_history`；锁定1.2.15的`pregel/main.py:1554`为`aget_state_history(config, *, filter=None, before=None, limit=None) -> AsyncIterator[StateSnapshot]`，SQLite saver3.1.2的`aio.py:448`为`alist(config, *, filter=None, before=None, limit=None) -> AsyncIterator[CheckpointTuple]`。GET历史装饰器使用真实方法，不能编造`alist_state_history`。旧graphs/锚点地址及单方法页抓取失败已区分，不能把这些失败页计为签名核对成功。
+- 本次工具元数据重新检查仍无Context7，继续使用本章已批准的官方资料＋锁定源码方式。真实费用HTTP钩子的用法在任务10实现前另核对HTTPX0.28.1官方事件钩子和安装签名。
 
 ## FastAPI：后台任务生命周期
 
