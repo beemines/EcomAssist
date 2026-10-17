@@ -1,68 +1,71 @@
-# 分层上下文可复现验收
+# 分层上下文演示与实际验收边界
 
-本页的离线回放使用生产 FastAPI/SSE、父子图、ContextCoordinator、SummaryManager、SummaryGenerator、实际计费工厂、SQLAlchemy 仓储和磁盘 SQLite saver。仅外部模型与知识检索返回受控结果；会话原文存临时内存 SQL。没有手工设置 S/L、预置摘要、固定最早话题或把旧段重新压缩。此结果证明管线与容量，不证明真实模型的语义质量。
+当前本章真实验收未完成。默认配置在产品a82上固定21轮及单独重启续聊通过；demo原批20/21，第21轮容量拒绝。最后摘要提示R1的3个真实来源对照及正常启动恢复通过，但原末句虽被理解为订单1001，分类为“其他”而未重新读业务，条件续聊未执行。全部真实调用已停止，没有新源码完整21轮通过声明。详细负例、版本与账本见[实际验收记录](superpowers/reports/2026-10-17-context-management-acceptance.md)。
 
-固定标注轨迹在 `tests/fixtures/context/long_conversation.json`，SHA256 对21句原话以LF连接（不带结尾换行）；回放和浏览器都先核验哈希。第1/4/10/16/21轮走业务，其余是完整通用知识问题；末轮受控模型必须从实际注入的原文或摘要读到1001、没找到包裹、未申请退款，才可恢复该订单。每次回放创建独立检查点，不复用旧锚点。
+## 离线复现
 
-## 已执行的离线命令
+离线回放使用生产FastAPI/SSE、父子图、ContextCoordinator、SummaryManager、SummaryGenerator、实际计费工厂、SQLAlchemy仓储和磁盘SQLite saver；仅外部模型/检索受控，会话原文存临时内存SQL。没有手工设置S/L、预置摘要、固定最早话题或重压旧段。此结果证明管线/容量，不证明真实模型语义质量。
 
-从本 checkout 根目录执行，现有依赖即可，无需安装。Windows终端设置 `PYTHONUTF8=1`、`PYTHONUNBUFFERED=1` 和指向本checkout的 `PYTHONPATH`。
+固定轨迹为 `tests/fixtures/context/long_conversation.json`；以21句原话LF连接、不带末尾换行核对其SHA。第1/4/10/16/21轮为业务，其余为知识问题。离线末轮只有实际注入视图包含1001及原否定时才恢复，否则安全澄清。200字受控摘要省略最早段的负例保留，不能隐藏成名义成功。
+
+在本checkout根目录、现有依赖下，设置 `PYTHONUTF8=1`、`PYTHONUNBUFFERED=1`、`PYTHONPATH`为本checkout后运行：
 
 ```powershell
 .venv/Scripts/python.exe -m app.context.cli budget --profile default
 .venv/Scripts/python.exe -m app.context.cli budget --profile demo
 .venv/Scripts/python.exe -m app.context.cli replay --profile default --output runtime/context-evidence/offline-default.json
 .venv/Scripts/python.exe -m app.context.cli replay --profile demo --output runtime/context-evidence/offline-demo.json
-node scripts/verify-context-browser.cjs --profile demo --output runtime/context-evidence/controlled-task10
-node scripts/test-context-browser-options.cjs
+D:/vue/node.exe scripts/verify-context-browser.cjs --profile demo --output runtime/context-evidence/controlled-context
+D:/vue/node.exe scripts/test-context-browser-options.cjs
 ```
 
-`budget` 输出每个阶段 F/U/E/G/V/O/M/P/A 全部扣项；调用 `app/workflow/context_budget.py` 唯一工厂。当前离线实测：
+使用新的输出路径保留已有原始结果。浏览器默认受控模式，不访问真实模型/应用数据库；上述不是继续付费验收的授权。
+
+## 当前预算
+
+生产唯一预算工厂输出各阶段F/U/E/G/V/O/M/P/A。最后R1源码 `0221b71c8fec3302a0eed0414776159c8d284471` 的离线实际重算如下：
 
 | Profile | W | H | H1 | H2 | E | G | M | 每轮派生累计额度 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| default | 128000 | 59880 | 41916 | 17964 | 6000 | 2000 | 3840 | 1135519 |
-| demo | 18000 | 2691 | 1883 | 808 | 2250 | 563 | 540 | 174463 |
+| default | 128000 | 59880 | 41916 | 17964 | 6000 | 2000 | 3840 | 1135879 |
+| demo | 18000 | 2691 | 1883 | 808 | 2250 | 563 | 540 | 174823 |
 
-决策阶段固定前缀 F=2890。Task11在真实物流负例后仅补“decision_reason不是通用推理理由”的提示，F从2811增加79，表中预算由同一生产工厂重新派生，没有改窗口/阈值。128000是应用声明窗口，尚非验证过的供应商窗口；估算器 `cjk-ascii-protocol-v1` 已有前三付费轮11个非流真实usage配对，估计约为实际1.82–2.14倍，参数保持不变，不能视为通用tokenizer已校准。最终流usage未知，未填0。累计额度是容量上限，不是实际消耗或HTTP次数。
+主决策F2890不变。早期1135519/174463只属于旧理解提示。最后SUMMARY_SYSTEM前缀1163，三个保存来源估算7052/7193/12236，最大加输出512及安全540为13288，适配demo18000；未调窗口、阈值或费用补偿摘要质量。累计额度是应用容量，不是实际费用或HTTP次数。
 
-Profiles显式设置窗口/最终输出/用户上限/两种工具步数别名/工具结果/Top-K/40轮目标。default最终输出512；demo最终输出2000、工具步数3、Top-K5。两种别名始终一致；验收profile显式选择派生累计额度，忽略旧 `.env` 的32000费用项。普通 `load_settings()` 仍尊重旧显式费用配置。不会修改 `.env`。
+默认最终输出512；demo最终输出2000、工具步数3、Top-K5；两种工具步数别名一致，40轮目标不变。验收profile显式采用派生累计额度，普通load_settings仍尊重旧显式费用配置；不改.env。128000为应用声明窗口，未验证为供应商实际窗口。cjk-ascii-protocol-v1首三个付费页面取得11组非流usage，估计约实际1.82–2.14倍，参数未调；最终流usage未知，不填0。
 
-默认21轮不出现 `context_downgrade`、`summary_trigger`、`summary_done`；demo出现全部三类。所有调用日志含真实注入的消息和预算，每轮都有history_ctx，SQL原文与检查点一致。摘要响应在最终流已被Event挂起时才释放，验证后台摘要能独立提交。H1/H2是软线：若达到H1后总历史仍超H，可继续按完整最旧轮降级，直到硬H满足；若合法压缩仍不够，明确失败，不删用户原话。
+## 本地数据库、服务与原始证据
 
-**摘要长度风险保留：** 50字目标的受控摘要允许实体较多时自然超过目标，末轮能看到最早段；200字受控变体使最早段在G预算中被省略，末轮只澄清订单号。测试明确要求此时不能恢复1001。旧段不回炉、没有最早话题固定保留；真实摘要质量和真实21轮仍待Task11，不能将离线名义成功当作真实验收。
+3307/customer_service迁移已在同一DDL连接核对本地容器、hostname/server_uuid、数据库、端口和会话身份后执行migrate/verify。`migrate`是显式DDL，不能对未核实目标盲目重复；`verify`与在线启动只读检查。指定3308集成只使用fixture拥有的随机schema。
 
-## Task11 已执行的小额真实验证与有条件批准长批次
+8004由 `scripts/start-context-demo.ps1` Hidden启动/重启，停止前复查创建时间、解释器、完整命令/工作区、launch祖先及监听PID；未知占用直接拒绝。8002/8003未操作。default/demo分别保存 `runtime/workflow/context-{profile}-8004.sqlite`。
 
-Task11已确认配置仅指向loopback3307/customer_service，并在每次迁移/核验实际连接上对照本地容器hostname/server_uuid/端口和SQL会话，执行现有migrate_context与verify_context；证据在 `runtime/context-evidence/task11-migration.json`。隐藏demo8004已健康启动并重启，原8002/8003不变。以下是复现入口；首次DDL只对已核实的目标执行。
-
-```powershell
-.venv/Scripts/python.exe -m app.context.cli migrate
-.venv/Scripts/python.exe -m app.context.cli verify
-pwsh -NoProfile -File scripts/start-context-demo.ps1 -Profile demo
-```
-
-`migrate`是显式DDL（已有知识、质量、退款及基础表DDL必须先具备）；`verify`及在线启动只读核验，不创建/修改应用SQL结构。启动器只处理本checkout的8004，检查保存的创建时间、完整命令行/工作区、解释器、启动祖先和监听PID；PID文件本身不能授权停止，未知监听直接拒绝。8002/8003不变。启动隐藏窗口，default/demo分别写 `runtime/workflow/context-{profile}-8004.sqlite`。
-
-真实调用必须先用整组运行标识和限额启动，再用完全一致的参数验证；下例是**有条件批准、须最终full通过后执行的真实21轮调用**：
+此前获批实际启动使用如下完整有界参数；当前调用已停止，下面仅是已用入口的记录，不授权重跑：
 
 ```powershell
-pwsh -NoProfile -File scripts/start-context-demo.ps1 -Profile demo -RunId ch07-demo-001 -MaxGlmCalls 150 -MaxEmbeddingCalls 50 -MaxRerankCalls 25
-node scripts/verify-context-browser.cjs --live --profile demo --run-id ch07-demo-001 --max-glm-calls 150 --max-embedding-calls 50 --max-rerank-calls 25 --output runtime/context-evidence/ch07-demo-001
-.venv/Scripts/python.exe scripts/context-storage-evidence.py --profile demo --conversation-id ID --output runtime/context-evidence/ch07-demo-001/storage.json
+pwsh -NoProfile -File scripts/start-context-demo.ps1 -Profile default -RunId ch07-default-21-20261017 -MaxGlmCalls 150 -MaxEmbeddingCalls 50 -MaxRerankCalls 25
+pwsh -NoProfile -File scripts/start-context-demo.ps1 -Profile demo -RunId ch07-demo-21-20261017 -MaxGlmCalls 150 -MaxEmbeddingCalls 50 -MaxRerankCalls 25
+.venv/Scripts/python.exe scripts/context-storage-evidence.py --profile demo --conversation-id 70 --output runtime/context-evidence/NEW-readonly-storage.json
 ```
 
-浏览器默认受控模式；live只访问固定8004，先GET health核对profile/run/三项限额才创建会话。自动轨迹不提交业务动作。服务器创建的GLM同步/异步、背景摘要、BGE嵌入和重排在物理HTTP派发前预占同一run账本；超限直接拒绝，失败请求也占次数，重启同一run不可重置或变更限额。账本独立为 `runtime/context-evidence/call-ledger.sqlite`。验收期间禁用独立评估任务；外部注入客户端由创建者负责。普通运行不注入cap。
+live浏览器先核对固定8004的profile/run/三项上限；原21入口会创建新会话并跑完整fixture，不能用于有限定点复验。有限复验使用独立ignored helper并以唯一输出/源码SHA锁定范围。服务的同步/异步GLM、后台摘要、BGE嵌入/重排在物理HTTP派发前共享持久cap，失败也计数；同run重启不能重置或改上限。SDK自动重试0，但生产正常notify可启动不同后台job，所有此类调用计费。
 
-取证脚本只SELECT SQL原文/锚点/段落，并以SQLite `mode=ro`、`query_only`读取现有根。缺失根返回unknown，不创建数据库、不捏造原轮元数据。可用 `--checkpoint PATH` 指定已存在的检查点；输出会话原文应留在忽略目录。Task11小额真实SQL取证已执行；已有离线检查证实原始SQLite字节读取前后不变。
+只读取证脚本仅SELECT SQL及现有SQLite mode=ro/query_only，不迁移、不创建根。SQL/API保留完整原始工具流水，页面展示用户/最终答复与原轮工具徽章，不能将raw工具JSON渲染为聊天答复。缺失原根时不捏造来源或动作。真实内容/日志/截图/SQL、运行账本与helper均留忽略目录，不进Git。
 
-`runtime/context-evidence/` 保存预算、replay、app.log、截图及账本，已忽略。回放结果同时列出实际摘要源范围、遗漏段、原始SQL投影和检查点路径；不要提交这些内容或把真实凭据写入报告。
+## 最终实际范围
 
-小额run `ch07-small-20261017` 的限额固定60GLM/12嵌入/6重排，失败及摘要均计数。原六页结束后人类明确批准追加两页，同run最终46/2/2，八个付费页面轮与一个免费寒暄。政策问答、1002本轮物流读取、选单暂停/刷新恢复/寒暄取消、原会话引用回载有实际证据。1001完整句两次control_schema失败，第一次正文未捕获，第二次捕获非空decision_reason；只改提示强调售后专属字段后，获批原句与政策两页均done且字段均null。OTHER预期的幻想问句实际闲聊，有语义依据但未充分证明OTHER路径。历史原工具JSON渲染缺陷已按设计改为仅用户/最终答复气泡及原轮工具徽章，API原工具原文保留；真实桌面及稳定窄屏回载验证无JSON正文。
+| run | 已用 GLM/嵌入/重排 | 硬上限 | 当前余额 |
+| --- | --- | --- | --- |
+| small | 46/2/2 | 60/12/6 | 14/10/4 |
+| default | 126/18/18 | 150/50/25 | 24/32/7 |
+| demo | 125/16/16 | 150/50/25 | 25/34/9 |
 
-12个真实标注摘要首版9/12被validator接受；三项近义状态表达被拒。仅补规范表达提示后，这三项各一次复验3/3，未重跑全12套，两个版本分开保留。真实O-101摘要经来源范围提取并被真实理解调用恢复，不能代替真实21轮的1001保留验收。小额SQL取证会话65/66/67原文与检查点相等，S/L均未前进，没有真实长会话级联证据。
+合计297/36/36。余额不是继续调用许可。小额8个付费页面加1免费寒暄；12真实摘要首9/12，旧提示三负例定点3/3，非最终全12同版本重测。真实typed O-101理解探针通过，但不代替长会话验收；OTHER原幻想问句分类social的边界仍保留。
 
-新提示后的离线CLI两profile各21轮，default105/demo110模型包，原文与检查点相等；demo末轮注入最早订单摘要。200字摘要遗漏负例仍要求安全澄清。真实两组21轮预计每组100–140次GLM（包含后台摘要），申请的硬上限各150GLM/50嵌入/25重排；人类已明确有条件批准，修后两页已通过，最终full全绿才启动；达到上限或任一轮失败立即终止并保留原批次。完整状态见 `docs/superpowers/reports/2026-10-17-context-management-acceptance.md`。
+默认原会话68第3轮理解器误产工具动作JSON，strict schema拒绝，原2done/3attempted完整保留。a82原句定点通过后另建会话69固定21/21，S/L不变、摘要0，末轮重新读1001物流；105GLM/16嵌入/16重排。封存固定21后exact-owned重启，再一页1002本轮query_order及桌面/390窄屏原引用回载通过，单独计5GLM。运费定点回答使用历史1001金额199元、没有当前订单读取的观察不隐藏。
 
+demo会话70前6轮因helper额外禁止任何summary_failed而暂停；父控查明一次保守词法拒绝已由独立正常notify恢复，允许只续7–21。原批最终20done，第21轮HTTP422：seq3持续拒绝导致S547/L579，完全降级历史2744>H2691；原user584保留、checkpoint停上一完成根。旧18摘要job为16拒绝/2提交，失败来源及body完整保存。
 
-Task11最终源码full为2699 passed/184 skipped（551.94s）；修后两页通过后已执行获批默认真实批，但第3句“运费怎么算？”的理解输出误成工具动作JSON，严格query schema拒绝，2/21 done后即停，run累计11GLM/1嵌入/1重排。没有重试或改schema；demo尚未启动。原始失败与SQL/hash/usage证据见详细验收报告。父控正合并最终整分支发现，后续真实调用须等明确整合修复/复验范围；原run不重置。
+追加SUMMARY_SYSTEM首候选真实来源27漏MH-LP200，+1GLM后立即停止。最后候选R1只明确已有required_entities义务：27/61/118三真实对照3/3，+3GLM且不append旧段；同run正常startup新seq3覆盖548–579，+1GLM，旧seq1/2不变。原末句一次+2GLM：实际seq1/2/3注入、理解query恢复1001/MH-LP200，随后intent其他/confidence0.6，固定澄清且无当前业务读取。原失败user584、旧文件哈希不变，SQL/checkpoint恢复相等，但最终语义门槛仍未通过，条件重启/1002续聊/两屏引用未执行。
+
+最后全量2720 passed/184 skipped属于a82（427.06s）；最终R1仅192项定向passed（34.74s），包含两profile离线21，不重复full。3308指定41及最终受控上下文13/13、意图11/11分别保留。原容量失败、新候选漏型号、最终分类缺口、200字摘要遗漏、有限校准均不以绿测掩盖。另保留全历史O(N)锁内读取minor，以及等待选单旧提示可能残留、启动费用下界漏一个输出预留两项P3；安全上界和runtime guard未放松。当前保留本地分支/scratch，不merge/push，不宣称整章验收完成。
