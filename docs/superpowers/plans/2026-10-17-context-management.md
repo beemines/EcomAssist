@@ -140,11 +140,11 @@ assert max_active_calls == 2 and max_waiting_conversations <= 8
 assert anchors_after_failed_summary == anchors_before_failed_summary
 ```
 
-- [ ] **Prompt验证先行**：写12个带原文、必须保留事实/禁止事实的样例：单订单、明确换单、多订单歧义、型号、手机号、否定、包裹未找到、mock历史状态、故障尚未解决、表单打开/取消、已申请但未退款、纯寒暄。摘要目标50–80字、上限200，不复述通用FAQ条款；旧段不作为生成原料。先离线标注与审阅，真实prompt检查计入任务11少量调用额度。
-- [ ] **Red并确认**：协议代码及调度测试`test_invalid_json_entities_or_length_does_not_advance`、`test_event_blocked_summary_does_not_block_caller`、`test_two_running_eight_waiting_one_per_conversation`、`test_boundary_conflict_and_restart`；运行`.venv/Scripts/python.exe -m pytest tests/test_context_summarizer.py tests/test_context_manager.py -q`确认预期失败。
-- [ ] **实现**：严格JSON/结束状态和实体来源校验，不把词法检查称为全面忠实度证明。按完整轮次切原始批次，追加到冻结目标L；纯寒暄允许空content覆盖行。每任务独立session，锁只在commit期间；失败不推进、无自动模型重试；触发/开始/完成/跳过/失败都有范围与耗时。启动只恢复L>S的降级会话；5秒关闭宽限后取消并等待清理。
-- [ ] **Green**：重跑测试；用asyncio.Event确定摘要未释放前普通业务回复已完成，不靠sleep碰运气；交叉会话任务结束乱序也不串段。12个样例的离线校验报告区分协议通过、标注事实检查及尚未真实生成。
-- [ ] **提交**：记四项，`git commit -m "feat: add bounded asynchronous append-only conversation summaries"`。
+- [x] **Prompt验证先行**：写12个带原文、必须保留事实/禁止事实的样例：单订单、明确换单、多订单歧义、型号、手机号、否定、包裹未找到、mock历史状态、故障尚未解决、表单打开/取消、已申请但未退款、纯寒暄。摘要目标50–80字、上限200，不复述通用FAQ条款；旧段不作为生成原料。先离线标注与审阅，真实prompt检查计入任务11少量调用额度。
+- [x] **Red并确认**：协议代码及调度测试`test_invalid_json_entities_or_length_does_not_advance`、`test_event_blocked_summary_does_not_block_caller`、`test_two_running_eight_waiting_one_per_conversation`、`test_boundary_conflict_and_restart`；运行`.venv/Scripts/python.exe -m pytest tests/test_context_summarizer.py tests/test_context_manager.py -q`确认预期失败。
+- [x] **实现**：严格JSON/结束状态和实体来源校验，不把词法检查称为全面忠实度证明。按完整轮次切原始批次，追加到冻结目标L；纯寒暄允许空content覆盖行。每任务独立session，锁只在commit期间；失败不推进、无自动模型重试；触发/开始/完成/跳过/失败都有范围与耗时。启动只恢复L>S的降级会话；5秒关闭宽限后取消并等待清理。
+- [x] **Green**：重跑测试；用asyncio.Event确定摘要未释放前普通业务回复已完成，不靠sleep碰运气；交叉会话任务结束乱序也不串段。12个样例的离线校验报告区分协议通过、标注事实检查及尚未真实生成。
+- [x] **提交**：记四项，`git commit -m "feat: add bounded asynchronous append-only conversation summaries"`。
 
 ## Task 6: 共用历史视图、来源校验、生命周期和上下文日志
 
