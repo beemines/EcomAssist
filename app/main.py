@@ -238,7 +238,11 @@ def create_app(
                 # 图任务必须先结束，后进先出的资源栈随后才关闭官方 saver。
                 resources.push_async_callback(app.state.chat_service.shutdown)
             if owns_context:
-                context_logger.event('context_budget', {'budget': budget_fields(recovery_budget()),
+                from app.workflow.context_budget import fee_cap_diagnostic
+                startup_registry = app.state.chat_service.registry_factory(ToolContext('0', 0, '', None))
+                startup_budget = context_budget_provider(startup_registry)
+                context_logger.event('context_budget', {'budget': budget_fields(startup_budget),
+                    'fee_cap': fee_cap_diagnostic(settings, startup_budget, startup_registry),
                     'config': {key: getattr(settings, key) for key in ('model_context_window',
                         'max_user_input_tokens', 'max_agent_steps', 'tool_result_max_tokens', 'rerank_top_k', 'context_target_rounds')}})
                 await manager.startup()

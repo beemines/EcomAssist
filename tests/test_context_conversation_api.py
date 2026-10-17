@@ -269,3 +269,63 @@ async def test_next_input_checkpoint_cannot_replace_original_completed_locator(h
         assert response.status_code == 200
         assert response.json()['turn_metadata']['2']['actions']['checkpoint_id'] == original['configurable']['checkpoint_id']
         assert model.requests == 0
+
+
+@pytest.mark.parametrize('legacy', [False, True])
+@pytest.mark.parametrize('payload,status', [({'found': True, 'matches': []}, 'success'),
+                                          ({'error': {'code': 'unavailable'}}, 'error')])
+async def test_workflow_produced_root_restores_badge_through_history_api(history_database, tmp_path, legacy, payload, status):
+    from langchain_core.messages import HumanMessage, AIMessage
+    from langgraph.runtime import Runtime
+    from app.workflow.nodes import workflow_tool
+    from app.workflow.state import new_turn_state
+    from app.workflow.agent import build_agent_graph
+    from app.workflow.graph import build_workflow_graph
+    repository = ConversationRepository(history_database)
+    user = HumanMessage('退换货政策是怎样的？')
+    user.id = str(await repository.append_message('1', user))
+    state = new_turn_state(conversation_id='1', user_message_id=int(user.id),
+                           raw_question=user.content, category=None, messages=[user])
+    async def operation():
+        return payload
+    update = await workflow_tool(state, Runtime(context=SimpleNamespace(repository=repository,
+        settings=SimpleNamespace()), stream_writer=lambda event: None),
+        'retrieve_knowledge', 'query_faq', {'keyword': user.content}, operation)
+    if legacy:
+        update['tool_trace'][0].pop('status', None)
+    else:
+        assert update['tool_trace'][0]['status'] == status
+    final = AIMessage('原始政策答复')
+    final.id = str(await repository.append_message('1', final))
+    state.update(update)
+    state.update(messages=[user, *update['messages'], final], final_answer=final.content,
+                 final_message_id=final.id, turn_status='completed')
+    async with history_client(history_database, tmp_path) as (_, client, saver, _, _):
+        graph = build_workflow_graph(build_agent_graph(), checkpointer=saver)
+        await graph.aupdate_state(checkpoint_config('1'), state, as_node='log_response')
+        response = (await client.get('/api/conversations/1/messages')).json()
+        assert response['turn_metadata'][final.id]['tool_badges'] == [{
+            'name': 'query_faq', 'tool_call_id': update['tool_trace'][0]['tool_call_id'], 'status': status}]
+        assert [row['role'] for row in response['messages']] == ['user', 'assistant', 'tool', 'assistant']
+
+
+@pytest.mark.parametrize('variant', ['missing_result', 'wrong_id', 'error', 'payload_error', 'wrong_origin', 'bad_node', 'prior_turn'])
+async def test_legacy_workflow_trace_never_invents_success(history_database, tmp_path, variant):
+    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+    await seed_messages(history_database, 2)
+    trace = {'node': 'retrieve_knowledge', 'origin': 'workflow', 'name': 'query_faq', 'tool_call_id': 'legacy'}
+    messages = [HumanMessage('原文1🙂', id='1'), AIMessage('', tool_calls=[{
+        'id': 'legacy', 'name': 'query_faq', 'args': {}}]), ToolMessage('{}', tool_call_id='legacy'),
+        AIMessage('原文2🙂', id='2')]
+    if variant == 'missing_result': messages.pop(2)
+    if variant == 'wrong_id': messages[2].tool_call_id = 'other'
+    if variant == 'error': messages[2].status = 'error'
+    if variant == 'payload_error': messages[2].content = '{"error":{"code":"unavailable"}}'
+    if variant == 'wrong_origin': trace['origin'] = 'unknown'
+    if variant == 'bad_node': trace['node'] = []
+    if variant == 'prior_turn': messages.insert(3, HumanMessage('另一个问题', id='99'))
+    async with history_client(history_database, tmp_path) as (_, client, saver, _, _):
+        await put_root(saver, answer='原文2🙂', tool_trace=[trace], messages=messages,
+                       user_message_id='99' if variant == 'prior_turn' else '1')
+        badges = (await client.get('/api/conversations/1/messages')).json()['turn_metadata']['2']['tool_badges']
+        assert not any(badge['status'] == 'success' for badge in badges)

@@ -180,8 +180,8 @@ async def test_business_faq_uses_resolved_plan_top_five_and_raw_keyword_guard():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('options', [{}, dict(model_context_window=18000, max_output_tokens=2000,
-                                           max_agent_steps=3, rerank_top_k=5)])
+@pytest.mark.parametrize('options', [{}, {'agent_total_token_budget': 32000},
+    dict(model_context_window=18000, max_output_tokens=2000, max_agent_steps=3, rerank_top_k=5)])
 async def test_default_lifespan_activates_real_factory_without_provider(tmp_path, options):
     import json
     from app.main import create_app
@@ -215,7 +215,36 @@ async def test_default_lifespan_activates_real_factory_without_provider(tmp_path
     from app.context.logging import budget_fields
     actual = next(row['budget'] for row in records if row['event']=='context_budget')
     assert actual == budget_fields(factory().workflow_budget(config, production_registry()))
+    fees = next(row['fee_cap'] for row in records if row['event'] == 'context_budget')
+    assert fees['explicit_limit'] == (32000 if options.get('agent_total_token_budget') else None)
+    assert fees['effective_limit'] == (32000 if fees['explicit_limit'] else fees['derived_limit'])
+    assert fees['compatibility'] == ('incompatible' if fees['explicit_limit'] else 'compatible')
+    assert fees['minimum_reservation'] < fees['conservative_shortest_path_cap'] < fees['derived_limit']
     assert any(row['event']=='history_ctx' and row['sent'] is False for row in records)
+
+
+def test_fee_diagnostic_boundary_keeps_explicit_cap_and_separates_uncertainty():
+    from tests.test_context_budget import settings
+    registry = production_registry()
+    config = settings()
+    budget = factory().workflow_budget(config, registry)
+    result = factory().fee_cap_diagnostic(config, budget, registry)
+    assert result['history_allowance'] == budget.history
+    assert result['shortest_model_calls'] == 2 and result['social_fast_path_calls'] == 0
+    for limit, status in [(result['minimum_reservation'] - 1, 'incompatible'),
+                          (result['minimum_reservation'], 'usage_dependent'),
+                          (result['conservative_shortest_path_cap'], 'compatible')]:
+        explicit = settings(agent_total_token_budget=limit)
+        actual = factory().fee_cap_diagnostic(explicit, budget, registry)
+        assert actual['compatibility'] == status
+        assert actual['effective_limit'] == actual['explicit_limit'] == limit
+        assert factory().turn_token_limit(explicit, budget) == limit
+    demo = settings(model_context_window=18000, max_output_tokens=2000,
+                    max_agent_steps=3, rerank_top_k=5, agent_total_token_budget=32000)
+    demo_budget = factory().workflow_budget(demo, registry)
+    demo_result = factory().fee_cap_diagnostic(demo, demo_budget, registry)
+    assert demo_result['derived_limit'] > 32000
+    assert demo_result['compatibility'] == 'compatible', 'worst-case cap is not a shortest-path requirement'
 
 
 @pytest.mark.asyncio
