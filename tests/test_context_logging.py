@@ -106,6 +106,8 @@ async def test_cancelled_understanding_retains_sent_body_and_single_usage(tmp_pa
         await task
     logger.close()
     events = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines()]
-    assert [row['event'] for row in events] == ['history_ctx', 'model_ctx']
+    assert [row['event'] for row in events] == ['history_ctx', 'model_ctx', 'token_calibration']
+    assert events[2]['prompt_tokens'] is None and events[2]['absolute_error'] is None
+    assert events[2]['relative_error'] is None and events[2]['calibrated'] is False
     assert events[1]['messages'][-2]['content'] == '订单 A-1'
     assert service.usage['estimated_calls'] == 1 and service.usage['actual_calls'] == 0

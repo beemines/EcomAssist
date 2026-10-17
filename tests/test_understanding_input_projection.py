@@ -52,11 +52,11 @@ async def test_node_reservation_matches_actual_projected_input(monkeypatch):
         raw_question='那大概什么时候到', category=None,
         messages=[*history, HumanMessage('那大概什么时候到')])
     reserved = []
-    reserve = nodes.reserve_call
+    reserve = nodes.reserve_context_call
     def capture(messages, *args, **kwargs):
         reserved.append(messages)
         return reserve(messages, *args, **kwargs)
-    monkeypatch.setattr(nodes, 'reserve_call', capture)
+    monkeypatch.setattr(nodes, 'reserve_context_call', capture)
     update = await nodes.resolve_reference(state, SimpleNamespace(context=ctx, stream_writer=lambda event: None))
     assert update['resolved_question'] == '订单1001的包裹大概什么时候到'
     assert len(reserved) == 1 and reserved[0] == model.intent_inputs[0]

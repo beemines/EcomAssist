@@ -16,6 +16,8 @@ from app.core.extraction import invalid_output, validate_structured_output
 from app.core.memory import estimate_tokens
 from app.core.prompts import build_sufficiency_messages
 from app.agent.controls import UsageLedger, estimate_call_input, record_usage
+from app.workflow.context_budget import stage_packet, standalone_packet
+from app.context.logging import log_model_call, log_calibration
 
 
 _SUFFICIENCY_USAGE: ContextVar[dict[int, dict[str, int]] | None] = ContextVar('sufficiency_usage', default=None)
@@ -89,7 +91,9 @@ class SufficiencyService:
         self.usage = {'actual': 0, 'estimated': 0, 'actual_calls': 0, 'estimated_calls': 0}
 
     # 无工具问题也必须判定；合法自评后再执行知识空集及真实重排分的硬门槛。
-    async def check(self, raw_question: str, evidence: EvidencePacket, *, order_context: dict | None = None) -> QualityDecision:
+    async def check(self, raw_question: str, evidence: EvidencePacket, *, order_context: dict | None = None,
+                    snapshot=None, original_question=None, context_logger=None, on_packet=None,
+                    on_calibration=None, output_tokens=2048) -> QualityDecision:
         """判断政策可否支持事实或条件答复，订单事实不替代政策。"""
         self.usage = dict.fromkeys(self.usage, 0)
         if not isinstance(raw_question, str) or not raw_question.strip():
@@ -100,12 +104,20 @@ class SufficiencyService:
             if any(item['score_kind'] != 'rerank' for item in evidence.payload.get('matches', [])):
                 raise ValueError('hybrid_rerank requires authoritative rerank scores')
         messages = build_sufficiency_messages(raw_question, evidence.payload, order_context=order_context)
-        if estimate_tokens(messages) > self.input_budget:
+        packet = (stage_packet(snapshot, system=messages[0], raw_question=original_question or raw_question,
+            attachment={'resolved_question': raw_question, 'evidence': evidence.payload, 'order_context': order_context},
+            output_tokens=output_tokens) if snapshot is not None else standalone_packet(messages, output_tokens=output_tokens))
+        messages = packet.messages
+        if snapshot is None and packet.estimated_tokens > self.input_budget:
             raise InputTooLong()
-        cost = estimate_call_input(messages, [])
+        cost = packet.estimated_tokens
         ledger = UsageLedger()
-        record_usage(None, ledger, estimated_input=cost, output_limit=2048)
+        record_usage(None, ledger, estimated_input=cost, output_limit=output_tokens)
         self.usage = {key: getattr(ledger, key) for key in self.usage}
+        log_model_call(context_logger, packet, phase='sufficiency', on_packet=on_packet,
+            conversation_id=snapshot.conversation_id if snapshot else None,
+            user_message_id=snapshot.user_message_id if snapshot else None)
+        output = None
         try:
             async with asyncio.timeout(self.timeout):
                 output = await self.structured_model.ainvoke(messages)
@@ -115,9 +127,12 @@ class SufficiencyService:
             raise ServiceError('upstream_timeout', '模型响应超时，请稍后重试。', 504) from exc
         except Exception as exc:
             raise ServiceError('upstream_error', '模型服务暂时不可用，请稍后重试。', 502) from exc
+        finally:
+            log_calibration(context_logger, packet, output.get('raw') if isinstance(output, dict) else None,
+                            phase='sufficiency', on_calibration=on_calibration)
         raw = output.get('raw') if isinstance(output, dict) else None
         ledger = UsageLedger()
-        record_usage(raw, ledger, estimated_input=cost, output_limit=2048)
+        record_usage(raw, ledger, estimated_input=cost, output_limit=output_tokens)
         self.usage = {key: getattr(ledger, key) for key in self.usage}
         if (not isinstance(raw, AIMessage) or raw.response_metadata.get('finish_reason') != 'stop'
                 or raw.tool_calls or raw.invalid_tool_calls):

@@ -61,6 +61,7 @@ def owned_resources(monkeypatch, failure=None):
         if failure == 'model_init': raise RuntimeError('controlled model init failure')
         created.append('model')
         model = StreamingModel()
+        model.bind = lambda **kwargs: model
         model.root_async_client, model.root_client = AsyncModelClient(), SyncModelClient()
         structured = model.with_structured_output
         # 结构化包装失败也需关闭已注册客户端，包装本身不拥有共享客户端。
@@ -115,10 +116,16 @@ def owned_resources(monkeypatch, failure=None):
 async def test_owned_resources_close_once_even_when_another_close_fails(monkeypatch, failure):
     created, closed = owned_resources(monkeypatch, failure)
     # 模型、数据库和 FAQ 依赖在 lifespan 内初始化，部分初始化失败也应能回收资源。
-    app = main.create_app(fake_settings(mysql_password='fake-only'))
+    class EmptyContext:
+        async def list_downgraded(self, **kwargs):
+            return []
+    app = main.create_app(fake_settings(mysql_password='fake-only'), context_repository=EmptyContext())
     # 执行真实应用生命周期，确认进入时依赖均已创建且尚未关闭。
+    entered = False
     async def run():
+        nonlocal entered
         async with app.router.lifespan_context(app):
+            entered = True
             assert created == ['database', 'model', 'embedder', 'index', 'ready', 'reranker']
             assert closed == []
     if failure:
@@ -126,6 +133,7 @@ async def test_owned_resources_close_once_even_when_another_close_fails(monkeypa
             await run()
     else:
         await run()
+    assert entered is True
     assert closed == ['reranker', 'index', 'embedder', 'async_model', 'sync_model', 'database']
 
 

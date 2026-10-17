@@ -65,10 +65,12 @@ async def test_parent_current_read_and_normalized_prompts(raw, resolved, order):
     assert result['tool_call_count'] == 1 and result['tool_trace'][0]['name'] == 'query_logistics'
     assert result['tool_trace'][0]['origin'] == 'workflow'
     assert context.repository.messages[0].tool_calls[0]['args'] == {'order_id': order}
-    for messages in [*context.decision_model.tool_inputs, *context.model.stream_inputs,
-                     state_evidence({**state, 'resolved_question': resolved}, context).messages]:
+    for messages in [*context.decision_model.tool_inputs, *context.model.stream_inputs]:
         current = next(m for m in messages if m.id == original.id)
-        assert current.content == resolved
+        assert current.content == raw
+        attachment = next(json.loads(m.content)['data'] for m in messages
+                          if isinstance(m, HumanMessage) and m.content.startswith('{"kind":"context_data"'))
+        assert attachment.get('resolved_question', current.content) == resolved
     assert result['messages'][len(prior)] == original and result['raw_question'] == raw
 
 

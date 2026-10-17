@@ -92,6 +92,10 @@ def create_app(
     owns_model = model is None
     owns_checkpointer = chat_service is None and checkpointer is None
     owns_evaluation_manager = evaluation_manager is None
+    if (context_budget_provider is None and chat_service is None
+            and (owns_database or getattr(database, 'engine', None) is not None or context_repository is not None)):
+        from app.workflow.context_budget import workflow_budget
+        context_budget_provider = lambda registry: workflow_budget(settings, registry)
     owns_context = context_budget_provider is not None and context_coordinator is None
     owns_context_logger = context_budget_provider is not None and context_logger is None
     if context_coordinator is not None and context_budget_provider is None:
@@ -171,7 +175,9 @@ def create_app(
                 reranker = SiliconFlowReranker(settings)
                 resources.push_async_callback(reranker.aclose)
                 planner = QueryPlanner(model_with_output_budget(model, settings, settings.query_max_output_tokens),
-                    settings.tool_input_token_budget, timeout=settings.query_timeout_seconds)
+                    settings.model_context_window - settings.query_max_output_tokens - max(256, (settings.model_context_window*3+99)//100),
+                    timeout=settings.query_timeout_seconds, context_logger=context_logger,
+                    output_tokens=settings.query_max_output_tokens)
                 retriever = RetrievalService(KnowledgeRepository(database), embedder, index, planner, reranker)
                 faq_repository = FAQRepository(database, embedder, index, retriever=retriever)
             if sufficiency_service is None:
@@ -197,7 +203,7 @@ def create_app(
                     if isinstance(database, _UnavailableDatabase):
                         raise ValueError('Injected conversation storage requires an explicit context repository.')
                     context_repository = ContextRepository(database)
-                # The sole actual phase factory is supplied by the deployment.
+                # The default factory and explicit injection share one lifecycle.
                 # Registry construction is local; recovery does not execute tools.
                 def recovery_budget():
                     registry = app.state.chat_service.registry_factory(ToolContext('0', 0, '', None))

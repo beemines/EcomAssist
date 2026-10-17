@@ -59,8 +59,8 @@ def estimate_payload(messages: Sequence[BaseMessage], tools: Sequence[dict] = ()
         else:
             raise ValueError('Unsupported context message role.')
         total += MESSAGE_PROTOCOL_TOKENS + estimate_text_tokens(role) + estimate_text_tokens(message.content)
-        if message.name is not None:
-            total += estimate_text_tokens(_json_text({'name': message.name}))
+        if (name := message.name or message.additional_kwargs.get('name')) is not None:
+            total += estimate_text_tokens(_json_text({'name': name}))
         if isinstance(message, AIMessage):
             if message.invalid_tool_calls:
                 raise ValueError('Cannot estimate invalid tool calls as a valid request.')
@@ -78,3 +78,18 @@ def estimate_payload(messages: Sequence[BaseMessage], tools: Sequence[dict] = ()
     if tools:
         total += estimate_text_tokens(_json_text({'tools': tools}))
     return total
+
+
+def calibration_sample(packet, reply):
+    """Compare only observed non-stream input usage; missing usage stays unknown."""
+    usage = getattr(reply, 'usage_metadata', None)
+    prompt = usage.get('input_tokens') if isinstance(usage, dict) else None
+    if prompt is None:
+        raw = getattr(reply, 'response_metadata', {}).get('token_usage', {})
+        prompt = raw.get('prompt_tokens') if isinstance(raw, dict) else None
+    if type(prompt) is not int or prompt < 0:
+        prompt = None
+    return {'estimator_version': ESTIMATOR_VERSION, 'estimated_tokens': packet.estimated_tokens,
+            'prompt_tokens': prompt, 'absolute_error': packet.estimated_tokens-prompt if prompt is not None else None,
+            'relative_error': (packet.estimated_tokens-prompt)/prompt if prompt else None,
+            'calibrated': False}

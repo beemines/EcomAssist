@@ -64,7 +64,8 @@ def scoped_order_tools(provider: OrderProvider, owner_resolver: Callable[[str], 
 
 
 # 为当前请求创建 FAQ 和工单工具闭包，绑定可信会话与用户消息身份。
-def contextual_tools(faq: FAQRepository, tickets: TicketRepository, context: ToolContext) -> list[BaseTool]:
+def contextual_tools(faq: FAQRepository, tickets: TicketRepository, context: ToolContext, *,
+                     faq_options: dict | None = None) -> list[BaseTool]:
     # 每个请求独立闭包，模型无法指定会话或消息主键。
     # 仅使用当前问题的连续原文片段检索 FAQ，返回命中状态和结果。
     @tool(args_schema=FAQArgs)
@@ -72,7 +73,8 @@ def contextual_tools(faq: FAQRepository, tickets: TicketRepository, context: Too
         """使用当前问题的连续原文片段申请 FAQ 混合检索，最多十条权威知识。"""
         if keyword not in context.user_question:
             return {"error": {"code": "invalid_keyword", "message": "关键词必须是当前用户问题中的连续原文片段。"}}
-        return await faq.retrieve(keyword, raw_question=context.user_question, category=context.category)
+        return await faq.retrieve(keyword, raw_question=context.user_question, category=context.category,
+                                  **(faq_options or {}))
 
     # 调用标识由执行器注入，模型不能指定会话身份或伪造幂等键。
     # 使用闭包身份和运行时注入的调用标识创建幂等人工工单。

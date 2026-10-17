@@ -29,6 +29,61 @@ class EvidencePacket:
     strategy: str
 
 
+@dataclass(frozen=True)
+class WorkflowEvidence:
+    """Selected evidence only; model messages are composed independently."""
+    payload: dict
+    citations: tuple[Citation, ...]
+    best_score: float | None
+    strategy: str
+    tool_receipts: tuple[dict, ...]
+
+
+def prepare_workflow_evidence(payloads: Sequence[dict], *, top_k: int,
+                              token_budget: int) -> WorkflowEvidence:
+    from app.context.tokens import estimate_payload
+
+    if type(top_k) is not int or not 1 <= top_k <= 10 or type(token_budget) is not int or token_budget <= 0:
+        raise ValueError('Evidence requires positive budget and Top-K in 1..10')
+    merged, receipts, base = {}, [], None
+    for payload in payloads:
+        if not isinstance(payload, dict):
+            raise ValueError('Tool payload must be an object')
+        if 'matches' not in payload:
+            receipts.append(copy.deepcopy(payload))
+            continue
+        base = payload
+        for item in _matches(payload):
+            if item['score_kind'] != 'rerank':
+                raise ValueError('Workflow FAQ requires authoritative rerank scores')
+            if item['id'] not in merged or item['score'] > merged[item['id']]['score']:
+                merged[item['id']] = item
+        receipts.append({'found': payload.get('found', False), 'evidence_in_attachment': True,
+                         'match_count': len(payload['matches'])})
+    if base is None:
+        return WorkflowEvidence({}, (), None, 'none', tuple(receipts))
+    def bounded(selected):
+        return _numbered_payload(base, selected)
+    def fits(data):
+        return estimate_payload([HumanMessage(json.dumps({'evidence': data}, ensure_ascii=False,
+            separators=(',', ':'), allow_nan=False))]) <= token_budget
+    if not fits(bounded([])):
+        raise InputTooLong()
+    selected = []
+    for candidate in sorted(merged.values(), key=lambda item: item['score'], reverse=True):
+        if len(selected) == top_k:
+            break
+        if fits(bounded([*selected, candidate])):
+            selected.append(candidate)
+    if merged and not selected:
+        raise InputTooLong()
+    data = bounded(selected)
+    citations = tuple(Citation(item['n'], item['id'], item.get('section_path'), item['question'], item['answer'])
+                      for item in data['matches'])
+    return WorkflowEvidence(data, citations, selected[0]['score'] if selected else None,
+                            base.get('retrieval', {}).get('strategy', 'none'), tuple(receipts))
+
+
 # 统一紧凑序列化；字符和数据库 TEXT 字节界限均针对实际工具 JSON。
 def _serialize(payload: dict) -> str:
     text = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False)

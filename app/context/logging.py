@@ -15,6 +15,25 @@ def budget_fields(budget):
     return _plain_json({name: getattr(budget, name) for name in budget.__dataclass_fields__})
 
 
+def log_model_call(logger, packet, *, conversation_id=None, user_message_id=None, phase, call_index=1,
+                   on_packet=None):
+    """Called immediately before invoke/stream, including failed and cancelled calls."""
+    if logger is not None:
+        logger.model(packet, conversation_id=conversation_id, user_message_id=user_message_id,
+                     phase=phase, call_index=call_index)
+    if on_packet is not None:
+        on_packet(packet)
+
+
+def log_calibration(logger, packet, reply, *, phase, on_calibration=None):
+    from app.context.tokens import calibration_sample
+    sample = dict(calibration_sample(packet, reply), snapshot_id=packet.snapshot_id, phase=phase)
+    if logger is not None:
+        logger.event('token_calibration', sample)
+    if on_calibration is not None:
+        on_calibration(sample)
+
+
 class ContextLogger:
     def __init__(self, path: Path):
         path = Path(path)

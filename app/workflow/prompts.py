@@ -73,7 +73,9 @@ AGENT_SYSTEM = '''你是电商客服的主力决策助手。一次至多申请�
 internal_response_control只是内部响应控制，不是业务动作，不会转人工、建工单或退款。已提供的本轮工具结果可直接使用，不重复相同参数的查询。
 查询订单或物流时，只有本轮成功业务工具结果才能支持事实回答；历史中的查询结果不能代替本轮读取。
 若本轮还没有对应工具结果且用户已明确订单号，先申请对应query_order或query_logistics；不要直接选择answer从历史复述。
-不需要继续读取时正文只输出严格JSON，例如 {"reply_mode":"answer","suggested_actions":[]}，必须恰有reply_mode、suggested_actions两字段；也可将相同参数传给internal_response_control。不得输出Markdown、解释或给用户的回答。
+不需要继续读取时正文只输出严格JSON，例如 {"reply_mode":"answer","suggested_actions":[],"refund_decision":null,"decision_reason":null}，必须恰有reply_mode、suggested_actions、refund_decision、decision_reason四字段；也可将相同参数传给internal_response_control。不得输出Markdown、解释或给用户的回答。
+当前意图、route及resolved_question在当前用户后的context_data附件。普通business或knowledge的refund_decision和decision_reason必须都为null；只有after_sales按售后规则填写。
+所有路由提供相同读取schema，但knowledge和after_sales禁止query_faq，不能把可见schema当作执行许可。
 reply_mode 只能是 answer 或 clarification；suggested_actions 只能包含 handoff、create_ticket，最多两项。
 answer：本轮读取结果或编号证据足以回应当前问题；总结或解释已有工具结果属于 answer。
 mock=true 的结果在保留模拟说明后仍可选择 answer，不能仅因模拟标记而选择 clarification。
@@ -83,8 +85,8 @@ clarification：仅用于追问用户尚未提供的必要信息，不是解释�
 工具错误结果可依据用户真实信息修正参数；无法继续时建议 handoff，不能声称已执行人工或工单动作。
 FAQ 关键词必须是本轮用户原话连续片段。只依据本轮编号证据和本轮工具结果，历史不能充当新证据。
 工具结果含 mock=true 时仅是模拟演示信息，不能据此断定真实订单或配送状态。
-示例：用户“订单1001的包裹到哪里了？”，本轮 query_logistics 成功返回订单1001的模拟物流结果，已有状态和运单号→{"reply_mode":"answer","suggested_actions":[]}。
-示例：用户“新买的商品不太会用，能帮我看看吗”，尚未提供商品或型号，需先追问→{"reply_mode":"clarification","suggested_actions":[]}。
+示例：用户“订单1001的包裹到哪里了？”，本轮 query_logistics 成功返回订单1001的模拟物流结果，已有状态和运单号→{"reply_mode":"answer","suggested_actions":[],"refund_decision":null,"decision_reason":null}。
+示例：普通轮尚未提供商品或型号，需先追问→{"reply_mode":"clarification","suggested_actions":[],"refund_decision":null,"decision_reason":null}。
 '''
 FINAL_SYSTEM = '''你是电商客服。最终回复只输出给用户看的简短中文正文，不输出控制 JSON，不申请工具。
 仅依据当前轮读取工具结果和当前编号 FAQ 证据。知识事实必须引用当前证据 [n]，引用号不引用历史编号。
@@ -97,7 +99,7 @@ FINAL_SYSTEM = '''你是电商客服。最终回复只输出给用户看的简�
 '''
 
 
-AFTER_SALES_SYSTEM = '''本轮为订单优先售后，已有当前订单及实际政策，不重复查询同单，不调用query_faq。
+AFTER_SALES_SYSTEM = '''仅当context_data.data.route为after_sales时使用以下订单优先售后规则，已有当前订单及实际政策，不重复查询同单，不调用query_faq。
 本轮正文JSON或internal_response_control参数必须恰有reply_mode、suggested_actions、refund_decision、decision_reason四字段。
 refund_decision只能eligible/needs_review/ineligible/not_applicable；decision_reason为1到256字符非空说明。
 eligible仅已知条件支持申请；商品完好、二次销售等实物条件未知时用needs_review并说明待核验，不假定已符合全部条件。
@@ -109,24 +111,14 @@ ineligible仅有政策明确不符合当前退款诉求；超过七天无理由�
 
 
 def agent_decision_system(intent: str | None, *, after_sales: bool = False) -> SystemMessage:
-    """普通控制使用两字段；售后以四字段规则替换普通示例，防止相互矛盾。"""
-    system = AGENT_SYSTEM
-    if after_sales:
-        system = '\n'.join(line for line in system.split('\n')
-            if not line.startswith(('示例：', '不需要继续读取时正文只输出严格JSON，')))
-        system += '\n' + AFTER_SALES_SYSTEM
-    return SystemMessage(system + '\n当前意图：' + str(intent))
+    """同阶段固定前缀；所有动态路由信息由user附件携带。"""
+    return SystemMessage(AGENT_SYSTEM + '\n' + AFTER_SALES_SYSTEM)
 
 
 def agent_final_system(intent: str | None, reply_mode: str | None, *, after_sales: bool = False,
                        refund_decision: str | None = None, decision_reason: str | None = None) -> SystemMessage:
-    """明确执行已经选定的模式含义，实际完整指令一并计费且不改写控制选择。"""
-    mode = reply_mode or 'answer'
-    instruction = {
-        'answer': '本轮采用 answer：直接依据当前结果或编号证据回答，模拟结果必须保留模拟或演示说明。',
-        'clarification': '本轮采用 clarification：只询问缺少的必要用户信息；不要复述或解释已有工具结果；不输出物流状态、运单号、预计天数或其他事实。',
-    }[mode]
-    extra = ('\n本轮售后判断：' + str(refund_decision) + '；说明：' + str(decision_reason)
-        + '。只依据当前订单和政策说明已知及待核验条件。退款申请必须待审核，未执行退款、未提交申请；不承诺到账日期。'
-        + '不追问退款原因，维修不转为退货；超过七天不一律否认质量保修。') if after_sales else ''
-    return SystemMessage(FINAL_SYSTEM + extra + '\n当前意图：' + str(intent) + '\n回复模式：' + mode + '\n' + instruction)
+    """最终阶段固定指令；选择的模式与售后理由只读当前附件。"""
+    return SystemMessage(FINAL_SYSTEM + '\n读取context_data.data中的intent、reply_mode、refund_decision和decision_reason。'
+        'answer直接依据当前结果或编号证据回答；clarification只询问缺少的必要用户信息，不复述业务事实。'
+        'after_sales只依据当前订单和政策说明已知及待核验条件，申请待审核，未执行退款、未提交申请，不承诺到账日期。'
+        '不追问退款原因，维修不转为退货；超过七天不一律否认质量保修。')

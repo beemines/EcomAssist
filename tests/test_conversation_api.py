@@ -140,19 +140,28 @@ async def test_owned_database_and_model_close_once_even_if_model_close_fails(mon
         def close(self):
             closed.append("sync_model")
     model = StreamingModel()
+    model.bind = lambda **kwargs: model
+    class EmptyContext:
+        async def list_downgraded(self, **kwargs):
+            return []
     model.root_async_client, model.root_client = AsyncClient(), SyncClient()
     monkeypatch.setattr(app.main, "Database", Database)
     monkeypatch.setattr(app.main, "create_model", lambda settings: model)
-    app = create_app(fake_settings(mysql_password="fake-only"), faq_repository=FAQStub())
+    app = create_app(fake_settings(mysql_password="fake-only"), faq_repository=FAQStub(),
+                     context_repository=EmptyContext())
     # 执行应用生命周期并确认资源在退出前保持打开。
+    entered = False
     async def run():
+        nonlocal entered
         async with app.router.lifespan_context(app):
+            entered = True
             assert closed == []
     if close_failure:
         with pytest.raises(RuntimeError, match="close failure"):
             await run()
     else:
         await run()
+    assert entered is True
     assert closed == ["async_model", "sync_model", "database"]
 
 

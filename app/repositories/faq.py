@@ -3,6 +3,7 @@ from app.db.session import Database
 from app.knowledge.types import Embedder, VectorIndex
 from app.repositories.knowledge import KnowledgeRepository
 from app.retrieval.service import RetrievalService, faq_payload
+from app.retrieval.types import QueryPlan
 
 
 class FAQRepository:
@@ -18,13 +19,18 @@ class FAQRepository:
         self.retriever = retriever
 
     # keyword 保持原话片段约束；新路径始终用本轮完整原话和分类进行检索。
-    async def retrieve(self, keyword: str, *, raw_question: str, category: str | None = None) -> dict:
+    async def retrieve(self, keyword: str, *, raw_question: str, category: str | None = None,
+                       query_plan: QueryPlan | None = None, top_k: int = 10) -> dict:
         if (not isinstance(keyword, str) or not 1 <= len(keyword) <= 128
                 or not isinstance(raw_question, str) or keyword not in raw_question):
             raise ValueError('Invalid FAQ keyword or raw question.')
         if self.retriever is None:
             raise RuntimeError('FAQ retriever is required for unified retrieval')
-        return faq_payload(await self.retriever.retrieve(raw_question, category=category))
+        # Only trusted Workflow execution supplies a validated resolved plan.
+        # Raw text remains the keyword authority; legacy calls retain planning.
+        options = {'query_plan': query_plan, 'top_k': top_k} if query_plan is not None or top_k != 10 else {}
+        question = query_plan.standard if query_plan is not None else raw_question
+        return faq_payload(await self.retriever.retrieve(question, category=category, **options))
 
     # 语义检索最多三条命中，按命中顺序返回已完成向量化的数据库原文。
     async def search(self, keyword: str, limit: int = 3) -> list[dict]:
