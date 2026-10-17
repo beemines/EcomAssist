@@ -2,6 +2,8 @@
 import argparse
 import asyncio
 import sys
+import json
+from pathlib import Path
 
 from app.config import load_settings
 from app.context.migration import migrate_context, verify_context
@@ -13,10 +15,27 @@ def parser() -> argparse.ArgumentParser:
     commands = result.add_subparsers(dest='command', required=True)
     commands.add_parser('migrate', help='Resume supplied context DDL, refusing structure drift')
     commands.add_parser('verify', help='Read-only verification; never execute DDL')
+    for name in ('budget', 'replay'):
+        command = commands.add_parser(name, help='Fully offline acceptance '+name)
+        command.add_argument('--profile', choices=('default', 'demo'), required=True)
+        if name == 'replay':
+            command.add_argument('--output', type=Path, required=True)
     return result
 
 
 async def run(args: argparse.Namespace) -> None:
+    if args.command == 'budget':
+        from app.context.acceptance import profile_budget
+        print(json.dumps(profile_budget(args.profile), ensure_ascii=False, indent=2))
+        return
+    if args.command == 'replay':
+        from app.context.replay import replay
+        result = await replay(args.profile, args.output.parent/'replays')
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
+        print(json.dumps({'profile': args.profile, 'output': str(args.output), 'turns': len(result['turns']),
+                          'recall': result['final_recall']['source_present']}, ensure_ascii=False))
+        return
     database = Database(load_settings().database_url)
     try:
         action = migrate_context if args.command == 'migrate' else verify_context

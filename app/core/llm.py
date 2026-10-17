@@ -22,6 +22,7 @@ def model_with_output_budget(model, settings: Settings, budget: int):
 # 依据配置创建 Chat Completions 客户端，设置超时和输出上限。
 def create_model(
     settings: Settings, *, http_async_client: httpx.AsyncClient | None = None,
+    http_client: httpx.Client | None = None,
     reasoning_effort: Literal['low', 'high', 'max'] | None = None,
 ) -> ChatOpenAI:
     """创建直连客户端；努力等级由资源拥有者显式传入，普通调用保留省略行为。"""
@@ -38,6 +39,7 @@ def create_model(
         # 按配置发送上游接受的输出上限字段，允许切换模型而不改业务接口。
         extra_body={settings.llm_token_limit_field: settings.max_output_tokens},
         http_async_client=http_async_client,
+        http_client=http_client,
         # None 时连构造参数也省略，不自动读取在线或评估专属配置。
         **({'reasoning_effort': reasoning_effort} if reasoning_effort is not None else {}),
     )

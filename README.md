@@ -1,5 +1,7 @@
 # 电商智能客服
 
+第七章分层上下文的离线21轮回放、预算profile、8004进程守卫和共享物理HTTP限额见[可复现验收说明](docs/context-management-demo.md)。离线回放与受控浏览器已验证；3307迁移、真实应用启动及真实长对话验收留待Task11，不把离线结果当作模型质量结论。
+
 300 题四策略已完成全部 1200 条尝试：1188 条成功、12 条失败，0 未执行。原 158 题保持，剩余 142 题以 8 题并发补跑约 11 分 22 秒。公平共同题集上，混合加重排的检索排名和答案要点覆盖最高。见[实际结果分析](docs/validation/merchant-rag-comparison-analysis.md)、[完整合并报告](docs/validation/merchant-rag-comparison.md)与[独立验收](docs/validation/merchant-rag-completion-proof.json)。错误及两次运行的真实来源均保留。
 
 基于 Python、FastAPI、LangChain、SQLAlchemy、MySQL 和 Milvus 的电商客服项目。开发按步骤推进：第一步跑通流式多轮对话与售后字段提取；第二步接入单轮 Function Calling 和持久化；第三步建立可恢复的知识库；第四步加入混合检索、重排、质量控制与评估。

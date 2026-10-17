@@ -103,6 +103,21 @@ def test_layer2_can_borrow_unused_layer1_without_deleting_backlog():
     assert plan.layer2_tokens > 10
 
 
+def test_hard_history_limit_can_require_downgrade_below_soft_layer1_line():
+    from app.context.layers import plan_layers, history_tokens
+    from copy import deepcopy
+    rows = turn(user='q', answer='旧'*100, results=()) + turn(3, user='q', answer='新'*300, results=()) + turn(5, user='q', answer='a', results=())
+    before = deepcopy(rows)
+    plan = plan_layers(rows, ContextAnchors(None, 2),
+        budget(history=550, layer1=500, layer2=50), current_user_id=7)
+    assert plan.anchors == ContextAnchors(None, 4)
+    assert plan.downgrade_ranges == ((3, 4),)
+    assert [row.id for row in plan.layer1] == ['5', '6']
+    assert [row.content for row in plan.layer1] == ['q', 'a']
+    assert history_tokens((*plan.layer2, *plan.layer1)) <= 550
+    assert rows == before
+
+
 def test_current_user_and_future_rows_are_not_history():
     from app.context.layers import plan_layers
 
