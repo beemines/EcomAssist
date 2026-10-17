@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, HttpUrl, SecretStr, field_validator
+from pydantic import Field, HttpUrl, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL
 
@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     # 在线输入预算、在线回答上限和离线 QA 抽取上限各自独立，避免互相挤占。
     input_token_budget: int = Field(default=2000, gt=0, validation_alias="INPUT_TOKEN_BUDGET")
     max_output_tokens: int = Field(default=512, gt=0, validation_alias="MAX_OUTPUT_TOKENS")
+    # 应用声明窗口，并非已经验证的供应商上限；Workflow实际接线统一使用派生预算。
+    model_context_window: int = Field(default=128000, gt=0, validation_alias='MODEL_CONTEXT_WINDOW')
+    max_user_input_tokens: int = Field(default=2000, gt=0, validation_alias='MAX_USER_INPUT_TOKENS')
+    max_agent_steps: int = Field(default=4, gt=0, le=4, validation_alias='MAX_AGENT_STEPS')
+    tool_result_max_tokens: int = Field(default=1200, gt=0, validation_alias='TOOL_RESULT_MAX_TOKENS')
+    rerank_top_k: int = Field(default=10, gt=0, le=10, validation_alias='RERANK_TOP_K')
+    context_target_rounds: int = Field(default=40, gt=0, validation_alias='CONTEXT_TARGET_ROUNDS')
     query_max_output_tokens: int = Field(default=2048, gt=0, validation_alias='QUERY_MAX_OUTPUT_TOKENS')
     sufficiency_max_output_tokens: int = Field(default=2048, gt=0, validation_alias='SUFFICIENCY_MAX_OUTPUT_TOKENS')
     qa_max_output_tokens: int = Field(default=2048, gt=0, validation_alias="QA_MAX_OUTPUT_TOKENS")
@@ -82,6 +89,24 @@ class Settings(BaseSettings):
     rag_evaluation_allowed_origins: tuple[str, ...] = Field(
         default=('http://127.0.0.1:8001', 'http://localhost:8001'),
         validation_alias='RAG_EVALUATION_ALLOWED_ORIGINS')
+
+    @model_validator(mode='after')
+    def synchronize_agent_step_aliases(self):
+        """区分显式旧4与缺省4；同步值不伪造显式字段来源。"""
+        new_explicit = 'max_agent_steps' in self.model_fields_set
+        old_explicit = 'agent_max_tool_calls' in self.model_fields_set
+        if new_explicit and old_explicit and self.max_agent_steps != self.agent_max_tool_calls:
+            raise ValueError('MAX_AGENT_STEPS conflicts with AGENT_MAX_TOOL_CALLS.')
+        if new_explicit:
+            object.__setattr__(self, 'agent_max_tool_calls', self.max_agent_steps)
+        elif old_explicit:
+            object.__setattr__(self, 'max_agent_steps', self.agent_max_tool_calls)
+        return self
+
+    @property
+    def agent_total_token_budget_explicit(self) -> bool:
+        """旧消费者保留有效32000；新消费者据此区别缺省推导和显式保护。"""
+        return 'agent_total_token_budget' in self.model_fields_set
 
     @field_validator('rag_evaluation_allowed_origins')
     @classmethod
@@ -139,6 +164,15 @@ class Settings(BaseSettings):
         """转换前拒绝布尔值；正数、有限整数与工具硬上限由字段校验。"""
         if isinstance(value, bool):
             raise ValueError('Agent limits must be positive integers.')
+        return value
+
+    @field_validator('model_context_window', 'max_user_input_tokens', 'max_agent_steps',
+                     'tool_result_max_tokens', 'rerank_top_k', 'context_target_rounds',
+                     'max_output_tokens', mode='before')
+    @classmethod
+    def context_numbers_must_not_be_bool(cls, value):
+        if isinstance(value, bool):
+            raise ValueError('Context budgets must be positive integers.')
         return value
 
     # 新增数值配置在强制转换前排除布尔值，有限数校验沿用全局配置。

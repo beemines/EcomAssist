@@ -3,6 +3,7 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_core.tools import BaseTool
@@ -11,6 +12,19 @@ from app.core.errors import ServiceError
 from app.core.memory import estimate_tokens
 from app.repositories.records import decode_tool_calls, record_from_message
 from app.tools.types import ToolCall
+
+if TYPE_CHECKING:
+    from app.config import Settings
+    from app.context.types import ContextBudget
+
+
+def resolve_turn_token_limit(settings: 'Settings', budget: 'ContextBudget', *,
+                            call_limits: Mapping[str, int]) -> int:
+    """新Workflow接线用：显式费用上限原样生效，缺省才采用图派生额度。"""
+    from app.context.budget import derive_turn_token_limit
+
+    derived = derive_turn_token_limit(budget, call_limits=call_limits)
+    return settings.agent_total_token_budget if settings.agent_total_token_budget_explicit else derived
 
 
 @dataclass(frozen=True)
