@@ -28,6 +28,10 @@ _POSITIVE_ACTIONS = (r'已(?:经)?退款(?:成功)?|退款(?:已)?成功|退款�
 _STAGES = (r'已(?:经)?申请(?:退款)?', r'打开.{0,4}表单', r'待审核')
 _REJECTED_ORDER = re.compile(r'不是\s*(?:订单)?\s*([A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*)')
 _UNRESOLVED_ORDER = re.compile(r'待确认|未明确|没(?:有)?明确|未区分|没(?:有)?区分|不明确|不确定|哪(?:一)?单|哪个|那个|那(?:一)?单|其中一单')
+_ORDER_DOUBT = re.compile(r'待确认|未明确|没(?:有)?明确|未区分|没(?:有)?区分|不明确|不确定|哪(?:一)?单|哪个')
+_ORDER_SELECTION = re.compile(r'我选|选择|选定|就是|请查|查询|我要|我说的是|指的是|换成|换单|改查|改为')
+_POSITIONAL_ORDER = re.compile(r'(?:最开始|最早)(?:的)?(?:那个|那笔)?订单|第一(?:个|笔)订单|上一(?:个|笔)?订单|上一单')
+_ORDER_CLARIFICATION = re.compile(r'哪(?:一)?单|哪个订单|确认(?:一下)?(?:具体|要查的)?订单')
 
 
 def _tokens(text):
@@ -75,6 +79,34 @@ def _asserted(text, pattern):
     return False
 
 
+def _order_reference_unresolved(rows) -> bool:
+    """Track lexical uncertainty/narrowing in source order, not general coreference.
+
+    Assistant clarification can retain uncertainty but cannot select an identity.
+    The count is only reference scope; this guard does not resolve a positional ID.
+    """
+    candidates, unresolved = 0, False
+    for row in rows:
+        text = row.content or ''
+        if row.role == 'user':
+            ids = explicit_order_ids(text)
+            doubt = _ORDER_DOUBT.search(text)
+            if ids:
+                if not doubt and (not unresolved or _ORDER_SELECTION.search(text)):
+                    candidates, unresolved = len(ids), False
+                    if re.search(r'换成|换单|改查|改为', text):
+                        candidates = 1
+                else:
+                    candidates = max(candidates, len(ids))
+            if candidates > 1 and _UNRESOLVED_ORDER.search(text):
+                unresolved = True
+            if candidates and not doubt and _POSITIONAL_ORDER.search(text):
+                candidates, unresolved = 1, False
+        elif row.role == 'assistant' and candidates > 1 and _ORDER_CLARIFICATION.search(text):
+            unresolved = True
+    return unresolved
+
+
 def validate_summary(content: str, batch: SummaryBatch) -> str:
     if not isinstance(content, str) or len(content) > 200 or (content and not content.strip()):
         raise ValueError('Summary must be text of at most 200 characters.')
@@ -112,8 +144,8 @@ def validate_summary(content: str, batch: SummaryBatch) -> str:
                 raise ValueError('Summary lost the explicit order switch.')
             if set(_REJECTED_ORDER.findall('\n'.join(users))) != set(_REJECTED_ORDER.findall(content)):
                 raise ValueError('Summary changed which order was explicitly rejected.')
-        elif (any(len(explicit_order_ids(user)) > 1 and _UNRESOLVED_ORDER.search(user) for user in users)
-              and not re.search(r'待确认|未明确|未区分|不明确|没有区分', content)):
+        if (_order_reference_unresolved(batch.source_rows)
+                and not re.search(r'待确认|未明确|未区分|不明确|没有区分', content)):
             raise ValueError('Multiple orders must retain unresolved identity.')
     if facts and not re.search(r'当时|曾|历史', content):
         raise ValueError('Tool facts must be labelled as historical.')

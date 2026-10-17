@@ -247,6 +247,33 @@ async def test_explicit_distinct_orders_commit_without_ambiguity_marker(reposito
     assert len(model.calls) == 1
 
 
+@pytest.mark.parametrize('explicit_selection', [False, True])
+async def test_cross_turn_uncertainty_only_commits_after_source_selection(repository, explicit_selection):
+    from app.context.manager import SummaryManager
+    from app.context.summarizer import SummaryGenerator
+    await seed(repository, turns=3 if explicit_selection else 2)
+    async with repository.database.session() as session, session.begin():
+        await session.execute(text('UPDATE messages SET content=:content WHERE id=:id'), [
+            {'id':101,'content':'订单 O-101 和 O-202 都买过。'},
+            {'id':102,'content':'请问需要查询哪一单？'},
+            {'id':103,'content':'帮我看看那个到哪里了。'},
+            {'id':104,'content':'请确认具体订单。'},
+            {'id':105,'content':'我选择订单 O-101，请查这单物流。'},
+            {'id':106,'content':'会按您选定的订单核实。'}])
+    candidate = '用户查询订单 O-101 的物流，订单 O-202 是其另一笔订单。'
+    model, events = ReplyModel(json.dumps({'content':candidate}, ensure_ascii=False)), Events()
+    manager = SummaryManager(repository, SummaryGenerator(model, settings()), budget_provider=budget, event_logger=events)
+    manager.notify('1', layer2_tokens=100, budget=budget())
+    try:
+        await events.wait('summary_done' if explicit_selection else 'summary_failed')
+    finally:
+        await manager.aclose()
+    anchors, segments = await repository.load('1')
+    assert anchors.summary_upto == (106 if explicit_selection else None)
+    assert [segment.content for segment in segments] == ([candidate] if explicit_selection else [])
+    assert len(model.calls) == 1
+
+
 async def test_entity_dense_batches_split_before_generation_without_losing_identities(repository):
     from app.context.manager import SummaryManager
     await seed(repository, turns=2)
