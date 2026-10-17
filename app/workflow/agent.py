@@ -4,6 +4,7 @@ import json
 import logging
 import time
 from dataclasses import asdict
+from collections.abc import Mapping
 from typing import Literal
 from uuid import uuid4
 
@@ -31,6 +32,7 @@ from app.workflow.after_sales import AfterSalesControl, parse_after_sales_contro
 from app.workflow.prompts import KNOWLEDGE_FALLBACK, agent_decision_system, agent_final_system
 from app.workflow.runtime import WorkflowRuntime
 from app.workflow.state import WorkflowState
+from app.workflow.history import replay_turns
 
 
 logger = logging.getLogger(__name__)
@@ -90,14 +92,7 @@ def _parts(state):
         if isinstance(message, HumanMessage) and message.id == state['user_message_id']), None)
     if index is None:
         raise ValueError('current SQL user message identity missing')
-    turns, turn = [], []
-    for message in messages[:index]:
-        if isinstance(message, HumanMessage) and turn:
-            turns.append(turn)
-            turn = []
-        turn.append(message)
-    if turn:
-        turns.append(turn)
+    turns = replay_turns(messages[:index])
     pending = messages[index + 1:]
     payloads = [json.loads(message.content) for message in pending if isinstance(message, ToolMessage)]
     return turns, messages[index], pending, payloads
@@ -335,7 +330,7 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
     result.id = str(await context.repository.append_message(state['conversation_id'], result))
     trace = {'node': 'tool_node', 'origin': origin, 'name': call.name, 'tool_call_id': call.id,
         'status': outcome.status, 'attempts': outcome.attempts, 'elapsed_seconds': time.monotonic() - started}
-    update = {'messages': [*state['messages'], selected, result], 'selected': None,
+    update = {'messages': [selected, result], 'selected': None,
         'tool_trace': [*state['tool_trace'], trace], 'tool_call_count': state['tool_call_count'] + 1}
     runtime.stream_writer({'event': 'status', 'data': {**identity, 'status': 'completed', 'result_status': outcome.status}})
     log_node(state, 'tool_node', **{key: value for key, value in trace.items() if key != 'node'})
@@ -345,7 +340,7 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
             # 先形成完整状态更新，再由收敛节点抛服务错误，不能丢失配对和计数。
             return {**update, 'tool_error': error}
     try:
-        packet = _packet({**state, **update}, context, agent_final_system(state['intent'], 'answer', after_sales=state['route'] == 'after_sales', refund_decision=state.get('refund_decision'), decision_reason=state.get('decision_reason')))
+        packet = _packet({**state, **update, 'messages': [*state['messages'], *update['messages']]}, context, agent_final_system(state['intent'], 'answer', after_sales=state['route'] == 'after_sales', refund_decision=state.get('refund_decision'), decision_reason=state.get('decision_reason')))
         reserve_call(packet.messages, [], _ledger(state, _limits(context)),
             output_limit=_limits(context).final_output_tokens, final_reserve=0)
     except (InputTooLong, ServiceError) as exc:
@@ -457,6 +452,11 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
             _settle(state, context, ledger, aggregate, estimate, limits.final_output_tokens)
         upstream, context.upstream = context.upstream, None
         await close_answer_stream(upstream)
+
+
+def agent_delta(before_ids: frozenset[str], result: Mapping) -> dict:
+    """Child returns full state internally; parent reducer receives only new SQL IDs."""
+    return {**result, 'messages': [message for message in result.get('messages', []) if message.id not in before_ids]}
 
 
 def build_agent_graph():

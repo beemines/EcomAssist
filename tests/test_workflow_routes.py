@@ -10,7 +10,7 @@ from langgraph.graph import START, END, StateGraph
 
 from app.workflow.runtime import WorkflowRuntime
 from app.workflow.state import WorkflowState, new_turn_state
-from tests.workflow_fakes import ScriptedWorkflowModel, workflow_call, workflow_runtime
+from tests.workflow_fakes import apply_workflow_update, ScriptedWorkflowModel, workflow_call, workflow_runtime
 
 
 def implementation(name):
@@ -37,12 +37,12 @@ async def run_outer(context, question='退货政策是什么？'):
     """采集真实父图更新节点，避免生产代码中添加测试专用追踪。"""
     state = new_turn_state(conversation_id='1', user_message_id=7, raw_question=question,
         category='售后', messages=[HumanMessage(question)])
-    trace, updates = [], {}
+    trace, updates = [], dict(state)
     async for event in outer_graph().astream(state, {'configurable': {'thread_id': '1'}},
         context=context, stream_mode='updates'):
         for name, update in event.items():
             trace.append(name)
-            updates.update(update)
+            apply_workflow_update(updates, update)
     return trace, updates
 
 

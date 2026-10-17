@@ -2,6 +2,14 @@
 from collections import deque
 
 from langchain_core.messages import AIMessage, AIMessageChunk
+from langgraph.graph.message import add_messages
+
+
+def apply_workflow_update(state, update):
+    """Collect real node deltas with the same message semantics as graph state."""
+    if 'messages' in update:
+        update = {**update, 'messages': add_messages(state.get('messages', []), update['messages'])}
+    state.update(update)
 
 
 class ScriptedWorkflowModel:

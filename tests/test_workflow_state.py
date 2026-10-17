@@ -63,3 +63,7 @@ def test_v2_turn_containers_do_not_share_order_or_stage_data():
     first['stage_usage']['understanding'] = {'actual': 12}
     assert second['retrieval_queries'] == []
     assert second['retrieval_audit'] == {} and second['stage_usage'] == {}
+    first['context_budget']['history'] = 100
+    first['context_anchors']['layer1_from'] = '8'
+    assert second['state_version'] == 2 and second['context_version'] == 1
+    assert second['context_budget'] == {} and second['context_anchors']['layer1_from'] is None

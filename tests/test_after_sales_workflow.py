@@ -14,7 +14,7 @@ from app.workflow.graph import build_workflow_graph
 from app.workflow.state import new_turn_state
 from tests.test_evidence import payload
 from tests.test_workflow_routes import outer_graph
-from tests.workflow_fakes import workflow_runtime
+from tests.workflow_fakes import apply_workflow_update, workflow_runtime
 
 
 def context(intent='退款退货', *, data=None):
@@ -47,7 +47,7 @@ async def invoke(ctx, question, *, graph=None, history=()):
         for name, update in event.items():
             trace.append(name)
             if name != '__interrupt__':
-                result.update(update)
+                apply_workflow_update(result, update)
     return trace, result
 
 

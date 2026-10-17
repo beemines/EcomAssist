@@ -57,3 +57,11 @@
 - 单独`trim_messages`参考页本次抓取返回不支持的text/markdown类型，未当作成功重读；官方短期记忆页及锁定源码均读取成功，已有设计期参考记录仍保留。
 - 读取官方[message_to_dict](https://reference.langchain.com/python/langchain-core/messages/base/message_to_dict)及[messages模块](https://reference.langchain.com/python/langchain-core/messages)，核对锁定1.6.6的`messages/base.py`和`messages/utils.py`：`message_to_dict(message: BaseMessage) -> dict[str, Any]`生成type/data字典，`messages_from_dict(messages: Sequence[dict[str, Any]]) -> list[BaseMessage]`重建消息。模型包内部持有JSON文本，取messages/tools时生成新副本，避免后台或调用方修改嵌套工具参数。
 - 冻结预算的phases含MappingProxyType，JSON边界沿用统一估算器的普通JSON副本转换，不调用`asdict(ContextBudget)`或对该代理deepcopy。摘要G计实际注入段的seq、字符串来源ID、正文及消息包装；最终整包另计同一user附件的其他字段、审计JSON、当前工具申请/结果和工具schema。
+
+## 任务4实施：完整State、SQL增量与旧根恢复
+
+- 实施前读取[官方Graph API](https://docs.langchain.com/oss/python/langgraph/graph-api)的消息reducer和Overwrite章节、[子图调用转换](https://docs.langchain.com/oss/python/langgraph/use-subgraphs)及[持久化](https://docs.langchain.com/oss/python/langgraph/persistence)。单独Overwrite和AsyncSqliteSaver reference链接本次抓取失败，未把失败页面作为成功读取；实现同时核对以下锁定源码。
+- 实际安装版本为LangGraph **1.2.15**、langgraph-checkpoint **4.3.0**、langgraph-checkpoint-sqlite **3.1.2**。1.2.15是图包版本，不是SQLite saver包版本。`graph/message.py:64`的`add_messages(left, right, *, format=None)`按ID合并，已有ID替换、缺ID会生成ID；业务消息必须先取得SQL ID，避免匿名模型ID混入持久化。
+- `types.py:1050`的`Overwrite(value: Any)`由`channels/binop.py`识别并绕过reducer，同一super-step不能多个Overwrite。仅完整SQL首次引入/旧根规范化使用，正常节点与语义裁剪均不发Overwrite，不直接修改已有completed根。
+- 子图适配核对`pregel/main.py`实际`ainvoke(input, config=None, *, context=None, stream_mode='values', ..., durability=None)`；显式传入父节点RunnableConfig与runtime.context，保留callbacks、namespace和stream上下文。其默认durability从config的CONFIG_KEY_DURABILITY继承；父服务仍使用sync。真实父子图custom/updates回归确认父agent只发新增SQL消息，子图工具增量和正文仍可见。
+- sqlite/aio.py:324/367/524核对官方表、aget_tuple和aput：checkpoint以thread_id/namespace/checkpoint_id定位，序列化值写入checkpoint BLOB；新轮沿当前thread产生新ID，不调用update_state改旧根。真实pytest tmp SQLite关闭重开两次、旧root checkpoint/metadata字节相等、原locator历史模式验证共同覆盖该约束。

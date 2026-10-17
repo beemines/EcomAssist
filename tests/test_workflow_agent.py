@@ -11,7 +11,7 @@ from app.tools.business import query_order, query_logistics, query_product, cont
 from app.tools.executor import ToolExecutor
 from app.tools.types import ToolContext
 from app.workflow.state import new_turn_state
-from tests.workflow_fakes import ScriptedWorkflowModel, workflow_call, workflow_runtime
+from tests.workflow_fakes import apply_workflow_update, ScriptedWorkflowModel, workflow_call, workflow_runtime
 
 NOTICE = '本轮订单、物流等业务信息为模拟演示数据，仅供参考。\n\n'
 
@@ -56,7 +56,7 @@ async def run(context, state):
             events.append(data)
         else:
             for update in data.values():
-                result.update(update)
+                apply_workflow_update(result, update)
     return result, events
 
 
