@@ -247,16 +247,16 @@ async def test_explicit_distinct_orders_commit_without_ambiguity_marker(reposito
     assert len(model.calls) == 1
 
 
-@pytest.mark.parametrize('explicit_selection', [False, True])
-async def test_cross_turn_uncertainty_only_commits_after_source_selection(repository, explicit_selection):
+@pytest.mark.parametrize('explicit_selection,tentative_selection', [(False, False), (True, False), (False, True)])
+async def test_cross_turn_uncertainty_only_commits_after_source_selection(repository, explicit_selection, tentative_selection):
     from app.context.manager import SummaryManager
     from app.context.summarizer import SummaryGenerator
     await seed(repository, turns=3 if explicit_selection else 2)
     async with repository.database.session() as session, session.begin():
         await session.execute(text('UPDATE messages SET content=:content WHERE id=:id'), [
-            {'id':101,'content':'订单 O-101 和 O-202 都买过。'},
+            {'id':101,'content':'订单 O-101 和 O-202 都买过，帮我看看那个到哪里了。' if tentative_selection else '订单 O-101 和 O-202 都买过。'},
             {'id':102,'content':'请问需要查询哪一单？'},
-            {'id':103,'content':'帮我看看那个到哪里了。'},
+            {'id':103,'content':'可能就是订单 O-101。' if tentative_selection else '帮我看看那个到哪里了。'},
             {'id':104,'content':'请确认具体订单。'},
             {'id':105,'content':'我选择订单 O-101，请查这单物流。'},
             {'id':106,'content':'会按您选定的订单核实。'}])
