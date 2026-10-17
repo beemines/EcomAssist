@@ -15,3 +15,5 @@ __pycache__/
 runtime/rag-evaluation/
 # Workflow 检查点与 SQLite 日志只保存在本机运行目录。
 runtime/workflow/
+# Actual model contexts contain full conversation text and remain local.
+log/app.log

@@ -1,6 +1,7 @@
 """从完整用户轮次及配对读取结果提取订单锚点，拒绝理解模型制造实体。"""
 import json
 import re
+from dataclasses import dataclass
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
@@ -53,7 +54,8 @@ def _order_facts(turn: list[BaseMessage]) -> list[dict]:
             payload = json.loads(result.content)
         except (ValueError, TypeError):
             continue
-        if (isinstance(payload, dict) and not payload.get('error')
+        if (isinstance(payload, dict) and 'error' not in payload and payload.get('status') != 'error'
+                and payload.get('success') is not False
                 and isinstance(payload.get('order_id'), str)
                 and payload['order_id'] == call['args'].get('order_id')):
             facts.append(payload)
@@ -91,4 +93,87 @@ def validate_resolved_entities(raw_question: str, resolved_question: str, histor
     source_text = '\n'.join(source)
     for pattern in (_MODEL, _QUANTITY, _DATE):
         if not set(pattern.findall(resolved_question)) <= set(pattern.findall(source_text)):
+            raise invalid_output()
+
+
+@dataclass(frozen=True)
+class IdentitySource:
+    """Only identities visible in this injected segment and proven by its SQL range."""
+    from_msg_id: int
+    summary_seq: int | None
+    order_ids: frozenset[str]
+    texts: tuple[str, ...]
+
+
+def snapshot_provenance(snapshot, rows):
+    from app.repositories.records import message_from_record
+    rows = sorted(rows, key=lambda row: row.id)
+
+    def source(first, last, visible, seq):
+        original_rows = [row for row in rows if first <= row.id <= last]
+        original = [message_from_record(row) for row in original_rows]
+        turns = completed_history(original)
+        # A cancelled turn's native user text is still a real user expression.
+        users = [row.content for row in original_rows if row.role == 'user']
+        trusted = list(users)
+        facts = [fact for turn in turns for fact in _order_facts(turn)]
+        trusted.extend(json.dumps(fact, ensure_ascii=False) for fact in facts)
+        trusted_text = '\n'.join(trusted)
+        trusted_orders = explicit_order_ids('\n'.join(users)) | {fact['order_id'] for fact in facts}
+        # JSON order_id values are visible even without a Chinese "订单" prefix.
+        orders = frozenset(identifier for identifier in trusted_orders
+                           if identifier in visible and (seq is None or identifier in explicit_order_ids(visible)))
+        tokens = tuple(value for pattern in (_MODEL, _QUANTITY, _DATE, _PHONE)
+                       for value in pattern.findall(visible) if value in set(pattern.findall(trusted_text)))
+        return IdentitySource(first, seq, orders, tokens)
+
+    result = []
+    for segment in snapshot.summaries:
+        # A segment can cover several successive orders. Preserve SQL user-turn
+        # positions inside its range; a single user naming two orders stays a set.
+        starts = [row.id for row in rows if row.role == 'user'
+                  and segment.from_msg_id <= row.id <= segment.upto_msg_id]
+        for index, first in enumerate(starts):
+            last = starts[index + 1] - 1 if index + 1 < len(starts) else segment.upto_msg_id
+            result.append(source(first, last, segment.content, segment.seq))
+    group = []
+    for row in (*snapshot.layer2, *snapshot.layer1):
+        if row.role == 'user' and group:
+            result.append(source(int(group[0].id), int(group[-1].id),
+                '\n'.join(item.content or '' for item in group), None))
+            group = []
+        group.append(row)
+    if group:
+        result.append(source(int(group[0].id), int(group[-1].id),
+            '\n'.join(item.content or '' for item in group), None))
+    return tuple(result)
+
+
+_PHONE = re.compile(r'(?<!\d)1[3-9]\d{9}(?!\d)')
+
+
+def validate_snapshot_entities(raw_question, resolved_question, snapshot, provenance):
+    """Validate finite identity constraints, not arbitrary natural-language fidelity."""
+    visible_seqs = {segment.seq for segment in snapshot.summaries}
+    sources = [item for item in provenance if item.summary_seq is None or item.summary_seq in visible_seqs]
+    groups = [item.order_ids for item in sources if item.order_ids]
+    raw_ids, resolved_ids = explicit_order_ids(raw_question), explicit_order_ids(resolved_question)
+    if '最开始' in raw_question or '最早' in raw_question or '第一单' in raw_question:
+        referenced = groups[0] if groups else frozenset()
+        # If the beginning was omitted, the earliest visible segment is not proof.
+        if snapshot.omitted_summary_seqs:
+            referenced = frozenset()
+    elif '上一单' in raw_question:
+        referenced = groups[-2] if len(groups) >= 2 else frozenset()
+    else:
+        referenced = groups[-1] if groups else frozenset()
+    allowed = raw_ids or (referenced if len(referenced) == 1 else set())
+    if not resolved_ids <= allowed or (raw_ids and not raw_ids <= resolved_ids):
+        raise invalid_output()
+    text = '\n'.join([raw_question, *(value for item in sources if not item.order_ids or item.order_ids <= allowed
+                                    for value in item.texts)])
+    for pattern in (_MODEL, _QUANTITY, _DATE, _PHONE):
+        before, after = set(pattern.findall(raw_question)), set(pattern.findall(resolved_question))
+        if (not after <= set(pattern.findall(text)) or not before <= after
+                or pattern is _PHONE and before and after != before):
             raise invalid_output()

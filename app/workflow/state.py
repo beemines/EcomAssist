@@ -21,6 +21,7 @@ class WorkflowState(TypedDict):
     context_snapshot_id: str | None
     context_anchors: dict[str, str | None]
     context_budget: dict[str, Any]
+    context_snapshot: dict[str, Any] | None
     conversation_id: str
     user_message_id: str
     raw_question: str
@@ -70,6 +71,7 @@ def new_turn_state(*, conversation_id: str, user_message_id: int, raw_question: 
         'context_snapshot_id': None,
         'context_anchors': {'summary_upto': None, 'layer1_from': None},
         'context_budget': {},
+        'context_snapshot': None,
         'conversation_id': conversation_id,
         'user_message_id': str(user_message_id),
         'raw_question': raw_question,

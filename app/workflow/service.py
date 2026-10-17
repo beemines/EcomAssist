@@ -35,6 +35,12 @@ from app.schemas.order_actions import OrderSelectionRequest
 from app.orders.types import OrderSnapshot
 from app.refunds.types import REFUND_REASONS
 from app.repositories.conversations import _conversation_id
+from app.context.layers import ContextCapacityError
+from app.context.logging import budget_fields
+from app.context.service import serialize_snapshot, restore_snapshot
+from app.context.tokens import estimate_text_tokens
+from app.workflow.entities import snapshot_provenance
+from app.workflow.understanding import understanding_packet
 
 
 _LABELS = {'handoff': '转人工', 'create_ticket': '建工单'}
@@ -101,7 +107,8 @@ class WorkflowChatService:
     """只在 SQL 与根 completed 检查点均已完成后发布动作及 done。"""
     def __init__(self, model, repository, registry_factory, locks, settings, *, graph, checkpointer,
                  faq_repository, sufficiency_service, quality_repository, executor=None,
-                 order_provider=None, workflow_retriever=None):
+                 order_provider=None, workflow_retriever=None, context_coordinator=None,
+                 context_logger=None, context_budget_provider=None):
         """保存依赖并幂等启用专用审计，每轮单独组装运行环境及任务。"""
         configure_workflow_logging()
         self.model, self.repository, self.registry_factory = model, repository, registry_factory
@@ -109,6 +116,10 @@ class WorkflowChatService:
         self.faq_repository, self.sufficiency_service = faq_repository, sufficiency_service
         self.quality_repository = quality_repository
         self.order_provider, self.workflow_retriever = order_provider, workflow_retriever
+        self.context_coordinator, self.context_logger = context_coordinator, context_logger
+        self.context_budget_provider = context_budget_provider
+        if (context_coordinator is None) != (context_budget_provider is None):
+            raise ValueError('Context coordinator and actual budget provider must be supplied together.')
         self.executor = executor if executor is not None else ToolExecutor(settings.tool_timeout_seconds,
             settings.tool_max_retries, overrides={'query_faq': (settings.faq_timeout_seconds, 0)})
         self._tasks, self._prepared = set(), {}
@@ -130,6 +141,40 @@ class WorkflowChatService:
                 timeout_seconds=self.settings.llm_timeout_seconds),
             user_id=await self.repository.get_user_id(conversation_id), active_started_at=started,
             active_elapsed_baseline=baseline)
+
+    async def _prepare_context(self, state, runtime, rows, *, resume=False):
+        if self.context_coordinator is None:
+            return
+        budget = self.context_budget_provider(runtime.registry)
+        try:
+            if resume and state.get('context_snapshot'):
+                frozen = restore_snapshot(state['context_snapshot'], budget)
+                if (frozen.conversation_id != state['conversation_id']
+                        or frozen.user_message_id != state['user_message_id']):
+                    raise ValueError('Frozen snapshot identity mismatch.')
+            else:
+                # Legacy pending roots have no frozen context. Establish one only
+                # for the resumed execution; never rewrite the stored paused root.
+                frozen = await self.context_coordinator.prepare(state['conversation_id'],
+                    state['user_message_id'], rows, budget)
+            # Pre-call check includes the full user text, summary JSON and output.
+            understanding_packet(state['raw_question'], frozen, output_tokens=self.settings.intent_max_output_tokens)
+        except ContextCapacityError as exc:
+            if self.context_logger is not None:
+                self.context_logger.event('context_error', {'conversation_id': state['conversation_id'],
+                    'user_message_id': state['user_message_id'], 'reason': 'capacity'})
+            raise ServiceError('context_configuration_conflict' if resume else 'context_capacity',
+                '当前上下文无法放入部署窗口，请检查上下文预算配置。', 409 if resume else 422) from exc
+        runtime.context_snapshot = frozen
+        runtime.context_provenance = snapshot_provenance(frozen, rows)
+        runtime.context_logger = self.context_logger
+        state.update(context_snapshot_id=frozen.snapshot_id, context_snapshot=serialize_snapshot(frozen),
+            context_budget=budget_fields(budget), context_anchors=serialize_snapshot(frozen)['anchors'])
+        if self.context_logger is not None:
+            self.context_logger.history(frozen, consumer='prepare_resume' if resume else 'prepare', packet=None, sent=False)
+            if state.get('context_bootstrap'):
+                self.context_logger.event('context_bootstrap', {'conversation_id': state['conversation_id'],
+                    'user_message_id': state['user_message_id'], 'snapshot_id': frozen.snapshot_id})
 
     def _register(self, prepared):
         """新输入、恢复和重放共用占用及计数审计注册。"""
@@ -156,9 +201,12 @@ class WorkflowChatService:
                 current = HumanMessage(message)
                 preview = self.registry_factory(ToolContext(conversation_id, 0, message, category))
                 schema = [convert_to_openai_tool(tool) for name, tool in preview.items() if name != 'create_ticket']
-                build_tool_messages(agent_decision_system(None), turns, current,
-                    self.settings.tool_input_token_budget, tool_schema=schema)
-                if estimate_call_input(build_intent_messages(message), []) > self.settings.tool_input_token_budget:
+                if self.context_coordinator is None:
+                    build_tool_messages(agent_decision_system(None), turns, current,
+                        self.settings.tool_input_token_budget, tool_schema=schema)
+                    if estimate_call_input(build_intent_messages(message), []) > self.settings.tool_input_token_budget:
+                        raise InputTooLong()
+                elif len(message) > 20000 or estimate_text_tokens(message) > self.settings.max_user_input_tokens:
                     raise InputTooLong()
                 previous = await self.graph.aget_state(checkpoint_config(conversation_id))
                 identifier = await self.repository.append_message(conversation_id, current)
@@ -174,6 +222,7 @@ class WorkflowChatService:
                 if pending_selection(previous, conversation_id):
                     state['supersedes_turn_id'] = previous.values['user_message_id']
                 runtime = await self._runtime(conversation_id, identifier, message, category, deadline, started, registry=registry)
+                await self._prepare_context(state, runtime, rows)
                 prepared = PreparedWorkflowChat(conversation_id, identifier, lease, state, runtime, deadline)
                 prepared.graph_input = {**state, 'messages': history_update}
                 self._register(prepared)
@@ -209,7 +258,7 @@ class WorkflowChatService:
             async with asyncio.timeout(self.settings.chat_timeout_seconds):
                 await self.repository.require_open(conversation_id)
                 snapshot = await self.graph.aget_state(checkpoint_config(conversation_id))
-                state = snapshot.values
+                state = deepcopy(snapshot.values)
                 receipt = state.get('order_selection') or {}
                 pending = pending_selection(snapshot, conversation_id)
                 saved = snapshot.config.get('configurable', {})
@@ -232,12 +281,17 @@ class WorkflowChatService:
                     await self._verify_sql_turn(conversation_id, state, completed=completed)
                     runtime = await self._runtime(conversation_id, int(payload.turn_id), state['raw_question'],
                         state.get('category'), deadline, started, state.get('active_elapsed_seconds', 0.0))
+                    if not completed:
+                        await self._prepare_context(state, runtime,
+                            await self.repository.load_messages(conversation_id), resume=True)
                 prepared = PreparedWorkflowChat(conversation_id, int(payload.turn_id), lease, deepcopy(state), runtime, deadline)
                 if completed:
                     prepared.replay_checkpoint_id = saved['checkpoint_id']
                 else:
+                    context_update = {key: state[key] for key in ('context_snapshot', 'context_snapshot_id',
+                        'context_anchors', 'context_budget') if key in state} if self.context_coordinator else None
                     prepared.graph_input = Command(resume={'order_id': payload.order_id,
-                        'pause_checkpoint_id': payload.checkpoint_id})
+                        'pause_checkpoint_id': payload.checkpoint_id}, update=context_update)
                 return self._register(prepared)
         except TimeoutError:
             lease.release()
@@ -329,6 +383,8 @@ class WorkflowChatService:
                 UUID(checkpoint_id)
                 await self._verify_sql_turn(prepared.conversation_id, final, completed=True)
                 prepared.state = final
+                if self.context_coordinator is not None and prepared.runtime.context_snapshot is not None:
+                    self.context_coordinator.on_completed(prepared.runtime.context_snapshot)
                 log_lifecycle(prepared, 'checkpoint_complete', checkpoint_id=checkpoint_id,
                     final_message_id=final['final_message_id'])
                 await self._completed_events(prepared, final, checkpoint_id, queue)

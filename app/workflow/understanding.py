@@ -2,6 +2,7 @@
 import asyncio
 import math
 import re
+import json
 from dataclasses import dataclass
 
 import httpx
@@ -14,6 +15,10 @@ from app.core.errors import ServiceError
 from app.core.extraction import invalid_output, validate_structured_output
 from app.core.tool_history import build_tool_messages
 from app.workflow.entities import completed_history, validate_resolved_entities
+from app.workflow.entities import validate_snapshot_entities
+from app.context.view import compose_call
+from app.context.tokens import estimate_text_tokens
+from app.core.errors import InputTooLong
 from app.workflow.intent import social_fast_path
 from app.workflow.prompts import UNDERSTANDING_SYSTEM
 
@@ -43,6 +48,12 @@ def preserve_dropped_greeting(raw_question: str, resolved_question: str) -> str:
     return resolved_question
 
 
+def understanding_packet(raw_question, snapshot, *, output_tokens=2048):
+    return compose_call(snapshot, system=SystemMessage(UNDERSTANDING_SYSTEM),
+        current=HumanMessage(raw_question, id=snapshot.user_message_id), attachment={},
+        pending=(), tools=(), output_tokens=output_tokens)
+
+
 @dataclass(frozen=True)
 class Resolution:
     """改写标记由服务端比较原话计算，不要求模型输出额外字段。"""
@@ -52,7 +63,7 @@ class Resolution:
 
 class _UnderstandingOutput(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
-    query: str = Field(min_length=1, max_length=512)
+    query: str = Field(min_length=1, max_length=20000)
 
     @field_validator('query')
     @classmethod
@@ -76,14 +87,18 @@ class QueryUnderstanding:
         self.input_budget, self.timeout_seconds = input_budget, timeout_seconds
         self.usage = {'actual': 0, 'estimated': 0, 'actual_calls': 0, 'estimated_calls': 0}
 
-    async def resolve(self, raw_question: str, history: list[BaseMessage]) -> Resolution:
+    async def resolve(self, raw_question: str, history: list[BaseMessage], *, snapshot=None,
+                      provenance=(), context_logger=None, call_index=1, output_tokens=2048) -> Resolution:
         """社交原样快路，其余只信预算内完整历史；非法输出保持服务错误。"""
         if not isinstance(raw_question, str) or not raw_question.strip():
             raise ValueError('raw question must be nonempty')
         self.usage = dict.fromkeys(self.usage, 0)
         if social_fast_path(raw_question):
             return Resolution(raw_question, False)
-        messages = build_understanding_messages(raw_question, history, self.input_budget)
+        if len(raw_question) > 20000 or estimate_text_tokens(json.dumps({'query': raw_question}, ensure_ascii=False)) > output_tokens:
+            raise InputTooLong()
+        packet = understanding_packet(raw_question, snapshot, output_tokens=output_tokens) if snapshot else None
+        messages = list(packet.messages) if packet else build_understanding_messages(raw_question, history, self.input_budget)
         cost = estimate_call_input(messages, [])
         # 调用已开始即保守计费；有原始实测响应时在协议校验前替换。
         ledger = UsageLedger()
@@ -91,6 +106,10 @@ class QueryUnderstanding:
         self.usage = {key: getattr(ledger, key) for key in self.usage}
         try:
             async with asyncio.timeout(self.timeout_seconds):
+                if context_logger is not None and packet is not None:
+                    context_logger.history(snapshot, consumer='understanding', packet=packet, sent=True)
+                    context_logger.model(packet, conversation_id=snapshot.conversation_id,
+                        user_message_id=snapshot.user_message_id, phase='understanding', call_index=call_index)
                 output = await self.model.ainvoke(messages)
         except LengthFinishReasonError as exc:
             raise invalid_output(finish_reason='length') from exc
@@ -109,6 +128,13 @@ class QueryUnderstanding:
             raise invalid_output(finish_reason=raw.response_metadata.get('finish_reason') if isinstance(raw, AIMessage) else None)
         result = validate_structured_output(output, _UnderstandingOutput)
         query = preserve_dropped_greeting(raw_question, result.query)
-        validate_resolved_entities(raw_question, query, messages[1:-1])
+        if snapshot is None and len(query) > 512:
+            raise invalid_output()  # Legacy callers retain the old contract until activation.
+        if estimate_text_tokens(json.dumps({'query': query}, ensure_ascii=False)) > output_tokens:
+            raise invalid_output()
+        if snapshot is not None:
+            validate_snapshot_entities(raw_question, query, snapshot, provenance)
+        else:
+            validate_resolved_entities(raw_question, query, messages[1:-1])
 
         return Resolution(query, query != raw_question)

@@ -177,7 +177,7 @@ def _unique_object(pairs):
 
 
 class SummaryGenerator:
-    def __init__(self, model, settings):
+    def __init__(self, model, settings, *, context_logger=None):
         # Existing factory has zero SDK retries. Reject an externally misconfigured
         # client instead of shallow-copying a retry setting the owned SDK ignores.
         if isinstance(model, ChatOpenAI) and (model.max_retries != 0 or model.root_async_client.max_retries != 0):
@@ -187,12 +187,20 @@ class SummaryGenerator:
         self.window = settings.model_context_window
         self.safety = max(256, (self.window * 3 + 99) // 100)
         self.timeout = settings.llm_timeout_seconds
+        self.context_logger = context_logger
 
     async def summarize(self, batch: SummaryBatch) -> str:
         messages = summary_messages(batch)
         if estimate_payload(messages) + SUMMARY_OUTPUT_TOKENS + self.safety > self.window:
             raise ValueError('Summary window input + output + safety exceeded.')
         async with asyncio.timeout(self.timeout):
+            if self.context_logger is not None:
+                from app.context.types import ModelContextPacket
+                import hashlib
+                packet = ModelContextPacket(messages, (), estimate_payload(messages), SUMMARY_OUTPUT_TOKENS,
+                    hashlib.sha256(messages[0].content.encode('utf-8')).hexdigest(), batch.source_hash)
+                self.context_logger.model(packet, conversation_id=batch.conversation_id,
+                    user_message_id=str(batch.from_msg_id), phase='summary', call_index=batch.expected_seq + 1)
             raw = await self.model.ainvoke(messages)
         if (not isinstance(raw, AIMessage) or raw.response_metadata.get('finish_reason') != 'stop'
                 or raw.tool_calls or raw.invalid_tool_calls or raw.additional_kwargs.get('tool_calls')

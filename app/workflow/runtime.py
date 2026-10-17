@@ -34,3 +34,6 @@ class WorkflowRuntime:
     active_elapsed_baseline: float = 0.0
     # 同步接收已观测计数，外层流取消也不依赖异步事件排空；每轮独立安装。
     usage_observer: Any = None
+    context_snapshot: Any = None
+    context_provenance: tuple = ()
+    context_logger: Any = None
