@@ -104,11 +104,11 @@ assert shortened_assistant.content == original_assistant.content[:80] + '后文�
 assert snapshot_before_background_commit == snapshot_after_background_commit
 ```
 
-- [ ] **Red**：测试`test_layer1_is_exact_and_layer2_user_is_exact`（客服80字符、大结果一行、小结果160字符界限）、`test_trim_aligns_to_complete_tool_turns`、`test_summary_race_cannot_change_snapshot`、`test_oversize_backlog_errors_without_dropping_user`。断言最近原文/role/参数/结果/ID完全相同，预算恰好等于阈值不降级；一轮多工具与失败残留不拼接成新成功轮次。
-- [ ] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_layers.py tests/test_context_view.py -q`。
-- [ ] **实现**：以`trim_messages`选择候选后对齐完整轮次，推进L只降最旧完整轮；用户正文不动，层2工具仍成对。摘要按完整段时间顺序选择，超过G只选最新完整段并记录遗漏。compose固定system→层2→层1→当前user→一个摘要/证据/控制user附件→当前原生工具对；附件非system，不把当前用户复制两遍。校验最终输入＋输出＋M≤W、H硬上限和防御性副本；超大必需输入给容量错误，不删除原话、不等待摘要。
-- [ ] **Green**：重跑新测试及`tests/test_tool_history.py tests/test_memory.py tests/test_multi_tool_history.py`，证明纯聊天既有完整轮次保护仍在。
-- [ ] **提交**：记四项，`git commit -m "feat: build immutable three-layer model context views"`。
+- [x] **Red**：测试`test_layer1_is_exact_and_layer2_user_is_exact`（客服80字符、大结果一行、小结果160字符界限）、`test_trim_aligns_to_complete_tool_turns`、`test_summary_race_cannot_change_snapshot`、`test_oversize_backlog_errors_without_dropping_user`。断言最近原文/role/参数/结果/ID完全相同，预算恰好等于阈值不降级；一轮多工具与失败残留不拼接成新成功轮次。
+- [x] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_layers.py tests/test_context_view.py -q`。
+- [x] **实现**：以`trim_messages`选择候选后对齐完整轮次，推进L只降最旧完整轮；用户正文不动，层2工具仍成对。摘要按完整段时间顺序选择，超过G只选最新完整段并记录遗漏。compose固定system→层2→层1→当前user→一个摘要/证据/控制user附件→当前原生工具对；附件非system，不把当前用户复制两遍。校验最终输入＋输出＋M≤W、H硬上限和防御性副本；超大必需输入给容量错误，不删除原话、不等待摘要。
+- [x] **Green**：重跑新测试及`tests/test_tool_history.py tests/test_memory.py tests/test_multi_tool_history.py`，证明纯聊天既有完整轮次保护仍在。
+- [x] **提交**：记四项，`git commit -m "feat: build immutable three-layer model context views"`。
 
 ## Task 4: add_messages增量和旧根完整原文恢复
 
