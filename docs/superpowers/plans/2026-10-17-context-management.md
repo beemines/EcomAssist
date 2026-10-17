@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- 状态：本计划待用户审阅，复用此前选定的Subagent-Driven执行方式；尚未开始实现。工作区固定`.worktrees/context-management`、分支`feat/context-management`，保留8002/8003。
+- 状态：用户于2026-10-17批准本计划，按Subagent-Driven方式开始实现。工作区固定`.worktrees/context-management`、分支`feat/context-management`，保留8002/8003。
 - 原文完整持久化：保留SQL工具申请/结果，State.messages使用add_messages，普通节点只吐增量；不把裁剪列表写回checkpoint。
 - `id <= S`已摘要；`S < id <= L`层2；`id > L`层1。S/L分别是summary_upto_msg_id/layer1_from_msg_id，均为完整轮次最终消息的排他上界，单调前进。
 - 层2客服正文前80个Unicode字符；小工具结果不超过160字符可原样；大结果一行标识但保留配对、实体和mock。层1原文不改。
@@ -50,8 +50,8 @@
 
 ## 执行前基线（计划获批后执行）
 
-- [ ] 确认`git status --short --branch`只有预期文档提交；读取原spec、API记录和各任务现有源码。当前仅有设计文档静态检查，没有本章产品测试成绩。
-- [ ] 在该worktree使用`uv sync --frozen`准备锁定依赖，既有环境可用则不重装；不得复制含密钥的环境内容到报告。PowerShell设`$env:PYTHONUTF8='1'`，以下命令均在该worktree执行。
+- [x] 确认`git status --short --branch`只有预期文档提交；读取原spec、API记录和各任务现有源码。本章产品基线结果另外记入dev-notes，不能用设计检查代替。
+- [x] 在该worktree使用`uv sync --frozen --offline`准备锁定依赖（从本机既有缓存安装77包）；未复制含密钥的环境内容到报告。PowerShell设`$env:PYTHONUTF8='1'`，以下命令均在该worktree执行。
 - [ ] 运行`.venv/Scripts/python.exe -m pytest -q`记录基线实际数量。MySQL集成测试用现有3308随机自有库夹具，显式`--run-mysql`；不清空3307应用库。基线失败须先分清既有失败和环境缺失，不写“基线通过”。
 
 各任务的代码块是必须落实的核心测试断言；其中变量由该Task的测试布置，不代表仓库已有这些fixture或这些测试已经运行。
