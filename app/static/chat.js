@@ -45,6 +45,11 @@ const refundFields = document.querySelector("#refund-fields");
 let refundDraft = null;
 const selectionGroups = new Set();
 let refundLocators = [];
+let historyLoad = null;
+let historyRevision = 0;
+let creatingConversation = false;
+const historyStatus = document.querySelector("#history-status");
+const sidebar = new ConversationSidebar({ onSelect: switchConversation, onNew: createConversation, getBusy: conversationBusy });
 const sessionKey = "mewhelp-intent-session-v1";
 const reasonLabels = { unwanted: "不想要了", quality: "质量问题", not_as_described: "与描述不符", wrong_or_missing: "发错/漏发", damaged: "运输破损", other: "其他" };
 
@@ -114,7 +119,7 @@ function showSelection(state, payload) {
     button.className = "support-action order-select";
     button.textContent = "选择此订单";
     button.addEventListener("click", () => {
-      if (active || group.locked || !state.bubble.isConnected) return;
+      if (active || historyLoad || creatingConversation || group.locked || !state.bubble.isConnected) return;
       lockSelections("已选择订单 " + card.order_id + "，正在继续处理…");
       const next = createReplyState();
       next.conversationId = state.conversationId;
@@ -164,7 +169,7 @@ function addRefundEntry(state) {
 
 // 每次打开新表单原因初始空白，订单与金额只读并绑定原完成回答。
 function openRefundForm(state, choice) {
-  if (choice.pending || choice.completed || refundDialog.open || ticketDialog.open || handoffDialog.open || !state.bubble.isConnected) return;
+  if (historyLoad || creatingConversation || choice.pending || choice.completed || refundDialog.open || ticketDialog.open || handoffDialog.open || !state.bubble.isConnected) return;
   refundDraft = { state, choice };
   const offer = state.refundOffer;
   document.querySelector("#refund-order").textContent = offer.order.product_name + " · 订单 " + offer.order.order_id;
@@ -197,6 +202,7 @@ async function submitRefund(event) {
   if (!draft || draft.choice.pending || draft.choice.completed || !refundForm.reportValidity()) return;
   const { state, choice } = draft;
   choice.pending = true;
+  sidebar.setBusy(true);
   choice.button.disabled = refundSubmit.disabled = refundClose.disabled = refundCancel.disabled = refundFields.disabled = true;
   refundSubmit.textContent = "正在提交…";
   refundError.hidden = true;
@@ -219,6 +225,7 @@ async function submitRefund(event) {
     if (refundDraft === draft) { refundError.textContent = error.message || "申请提交失败，请稍后重试。"; refundError.hidden = false; }
   } finally {
     choice.pending = false;
+    sidebar.setBusy(conversationBusy());
     choice.button.disabled = choice.completed;
     refundSubmit.disabled = refundClose.disabled = refundCancel.disabled = refundFields.disabled = false;
     refundSubmit.textContent = "提交申请 · 待审核";
@@ -251,7 +258,7 @@ function pendingRetry(id, message) {
   button.className = "support-action";
   button.textContent = "重新读取待选订单";
   button.addEventListener("click", async () => {
-    if (active || conversationId !== id) return;
+    if (active || historyLoad || creatingConversation || conversationId !== id) return;
     button.disabled = true;
     active = { restoring: true };
     busy(true);
@@ -263,36 +270,168 @@ function pendingRetry(id, message) {
   state.bubble.append(button);
 }
 
-// 页面刷新仅用结构身份恢复待选与退款入口，每个退款定位都重新GET核验。
+// 刷新只保存身份；原文和每轮来源始终重新读取服务端。
 async function restoreSession() {
   let saved;
   try { saved = JSON.parse(sessionStorage.getItem(sessionKey)); } catch { return; }
   if (!saved || !validId(saved.conversationId)) return;
-  conversationId = saved.conversationId;
-  const id = conversationId;
-  refundLocators = Array.isArray(saved.refundLocators) ? saved.refundLocators.filter((item) => validId(item.assistant_message_id) && validUuid(item.checkpoint_id)) : [];
-  const locators = [...refundLocators];
-  active = { restoring: true };
-  busy(true);
-  sendButton.disabled = true;
-  try {
-    try { await restorePending(id); } catch (error) { pendingRetry(id, error.message); }
-    for (const locator of locators) {
-      try {
-        const query = new URLSearchParams(locator);
-        const response = await fetch("/api/conversations/" + id + "/refund-offer?" + query);
-        if (!response.ok) throw new Error("原退款入口未能通过服务器核验，请重新咨询。");
-        const offer = await response.json();
-        if (offer.assistant_message_id !== locator.assistant_message_id || offer.checkpoint_id !== locator.checkpoint_id) throw new Error("原退款入口定位不一致。");
-        const state = createReplyState("已重新核验原回复的退款申请入口。");
-        state.conversationId = id;
-        acceptRefund(offer, state);
-        state.done = true;
-        addRefundEntry(state);
-        welcome.hidden = true;
-      } catch (error) { welcome.hidden = true; addMessage("assistant", error.message); }
+  await switchConversation(saved.conversationId);
+}
+
+function conversationBusy() {
+  return Boolean(active || creatingConversation || ticketDraft?.choice.pending || refundDraft?.choice.pending);
+}
+
+function closeConversationForms() {
+  for (const dialog of [sourceDialog, handoffDialog, ticketDialog, refundDialog]) if (dialog.open) dialog.close();
+}
+
+// Freeze the first page's upper bound and retain every original SQL row in order.
+async function readConversationPages(id, signal) {
+  const pages = [], seen = new Set();
+  let after = null, upto;
+  do {
+    const query = new URLSearchParams({ limit: "200" });
+    if (after) query.set("after_id", after);
+    if (upto !== undefined && upto !== null) query.set("upto_id", upto);
+    const response = await fetch("/api/conversations/" + id + "/messages?" + query, { signal });
+    if (!response.ok) throw new Error("历史暂时无法读取，请稍后重试。");
+    const page = await response.json();
+    if (!Array.isArray(page.messages) || !(page.upto_id === null || validId(page.upto_id)) ||
+        (upto !== undefined && upto !== page.upto_id) || !page.turn_metadata || typeof page.turn_metadata !== "object" || Array.isArray(page.turn_metadata)) throw new Error("历史格式异常，请稍后重试。");
+    upto = page.upto_id;
+    let last = after;
+    for (const row of page.messages) {
+      if (!row || !validId(row.id) || seen.has(row.id) || (last && BigInt(row.id) <= BigInt(last)) || !upto || BigInt(row.id) > BigInt(upto) ||
+          !["user", "assistant", "tool", "system"].includes(row.role) || !(row.content === null || typeof row.content === "string")) throw new Error("历史格式异常，请稍后重试。");
+      seen.add(row.id); last = row.id;
     }
-  } finally { active = null; busy(false); }
+    after = page.next_after_id;
+    if (after !== null && (!validId(after) || !page.messages.length || after !== last)) throw new Error("历史分页异常，请稍后重试。");
+    pages.push(page);
+  } while (after);
+  return { id, pages };
+}
+
+// Build in a detached fragment. Invalid metadata cannot partially replace the current chat.
+function hydrateConversation(pageSet) {
+  const fragment = document.createDocumentFragment(), replies = new Map();
+  for (const page of pageSet.pages) for (const row of page.messages) {
+    const metadata = page.turn_metadata[row.id];
+    if (row.role !== "assistant" || row.tool_calls) {
+      const item = addMessage(row.role === "user" ? "user" : "assistant", row.content || "", row.role === "tool" ? "原始工具结果" : row.tool_calls ? "原始工具请求" : undefined, fragment);
+      if (row.tool_calls || row.tool_call_id) {
+        const detail = document.createElement("details"); detail.className = "history-tool";
+        const label = document.createElement("summary"); label.textContent = "工具原始记录";
+        const text = document.createElement("pre"); text.textContent = JSON.stringify({ tool_calls: row.tool_calls, tool_call_id: row.tool_call_id }, null, 2);
+        detail.append(label, text); item.bubble.append(detail);
+      }
+      continue;
+    }
+    const state = createReplyState(row.content || "", fragment);
+    state.conversationId = pageSet.id;
+    state.messageId = row.id;
+    state.networkFinished = true;
+    if (metadata?.turn_status === "completed") {
+      acceptCitations({ citations: metadata.citations }, state);
+      for (const trace of metadata.tool_badges || []) {
+        // Unknown legacy tools remain in the raw SQL transcript, never become new UI capabilities.
+        if (!Object.hasOwn(toolLabels, trace.name)) continue;
+        acceptStatus({ phase: "tool_running", tool_name: trace.name, tool_call_id: trace.tool_call_id }, state);
+        acceptStatus({ phase: "tool_completed", tool_name: trace.name, tool_call_id: trace.tool_call_id, status: trace.status }, state);
+      }
+      state.hasDelta = Boolean(state.visible);
+      if (metadata.actions) {
+        if (metadata.actions.assistant_message_id !== row.id) throw new Error("历史操作定位异常。");
+        acceptActions(metadata.actions, state);
+      }
+      state.done = true;
+      addFeedback(state);
+      addActions(state);
+      if (metadata.refund_offer) {
+        const locator = metadata.refund_offer;
+        if (locator.assistant_message_id !== row.id || !validUuid(locator.checkpoint_id) || !validUuid(locator.offer_id)) throw new Error("历史退款定位异常。");
+        state.refundLocator = locator;
+      }
+    }
+    renderAnswer(state);
+    replies.set(row.id, state);
+  }
+  return { fragment, replies };
+}
+
+async function switchConversation(id) {
+  if (conversationBusy() || !validId(id)) return false;
+  const revision = ++historyRevision;
+  historyLoad?.controller.abort();
+  const load = { controller: new AbortController() };
+  historyLoad = load;
+  closeConversationForms();
+  busy(true); sendButton.disabled = true;
+  historyStatus.hidden = false; historyStatus.textContent = "正在读取原始历史…";
+  try {
+    const pageSet = await readConversationPages(id, load.controller.signal);
+    if (revision !== historyRevision) return false;
+    const hydrated = hydrateConversation(pageSet);
+    // Optional business GETs only revalidate the original locator. Never execute restored actions.
+    for (const state of hydrated.replies.values()) if (state.refundLocator) {
+      try {
+        const locator = state.refundLocator;
+        const query = new URLSearchParams({ assistant_message_id: locator.assistant_message_id, checkpoint_id: locator.checkpoint_id });
+        const response = await fetch("/api/conversations/" + id + "/refund-offer?" + query, { signal: load.controller.signal });
+        if (!response.ok) throw new Error();
+        const offer = await response.json();
+        if (["assistant_message_id", "checkpoint_id", "offer_id"].some((key) => offer[key] !== locator[key])) throw new Error();
+        acceptRefund(offer, state);
+      } catch { state.note.textContent = "原退款入口暂不可用，请重新咨询。"; }
+    }
+    let pending, pendingError = false;
+    try {
+      const response = await fetch("/api/conversations/" + id + "/pending-order", { signal: load.controller.signal });
+      if (!response.ok) throw new Error();
+      const result = await response.json();
+      pending = result.pending ? validateSelection(result.pending) : null;
+    } catch { pendingError = true; }
+    if (revision !== historyRevision) return false;
+    selectionGroups.clear(); refundLocators = [];
+    conversationId = id;
+    messages.replaceChildren(hydrated.fragment);
+    for (const state of hydrated.replies.values()) addRefundEntry(state);
+    if (pending) {
+      const state = createReplyState(pending.prompt); state.conversationId = id; showSelection(state, pending);
+    } else if (pendingError) pendingRetry(id, "待选订单暂时无法恢复，请重试。");
+    welcome.hidden = messages.childElementCount > 0;
+    const first = pageSet.pages.flatMap((page) => page.messages).find((row) => row.role === "user");
+    document.querySelector("#conversation-title").textContent = first?.content || "新的客服对话";
+    sidebar.setActive(id); saveSession();
+    followBottom = true; scrollBottom(); historyStatus.hidden = true;
+    return true;
+  } catch (error) {
+    if (revision === historyRevision) historyStatus.textContent = error.message || "历史暂时无法读取，请稍后重试。";
+    return false;
+  } finally {
+    if (revision === historyRevision) { historyLoad = null; busy(false); }
+  }
+}
+
+// An explicit new-chat action creates its identity immediately; old history remains selectable.
+async function createConversation() {
+  if (conversationBusy()) return false;
+  ++historyRevision; historyLoad?.controller.abort(); historyLoad = null;
+  creatingConversation = true; closeConversationForms(); busy(true); sendButton.disabled = true;
+  try {
+    const response = await fetch("/api/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: "demo-user" }) });
+    if (!response.ok) throw new Error();
+    const result = await response.json();
+    if (!validId(result.conversation_id)) throw new Error();
+    conversationId = result.conversation_id; selectionGroups.clear(); refundLocators = [];
+    messages.replaceChildren(); welcome.hidden = false; input.value = ""; historyStatus.hidden = true;
+    document.querySelector("#conversation-title").textContent = "新的客服对话";
+    sidebar.setActive(conversationId); saveSession(); void sidebar.refresh();
+    followBottom = true; scrollArea.scrollTop = 0; return true;
+  } catch {
+    historyStatus.hidden = false; historyStatus.textContent = "暂时无法开启新对话，请稍后重试。"; return false;
+  } finally { creatingConversation = false; busy(false); input.focus({ preventScroll: true }); }
 }
 // 后端工具名保持协议原值，页面仅把已注册工具映射为中文展示名称。
 const toolLabels = {
@@ -342,13 +481,16 @@ input.addEventListener("keydown", (event) => {
 });
 
 // 创建一条消息气泡，返回正文、工具徽章和提示节点，供后续流式更新。
-function addMessage(role, text, labelText) {
+function addMessage(role, text, labelText, target = messages) {
   const row = document.createElement("article");
   row.className = "message " + role;
   if (role === "assistant") {
     const avatar = document.createElement("span");
     avatar.className = "avatar";
-    avatar.innerHTML = '<svg aria-hidden="true"><use href="#icon-bag"/></svg>';
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("aria-hidden", "true");
+    const use = document.createElementNS("http://www.w3.org/2000/svg", "use"); use.setAttribute("href", "#icon-bag");
+    svg.append(use); avatar.append(svg);
     row.append(avatar);
   }
   const content = document.createElement("div");
@@ -371,8 +513,8 @@ function addMessage(role, text, labelText) {
   note.className = "message-note";
   content.append(label, bubble, note);
   row.append(content);
-  messages.append(row);
-  scrollBottom();
+  target.append(row);
+  if (target === messages) scrollBottom();
   return { bubble, text: answer, tools, note };
 }
 
@@ -381,6 +523,7 @@ function busy(value) {
   input.disabled = value;
   // 回复期间同步禁用桌面和移动端的新会话按钮。
   newButtons.forEach((button) => { button.disabled = value; });
+  sidebar.setBusy(conversationBusy());
   sendButton.setAttribute("aria-label", value ? "停止回复" : "发送消息");
   sendButton.innerHTML = value ? '<span class="stop-symbol" aria-hidden="true"></span>' : '<svg aria-hidden="true"><use href="#icon-send"/></svg>';
   hint.textContent = value ? "正在回复，你可以随时停止" : "Enter 发送 · Shift + Enter 换行";
@@ -404,6 +547,7 @@ function validId(value, maximum = 18446744073709551615n) {
 
 // 引用属于各自回答的映射，弹窗用 textContent 显示原文，避免执行文档内的 HTML。
 function openSource(citation, trigger) {
+  if (historyLoad || creatingConversation) return;
   sourceTrigger = trigger;
   document.querySelector("#source-title").textContent = "知识来源 [" + citation.n + "]";
   document.querySelector("#source-path").textContent = citation.section_path || "未标注章节路径";
@@ -525,6 +669,8 @@ function finishVisual(state) {
   if (state.paused && !state.error && !state.stopped) showSelection(state, state.selection);
   active = null;
   busy(false);
+  sidebar.setActive(conversationId);
+  void sidebar.refresh();
   scrollBottom();
   input.focus({ preventScroll: true });
 }
@@ -639,7 +785,7 @@ function acceptActions(payload, state) {
 
 // 每次打开空白表单，定位始终绑定原回复；打开或取消不产生任何写请求。
 function openTicketForm(state, choice) {
-  if (choice.pending || choice.completed || ticketDialog.open || handoffDialog.open) return;
+  if (historyLoad || creatingConversation || choice.pending || choice.completed || ticketDialog.open || handoffDialog.open || !state.bubble.isConnected) return;
   ticketDraft = { state, choice };
   ticketForm.reset();
   ticketDescription.setCustomValidity("");
@@ -680,6 +826,7 @@ async function submitTicket(event) {
   ticketDescription.setCustomValidity(description ? "" : "请填写问题描述，不能只输入空白。");
   if (!ticketForm.reportValidity()) return;
   choice.pending = true;
+  sidebar.setBusy(true);
   choice.button.disabled = true;
   ticketFields.disabled = true;
   ticketSubmit.disabled = ticketClose.disabled = ticketCancel.disabled = true;
@@ -712,6 +859,7 @@ async function submitTicket(event) {
     }
   } finally {
     choice.pending = false;
+    sidebar.setBusy(conversationBusy());
     choice.button.disabled = choice.completed;
     if (ticketDraft === draft) {
       ticketFields.disabled = false;
@@ -725,7 +873,7 @@ ticketForm.addEventListener("submit", submitTicket);
 
 // 打开主题内确认框，原回复与两个动作在用户确认前均保持原状。
 function openHandoffForm(state, choice) {
-  if (choice.completed || handoffDialog.open || ticketDialog.open || !state.bubble.isConnected) return;
+  if (historyLoad || creatingConversation || choice.completed || handoffDialog.open || ticketDialog.open || !state.bubble.isConnected) return;
   handoffDraft = { state, choice };
   handoffDialog.showModal();
   handoffCancel.focus();
@@ -879,6 +1027,7 @@ async function readReply(state, message, selection = null) {
         throw new Error("会话创建结果异常，请稍后重试。");
       }
       conversationId = id;
+      sidebar.setActive(id);
       saveSession();
     }
     state.conversationId = conversationId;
@@ -938,14 +1087,15 @@ async function readReply(state, message, selection = null) {
 }
 
 // 新消息与选单恢复复用同一渲染状态，刷新摘要无需启动动画或伪造问句。
-function createReplyState(text = "") {
-  const assistant = addMessage("assistant", text);
+function createReplyState(text = "", target = messages) {
+  const assistant = addMessage("assistant", text, undefined, target);
   return { ...assistant, controller: new AbortController(), queue: [], visible: text, citations: new Map(), toolBadges: new Map(), actions: null, actionChoices: new Map(), hasCitations: false, hasDelta: false, lastPaint: performance.now(), networkFinished: false, terminal: false, done: false, stopped: false, error: "", startedText: false, animation: null };
 }
 
 // 提交时创建用户与助手气泡；回复进行中再次点击提交则调用停止逻辑。
 form.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (historyLoad || creatingConversation) return;
   if (active) { stopReply(); return; }
   const message = input.value.trim();
   if (!message) return;
@@ -970,26 +1120,6 @@ form.addEventListener("submit", (event) => {
   void readReply(state, message);
 });
 
-// 为两个新会话入口绑定重置动作，清空页面身份后下一条消息重新创建会话。
-newButtons.forEach((button) => button.addEventListener("click", () => {
-  if (active) return;
-  if (sourceDialog.open) closeSource();
-  if (handoffDialog.open) handoffDialog.close();
-  if (ticketDialog.open) ticketDialog.close();
-  if (refundDialog.open) refundDialog.close();
-  conversationId = null;
-  selectionGroups.clear();
-  refundLocators = [];
-  saveSession();
-  messages.replaceChildren();
-  welcome.hidden = false;
-  document.querySelector("#conversation-title").textContent = "新的客服对话";
-  input.value = "";
-  followBottom = true;
-  resizeInput();
-  scrollArea.scrollTop = 0;
-  input.focus({ preventScroll: true });
-}));
 // 示例问题只填入输入框，由用户确认后发送。
 document.querySelectorAll("[data-prompt]").forEach((button) => button.addEventListener("click", () => {
   input.value = button.dataset.prompt;
@@ -1011,4 +1141,5 @@ async function checkConnection() {
 }
 void checkConnection();
 resizeInput();
+void sidebar.refresh();
 void restoreSession();

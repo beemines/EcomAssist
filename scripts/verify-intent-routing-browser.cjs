@@ -49,7 +49,7 @@ function completed(withOffer = true, actions = false) {
 
 // 夹具服务器仅监听临时回环端口，拥有内存计数，不接触应用DB、模型或8002/8003。
 async function fixtureServer(settings = {}) {
-  const state = { pending: null, records: [], refundAttempts: 0, selectionAttempts: 0, refreshAllowed: true, ...settings };
+  const state = { pending: null, records: [], refundAttempts: 0, selectionAttempts: 0, refreshAllowed: true, historyMessages: [], turnMetadata: {}, ...settings };
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url, "http://127.0.0.1");
     const chunks = [];
@@ -73,31 +73,38 @@ async function fixtureServer(settings = {}) {
       response.on("close", () => clearInterval(timer));
     };
     if (url.pathname === "/health") return json({ status: "controlled" });
-    if (url.pathname === "/api/conversations") return json({ conversation_id: conversation });
+    // Mirror Task8's separate read/create contracts; a GET is never a creation receipt.
+    if (url.pathname === "/api/conversations" && request.method === "POST") return json({ conversation_id: conversation });
+    if (url.pathname === "/api/conversations" && request.method === "GET") return json({ items: state.historyMessages.length ? [{ id: conversation, status: "active", created_at: "2026-10-17T12:00:00", updated_at: "2026-10-17T12:00:00", first_question_preview: state.historyMessages[0].content, has_summary: false }] : [], next_before_id: null });
+    if (url.pathname === `/api/conversations/${conversation}/messages` && request.method === "GET") return json({ messages: state.historyMessages, upto_id: state.historyMessages.at(-1)?.id || null, next_after_id: null, turn_metadata: state.turnMetadata });
     if (url.pathname.endsWith("/pending-order")) return json({ pending: state.pending });
     if (url.pathname.endsWith("/refund-offer")) return json(state.refreshAllowed ? offer : { code: "invalid_offer" }, state.refreshAllowed ? 200 : 422);
     if (url.pathname === "/api/chat") {
+      state.historyMessages = [{ id: turnId, role: "user", content: body.message, tool_calls: null, tool_call_id: null, created_at: "2026-10-17T12:00:00" }];
+      state.turnMetadata = {};
       state.pending = null;
       if (body.message.startsWith("paused")) {
         state.pending = pending;
         state.selectionConflict = body.message === "paused409";
         return stream(frame("order_selection", pending) + frame("paused", { turn_id: turnId, selection_id: selectionId, checkpoint_id: checkpoint, reason: "order_selection" }));
       }
-      if (body.message === "text-only") return stream(frame("delta", { delta: "可以退款，申请退款。" }) + frame("done", { conversation_id: conversation, message_id: messageId }));
+      if (body.message === "text-only") { rememberCompletion(false, { text: "可以退款，申请退款。", citations: [], withOffer: false }); return stream(frame("delta", { delta: "可以退款，申请退款。" }) + frame("done", { conversation_id: conversation, message_id: messageId })); }
       if (body.message === "incomplete") return stream(frame("delta", { delta: "尚未完成的回复" }) + frame("refund_offer", offer));
       if (body.message === "hold-offer") {
         response.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8" });
         response.write(frame("delta", { delta: "等待完成" }) + frame("refund_offer", offer));
-        const timer = setTimeout(() => response.end(frame("done", { conversation_id: conversation, message_id: messageId })), 900);
+        const timer = setTimeout(() => { rememberCompletion(false, { text: "等待完成", citations: [] }); response.end(frame("done", { conversation_id: conversation, message_id: messageId })); }, 900);
         response.on("close", () => clearTimeout(timer));
         return;
       }
+      rememberCompletion(body.message === "actions");
       return stream(completed(true, body.message === "actions"));
     }
     if (url.pathname.endsWith("/actions/select-order")) {
       state.selectionAttempts += 1;
       if (state.selectionConflict && state.selectionAttempts === 1) return json({ code: "selection_conflict", message: "受控409：请重新读取待选。" }, 409);
       state.pending = null;
+      rememberCompletion();
       return stream(completed());
     }
     if (url.pathname.endsWith("/actions/refund")) {
@@ -107,12 +114,17 @@ async function fixtureServer(settings = {}) {
       return;
     }
     if (url.pathname.endsWith("/actions/ticket")) return json({ ticket_no: "TK-CONTROLLED-001", status: "待处理" });
-    const files = { "/": ["index.html", "text/html"], "/static/chat.js": ["chat.js", "text/javascript"], "/static/chat.css": ["chat.css", "text/css"] };
+    const files = { "/": ["index.html", "text/html"], "/static/chat.js": ["chat.js", "text/javascript"], "/static/conversations.js": ["conversations.js", "text/javascript"], "/static/chat.css": ["chat.css", "text/css"] };
     const file = files[url.pathname];
     if (!file) { response.writeHead(404).end(); return; }
     response.writeHead(200, { "Content-Type": file[1] + "; charset=utf-8" });
     response.end(fs.readFileSync(path.join(root, "app/static", file[0])));
   });
+  // Only completed controlled turns expose their original saved metadata on refresh.
+  function rememberCompletion(actions = false, { text = "根据政策可提交申请，实际条件待审核 [1]。", citations = [{ n: 1, chunk_id: "9007199254741003", section_path: "受控政策", question: "退货条件", answer: "受控政策原文 <script>不可执行</script>" }], withOffer = true } = {}) {
+    state.historyMessages.push({ id: messageId, role: "assistant", content: text, tool_calls: null, tool_call_id: null, created_at: "2026-10-17T12:00:01" });
+    state.turnMetadata[messageId] = { turn_status: "completed", citations, tool_badges: [], ...(withOffer ? { refund_offer: { assistant_message_id: messageId, checkpoint_id: checkpoint, offer_id: offerId } } : {}), ...(actions ? { actions: { assistant_message_id: messageId, checkpoint_id: checkpoint, options: [{ action: "handoff", label: "转人工" }, { action: "create_ticket", label: "建工单" }] } } : {}) };
+  }
   await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
   return { state, server, url: `http://127.0.0.1:${server.address().port}/` };
 }
