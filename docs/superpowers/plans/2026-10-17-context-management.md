@@ -86,11 +86,11 @@ assert original_message_bytes_before == original_message_bytes_after
 assert anchors.summary_upto == segments[-1].upto_msg_id
 ```
 
-- [ ] **Red**：用`migration_database`建原conversations/messages及一条原文，测试新列/完整段表与用户DDL相同、重复迁移不动原文、部分DDL已成功可继续、结构漂移拒绝；测试S/L不能越过当前用户、落在tool中间、回退或跨会话；并发append同一batch仅一段提交。
-- [ ] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_migration_cli.py tests/integration/test_context_migration.py tests/integration/test_context_repository.py --run-mysql -q`；先确认3308自有测试库就绪，不能对3307执行这些迁移测试。
-- [ ] **实现**：原样两步DDL与ORM映射；information_schema核对列、类型、索引、字符集/中文注释。MySQL DDL会隐式提交，迁移按已存在结构逐项检查后继续，不能假定整次ALTER可回滚。仓储用每调用独立session/短事务、conversation行锁及expected S/seq核验；模型调用不在事务内。追加段＋S＋投影一次提交，NULL边界规范化、全局ID间隙和唯一键冲突有明确结果。
-- [ ] **Green**：重跑上述命令；断言原消息哈希一致、旧段内容/时间不变、失败事务无S推进。CLI错误不打印数据库URL或密码。
-- [ ] **提交**：记四项，`git commit -m "feat: persist layered context anchors and append-only summaries"`。
+- [x] **Red**：用`migration_database`建原conversations/messages及一条原文，测试新列/完整段表与用户DDL相同、重复迁移不动原文、部分DDL已成功可继续、结构漂移拒绝；测试S/L不能越过当前用户、落在tool中间、回退或跨会话；并发append同一batch仅一段提交。
+- [x] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_migration_cli.py tests/integration/test_context_migration.py tests/integration/test_context_repository.py --run-mysql -q`；先确认3308自有测试库就绪，不能对3307执行这些迁移测试。
+- [x] **实现**：原样两步DDL与ORM映射；information_schema核对列、类型、索引、字符集/中文注释。MySQL DDL会隐式提交，迁移按已存在结构逐项检查后继续，不能假定整次ALTER可回滚。仓储用每调用独立session/短事务、conversation行锁及expected S/seq核验；模型调用不在事务内。追加段＋S＋投影一次提交，NULL边界规范化、全局ID间隙和唯一键冲突有明确结果。
+- [x] **Green**：重跑上述命令；断言原消息哈希一致、旧段内容/时间不变、失败事务无S推进。CLI错误不打印数据库URL或密码。
+- [x] **提交**：记四项，`git commit -m "feat: persist layered context anchors and append-only summaries"`。
 
 ## Task 3: 完整轮次降级、冻结快照与模型包
 
