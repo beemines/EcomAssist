@@ -178,6 +178,8 @@ async def test_received_actual_usage_survives_deadline_before_delta():
 
 async def test_verified_factual_answer_streams_before_completion(tmp_path):
     """修复澄清缓冲不得把有当前成功读取的正常事实流也改成整段缓存。"""
+    from app.workflow.agent import MOCK_DATA_NOTICE
+
     gate, waiting = asyncio.Event(), asyncio.Event()
     class Model(ScriptedWorkflowModel):
         async def astream(self, messages, **kwargs):
@@ -196,10 +198,17 @@ async def test_verified_factual_answer_streams_before_completion(tmp_path):
         service = app.state.chat_service
         prepared = await service.prepare('1', '订单1001物流')
         events = service.stream(prepared)
-        async for event in events:
-            if event.event == 'delta':
-                assert '模拟物流' in event.data['delta']
-                break
+        async def receive_factual_delta():
+            async for event in events:
+                if event.event == 'delta':
+                    if event.data['delta'] == MOCK_DATA_NOTICE:
+                        continue
+                    assert '模拟物流' in event.data['delta']
+                    return
+                assert event.event != 'done'
+            pytest.fail('Provider factual delta was not streamed.')
+
+        await asyncio.wait_for(receive_factual_delta(), 2)
         await asyncio.wait_for(waiting.wait(), 2)
         assert not gate.is_set()
         gate.set()
