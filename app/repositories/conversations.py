@@ -1,13 +1,17 @@
 # 会话仓储：创建会话、校验身份和状态、保存并读取消息流水。
 import re
+from typing import TYPE_CHECKING
 
 from langchain_core.messages import BaseMessage
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.errors import ServiceError
 from app.db.models import Conversation, Message
 from app.db.session import Database
 from app.repositories.records import MessageRecord, decode_tool_calls, record_from_message
+
+if TYPE_CHECKING:
+    from app.schemas.conversation import ConversationPage, MessagePage
 
 
 # 把规范的正十进制字符串转换为无符号 BIGINT 范围内的会话主键。
@@ -31,6 +35,51 @@ class ConversationRepository:
     # 保存创建独立短事务所需的数据库依赖。
     def __init__(self, database: Database):
         self.database = database
+
+    async def list_for_user(self, user_id: str, *, before_id: str | None, limit: int) -> 'ConversationPage':
+        """只读keyset分页，首问通过一条相关子查询取得，不逐会话读取。"""
+        from app.schemas.conversation import ConversationItem, ConversationPage
+        _read_limit(limit)
+        before = _conversation_id(before_id) if before_id is not None else None
+        first_question = (select(Message.content).where(Message.conversation_id == Conversation.id,
+            Message.role == 'user').order_by(Message.id).limit(1).correlate(Conversation).scalar_subquery())
+        query = select(Conversation, first_question.label('first_question')).where(Conversation.user_id == user_id)
+        if before is not None:
+            query = query.where(Conversation.id < before)
+        async with self.database.session() as session:
+            rows = (await session.execute(query.order_by(Conversation.id.desc()).limit(limit + 1))).all()
+            items = [ConversationItem(id=str(row.id), status=row.status, created_at=row.created_at,
+                updated_at=row.updated_at, first_question_preview=question[:80] if question is not None else '新对话',
+                has_summary=row.summary_upto_msg_id is not None or row.summary is not None)
+                for row, question in rows[:limit]]
+            return ConversationPage(items=items, next_before_id=items[-1].id if len(rows) > limit else None)
+
+    async def read_page(self, conversation_id: str, *, user_id: str, after_id: str | None,
+                        upto_id: str | None, limit: int) -> 'MessagePage':
+        """先核验SQL归属，再固定上界读取有限条原文；已结束会话也可读。"""
+        from app.schemas.conversation import HistoryMessage, MessagePage
+        identifier = _conversation_id(conversation_id)
+        _read_limit(limit)
+        after = _conversation_id(after_id) if after_id is not None else 0
+        upto = _conversation_id(upto_id) if upto_id is not None else None
+        if upto is not None and after > upto:
+            raise ServiceError('invalid_history_cursor', '消息分页范围不合法。', 422)
+        async with self.database.session() as session:
+            owned = (await session.execute(select(Conversation.id).where(
+                Conversation.id == identifier, Conversation.user_id == user_id))).scalar_one_or_none()
+            if owned is None:
+                raise ServiceError('conversation_not_found', 'Conversation does not exist.', 404)
+            maximum = await session.scalar(select(func.max(Message.id)).where(Message.conversation_id == identifier))
+            # 外部提供的上界不能预订尚未存在的消息；首次读取冻结实际最大ID。
+            bound = min(upto, maximum) if upto is not None and maximum is not None else maximum
+            query = select(Message).where(Message.conversation_id == identifier,
+                Message.id > after, Message.id <= (bound or 0)).order_by(Message.id).limit(limit + 1)
+            rows = (await session.scalars(query)).all()
+            messages = [HistoryMessage(id=str(row.id), role=row.role, content=row.content,
+                tool_calls=row.tool_calls, tool_call_id=row.tool_call_id, created_at=row.created_at) for row in rows[:limit]]
+            return MessagePage(conversation_id=conversation_id, messages=messages,
+                upto_id=str(bound) if bound is not None else None,
+                next_after_id=messages[-1].id if len(rows) > limit else None)
 
     # 校验用户标识并在短事务中创建会话，返回字符串主键。
     async def create(self, user_id: str) -> str:
@@ -85,3 +134,9 @@ class ConversationRepository:
             _require_conversation(await session.get(Conversation, identifier), open_only=False)
             rows = (await session.scalars(select(Message).where(Message.conversation_id == identifier).order_by(Message.id))).all()
             return [MessageRecord(row.id, row.role, row.content, row.tool_calls, row.tool_call_id) for row in rows]
+
+
+def _read_limit(limit: int) -> None:
+    """HTTP和仓储直接调用使用同一有限分页约束。"""
+    if type(limit) is not int or not 1 <= limit <= 200:
+        raise ServiceError('invalid_history_limit', '分页大小必须在1到200之间。', 422)

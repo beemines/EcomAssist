@@ -1,6 +1,6 @@
 """官方异步 SQLite 生命周期接口。"""
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import aclosing, asynccontextmanager
 from pathlib import Path
 
 from langchain_core.runnables import RunnableConfig
@@ -45,3 +45,18 @@ def checkpoint_path(settings: Settings, project_root: Path) -> Path:
     """相对检查点路径始终锚定项目根目录，绝对配置不受进程 cwd 影响。"""
     configured = settings.workflow_checkpoint_path
     return configured if configured.is_absolute() else project_root / configured
+
+
+async def completed_history_roots(checkpointer, conversation_id: str):
+    """一次遍历原始根，不叠加pending writes或读取最新图展示状态。"""
+    async with aclosing(checkpointer.alist(checkpoint_config(conversation_id))) as roots:
+        async for stored in roots:
+            identity = stored.config.get('configurable', {})
+            raw = stored.checkpoint.get('channel_values', {})
+            if (identity.get('thread_id') == conversation_id and identity.get('checkpoint_ns') == ''
+                    and identity.get('checkpoint_id') == stored.checkpoint.get('id')
+                    and raw.get('conversation_id') == conversation_id and raw.get('turn_status') == 'completed'
+                    and '__start__' not in raw and not raw.get('__pregel_tasks')
+                    and not any(key.startswith('branch:to:') for key in raw)):
+                # 当前父图仅log_response写completed并直连END。输入/Send/分支待调度根都不是原终态。
+                yield identity['checkpoint_id'], raw
