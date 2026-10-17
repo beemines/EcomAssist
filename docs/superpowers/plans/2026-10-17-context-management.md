@@ -209,11 +209,11 @@ assert response.json()['messages'][0]['id'] == '9007199254740993'
 assert model_calls_after_get == model_calls_before_get
 ```
 
-- [ ] **Red**：测试默认50/200、所有页完整、首次冻结upto_id、新消息到来不重复不丢、BIGINT字符串、首问取第一条、summary完成不把旧会话排第一、别的user_id为404。旧/新答复均引用[1]但chunk不同；旧根缺失不重新检索、不捏造引用或动作；GET不产生模型/任务/业务写入。
-- [ ] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_conversation_api.py tests/integration/test_context_conversation_reads.py --run-mysql -q`。
-- [ ] **实现**：两条GET的当前身份服务端限定demo-user；完整原始role/content/工具字段返回，原SQL NULL不伪造文本；可带created_at。HistoryReader一次构建原轮根映射，核验conversation、completed终态、final_message_id及SQL正文，不使用必须“最新用户轮次”的写动作校验来误拒旧历史。恢复locator只供后续已有业务接口再核验，不在GET执行。
-- [ ] **Green**：上述测试及`tests/test_conversation_api.py tests/test_chat_actions.py tests/test_refund_actions.py`；对查询执行计数作断言，避免N条消息反复全扫描checkpoint。
-- [ ] **提交**：记四项，`git commit -m "feat: expose owned conversation history with original citations"`。
+- [x] **Red**：测试默认50/200、所有页完整、首次冻结upto_id、新消息到来不重复不丢、BIGINT字符串、首问取第一条、summary完成不把旧会话排第一、别的user_id为404。旧/新答复均引用[1]但chunk不同；旧根缺失不重新检索、不捏造引用或动作；GET不产生模型/任务/业务写入。
+- [x] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_conversation_api.py tests/integration/test_context_conversation_reads.py --run-mysql -q`。
+- [x] **实现**：两条GET的当前身份服务端限定demo-user；完整原始role/content/工具字段返回，原SQL NULL不伪造文本；可带created_at。HistoryReader一次构建原轮根映射，核验conversation、completed终态、final_message_id及SQL正文，不使用必须“最新用户轮次”的写动作校验来误拒旧历史。恢复locator只供后续已有业务接口再核验，不在GET执行。
+- [x] **Green**：上述测试及`tests/test_conversation_api.py tests/test_chat_actions.py tests/test_refund_actions.py`；对查询执行计数作断言，避免N条消息反复全扫描checkpoint。
+- [x] **提交**：记四项，`git commit -m "feat: expose owned conversation history with original citations"`。
 
 ## Task 9: 主题内多会话侧栏和原文回载
 
