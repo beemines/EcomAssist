@@ -148,7 +148,7 @@ assert anchors_after_failed_summary == anchors_before_failed_summary
 
 ## Task 6: 共用历史视图、来源校验、生命周期和上下文日志
 
-**Files:** Create `app/context/{service,logging}.py`, `tests/test_context_{workflow,lifecycle,logging}.py`; Modify `app/workflow/{runtime,service,nodes,understanding,intent,entities,prompts}.py`, `app/main.py`, `.gitignore`, `tests/workflow_fakes.py`。
+**Files:** Create `app/context/{service,logging}.py`, `tests/test_context_{workflow,lifecycle,logging}.py`; Modify `app/workflow/{runtime,state,service,nodes,understanding,intent,entities,prompts}.py`, `app/context/summarizer.py`, `app/api/chat_actions.py`, `app/main.py`, `.gitignore`, `tests/workflow_fakes.py`, `tests/test_query_understanding.py`。
 
 **Interfaces:** `ContextCoordinator(repository: ContextRepository, manager: SummaryManager, settings)`提供async `prepare(conversation_id: str, user_message_id: str, rows: Sequence[MessageRecord], budget: ContextBudget) -> ContextSnapshot`、同步 `on_completed(snapshot: ContextSnapshot) -> None`。`ContextLogger(path: Path)`提供`history(snapshot, *, consumer: str, packet: ModelContextPacket|None, sent: bool)`、`model(packet, *, conversation_id: str, user_message_id: str, phase: str, call_index: int)`、`event(name: str, fields: Mapping)`和`close()`。理解/分类接收同一snapshot，不能自行再按8000裁一次。
 
@@ -160,7 +160,7 @@ assert 'Authorization' not in log_text and runtime_api_key not in log_text
 
 - [ ] **Red**：测试固定闲聊sent=false仍有history_ctx、理解和分类实际读同一层、后台提交不改变当前快照、摘要实体只能按实际注入段追溯且不能从助手正文造订单。测试新手机号/否定/多个订单和“最开始”与最近订单不同；测试暂停后部署换小窗口时恢复调用会重新核验预算，装不下则明确配置冲突而非超窗发出；logger实际正文含完整摘要/工具JSON且无运行时Authorization；关闭顺序先结束聊天/摘要再关客户端/SQL。
 - [ ] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_workflow.py tests/test_context_lifecycle.py tests/test_context_logging.py -q`。
-- [ ] **实现**：prepare取得本会话快照并按expected边界推进L；State携带可序列化版本，运行期客户端只在Runtime。替换理解器旧过滤投影、分类器仅当前字符串入口；当前诉求优先、summary只定位身份，业务结果必须本轮重读。理解query长度与20k SQL文本/输出预算联合检查，不能截到旧512；路由检索自身512上限仍返回明确输入限制。专用UTF-8 log/app.log逐JSON行，不放宽workflow.audit白名单；每次真实调用前记实际payload，失败/取消不丢已发记录。lifespan注册摘要管理器、verify_context只读核验；注入替身资源仍由调用方拥有，测试不偷连真实库。
+- [ ] **实现**：prepare取得本会话快照并按expected边界推进L；State携带可序列化版本，运行期客户端只在Runtime。替换理解器旧过滤投影、分类器仅当前字符串入口；当前诉求优先、summary只定位身份，业务结果必须本轮重读。理解query长度与20k SQL文本/输出预算联合检查，不能截到旧512；路由检索自身512上限仍返回明确输入限制。专用UTF-8 log/app.log逐JSON行，不放宽workflow.audit白名单；本任务在history/understanding/intent/summary实际边界记payload，失败/取消不丢已发记录；Agent/扩写/充分性/query planner的实际调用包日志随任务7预算接线交付，不在节点重建猜测payload。本任务通过显式注入 context_budget_provider(registry) 完成共享视图及lifespan摘要管理器接线、verify_context只读核验；生产默认预算工厂与默认开启在任务7同实际阶段构造一起交付，不在此造临时预算算法。注入替身资源仍由调用方拥有，测试不偷连真实库。
 - [ ] **Green**：新测试及`tests/test_workflow_lifecycle.py tests/test_workflow_audit.py tests/test_intent_contract.py tests/test_online_chat_reliability.py`；确认闭包与单次Runtime不共享可变快照，任务结束/cancel只有一次成本结算。
 - [ ] **提交**：记四项，`git commit -m "feat: share layered history and log actual model contexts"`。
 
@@ -180,7 +180,11 @@ assert actual_http_body['messages'] == logged_model_context['messages']
 - [ ] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_agent.py tests/test_context_prefix.py tests/test_context_evidence.py -q`。
 - [ ] **实现**：把现有AgentControl/AfterSalesControl解析统一到独立controls模块，动态意图/回复模式/售后理由进用户附件。固定四个读取schema和内部控制schema，服务端保留执行权限；最终阶段不绑工具。从ContextBudget取窗口、MAX_AGENT_STEPS、配置最终输出，不再硬编码512或8000；累计预算独立。FAQ正文只在附件，当前原生回执仍配对，业务结果完整类型副本保留关键字段。top_k只限制线上最终证据，不改Milvus dense/BM25各50或重排模型，不重校准既有得分阈值。
 - [ ] **Green**：新测试及`tests/test_workflow_agent.py tests/test_workflow_agent_limits.py tests/test_workflow_agent_quality.py tests/test_agent_native_current_read.py tests/test_agent_native_control.py tests/test_agent_final_boundary.py tests/test_workflow_gate.py tests/test_refund_decision.py tests/test_refund_policy_scoring.py`；对原政策、两步订单物流、退款需审核、库外拒答各做离线完整图复验。
-- [ ] **首轮校准**：在默认窗口完成最多3轮真实链路冒烟并将实际序列化包与可取得的非流式prompt_tokens配对，保存校准样本/系数/误差，重跑预算与视图测试再交给任务10。计入任务11统一的小额总上限，不为校准修改stream_usage或发明缺失usage；没有usage的调用标未知，不能填0。
+- [ ] **其余阶段日志**：在Agent、扩写、充分性和query planner的实际invoke/stream边界补齐同口径载荷日志与可选回调；任务6不重建这些阶段的猜测输入。日志必须与实际客户端收到的消息及工具一致，失败/取消也保留发出前记录。
+
+- [ ] **默认激活**：复用任务6的 context_budget_provider(registry) 注入接口，在本任务交付唯一的实际阶段预算工厂及默认生命周期开启；启动使用同一工厂，不能让生产默认路径继续走旧8k裁剪或跳过上下文日志。任务6已测的可注入接线不能当作本条完成。
+
+- [ ] **首轮校准准备**：本任务交付实际序列化包与非流式prompt_tokens的采样/误差校核接线及离线验证。真实最多3轮校准移至任务11，在任务10的共享HTTP限额器就绪后、完整批次前运行，避免为任务7另建临时计数器。真实样本、系数版本和误差尚未取得时须明确标待验证，不宣称已校准；不为校准修改stream_usage或发明缺失usage，未知不能填0。
 - [ ] **提交**：记四项，`git commit -m "feat: apply stable agent prefixes and bounded context packets"`。
 
 ## Task 8: 只读会话分页、原文和原轮引用恢复
@@ -225,8 +229,8 @@ assert.equal(fixture.ticketSubmissions, 0);
 **Interfaces:** CLI新增`budget --profile default|demo`和`replay --profile default|demo --output PATH`（完全离线）；PowerShell `start-context-demo.ps1 -Profile default|demo`只拥有8004，分别使用`runtime/workflow/context-{profile}-8004.sqlite`；证据脚本 `--conversation-id ID --output PATH`只读当前SQL/checkpoint。`AcceptanceCallCap(run_id, limits: Mapping[str,int], ledger_path: Path).reserve(provider: Literal['glm','embedding','rerank']) -> None`在真实HTTP派发前原子计数，超额拒绝（async hook中不得调用模型），失败请求也占次数；仅验收启动显式注入，普通运行关闭。启动器可另收`-RunId/-MaxGlmCalls/-MaxEmbeddingCalls/-MaxRerankCalls`，必须整组出现。浏览器脚本默认受控；真实示例为`node scripts/verify-context-browser.cjs --live --profile demo --run-id ch07-demo-001 --max-glm-calls 150 --max-embedding-calls 50 --max-rerank-calls 25 --output runtime/context-evidence/ch07-demo-001`，运行前校验与服务端run及限额完全一致。
 
 ```python
-assert not {'context downgrade', 'summary trigger', 'summary done'} & set(default_events)
-assert {'context downgrade', 'summary trigger', 'summary done'} <= set(demo_events)
+assert not {'context_downgrade', 'summary_trigger', 'summary_done'} & set(default_events)
+assert {'context_downgrade', 'summary_trigger', 'summary_done'} <= set(demo_events)
 assert real_http_dispatches == accepted_reservations  # 不计前端轮数冒充上游次数
 ```
 
@@ -272,7 +276,7 @@ assert original_order_summary_seq in final_injected_summary_seqs
 ```
 
 - [ ] **离线门槛**：运行`.venv/Scripts/python.exe -m pytest -q`、本章3308集成测试（`tests/integration/test_context_migration.py tests/integration/test_context_repository.py tests/integration/test_context_conversation_reads.py --run-mysql`）和两套受控浏览器脚本。记录总数、skip与环境限制，不能把单个子集累加成全量通过；无新改动/失败不反复扩大回归。
-- [ ] **少量真实页面、prompt与校准复核**：用8004、真实当前GLM/BGE、现有知识库做政策、订单物流、选单暂停/取消、OTHER/闲聊、回载引用等固定冒烟；不提交工单/退款。本章小额阶段（含任务7）合计最多6个付费聊天轮次、60次GLM、12次嵌入、6次重排，后台summary也计GLM；任务5的12个标注prompt样例各真实生成一次，全部计入60次GLM总额，不能用假模型结果代替效果验证。沿用任务7计数器并复核provider prompt_tokens误差，未知usage不填0；如需改参数，版本化并重跑受影响离线两profile/预算测试，后续完整批次固定同版本。
+- [ ] **少量真实页面、prompt与首轮校准**：先接入任务10已验证的共享HTTP限额器，再用8004、真实当前GLM/BGE、现有知识库做政策、订单物流、选单暂停/取消、OTHER/闲聊、回载引用等固定冒烟；不提交工单/退款。前最多3个付费聊天轮次完成任务7准备的首轮校准，随后复核；本章小额阶段合计最多6个付费聊天轮次、60次GLM、12次嵌入、6次重排，后台summary也计GLM；任务5的12个标注prompt样例各真实生成一次，全部计入60次GLM总额，不能用假模型结果代替效果验证。复核provider prompt_tokens误差，未知usage不填0；如需改参数，版本化并重跑受影响离线两profile/预算测试，后续完整批次固定同版本。
 - [ ] **完整批次的调用边界**：准备好代码、离线报告及预计调用账本后，核对当前持续授权；两组21轮预计合计约200–280次GLM，另有BGE调用，已超过“不是上百次大量调用”的边界。须把具体轨迹、每组估算和硬上限交用户批准再启动完整批次。计划预留每组最多150次GLM（含摘要）、50次嵌入、25次重排；达到上限立即终止并留失败结果，不重试整组、不扩大上限。若未取得该批授权，标注真实长会话验收待运行，不称本章全部验收完成。
 - [ ] **真实验收与证据**：获该批授权后，先默认21轮、再演示21轮。每轮核对done、模型调用/用量、实际包与日志；默认S/L/段数不变，演示出现downgrade→trigger→done且原订单确实被摘要覆盖并注入。末轮恢复1001与诉求且本轮重新查业务。核对所有原文哈希、原根/引用、后台未阻塞事件时间；重启自己拥有的8004后，浏览器切回两旧会话继续聊、点原引用，桌面和窄屏截图。失败保留原批次报告；定点修复报告单例与整批是否已复验，不覆盖负例。
 - [ ] **整分支评审**：按已选Subagent-Driven逐任务做规格/代码评审，最终对整分支做一次新评审，重点看Review Focus五项和原文/动作兼容。修复实际问题后跑相应验证；本任务不另造“手动清数据使断言通过”。评审结论、剩余风险、验证版本和实际调用数立刻追记ch07。

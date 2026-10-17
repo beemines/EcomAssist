@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 import httpx
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from openai import APITimeoutError, ContentFilterFinishReasonError, LengthFinishReasonError
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,6 +14,15 @@ from app.agent.controls import UsageLedger, estimate_call_input, record_usage
 from app.core.errors import InputTooLong, ServiceError
 from app.core.extraction import invalid_output, validate_structured_output
 from app.workflow.prompts import build_intent_messages
+from app.workflow.prompts import INTENT_SYSTEM
+from app.context.view import compose_call
+
+
+def intent_packet(raw_question, snapshot, *, resolved_question=None, output_tokens=2048):
+    return compose_call(snapshot, system=SystemMessage(INTENT_SYSTEM),
+        current=HumanMessage(raw_question, id=snapshot.user_message_id),
+        attachment={'resolved_question': resolved_question or raw_question}, pending=(), tools=(),
+        output_tokens=output_tokens)
 
 
 Intent = Literal['物流','订单','商品咨询','退款退货','售后','投诉','闲聊','其他']
@@ -60,16 +69,19 @@ class IntentClassifier:
         self.input_budget, self.timeout_seconds = input_budget, timeout_seconds
         self.usage = {'actual': 0, 'estimated': 0, 'actual_calls': 0, 'estimated_calls': 0}
 
-    async def classify(self, raw_question: str) -> IntentResult:
+    async def classify(self, raw_question: str, *, snapshot=None, resolved_question=None,
+                       context_logger=None, call_index=2, output_tokens=2048) -> IntentResult:
         """只处理本轮原话；无效 JSON、非 stop 或上游故障全部保持错误。"""
         if not isinstance(raw_question, str) or not raw_question.strip():
             raise ValueError('raw question must be nonempty')
         self.usage = dict.fromkeys(self.usage, 0)
         if social_fast_path(raw_question):
             return IntentResult('闲聊', '闲聊', 1.0)
-        messages = build_intent_messages(raw_question)
+        packet = intent_packet(raw_question, snapshot, resolved_question=resolved_question,
+                               output_tokens=output_tokens) if snapshot else None
+        messages = list(packet.messages) if packet else build_intent_messages(raw_question)
         cost = estimate_call_input(messages, [])
-        if cost > self.input_budget:
+        if packet is None and cost > self.input_budget:
             raise InputTooLong()
         # 调用已开始即保守计费；有原始实测响应时在协议校验前替换。
         ledger = UsageLedger()
@@ -77,6 +89,10 @@ class IntentClassifier:
         self.usage = {key: getattr(ledger, key) for key in self.usage}
         try:
             async with asyncio.timeout(self.timeout_seconds):
+                if context_logger is not None and packet is not None:
+                    context_logger.history(snapshot, consumer='classification', packet=packet, sent=True)
+                    context_logger.model(packet, conversation_id=snapshot.conversation_id,
+                        user_message_id=snapshot.user_message_id, phase='classification', call_index=call_index)
                 output = await self.model.ainvoke(messages)
         except LengthFinishReasonError as exc:
             raise invalid_output(finish_reason='length') from exc

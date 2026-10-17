@@ -14,6 +14,7 @@ ERRORS = {
     'invalid_refund_action': (422, '该回复不允许提交退款申请。'),
     'refund_conflict': (409, '该订单已有申请或表单内容与原申请冲突。'),
     'selection_conflict': (409, '选单已经失效或与本轮不匹配，请重新发起。'),
+    'context_configuration_conflict': (409, '暂停会话的上下文超出当前部署预算，请恢复兼容配置。'),
     'service_unavailable': (503, '服务暂时不可用，请稍后重试。'),
     'upstream_timeout': (504, '本轮处理超时，请重新发起。'),
     'origin_forbidden': (403, '请求来源不在本机白名单。'),

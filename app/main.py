@@ -47,6 +47,13 @@ from app.tools.registry import build_registry
 from app.core.errors import ServiceError
 from app.core.extraction import ExtractionService
 from app.core.llm import create_model, model_with_output_budget
+from app.context.logging import ContextLogger, budget_fields
+from app.context.manager import SummaryManager
+from app.context.summarizer import SummaryGenerator
+from app.context.service import ContextCoordinator
+from app.context.migration import verify_context
+from app.repositories.context import ContextRepository
+from app.tools.types import ToolContext
 
 
 class _UnavailableDatabase:
@@ -70,6 +77,10 @@ def create_app(
     checkpointer: Any | None = None,
     order_provider: Any | None = None,
     workflow_retriever: Any | None = None,
+    context_coordinator: Any | None = None,
+    context_logger: Any | None = None,
+    context_repository: Any | None = None,
+    context_budget_provider: Any | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
     order_provider = order_provider if order_provider is not None else DemoOrderProvider()
@@ -81,6 +92,10 @@ def create_app(
     owns_model = model is None
     owns_checkpointer = chat_service is None and checkpointer is None
     owns_evaluation_manager = evaluation_manager is None
+    owns_context = context_budget_provider is not None and context_coordinator is None
+    owns_context_logger = context_budget_provider is not None and context_logger is None
+    if context_coordinator is not None and context_budget_provider is None:
+        raise ValueError('Injected context requires an actual budget provider.')
     evaluation_settings = settings.model_copy(deep=True)
     if evaluation_manager is None:
         evaluation_manager = RunManager(RunStore(RUNTIME_ROOT), evaluation_settings, DATASET_ROOT)
@@ -105,7 +120,9 @@ def create_app(
                     owner_resolver=repository.get_user_id), ConversationLocks(), settings,
                 graph=build_workflow_graph(build_agent_graph(), checkpointer=checkpointer), checkpointer=checkpointer,
                 faq_repository=faq_repository, sufficiency_service=assessment, quality_repository=quality_repository,
-                order_provider=order_provider, workflow_retriever=retrieval)
+                order_provider=order_provider, workflow_retriever=retrieval,
+                context_coordinator=context_coordinator, context_logger=context_logger,
+                context_budget_provider=context_budget_provider)
         service = getattr(app.state, 'chat_service', None)
         # 动作读取同一服务的当前注册表工厂，保留注入与测试的外部资源归属。
         def action_registry(context):
@@ -125,7 +142,11 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         nonlocal database, repository, model, faq_repository, sufficiency_service, quality_repository, checkpointer
+        nonlocal context_coordinator, context_logger, context_repository
         async with AsyncExitStack() as resources:
+            if owns_context_logger:
+                context_logger = ContextLogger(Path(__file__).resolve().parents[1] / 'log' / 'app.log')
+                resources.callback(context_logger.close)
             if settings.rerank_min_score is None or not math.isfinite(settings.rerank_min_score):
                 raise ValueError('online hybrid retrieval requires a calibrated finite threshold')
             if owns_database:
@@ -163,6 +184,7 @@ def create_app(
             if getattr(database, 'engine', None) is not None:
                 await verify_quality(database)
                 await verify_refunds(database)
+                await verify_context(database)
             # 默认禁用不恢复或写历史；注入管理器与注入模型一样由调用方持有。
             if owns_evaluation_manager and evaluation_settings.rag_evaluation_enabled:
                 resources.push_async_callback(evaluation_manager.shutdown)
@@ -170,10 +192,30 @@ def create_app(
             if owns_checkpointer:
                 checkpointer = await resources.enter_async_context(open_checkpointer(
                     checkpoint_path(settings, Path(__file__).resolve().parents[1])))
+            if owns_context:
+                if context_repository is None:
+                    if isinstance(database, _UnavailableDatabase):
+                        raise ValueError('Injected conversation storage requires an explicit context repository.')
+                    context_repository = ContextRepository(database)
+                # The sole actual phase factory is supplied by the deployment.
+                # Registry construction is local; recovery does not execute tools.
+                def recovery_budget():
+                    registry = app.state.chat_service.registry_factory(ToolContext('0', 0, '', None))
+                    return context_budget_provider(registry)
+                manager = SummaryManager(context_repository,
+                    SummaryGenerator(model, settings, context_logger=context_logger),
+                    budget_provider=recovery_budget, event_logger=context_logger.event if context_logger else None)
+                context_coordinator = ContextCoordinator(context_repository, manager, settings, context_logger=context_logger)
+                resources.push_async_callback(manager.aclose)
             configure(app)
             if chat_service is None:
                 # 图任务必须先结束，后进先出的资源栈随后才关闭官方 saver。
                 resources.push_async_callback(app.state.chat_service.shutdown)
+            if owns_context:
+                context_logger.event('context_budget', {'budget': budget_fields(recovery_budget()),
+                    'config': {key: getattr(settings, key) for key in ('model_context_window',
+                        'max_user_input_tokens', 'max_agent_steps', 'tool_result_max_tokens', 'rerank_top_k', 'context_target_rounds')}})
+                await manager.startup()
             yield
 
     app = FastAPI(lifespan=lifespan)
@@ -184,7 +226,7 @@ def create_app(
     # 支持已注入依赖但刻意不启动 lifespan 的 HTTPX 调用方。
     if repository is None and database is not None:
         repository = ConversationRepository(database)
-    if model is not None and repository is not None and faq_repository is not None:
+    if model is not None and repository is not None and faq_repository is not None and not owns_context:
         configure(app)
     app.include_router(conversations_router)
     app.include_router(chat_router)

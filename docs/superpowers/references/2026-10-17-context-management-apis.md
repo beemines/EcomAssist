@@ -76,3 +76,11 @@
 - `SummaryManager(repository, generator, *, budget_provider, event_logger=None)`保留指定位置参数。event_logger同步接收`(event_name, fields)`，可接Task6/10的ContextLogger.event；字段只有任务/会话ID、段号、SQL范围、S/目标L、阈值/用量、时间/耗时、运行/等待数及固定原因码，不含客户端、密钥或异常正文。notify同步仅登记/入队；`summary_notify`范围未知。首个短SQL读取冻结L后才发带真实范围的`summary_trigger`；每子段start/done带真实段范围。队列中的后续任务仍在自己的首次读取时冻结L。单段失败保留以前已提交段，失败段不推进S，不自动重试。
 - `SummaryRequest`是冻结内存记录，不是持久任务表。startup每个候选重取budget_provider当前预算，按真实层2投影重算阈值，按同一2运行/8等待规则调度而不等待上游；关闭丢弃等待项、给运行项5秒，再取消并等清理。仅一个应用所有者创建管理器；Workflow/lifespan接线留Task6。
 - 12项人工标注样例见`tests/fixtures/context/summary_cases.json`；离线协议/词法与标注事实断言均通过，反例均拒绝。它们不是模型生成质量报告，真实prompt检查留Task11。词法实体/否定/动作守卫只覆盖已知形式，不能证明任意自然语言的完整忠实度。
+
+## Task6：实际消息日志和暂停快照
+
+- 核对锁定`langchain_openai/chat_models/base.py:_convert_message_to_dict`及实际Chat Completions出站调用点。专用日志复用这个序列化器，包含原生tool_calls参数字符串、空申请content=null及tool_call_id；不序列化模型/SDK/请求头。MockTransport捕获真实请求，逐字段对比日志messages与HTTP messages，失败仍仅一次请求，不访问上游。
+- 核对锁定`langgraph/types.py:Command`的`update`与`resume`及`pregel/main.py:_aprepare_state_snapshot`。恢复以Command更新纯JSON上下文诊断，无messages更新，也不调用update_state。官方读取会把NULL_TASK_ID pending writes叠到旧暂停根的展示状态（显式checkpoint_id也如此）；原SQLite checkpoint/metadata blob及其raw messages不变，不能把展示投影视作原根字节被改写。实际SQLite关闭/重开覆盖这一区别。
+- `ContextCoordinator.prepare`只做边界CAS和不可变视图构造；摘要notify保持同步且不等待生成。已有L>S积压导致当前H容量失败时仍通知管理器，避免每轮失败阻止后续恢复。
+- Task6采用显式`context_budget_provider(registry)`；Task7拥有唯一真实阶段工厂、默认激活与Agent/扩写/充分性/query planner调用包及日志。Task6日志阶段为history/understanding/classification/summary；摘要机器事件使用`summary_notify/trigger/start/done/skipped/failed`对应完整snake_case名，层降级为`context_downgrade`，不能用带空格的计划叙述进行字符串验收。
+- 理解/分类实际共享冻结段与层，来源校验仅取注入段原SQL范围内的用户表达或成功配对读取，与可见实体取完整token交集。有限身份/位置/手机号反例不是任意自然语言忠实度证明；否定和当前诉求提示仍需Task11真实有限样例验收。

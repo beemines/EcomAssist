@@ -8,14 +8,16 @@ from uuid import uuid4
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.runtime import Runtime
 
-from app.core.errors import ServiceError
+from app.core.errors import InputTooLong, ServiceError
 from app.core.evidence import build_agent_evidence
 from app.core.llm import model_with_output_budget
 from app.agent.controls import UsageLedger, estimate_call_input, reserve_call
 from app.orders.types import OrderSnapshot
 from app.workflow.after_sales import make_refund_offer, resolve_order_anchor
 from app.workflow.policy_scoring import refund_policy_question
-from app.workflow.understanding import build_understanding_messages
+from app.workflow.understanding import build_understanding_messages, understanding_packet
+from app.workflow.intent import intent_packet
+from app.workflow.entities import validate_snapshot_entities, explicit_order_ids
 from app.workflow.selection import prepare_order_selection, await_order_selection
 from app.workflow.prompts import EXPANSION_SYSTEM, build_intent_messages, agent_final_system, agent_decision_system
 from app.workflow.intent import IntentClassifier, route_intent, social_fast_path
@@ -118,9 +120,16 @@ async def resolve_reference(state: WorkflowState, runtime: Runtime[WorkflowRunti
     if context.understanding is None:
         raise ValueError('query understanding is required')
     history = prior_history(state)
-    messages = build_understanding_messages(state['raw_question'], history, context.settings.tool_input_token_budget)
+    kwargs = {}
+    if context.context_snapshot is not None:
+        kwargs = dict(snapshot=context.context_snapshot, provenance=context.context_provenance,
+                      context_logger=context.context_logger, output_tokens=context.settings.intent_max_output_tokens)
+        messages = list(understanding_packet(state['raw_question'], context.context_snapshot,
+            output_tokens=context.settings.intent_max_output_tokens).messages)
+    else:
+        messages = build_understanding_messages(state['raw_question'], history, context.settings.tool_input_token_budget)
     result, update = await model_stage(state, runtime, 'understanding', context.understanding,
-        lambda: context.understanding.resolve(state['raw_question'], history), messages, following=2)
+        lambda: context.understanding.resolve(state['raw_question'], history, **kwargs), messages, following=2)
     return {**update, 'resolved_question': result.query, 'turn_status': 'running'}
 
 
@@ -134,8 +143,17 @@ async def classify_intent(state: WorkflowState, runtime: Runtime[WorkflowRuntime
         model = model_with_output_budget(context.intent_model, context.settings, context.settings.intent_max_output_tokens)
         classifier = IntentClassifier(model, input_budget=context.settings.tool_input_token_budget,
             timeout_seconds=remaining_timeout(context, context.settings.llm_timeout_seconds))
+        if context.context_snapshot is not None:
+            kwargs = dict(snapshot=context.context_snapshot, resolved_question=state['resolved_question'],
+                context_logger=context.context_logger, output_tokens=context.settings.intent_max_output_tokens)
+            messages = list(intent_packet(state['raw_question'], context.context_snapshot,
+                resolved_question=state['resolved_question'], output_tokens=context.settings.intent_max_output_tokens).messages)
+            question = state['raw_question']
+        else:
+            kwargs, question = {}, state['resolved_question']
+            messages = build_intent_messages(question)
         result, update = await model_stage(state, runtime, 'classification', classifier,
-            lambda: classifier.classify(state['resolved_question']), build_intent_messages(state['resolved_question']), following=1)
+            lambda: classifier.classify(question, **kwargs), messages, following=1)
         intent = result.intent
         raw_intent, confidence = result.raw_intent, result.confidence
     route = route_intent(intent)
@@ -146,13 +164,20 @@ async def classify_intent(state: WorkflowState, runtime: Runtime[WorkflowRuntime
 async def resolve_order(state: WorkflowState, runtime: Runtime[WorkflowRuntime]) -> dict:
     """独立订单锚定节点不查列表，不自动选择唯一候选。"""
     log_node(state, 'resolve_order')
-    resolve_order_anchor(state['raw_question'], state['resolved_question'], prior_history(state))
+    if runtime.context.context_snapshot is not None:
+        validate_snapshot_entities(state['raw_question'], state['resolved_question'],
+            runtime.context.context_snapshot, runtime.context.context_provenance)
+    else:
+        resolve_order_anchor(state['raw_question'], state['resolved_question'], prior_history(state))
     return {'turn_status': 'running'}
 
 
 def selected_order_id(state):
     """先使用已核验选单回执，否则只接受可追溯明确实体。"""
     selected = state.get('order_selection') or {}
+    if state.get('context_snapshot_id'):
+        identifiers = explicit_order_ids(state['raw_question']) or explicit_order_ids(state['resolved_question'])
+        return selected.get('selected_order_id') or (next(iter(identifiers)) if len(identifiers) == 1 else None)
     return selected.get('selected_order_id') or resolve_order_anchor(
         state['raw_question'], state['resolved_question'], prior_history(state))
 
@@ -202,6 +227,8 @@ async def expand_queries(state: WorkflowState, runtime: Runtime[WorkflowRuntime]
     context = runtime.context
     if context.expander is None:
         raise ValueError('query expander is required')
+    if len(state['resolved_question']) > 512:
+        raise InputTooLong()
     order = OrderSnapshot.model_validate_json(json.dumps(state['order_snapshot']))
     messages = [SystemMessage(EXPANSION_SYSTEM), HumanMessage(json.dumps(
         {'question': state['resolved_question'], 'order': state['order_snapshot']}, ensure_ascii=False))]
@@ -222,6 +249,8 @@ async def retrieve_policies(state: WorkflowState, runtime: Runtime[WorkflowRunti
     if context.workflow_retriever is None:
         raise ValueError('workflow retriever is required')
     queries = tuple(state['retrieval_queries']) or (state['resolved_question'],)
+    if len(state['resolved_question']) > 512 or any(len(query) > 512 for query in queries):
+        raise InputTooLong()
     scoring = {}
     if (state['route'] == 'after_sales' and state['intent'] == '退款退货'
             and len(queries) > 1 and state.get('order_snapshot')):
