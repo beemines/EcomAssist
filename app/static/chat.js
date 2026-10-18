@@ -44,6 +44,7 @@ const refundCancel = document.querySelector("#refund-cancel");
 const refundFields = document.querySelector("#refund-fields");
 let refundDraft = null;
 const selectionGroups = new Set();
+const ticketPreviewGroups = new Set();
 let refundLocators = [];
 let historyLoad = null;
 let historyRevision = 0;
@@ -84,11 +85,48 @@ function validateSelection(payload) {
 
 // 新问句或选择提交后锁定旧卡，同组无法再次发送恢复请求。
 function lockSelections(label = "这组订单已失效，请使用最新的订单选择。") {
+  for (const group of ticketPreviewGroups) group.invalidate('此工单预览已失效，请使用最新预览。');
   for (const group of selectionGroups) {
     group.locked = true;
     group.buttons.forEach((button) => { button.disabled = true; });
     group.status.textContent = label;
   }
+}
+
+function validateTicketPreview(payload) {
+  if (!payload || !validId(payload.turn_id) || !validUuid(payload.confirmation_id) || !validUuid(payload.checkpoint_id) ||
+      !['售后', '投诉', '咨询'].includes(payload.ticket_type) || typeof payload.description !== 'string' ||
+      !payload.description.trim() || payload.description.length > 2000 ||
+      Object.keys(payload).sort().join(',') !== 'checkpoint_id,confirmation_id,description,ticket_type,turn_id') {
+    throw new Error('工单预览格式异常，请刷新重试。');
+  }
+  return payload;
+}
+
+function showTicketPreview(state, payload) {
+  const group = window.MewTicketConfirmationUI.render({ container: state.bubble, preview: payload,
+    onDecision: async (decision) => {
+      if (active || historyLoad || creatingConversation || !state.bubble.isConnected || state.conversationId !== conversationId) {
+        throw new Error('请等待当前操作完成后再确认。');
+      }
+      const next = createReplyState();
+      next.conversationId = state.conversationId;
+      active = next; busy(true);
+      next.animation = requestAnimationFrame((time) => tick(next, time));
+      await readReply(next, null, null, { turn_id: payload.turn_id, confirmation_id: payload.confirmation_id,
+        checkpoint_id: payload.checkpoint_id, decision });
+      if (!next.done) {
+        const error = new Error(next.error || '结果尚未确认，可重试同一申请；不会自动创建新工单。');
+        error.permanent = [403, 404, 409, 422].includes(next.httpStatus);
+        throw error;
+      }
+      if (state.ticketWaitingNote) {
+        state.ticketWaitingNote.textContent = '';
+        delete state.ticketWaitingNote.dataset.historyTurnStatus;
+      }
+    },
+  });
+  ticketPreviewGroups.add(group);
 }
 
 // 在聊天流内展示订单摘要；按钮恢复原轮，不新增用户问句。
@@ -352,7 +390,7 @@ function hydrateConversation(pageSet) {
       acceptCitations({ citations: metadata.citations }, state);
       for (const trace of metadata.tool_badges || []) {
         // Unknown legacy tools remain in the raw SQL transcript, never become new UI capabilities.
-        if (!Object.hasOwn(toolLabels, trace.name)) continue;
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(trace.name)) continue;
         acceptStatus({ phase: "tool_running", tool_name: trace.name, tool_call_id: trace.tool_call_id }, state);
         acceptStatus({ phase: "tool_completed", tool_name: trace.name, tool_call_id: trace.tool_call_id, status: trace.status }, state);
       }
@@ -413,13 +451,28 @@ async function switchConversation(id) {
     if (pending && hydrated.incomplete.has(pending.turn_id)) {
       markAwaitingOrder(hydrated.incomplete.get(pending.turn_id));
     }
-    selectionGroups.clear(); refundLocators = [];
+    selectionGroups.clear(); ticketPreviewGroups.clear(); refundLocators = [];
     conversationId = id;
     messages.replaceChildren(hydrated.fragment);
     for (const state of hydrated.replies.values()) addRefundEntry(state);
     if (pending) {
       const state = createReplyState(pending.prompt); state.conversationId = id; showSelection(state, pending);
     } else if (pendingError) pendingRetry(id, "待选订单暂时无法恢复，请重试。");
+    try {
+      const response = await fetch('/api/conversations/' + id + '/pending-ticket', { signal: load.controller.signal });
+      if (!response.ok) throw new Error();
+      const result = await response.json();
+      if (revision !== historyRevision) return false;
+      if (result.pending) {
+        const ticket = validateTicketPreview(result.pending);
+        const note = hydrated.incomplete.get(ticket.turn_id);
+        if (note) { note.dataset.historyTurnStatus = 'awaiting_ticket'; note.textContent = '等待确认工单，可在下方预览中继续。'; }
+        const state = createReplyState('请确认工单信息，确认后才会提交。');
+        state.conversationId = id;
+        state.ticketWaitingNote = note;
+        showTicketPreview(state, ticket);
+      }
+    } catch (error) { if (error.name !== 'AbortError') { /* Sidebar/history remains usable; retry by switching back. */ } }
     welcome.hidden = messages.childElementCount > 0;
     const first = pageSet.pages.flatMap((page) => page.messages).find((row) => row.role === "user");
     document.querySelector("#conversation-title").textContent = first?.content || "新的客服对话";
@@ -444,7 +497,7 @@ async function createConversation() {
     if (!response.ok) throw new Error();
     const result = await response.json();
     if (!validId(result.conversation_id)) throw new Error();
-    conversationId = result.conversation_id; selectionGroups.clear(); refundLocators = [];
+    conversationId = result.conversation_id; selectionGroups.clear(); ticketPreviewGroups.clear(); refundLocators = [];
     messages.replaceChildren(); welcome.hidden = false; input.value = ""; historyStatus.hidden = true;
     document.querySelector("#conversation-title").textContent = "新的客服对话";
     sidebar.setActive(conversationId); saveSession(); void sidebar.refresh();
@@ -460,6 +513,8 @@ const toolLabels = {
   query_logistics: "查询物流",
   query_faq: "查询常见问题",
   create_ticket: "创建人工工单",
+  query_warranty: "查询在保信息",
+  query_return_progress: "查询退货进度",
 };
 // 动作名称与展示文案由页面固定，不接受模型提供 URL、HTML 或任意工具名。
 const actionLabels = { handoff: "转人工", create_ticket: "建工单" };
@@ -675,7 +730,7 @@ function finishVisual(state) {
       trace.badge.textContent = trace.label + " · 结果未确认";
     }
   }
-  if (!state.visible && !state.queue.length) state.text.textContent = state.paused ? state.selection.prompt : state.stopped ? "本轮已停止。" : "这次没有收到完整回复。";
+  if (!state.visible && !state.queue.length) state.text.textContent = state.paused ? (state.ticketPreview ? '请确认工单信息，确认后才会提交。' : state.selection.prompt) : state.stopped ? "本轮已停止。" : "这次没有收到完整回复。";
   if (!state.error && !state.stopped) state.note.textContent = "";
   if (state.error) {
     state.note.className = "message-note error";
@@ -686,7 +741,10 @@ function finishVisual(state) {
   addFeedback(state);
   addActions(state);
   addRefundEntry(state);
-  if (state.paused && !state.error && !state.stopped) showSelection(state, state.selection);
+  if (state.paused && !state.error && !state.stopped) {
+    if (state.ticketPreview) showTicketPreview(state, state.ticketPreview);
+    else showSelection(state, state.selection);
+  }
   active = null;
   busy(false);
   sidebar.setActive(conversationId);
@@ -753,7 +811,7 @@ function acceptStatus(payload, state) {
     return;
   }
   if (!["tool_running", "tool_completed"].includes(phase) ||
-      !Object.hasOwn(toolLabels, payload.tool_name) ||
+      typeof payload.tool_name !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(payload.tool_name) ||
       typeof payload.tool_call_id !== "string" || !payload.tool_call_id ||
       payload.tool_call_id.length > 64) {
     throw new Error("工具状态格式异常，请重新尝试。");
@@ -768,7 +826,7 @@ function acceptStatus(payload, state) {
     badge.className = "tool-badge";
     state.tools.append(badge);
     state.tools.hidden = false;
-    const label = payload.origin === "workflow" && payload.tool_name === "query_faq" ? "知识检索" : toolLabels[payload.tool_name];
+    const label = payload.origin === "workflow" && payload.tool_name === "query_faq" ? "知识检索" : (toolLabels[payload.tool_name] || payload.tool_name);
     trace = { badge, toolName: payload.tool_name, origin: payload.origin, label };
     state.toolBadges.set(payload.tool_call_id, trace);
   }
@@ -1005,6 +1063,12 @@ function acceptFrame(frame, state) {
     acceptActions(payload, state);
   } else if (event === "order_selection" && !state.hasDelta && !state.selection) {
     state.selection = validateSelection(payload);
+  } else if (event === 'ticket_confirmation' && !state.hasDelta && !state.ticketPreview && !state.selection) {
+    state.ticketPreview = validateTicketPreview(payload);
+  } else if (event === 'paused' && state.ticketPreview && !state.hasDelta && payload?.reason === 'ticket_confirmation' &&
+      ['turn_id', 'confirmation_id', 'checkpoint_id'].every((key) => payload[key] === state.ticketPreview[key])) {
+    state.terminal = true;
+    state.paused = true;
   } else if (event === "paused" && state.selection && !state.hasDelta && payload?.reason === "order_selection" &&
       ["turn_id", "selection_id", "checkpoint_id"].every((key) => payload[key] === state.selection[key])) {
     state.terminal = true;
@@ -1013,7 +1077,7 @@ function acceptFrame(frame, state) {
     acceptRefund(payload, state);
   } else if (event === "done" && payload?.conversation_id === state.conversationId &&
              validId(payload.message_id) && Object.keys(payload).sort().join(",") === "conversation_id,message_id" &&
-             !state.selection && (!state.actions || state.actions.assistant_message_id === payload.message_id) &&
+             !state.selection && !state.ticketPreview && (!state.actions || state.actions.assistant_message_id === payload.message_id) &&
              (!state.refundOffer || state.refundOffer.assistant_message_id === payload.message_id) &&
              (!state.actions || !state.refundOffer || state.actions.checkpoint_id === state.refundOffer.checkpoint_id)) {
     state.terminal = true;
@@ -1029,7 +1093,7 @@ function acceptFrame(frame, state) {
 
 // 首轮创建会话，再 POST 聊天请求并持续读取 SSE；后续轮次复用会话身份。
 // 网络读取和逐字动画独立进行，EOF 必须有终止帧才算完整结束。
-async function readReply(state, message, selection = null) {
+async function readReply(state, message, selection = null, ticketDecision = null) {
   let reader;
   try {
     if (!conversationId) {
@@ -1051,13 +1115,14 @@ async function readReply(state, message, selection = null) {
       saveSession();
     }
     state.conversationId = conversationId;
-    const response = await fetch(selection ? "/api/conversations/" + state.conversationId + "/actions/select-order" : "/api/chat", {
+    const response = await fetch(ticketDecision ? '/api/conversations/' + state.conversationId + '/actions/confirm-ticket' : selection ? "/api/conversations/" + state.conversationId + "/actions/select-order" : "/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
-      body: JSON.stringify(selection || { conversation_id: state.conversationId, message }),
+      body: JSON.stringify(ticketDecision || selection || { conversation_id: state.conversationId, message }),
       signal: state.controller.signal,
     });
     if (!response.ok) {
+      state.httpStatus = response.status;
       if (selection) state.recoverSelection = true;
       let payload;
       try { payload = await response.json(); } catch { /* 解析失败时使用安全的默认提示。 */ }
