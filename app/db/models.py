@@ -82,6 +82,26 @@ class Ticket(Base):
     created_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"), comment="创建时间")
 
 
+class ToolAuditLog(Base):
+    __tablename__ = 'tool_audit_logs'
+    __table_args__ = (Index('idx_tool_audit_conversation_time', 'conversation_id', 'created_at'),
+        Index('idx_tool_audit_call', 'tool_call_id'),
+        {'mysql_engine': 'InnoDB', 'mysql_charset': 'utf8mb4', 'comment': '工具调用审计，无外键'})
+    id: Mapped[int] = mapped_column(BIGINT(unsigned=True), primary_key=True, autoincrement=True)
+    conversation_id: Mapped[int | None] = mapped_column(BIGINT(unsigned=True), nullable=True)
+    tool_call_id: Mapped[str] = mapped_column(VARCHAR(64), nullable=False)
+    tool_name: Mapped[str] = mapped_column(VARCHAR(64), nullable=False)
+    source: Mapped[str] = mapped_column(VARCHAR(128), nullable=False)
+    arguments: Mapped[dict] = mapped_column(JSON, nullable=False)
+    result_summary: Mapped[str] = mapped_column(TEXT, nullable=False)
+    status: Mapped[str] = mapped_column(ENUM('success', 'failed', 'timeout', 'validation_blocked', 'permission_denied'), nullable=False)
+    error_code: Mapped[str | None] = mapped_column(VARCHAR(64), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(VARCHAR(512), nullable=True)
+    retry_count: Mapped[int] = mapped_column(INTEGER(unsigned=True), nullable=False)
+    elapsed_ms: Mapped[int] = mapped_column(BIGINT(unsigned=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+
+
 class RefundRequest(Base):
     """只映射显式提交的待审核申请，不开放修改或支付动作。"""
     __tablename__ = 'refund_requests'
