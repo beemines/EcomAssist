@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python3.13、现有 FastAPI0.142.2 / SQLAlchemy2.0.54 / MySQL、LangGraph1.2.15与现有SQLite checkpoint、langchain-core1.6.6、mcp==1.30.0、langchain-mcp-adapters==0.3.2、jsonschema；原生HTML/CSS/JavaScript。
 
-**Spec:** [2026-10-18-pluggable-tools-design.md](../specs/2026-10-18-pluggable-tools-design.md)，用户已明确批准书面设计及本计划，选择Native本会话顺序实现；任务1–8完成，任务9自动化及有界页面结果见[验收报告](../reports/2026-10-18-pluggable-tools-acceptance.md)，真实页面验收仍为PARTIAL。
+**Spec:** [2026-10-18-pluggable-tools-design.md](../specs/2026-10-18-pluggable-tools-design.md)，用户已明确批准书面设计及本计划，选择Native本会话顺序实现；任务1–8完成，任务9自动化及2026-10-19截图主流程、两个失败原句复验已通过，实际版本/范围见[最新复验报告](../reports/2026-10-19-pluggable-tools-reacceptance.md)。用户整合选择尚未提出。
 
 ## Global Constraints
 
@@ -223,12 +223,14 @@ async def test_unconfirmed_write_never_reaches_handler(executor, write_call, bou
 
 - [x] **Step 1 — 先无模型联调：** 为新启动器写未知监听PID绝不停止、目录/创建时间/解释器/祖先不符拒绝接管的后端测试，RED后实现Hidden启动，再验证显式init/verify审计表、三进程健康、两种工具来源、既有订单/RAG流水、确认/取消以及审计数据库故障。演示DDL先核对当前数据库/主机/端口和容器身份；只读verify成功不冒称执行过迁移。普通启动不重跑DDL。
 - [x] **Step 2 — 后端整分支检查：** 依据Review Focus和已批准执行方式做一次后端整分支独立审查，不审前端；必要修复按一个归因修复波和范围复审处理。不要无新变化重新派已通过任务或重审整章。
-- [ ] **Step 3 — 少量页面验收：** 用生成的测试问句和演示订单，通过页面执行设计第9节全部六项；包含两个Server三种读工具、缺描述补齐、确认、取消、否定/仅转人工、原投诉表单。沿用用户小额页面GLM/BGE授权，整批计划上限40次GLM/12次嵌入/6次重排，含后台摘要和失败请求，自动重试规则不变。达到上限就报告未完成项，不增加新批次。不开新非页面付费诊断，不修改SDK/sitecustomize做临时注入。
+- [x] **Step 3 — 少量页面验收：** 用生成的测试问句和演示订单，通过页面执行设计第9节全部六项；包含两个Server三种读工具、缺描述补齐、确认、取消、否定/仅转人工、原投诉表单。沿用用户小额页面GLM/BGE授权，整批计划上限40次GLM/12次嵌入/6次重排，含后台摘要和失败请求，自动重试规则不变。达到上限就报告未完成项，不增加新批次。不开新非页面付费诊断，不修改SDK/sitecustomize做临时注入。执行补充：此前未验的组合查询/仅转人工/窄屏于用户2026-10-19新请求后有界复验通过；原热注册与投诉表单等证据按其实际版本保留。
 - [x] **Step 4 — 动态注册与故障证据：** 在本地登记新的内置模块，实际Agent调用query_demo_dispatch_site；在Server侧加载Task4样例并登记本地权限，仅重启该Server，实际Agent调用query_pickup_hours。保存客服PID/core SHA未变、目录变化和审计来源。受控毫秒级读/写超时在独立测试调用中验证物理尝试和审计，不靠供应商真的出故障；确认1张、取消0张及写retry_count=0分别查库。
 - [x] **Step 5 — 最终冻结回归：** 页面问题如需修复，先保留失败、完成相关回归/审查再冻结源码；`./.venv/Scripts/python.exe -m pytest -q`运行一次完整最终回归，显式独立MySQL集成结果与skip分开。真实模型定点结果不能由单元测试代替，旧第七步长验收状态不倒改。最终5acd974：2930通过188跳过；本章SQL专项4通过。
 - [ ] **Step 6 — 交付与finish：** 报告逐项PASS/FAIL/未执行、最终版本、所有用量及演示命令；普通8005无验收cap，两个Server可独立重启，8004未操作。本地证据和工作树保留。按verification-before-completion与finishing-a-development-branch执行本章最终用户整合选择，未获本章整合选择前不沿用第七步推送授权；提交`docs(ch08): record tool system acceptance and delivery`。
 
 任务9执行补充：初批实用38次GLM；用户另行明确批准最多20次页面定点，追加实用20，累计58，嵌入/重排0。两个简单热工具完整答案、否定建单、原确认/取消与投诉表单已取得页面证据；组合在保/退货进度修复后仅离线复验，Step3保持未完成，未自动追加第三批或宣称整章finish。实际状态优先以验收报告为准。
+
+2026-10-19更新：用户主动要求先测试再给步骤，另行有界复验28/30次GLM，截图主流程、两个组合失败原句、转人工和319px窄屏均通过，相关离线34通过、无产品变更。见[本次报告](../reports/2026-10-19-pluggable-tools-reacceptance.md)与[用户验收步骤](../../ch08-manual-acceptance.md)。此前未复验的主要缺口已补齐；热注册/PID和受控故障按各自实际证据版本记录，本章整合选择仍未提出。
 
 ## 计划自检与执行交接
 
