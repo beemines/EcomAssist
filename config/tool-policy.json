@@ -1,0 +1,10 @@
+{
+  "servers": {},
+  "plugins": [],
+  "tools": [
+    {"source": "builtin", "name": "query_order", "operation": "read"},
+    {"source": "builtin", "name": "query_product", "operation": "read"},
+    {"source": "builtin", "name": "query_faq", "operation": "read", "max_retries": 0},
+    {"source": "builtin", "name": "create_ticket", "operation": "write", "max_retries": 0}
+  ]
+}
