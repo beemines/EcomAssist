@@ -20,7 +20,7 @@ from app.context.view import compose_call
 
 def intent_packet(raw_question, snapshot, *, resolved_question=None, output_tokens=2048):
     return compose_call(snapshot, system=SystemMessage(INTENT_SYSTEM),
-        current=HumanMessage(raw_question, id=snapshot.user_message_id),
+        current=HumanMessage(resolved_question or raw_question, id=snapshot.user_message_id),
         attachment={'resolved_question': resolved_question or raw_question}, pending=(), tools=(),
         output_tokens=output_tokens)
 
