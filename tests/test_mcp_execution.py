@@ -53,5 +53,13 @@ async def test_remote_transport_failure_retries_once_and_is_audited(tmp_path):
         context = ExecutionContext('1', 2, '物流', '查物流1001', policy=local, order_authorizer=owner)
         result = await ToolExecutor(audit_sink=audit).execute(
             ToolCall('down', 'query_logistics', {'order_id': '1001'}), catalog, context=context)
-        assert result.content['error']['code'] == 'tool_connection_error'
+        # A stopped localhost listener can surface ConnectError or ConnectTimeout
+        # on Windows. Both are transient, but the audit must preserve which one
+        # actually occurred rather than relabel a timeout as a connection error.
+        error_code = result.content['error']['code']
+        expected_status = {'tool_connection_error': 'failed', 'tool_timeout': 'timeout'}
+        assert error_code in expected_status
         assert result.attempts == 2 and audit.records[-1].retry_count == 1
+        assert result.status == 'error' and audit.records[-1].status == expected_status[error_code]
+        assert audit.records[-1].error_code == error_code and audit.records[-1].source == 'mcp:logistics'
+        assert audit.records[-1].elapsed_ms > 0
