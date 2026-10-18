@@ -20,6 +20,7 @@ from app.agent.bare import UNFINISHED_ANSWER
 from app.agent.controls import AgentLimits, ToolProtocolError, UsageLedger, call_signature, parse_tool_selection, record_usage, tool_protocol_diagnostic
 from app.core.answer_validation import FinalAnswerStream, close_answer_stream, ensure_answer_active, validate_answer, validate_business_answer
 from app.core.errors import InputTooLong, ServiceError
+from app.core.evidence import EvidencePacket
 from app.core.extraction import invalid_output
 from app.core.llm import model_with_output_budget
 from app.core.sufficiency import QualityDecision
@@ -385,6 +386,20 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
         runtime.stream_writer({'event': 'citations', 'data': {'citations': []}})
         runtime.stream_writer({'event': 'delta', 'data': {'text': UNFINISHED_ANSWER}})
         return {'final_answer': UNFINISHED_ANSWER, 'reply_mode': 'answer', 'suggested_actions': ['handoff'], 'quality': {}, 'citations': []}
+    if (state['reply_mode'] == 'clarification' and state['route'] == 'business' and state['tool_call_count'] == 0
+            and state['intent'] in ('订单', '物流') and _current_read(state, context) is None):
+        # Agent已决定追问，读取工具只缺订单号；固定呈现这个槽位，
+        # 不再让自由生成添加手机号、未验证事实或白名单之外的措辞。
+        answer = '请提供订单号。'
+        quality = QualityDecision(useful=True, reason='需要用户明确要查询的订单号。',
+                                  response_kind='clarification', source=None)
+        validate_answer(answer, {'stop'}, EvidencePacket({}, [], [], None, 'none'), quality)
+        ensure_answer_active(context.deadline)
+        runtime.stream_writer({'event': 'citations', 'data': {'citations': []}})
+        runtime.stream_writer({'event': 'status', 'data': {'phase': 'answering', 'origin': 'workflow'}})
+        runtime.stream_writer({'event': 'delta', 'data': {'text': answer}})
+        log_node(state, 'finalize_answer', usage=state['usage'])
+        return {'final_answer': answer, 'quality': quality.model_dump(), 'citations': [], 'evidence_payload': {}}
     try:
         packet, evidence = _packet(state, context, agent_final_system(None, None))
         ledger = _ledger(state, limits)

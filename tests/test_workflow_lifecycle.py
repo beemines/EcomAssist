@@ -1,5 +1,6 @@
 """真实 Workflow 断连、关闭重启以及新输入边界。"""
 import asyncio
+from contextlib import asynccontextmanager
 
 import pytest
 from langchain_core.messages import AIMessageChunk
@@ -10,21 +11,22 @@ from tests.test_stream_lifecycle import call_response
 from tests.test_workflow_api import Store, workflow_app, request, intent, service_type
 from tests.test_workflow_agent import control
 from tests.workflow_fakes import ScriptedWorkflowModel
-from tests.fakes import decode_sse
+from tests.fakes import FAQStub, decode_sse
+from app.core.sufficiency import QualityDecision
 
 
 class BlockedModel(ScriptedWorkflowModel):
     """真实最终流在首片后阻塞，供断连与关闭验证。"""
     def __init__(self):
         """模型仅执行一次意图和一次澄清决策。"""
-        super().__init__([control('clarification')], intent_replies=[intent('订单')])
+        super().__init__([control('clarification')], intent_replies=[intent('商品咨询')])
         self.waiting, self.gate = asyncio.Event(), asyncio.Event()
 
     async def astream(self, messages, **kwargs):
         """首片已可见时保持收费流打开，取消必须进入 finally。"""
         self.streams += 1
         try:
-            yield AIMessageChunk('请提供订单号。')
+            yield AIMessageChunk('请提供型号。')
             self.waiting.set()
             await self.gate.wait()
             yield AIMessageChunk('', response_metadata={'finish_reason': 'stop'})
@@ -32,14 +34,26 @@ class BlockedModel(ScriptedWorkflowModel):
             self.closed = True
 
 
+@asynccontextmanager
+async def blocked_clarification_app(path, *, model, store=None):
+    """用仍需最终模型的使用澄清验证流生命周期，保留真实图、证据和SQLite。"""
+    class Assessment:
+        async def check(self, question, packet):
+            return QualityDecision(useful=True, reason='需要型号以确认使用说明', response_kind='knowledge', source=None)
+    faq = FAQStub([{'id': 1, 'question': '使用前需要哪些信息', 'answer': '请提供商品型号。', 'category': '使用'}])
+    async with workflow_app(path, model=model, store=store, faq=faq) as app:
+        app.state.chat_service.sufficiency_service = Assessment()
+        yield app
+
+
 @pytest.mark.parametrize('spec', ['2.3', '2.4'])
 async def test_disconnect_releases_every_resource(tmp_path, spec):
     """断连必须取消图任务和上游流，未完成轮次不能提交。"""
     service_type()
     store, model = Store(), BlockedModel()
-    async with workflow_app(tmp_path, model=model, store=store) as app:
+    async with blocked_clarification_app(tmp_path, model=model, store=store) as app:
         service = app.state.chat_service
-        prepared = await service.prepare('1', '我的订单')
+        prepared = await service.prepare('1', '这个商品怎么使用')
         response = ManagedChatResponse(service, prepared)
         disconnect, sent = asyncio.Event(), []
         async def send(message):
@@ -53,6 +67,7 @@ async def test_disconnect_releases_every_resource(tmp_path, spec):
         await asyncio.wait_for(task, 3)
         assert model.closed and store.commits == 0
         assert prepared.audit['usage']['actual_calls'] + prepared.audit['usage']['estimated_calls'] == 4
+        assert prepared.audit['stage_usage']['sufficiency']['estimated_calls'] == 1
         assert not service._tasks
         service.locks.acquire('1').release()
 
@@ -61,9 +76,9 @@ async def test_shutdown_cancels_stream_before_closing_saver(tmp_path):
     """寿命结束应先取消实际图任务，再关闭官方 SQLite。"""
     service_type()
     model, store = BlockedModel(), Store()
-    async with workflow_app(tmp_path, model=model, store=store) as app:
+    async with blocked_clarification_app(tmp_path, model=model, store=store) as app:
         service = app.state.chat_service
-        prepared = await service.prepare('1', '订单在哪')
+        prepared = await service.prepare('1', '这个商品怎么使用')
         async def consume():
             """消费真实流，停机取消通过消费者 finally 释放租约。"""
             try:
@@ -167,9 +182,9 @@ async def test_slow_upstream_close_is_bounded_and_releases_lease(tmp_path):
             """返回必须显式关闭的连接。"""
             return SlowStream()
     waiting, closed = asyncio.Event(), asyncio.Event()
-    async with workflow_app(tmp_path, model=SlowModel()) as app:
+    async with blocked_clarification_app(tmp_path, model=SlowModel()) as app:
         service = app.state.chat_service
-        response = ManagedChatResponse(service, await service.prepare('1', '我的订单'))
+        response = ManagedChatResponse(service, await service.prepare('1', '这个商品怎么使用'))
         disconnect = asyncio.Event()
         async def send(message):
             """发送正常，单独验证断连和慢关闭。"""
