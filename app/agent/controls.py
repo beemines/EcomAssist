@@ -109,7 +109,7 @@ def call_signature(call: ToolCall) -> str:
                                       separators=(',', ':'), allow_nan=False)
 
 
-def parse_tool_selection(reply: AIMessage, registry: Mapping[str, BaseTool]) -> ToolCall | None:
+def parse_tool_selection(reply: AIMessage, registry: Mapping[str, BaseTool], *, allow_unknown: bool = False) -> ToolCall | None:
     """严格校验原单工具协议并标注固定失败原因；Schema 仍交执行器校验。"""
     if not isinstance(reply, AIMessage):
         raise ToolProtocolError(ToolProtocolReason.TYPE)
@@ -125,7 +125,7 @@ def parse_tool_selection(reply: AIMessage, registry: Mapping[str, BaseTool]) -> 
         raise ToolProtocolError(ToolProtocolReason.RAW_MIRROR)
     if reply.tool_calls:
         call = reply.tool_calls[0]
-        if not isinstance(call.get('name'), str) or not call['name'].strip() or call['name'] not in registry:
+        if not isinstance(call.get('name'), str) or not call['name'].strip() or (call['name'] not in registry and not allow_unknown):
             raise ToolProtocolError(ToolProtocolReason.NAME)
         if not isinstance(call.get('args'), dict):
             raise ToolProtocolError(ToolProtocolReason.ARGS)

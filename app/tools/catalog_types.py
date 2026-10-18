@@ -69,6 +69,17 @@ class BoundCatalog(Mapping[str, BaseTool]):
         result._context, result.version = self._context, self.version
         return result
 
+    def with_tool(self, name: str, tool: BaseTool) -> 'BoundCatalog':
+        """Trusted local binding options only; never change the public contract."""
+        schema = tool.tool_call_schema
+        schema = schema if isinstance(schema, dict) else schema.model_json_schema()
+        definition = self.definition(name)
+        if tool.name != name or schema != definition.input_schema:
+            raise ValueError('Runtime binding changed its tool contract.')
+        result = self.subset(self)
+        result._tools[name] = tool
+        return result
+
 
 class CatalogSnapshot:
     def __init__(self, registrations: Mapping[str, ToolRegistration]):

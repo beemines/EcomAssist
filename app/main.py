@@ -45,6 +45,11 @@ from app.refunds.repository import RefundRepository
 from app.refunds.service import RefundActionService
 from app.repositories.tickets import TicketRepository
 from app.tools.registry import build_registry
+from app.tools.registry import build_catalog
+from app.tools.policies import PolicyStore
+from app.tools.mcp_client import MCPDiscovery, ToolCatalogProvider
+from app.tools.executor import ToolExecutor
+from app.tool_audit.repository import ToolAuditRepository, BestEffortAuditSink
 from app.core.errors import ServiceError
 from app.core.extraction import ExtractionService
 from app.core.llm import create_model, model_with_output_budget
@@ -85,6 +90,7 @@ def create_app(
     context_budget_provider: Any | None = None,
     acceptance_call_cap: Any | None = None,
     acceptance_profile: str | None = None,
+    tool_catalog_provider: Any | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
     if acceptance_call_cap is not None and settings.rag_evaluation_enabled:
@@ -125,14 +131,29 @@ def create_app(
             retrieval = workflow_retriever
             if retrieval is None and getattr(faq_repository, 'retriever', None) is not None:
                 retrieval = WorkflowRetriever(faq_repository.retriever)
+            provider = tool_catalog_provider
+            if provider is None and getattr(database, 'engine', None) is not None:
+                path = settings.tool_policy_path
+                if not path.is_absolute():
+                    path = Path(__file__).resolve().parents[1] / path
+                provider = ToolCatalogProvider(build_catalog(faq_repository, tickets,
+                    order_provider=order_provider, owner_resolver=repository.get_user_id),
+                    PolicyStore(path), MCPDiscovery())
+            def registry_factory(context):
+                if provider is not None:
+                    return provider.catalog.snapshot(policy=provider.policies.load()).bind(context)
+                return build_registry(faq_repository, tickets, context, order_provider=order_provider,
+                    owner_resolver=repository.get_user_id)
+            executor = ToolExecutor(settings.tool_timeout_seconds, settings.tool_max_retries,
+                overrides={'query_faq': (settings.faq_timeout_seconds, 0)},
+                audit_sink=BestEffortAuditSink(ToolAuditRepository(database))) if provider is not None else None
             app.state.chat_service = WorkflowChatService(model, repository,
-                lambda context: build_registry(faq_repository, tickets, context, order_provider=order_provider,
-                    owner_resolver=repository.get_user_id), ConversationLocks(), settings,
+                registry_factory, ConversationLocks(), settings,
                 graph=build_workflow_graph(build_agent_graph(), checkpointer=checkpointer), checkpointer=checkpointer,
                 faq_repository=faq_repository, sufficiency_service=assessment, quality_repository=quality_repository,
                 order_provider=order_provider, workflow_retriever=retrieval,
                 context_coordinator=context_coordinator, context_logger=context_logger,
-                context_budget_provider=context_budget_provider)
+                context_budget_provider=context_budget_provider, catalog_provider=provider, executor=executor)
         service = getattr(app.state, 'chat_service', None)
         app.state.history_reader = HistoryReader(checkpointer if checkpointer is not None else
             getattr(service, 'checkpointer', None), repository)

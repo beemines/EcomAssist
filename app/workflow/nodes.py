@@ -87,7 +87,7 @@ def observe_usage(context, update):
 async def model_stage(state, runtime, stage, service, operation, messages, *, following=0):
     """预留后续输出和完整最终输入，成功及失败尝试都记录独立阶段成本。"""
     context = runtime.context
-    from app.workflow.controls import stable_read_schema
+    from app.workflow.controls import stable_tool_schema as stable_read_schema
     settings = runtime_settings(context.settings)
     budget = runtime_snapshot(state, context).budget
     ledger = UsageLedger(budget=turn_token_limit(settings, budget), **state['usage'])
@@ -173,20 +173,26 @@ async def classify_intent(state: WorkflowState, runtime: Runtime[WorkflowRuntime
             timeout_seconds=remaining_timeout(context, context.settings.llm_timeout_seconds))
         if context.context_snapshot is not None:
             kwargs = dict(snapshot=context.context_snapshot, resolved_question=state['resolved_question'],
-                context_logger=context.context_logger, output_tokens=context.settings.intent_max_output_tokens)
+                context_logger=context.context_logger, output_tokens=context.settings.intent_max_output_tokens,
+                ticket_request=state.get('ticket_request'))
             messages = list(intent_packet(state['raw_question'], context.context_snapshot,
-                resolved_question=state['resolved_question'], output_tokens=context.settings.intent_max_output_tokens).messages)
+                resolved_question=state['resolved_question'], output_tokens=context.settings.intent_max_output_tokens,
+                ticket_request=state.get('ticket_request')).messages)
             question = state['raw_question']
         else:
             kwargs, question = {}, state['resolved_question']
             messages = build_intent_messages(question)
+            if state.get('ticket_request'):
+                kwargs['ticket_request'] = state['ticket_request']
+                messages.append(HumanMessage('当前为用户主动要求建单后的补充轮，先核对是否仍在补充问题描述；明确切换/否定优先。'))
         result, update = await model_stage(state, runtime, 'classification', classifier,
             lambda attempt: classifier.classify(question, **kwargs, call_index=2 + attempt), messages, following=1)
         intent = result.intent
         raw_intent, confidence = result.raw_intent, result.confidence
     route = route_intent(intent)
     log_node(state, 'classify_intent', selected_intent=intent, selected_route=route)
-    return {**update, 'intent': intent, 'raw_intent': raw_intent, 'confidence': confidence, 'route': route}
+    return {**update, 'intent': intent, 'raw_intent': raw_intent, 'confidence': confidence, 'route': route,
+            'ticket_request': state.get('ticket_request') if intent == '工单' else None}
 
 
 async def resolve_order(state: WorkflowState, runtime: Runtime[WorkflowRuntime]) -> dict:
@@ -222,8 +228,18 @@ async def workflow_tool(state, runtime, node, name, args, operation):
     started = time.monotonic()
     identity = {'tool': name, 'tool_call_id': identifier, 'origin': 'workflow'}
     runtime.stream_writer({'event': 'status', 'data': {**identity, 'status': 'running'}})
-    payload = await operation()
-    result_status = 'error' if isinstance(payload, dict) and 'error' in payload else 'success'
+    from app.tools.catalog_types import BoundCatalog
+    if isinstance(context.registry, BoundCatalog):
+        from app.workflow.tool_calls import run_workflow_tool, forced_read_registration, execution_context
+        from app.tools.types import ToolCall
+        definition = context.registry.definition(name)
+        registered = forced_read_registration(definition, operation)
+        outcome = await run_workflow_tool(ToolCall(identifier, name, args), registered,
+            context=execution_context(state, context), executor=context.executor)
+        payload, result_status = outcome.content, outcome.status
+    else:
+        payload = await operation()
+        result_status = 'error' if isinstance(payload, dict) and 'error' in payload else 'success'
     result = ToolMessage(json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False),
         tool_call_id=identifier, name=name, status=result_status)
     result.id = str(await context.repository.append_message(state['conversation_id'], result))

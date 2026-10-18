@@ -54,16 +54,17 @@ def _split_messages(messages: list[BaseMessage]):
 
 
 async def run_bare_agent(model, registry: Mapping[str, BaseTool], executor: ToolExecutor,
-                         messages: list[BaseMessage], *, limits: AgentLimits) -> BareAgentResult:
+                         messages: list[BaseMessage], *, limits: AgentLimits, context=None) -> BareAgentResult:
     """整轮固定最多 240 秒，取消/期限不重试并原样传播。"""
     async with asyncio.timeout(240):
-        return await _run_bare_agent(model, registry, executor, messages, limits=limits)
+        return await _run_bare_agent(model, registry, executor, messages, limits=limits, context=context)
 
 
 async def _run_bare_agent(model, registry: Mapping[str, BaseTool], executor: ToolExecutor,
-                          messages: list[BaseMessage], *, limits: AgentLimits) -> BareAgentResult:
+                          messages: list[BaseMessage], *, limits: AgentLimits, context=None) -> BareAgentResult:
     """最多四次逻辑调用/五次决策；停止不追加请求，无工具直接回答。"""
-    registry = {name: tool for name, tool in registry.items() if name != 'create_ticket'}
+    from app.tools.catalog_types import BoundCatalog
+    registry = registry.subset(name for name in registry if name != 'create_ticket') if isinstance(registry, BoundCatalog) else {name: tool for name, tool in registry.items() if name != 'create_ticket'}
     schema = [convert_to_openai_tool(tool) for tool in registry.values()]
     system, turns, current = _split_messages(messages)
     ledger, trace, pending = UsageLedger(limits.total_token_budget), [], []
@@ -110,7 +111,7 @@ async def _run_bare_agent(model, registry: Mapping[str, BaseTool], executor: Too
             return BareAgentResult(UNFINISHED_ANSWER, trace, ledger, 'token_budget')
         identifiers.add(call.id)
         signatures.add(signature)
-        outcome = await executor.execute(call, registry)
+        outcome = await executor.execute(call, registry, context=context) if isinstance(registry, BoundCatalog) else await executor.execute(call, registry)
         ensure_answer_active()
         result = ToolMessage(json.dumps(outcome.content, ensure_ascii=False, separators=(',', ':'), allow_nan=False),
                              tool_call_id=call.id, name=call.name, status=outcome.status)

@@ -64,3 +64,20 @@ def stable_read_schema(registry: Mapping[str, BaseTool]) -> list[dict]:
     control['function'].update(name=INTERNAL_RESPONSE_CONTROL,
         description='内部响应控制：证据已足够或需要澄清时选择，只设置最终回复模式与建议，不执行业务动作。')
     return [convert_to_openai_tool(registry[name]) for name in READ_TOOLS if name in registry] + [control]
+
+
+def stable_tool_schema(catalog, *, intent=None, ticket_requested=False):
+    from app.tools.catalog_types import BoundCatalog
+    if not isinstance(catalog, BoundCatalog):
+        return stable_read_schema(catalog)
+    control = stable_read_schema({})[-1]
+    schemas = []
+    for name in sorted(catalog):
+        definition = catalog.definition(name)
+        if definition.allowed_intents and intent is not None and intent not in definition.allowed_intents:
+            continue
+        if definition.operation == 'write' and not ticket_requested:
+            continue
+        schemas.append({'type': 'function', 'function': {'name': name,
+            'description': definition.description, 'parameters': definition.input_schema}})
+    return [*schemas, control]

@@ -26,9 +26,11 @@ from app.core.llm import model_with_output_budget
 from app.core.sufficiency import QualityDecision
 from app.tools.schemas import FAQArgs
 from app.tools.types import ToolCall
+from app.tools.catalog_types import BoundCatalog
+from app.workflow.tool_calls import execution_context
 from app.workflow.nodes import assess_sufficiency, log_node, remaining_timeout, observe_usage
 from app.workflow.after_sales import resolve_order_anchor
-from app.workflow.controls import UnifiedAgentControl, parse_control, validate_control, stable_read_schema
+from app.workflow.controls import UnifiedAgentControl, parse_control, validate_control, stable_tool_schema
 from app.workflow.context_budget import workflow_packet, runtime_settings, runtime_snapshot, turn_token_limit, reserve_context_call
 from app.context.tokens import estimate_payload as estimate_call_input
 from app.context.layers import ContextCapacityError
@@ -81,6 +83,18 @@ def _usage(ledger):
 
 def _registry(state, context):
     """只开放读取工具，已强制检索的知识轮排除 FAQ。"""
+    if isinstance(context.registry, BoundCatalog):
+        names = []
+        for name in context.registry:
+            definition = context.registry.definition(name)
+            if definition.allowed_intents and state['intent'] not in definition.allowed_intents:
+                continue
+            if definition.operation == 'write' and (state['intent'] != '工单' or not state.get('ticket_request')):
+                continue
+            if name == 'query_faq' and state['route'] in ('knowledge', 'after_sales'):
+                continue
+            names.append(name)
+        return context.registry.subset(names)
     allowed = {'query_order', 'query_logistics', 'query_product', 'query_faq'}
     if state['route'] in ('knowledge', 'after_sales'):
         allowed.remove('query_faq')
@@ -211,7 +225,8 @@ async def _decision_attempt(state, context, limits, ledger, packet, schema, regi
     ensure_answer_active(context.deadline)
     try:
         # 仅本次协议解析允许内部控制；执行器和持久化仍只持有业务注册表。
-        call = parse_tool_selection(selected, {**registry, INTERNAL_RESPONSE_CONTROL: control_type})
+        call = parse_tool_selection(selected, {**registry, INTERNAL_RESPONSE_CONTROL: control_type},
+            allow_unknown=isinstance(registry, BoundCatalog))
     except ToolProtocolError as exc:
         # 默认 WARNING 和普通消息格式也可见，不能附带上游异常或整个模型对象。
         logger.warning(json.dumps({'event': 'agent_tool_protocol_failure',
@@ -278,7 +293,7 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
     registry = _registry(state, context)
     if INTERNAL_RESPONSE_CONTROL in context.registry:
         raise ValueError('Internal response control conflicts with business registry')
-    schema = stable_read_schema(context.registry)
+    schema = stable_tool_schema(context.registry, intent=state['intent'], ticket_requested=bool(state.get('ticket_request')))
     ledger = _ledger(state, limits)
     try:
         packet, evidence = _packet(state, context, agent_decision_system(None), schema)
@@ -360,6 +375,17 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
         update['selected_origin'] = 'workflow'
         call = ToolCall(identifier, name, {'order_id': order})
     selected, call = _normalize(selected, call, state['raw_question'])
+    if call.name == 'create_ticket' and isinstance(registry, BoundCatalog) and call.name in registry:
+        from app.tools.validation import validate_arguments
+        from app.tools.types import ToolOutcome
+        validated = validate_arguments(registry.definition(call.name), call.args)
+        request = state.get('ticket_request') or {}
+        description = call.args.get('description')
+        from app.workflow.ticket_requests import grounded_description
+        if (not isinstance(validated, ToolOutcome) and isinstance(description, str)
+                and grounded_description(description, request)):
+            return {**update, 'ticket_proposal': {'tool_call_id': call.id, 'args': call.args},
+                    'selected': None, 'final_answer': None}
     if any(call_signature(ToolCall(request.tool_calls[0]['id'], request.tool_calls[0]['name'],
             request.tool_calls[0]['args'])) == call_signature(call) for request in requests):
         return {**update, 'stop_reason': 'repeat_call'}
@@ -386,7 +412,7 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
     ensure_answer_active(context.deadline)
     selected = state['selected'].model_copy(deep=True)
     registry = _registry(state, context)
-    call = parse_tool_selection(selected, registry)
+    call = parse_tool_selection(selected, registry, allow_unknown=isinstance(registry, BoundCatalog))
     from app.repositories.faq import FAQRepository
     if call.name == 'query_faq' and isinstance(context.faq_repository, FAQRepository):
         from app.tools.business import contextual_tools
@@ -399,7 +425,8 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
             ToolContext(state['conversation_id'], int(state['user_message_id']), state['raw_question'], state['category']),
             faq_options={'query_plan': QueryPlan(standard=state['resolved_question'], expansions=[]),
                          'top_k': runtime_settings(context.settings).rerank_top_k})
-        registry = {**registry, 'query_faq': next(tool for tool in scoped if tool.name == 'query_faq')}
+        scoped_tool = next(tool for tool in scoped if tool.name == 'query_faq')
+        registry = registry.with_tool('query_faq', scoped_tool) if isinstance(registry, BoundCatalog) else {**registry, 'query_faq': scoped_tool}
     selected.id = str(await context.repository.append_message(state['conversation_id'], selected))
     origin = state.get('selected_origin', 'agent')
     identity = {'tool': call.name, 'tool_call_id': call.id, 'origin': origin}
@@ -407,7 +434,7 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
     started = time.monotonic()
     # 同值外层工具期限会抢先取消执行器，必须只让执行器拥有匹配 tool_timeout 的机会。
     async with asyncio.timeout_at(context.deadline):
-        outcome = await context.executor.execute(call, registry)
+        outcome = await context.executor.execute(call, registry, context=execution_context(state, context)) if isinstance(registry, BoundCatalog) else await context.executor.execute(call, registry)
     ensure_answer_active(context.deadline)
     result = ToolMessage(json.dumps(outcome.content, ensure_ascii=False, separators=(',', ':'), allow_nan=False),
         tool_call_id=call.id, name=call.name, status=outcome.status)
@@ -439,6 +466,8 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
 
 def _after_decision(state):
     """合法单申请才执行工具；控制或安全停止统一进入收敛节点。"""
+    if state.get('ticket_proposal'):
+        return END
     return 'tool_node' if state.get('selected') is not None else 'finalize_answer'
 
 
@@ -587,7 +616,7 @@ def build_agent_graph():
     builder.add_node('tool_node', tool_node)
     builder.add_node('finalize_answer', finalize_answer)
     builder.add_edge(START, 'llm_call')
-    builder.add_conditional_edges('llm_call', _after_decision, ['tool_node', 'finalize_answer'])
+    builder.add_conditional_edges('llm_call', _after_decision, ['tool_node', 'finalize_answer', END])
     builder.add_conditional_edges('tool_node', _after_tool, ['llm_call', 'finalize_answer'])
     builder.add_edge('finalize_answer', END)
     return builder.compile(checkpointer=None).with_config({'recursion_limit': 32})

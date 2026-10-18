@@ -16,7 +16,7 @@ from app.core.evidence import prepare_workflow_evidence
 from app.core.errors import InputTooLong
 from app.core.prompts import build_query_messages, build_sufficiency_messages
 from app.repositories.records import record_from_message
-from app.workflow.controls import stable_read_schema
+from app.workflow.controls import stable_tool_schema as stable_read_schema
 from app.workflow.prompts import (EXPANSION_SYSTEM, INTENT_SYSTEM, UNDERSTANDING_SYSTEM,
                                   agent_decision_system, agent_final_system)
 
@@ -48,7 +48,7 @@ def workflow_budget(settings, registry):
                        settings.sufficiency_max_output_tokens, peak, 0, True),
         PhaseOverheads('query_planner', build_query_messages('')[0].content, (),
                        settings.query_max_output_tokens, 32, 0, False),
-        PhaseOverheads('decision', agent_decision_system(None).content, tuple(stable_read_schema(registry)),
+        PhaseOverheads('decision', agent_decision_system(None).content, tuple(stable_read_schema(registry, ticket_requested=True)),
                        settings.agent_decision_max_output_tokens, 640, peak, True),
         PhaseOverheads('final', agent_final_system(None, None).content, (), settings.max_output_tokens,
                        640, peak, True),
@@ -171,6 +171,8 @@ def workflow_packet(state, context, *, phase, tools=()):
         if estimate_payload(shown[i*2:i*2+2]) > settings.tool_result_max_tokens + 256:
             raise ContextCapacityError('native tool peak limit')
     attachment = {key: state.get(key) for key in ('intent', 'route', 'reply_mode', 'refund_decision', 'decision_reason')}
+    if state.get('ticket_request'):
+        attachment['ticket_request'] = {'active': True, 'origin_user_message_id': state['ticket_request']['origin_user_message_id']}
     if state['resolved_question'] != state['raw_question']:
         attachment['resolved_question'] = state['resolved_question']
     if estimate_payload([HumanMessage(json.dumps(attachment, ensure_ascii=False))]) > 640:

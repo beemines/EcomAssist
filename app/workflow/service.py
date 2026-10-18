@@ -18,7 +18,7 @@ from app.core.llm import model_with_output_budget
 from app.core.tool_history import build_tool_messages
 from app.retrieval.types import validate_category
 from app.tools.executor import ToolExecutor
-from app.tools.types import ToolContext
+from app.tools.types import ToolContext, ExecutionContext
 from app.workflow.logging import configure_workflow_logging, log_lifecycle, log_terminal, safe_fields
 from app.workflow.persistence import checkpoint_config, durable_completed_root
 from app.workflow.prompts import agent_decision_system, build_intent_messages
@@ -108,7 +108,7 @@ class WorkflowChatService:
     def __init__(self, model, repository, registry_factory, locks, settings, *, graph, checkpointer,
                  faq_repository, sufficiency_service, quality_repository, executor=None,
                  order_provider=None, workflow_retriever=None, context_coordinator=None,
-                 context_logger=None, context_budget_provider=None):
+                 context_logger=None, context_budget_provider=None, catalog_provider=None):
         """保存依赖并幂等启用专用审计，每轮单独组装运行环境及任务。"""
         configure_workflow_logging()
         self.model, self.repository, self.registry_factory = model, repository, registry_factory
@@ -118,6 +118,7 @@ class WorkflowChatService:
         self.order_provider, self.workflow_retriever = order_provider, workflow_retriever
         self.context_coordinator, self.context_logger = context_coordinator, context_logger
         self.context_budget_provider = context_budget_provider
+        self.catalog_provider = catalog_provider
         if (context_coordinator is None) != (context_budget_provider is None):
             raise ValueError('Context coordinator and actual budget provider must be supplied together.')
         self.executor = executor if executor is not None else ToolExecutor(settings.tool_timeout_seconds,
@@ -125,12 +126,16 @@ class WorkflowChatService:
         self._tasks, self._prepared = set(), {}
         self._closing = False
 
-    async def _runtime(self, conversation_id, identifier, message, category, deadline, started, baseline=0.0, *, registry=None):
+    async def _runtime(self, conversation_id, identifier, message, category, deadline, started, baseline=0.0, *, registry=None, manifest=None):
         """每次重建调用级理解/扩写器，SQL owner与工具使用同一权威。"""
         if registry is None:
-            registry = self.registry_factory(ToolContext(conversation_id, identifier, message, category))
+            if self.catalog_provider is not None:
+                snapshot = await self.catalog_provider.restore(manifest) if manifest else await self.catalog_provider.acquire()
+                registry = snapshot.bind(ToolContext(conversation_id, identifier, message, category))
+            else:
+                registry = self.registry_factory(ToolContext(conversation_id, identifier, message, category))
         control_model = model_with_output_budget(self.model, self.settings, self.settings.intent_max_output_tokens)
-        return WorkflowRuntime(model_with_output_budget(self.model, self.settings, self.settings.max_output_tokens),
+        runtime = WorkflowRuntime(model_with_output_budget(self.model, self.settings, self.settings.max_output_tokens),
             model_with_output_budget(self.model, self.settings, self.settings.agent_decision_max_output_tokens),
             control_model, self.repository, self.faq_repository, self.sufficiency_service, self.quality_repository,
             registry, self.executor, self.settings, deadline, order_provider=self.order_provider,
@@ -141,6 +146,15 @@ class WorkflowChatService:
                 timeout_seconds=self.settings.llm_timeout_seconds),
             user_id=await self.repository.get_user_id(conversation_id), active_started_at=started,
             active_elapsed_baseline=baseline)
+        async def authorize_order(order_id):
+            if self.order_provider is None:
+                return False
+            owner = await self.repository.get_user_id(conversation_id)
+            return await self.order_provider.get_order(user_id=owner, order_id=order_id) is not None
+        runtime.execution_context = ExecutionContext(conversation_id, identifier, '其他', message,
+            deadline=deadline, policy=self.catalog_provider.policies if self.catalog_provider else None,
+            order_authorizer=authorize_order)
+        return runtime
 
     async def _prepare_context(self, state, runtime, rows, *, resume=False):
         if self.context_coordinator is None:
@@ -161,7 +175,7 @@ class WorkflowChatService:
             understanding_packet(state['raw_question'], frozen, output_tokens=self.settings.intent_max_output_tokens)
             if resume:
                 from app.workflow.context_budget import workflow_packet, stage_packet
-                from app.workflow.controls import stable_read_schema
+                from app.workflow.controls import stable_tool_schema as stable_read_schema
                 from app.workflow.prompts import EXPANSION_SYSTEM
                 from app.core.prompts import build_sufficiency_messages, build_query_messages
                 from langchain_core.messages import SystemMessage
@@ -221,7 +235,8 @@ class WorkflowChatService:
                 await self.repository.require_open(conversation_id)
                 turns = _history(await self.repository.load_messages(conversation_id))
                 current = HumanMessage(message)
-                preview = self.registry_factory(ToolContext(conversation_id, 0, message, category))
+                snapshot = await self.catalog_provider.acquire() if self.catalog_provider is not None else None
+                preview = snapshot.bind(ToolContext(conversation_id, 0, message, category)) if snapshot else self.registry_factory(ToolContext(conversation_id, 0, message, category))
                 schema = [convert_to_openai_tool(tool) for name, tool in preview.items() if name != 'create_ticket']
                 if self.context_coordinator is None:
                     build_tool_messages(agent_decision_system(None), turns, current,
@@ -231,8 +246,16 @@ class WorkflowChatService:
                 elif len(message) > 20000 or estimate_text_tokens(message) > self.settings.max_user_input_tokens:
                     raise InputTooLong()
                 previous = await self.graph.aget_state(checkpoint_config(conversation_id))
+                prior_ticket_verified = False
+                if previous.values.get('ticket_request') and not previous.next and await durable_completed_root(self.checkpointer, previous, conversation_id):
+                    try:
+                        await self._verify_sql_turn(conversation_id, previous.values, completed=True)
+                        prior_ticket_verified = True
+                    except ServiceError:
+                        # A stale prior root cannot authorize a continuation or block a new turn.
+                        pass
                 identifier = await self.repository.append_message(conversation_id, current)
-                registry = self.registry_factory(ToolContext(conversation_id, identifier, message, category))
+                registry = snapshot.bind(ToolContext(conversation_id, identifier, message, category)) if snapshot else self.registry_factory(ToolContext(conversation_id, identifier, message, category))
                 actual = [convert_to_openai_tool(tool) for name, tool in registry.items() if name != 'create_ticket']
                 if actual != schema:
                     raise ServiceError('tool_schema_changed', '工具定义发生变化，请稍后重试。', 500)
@@ -241,6 +264,11 @@ class WorkflowChatService:
                 state = new_turn_state(conversation_id=conversation_id, user_message_id=identifier,
                     raw_question=message, category=category, messages=sql_messages(rows))
                 state['context_bootstrap'] = bootstrap
+                from app.workflow.ticket_requests import ticket_request_for_turn
+                state['ticket_request'] = ticket_request_for_turn(identifier, message, previous.values,
+                    previous_verified=prior_ticket_verified)
+                if snapshot:
+                    state.update(tool_catalog_version=snapshot.version, tool_manifest=snapshot.to_manifest())
                 if pending_selection(previous, conversation_id):
                     state['supersedes_turn_id'] = previous.values['user_message_id']
                 runtime = await self._runtime(conversation_id, identifier, message, category, deadline, started, registry=registry)
@@ -302,7 +330,7 @@ class WorkflowChatService:
                 async with asyncio.timeout_at(deadline if not completed else started + self.settings.chat_timeout_seconds):
                     await self._verify_sql_turn(conversation_id, state, completed=completed)
                     runtime = await self._runtime(conversation_id, int(payload.turn_id), state['raw_question'],
-                        state.get('category'), deadline, started, state.get('active_elapsed_seconds', 0.0))
+                        state.get('category'), deadline, started, state.get('active_elapsed_seconds', 0.0), manifest=state.get('tool_manifest'))
                     runtime.model_recovery_used = state.get('model_recovery_used', False)
                     if not completed:
                         await self._prepare_context(state, runtime,
