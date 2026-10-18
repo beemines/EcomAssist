@@ -128,11 +128,15 @@ class WorkflowChatService:
         self._tasks, self._prepared = set(), {}
         self._closing = False
 
-    async def _runtime(self, conversation_id, identifier, message, category, deadline, started, baseline=0.0, *, registry=None, manifest=None):
+    async def _runtime(self, conversation_id, identifier, message, category, deadline, started, baseline=0.0, *, registry=None, manifest=None, required_tools=None):
         """每次重建调用级理解/扩写器，SQL owner与工具使用同一权威。"""
         if registry is None:
             if self.catalog_provider is not None:
-                snapshot = await self.catalog_provider.restore(manifest) if manifest else await self.catalog_provider.acquire()
+                if manifest:
+                    options = {'required': required_tools} if required_tools is not None else {}
+                    snapshot = await self.catalog_provider.restore(manifest, **options)
+                else:
+                    snapshot = await self.catalog_provider.acquire()
                 registry = snapshot.bind(ToolContext(conversation_id, identifier, message, category))
             else:
                 registry = self.registry_factory(ToolContext(conversation_id, identifier, message, category))

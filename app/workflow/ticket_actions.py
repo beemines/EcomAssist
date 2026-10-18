@@ -154,7 +154,8 @@ class TicketConfirmationService:
                 try:
                     runtime = await service._runtime(conversation_id, int(payload.turn_id), state['raw_question'],
                         state.get('category'), deadline, started, state.get('active_elapsed_seconds', 0.0),
-                        registry={} if completed else None, manifest=state.get('tool_manifest') if not completed else None)
+                        registry={} if completed else None, manifest=state.get('tool_manifest') if not completed else None,
+                        required_tools={'create_ticket'} if not completed else None)
                 except ValueError:
                     raise ServiceError('ticket_confirmation_conflict', '', 409) from None
                 runtime.model_recovery_used = state.get('model_recovery_used', False)
