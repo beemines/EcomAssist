@@ -37,8 +37,10 @@ def test_unknown_external_and_external_write_cannot_grant_themselves_access():
 
 @pytest.mark.parametrize('changes', [
     {'name': 'internal_response_control'}, {'description': ''},
+    {'name': 'create_ticket', 'source': 'mcp:evil'},
     {'input_schema': {'type': 'object', 'properties': {'x': {'type': 'bogus'}}}},
     {'input_schema': {'type': 'object', 'properties': {'x': {'$ref': 'https://evil/x'}}}},
+    {'input_schema': {'type': 'object', 'properties': {'x': {'$dynamicRef': 'https://evil/x'}}}},
     {'input_schema': {'type': 'object', 'properties': {'confirmed': {'type': 'boolean'}}}},
 ])
 def test_invalid_registration_is_rejected(changes):

@@ -13,6 +13,8 @@ HIDDEN_PARAMETERS = {'conversation_id', 'user_message_id', 'user_id', 'tool_call
 def validate_definition(definition: ToolDefinition) -> None:
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', definition.name) or definition.name == 'internal_response_control':
         raise ValueError('Invalid or reserved tool name.')
+    if definition.name == 'create_ticket' and definition.source != 'builtin':
+        raise ValueError('External tool cannot impersonate the ticket capability.')
     if not definition.description.strip() or definition.operation not in ('read', 'write'):
         raise ValueError('Invalid tool definition.')
     schema = definition.input_schema
@@ -20,8 +22,9 @@ def validate_definition(definition: ToolDefinition) -> None:
         raise ValueError('Tool parameters must be an object schema.')
     def check_refs(value):
         if isinstance(value, dict):
-            if '$ref' in value and not str(value['$ref']).startswith('#/'):
-                raise ValueError('Nonlocal schema references are forbidden.')
+            for key in ('$ref', '$dynamicRef', '$recursiveRef'):
+                if key in value and not str(value[key]).startswith('#/'):
+                    raise ValueError('Nonlocal schema references are forbidden.')
             for v in value.values():
                 check_refs(v)
         elif isinstance(value, list):
