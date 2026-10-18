@@ -11,7 +11,7 @@ from app.core.errors import ServiceError
 from tests.fakes import decode_sse
 from tests.test_chat_actions import offered_app, confirm
 from tests.test_workflow_api import Store, workflow_app, request, intent
-from tests.test_workflow_lifecycle import BlockedModel
+from tests.test_workflow_lifecycle import BlockedModel, blocked_clarification_app
 from tests.workflow_fakes import ScriptedWorkflowModel
 
 
@@ -73,9 +73,9 @@ async def audit_scenarios(root):
         model = ScriptedWorkflowModel(intent_replies=[failure])
         async with workflow_app(root / name, model=model) as app:
             assert decode_sse((await request(app, 'SECRET_SENTINEL')).text)[-1][0] == 'error'
-    async with workflow_app(root / 'deadline', model=BlockedModel()) as app:
+    async with blocked_clarification_app(root / 'deadline', model=BlockedModel()) as app:
         service = app.state.chat_service
-        prepared = await service.prepare('1', 'SECRET_SENTINEL 订单')
+        prepared = await service.prepare('1', 'SECRET_SENTINEL 商品怎么使用')
         prepared.deadline = asyncio.get_running_loop().time() + .05
         events = [event async for event in service.stream(prepared)]
         service.release(prepared)
@@ -91,9 +91,9 @@ async def audit_scenarios(root):
         await request(app, '你好')
     for name in ('disconnect', 'shutdown'):
         model = BlockedModel()
-        async with workflow_app(root / name, model=model) as app:
+        async with blocked_clarification_app(root / name, model=model) as app:
             service = app.state.chat_service
-            prepared = await service.prepare('1', 'SECRET_SENTINEL 订单')
+            prepared = await service.prepare('1', 'SECRET_SENTINEL 商品怎么使用')
             events = service.stream(prepared)
             async for event in events:
                 if event.event == 'citations':

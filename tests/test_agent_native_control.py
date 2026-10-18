@@ -247,12 +247,13 @@ async def test_actual_factory_json_format_is_decision_only_and_preserves_model(t
                     'role': 'assistant', 'content': '{"reply_mode":"clarification","suggested_actions":[],"refund_decision":null,"decision_reason":null}'}}]})
         assert payload[token_field] == final_output and 'response_format' not in payload
         assert 'tools' not in payload and 'tool_choice' not in payload
-        pieces = [{'role': 'assistant', 'content': '请提供订单号。'}, {}]
+        pieces = [{'role': 'assistant', 'content': '请提供型号。'}, {}]
         data = ''.join('data: ' + json.dumps({'id': 'final', 'object': 'chat.completion.chunk',
             'created': 0, 'model': 'offline', 'choices': [{'index': 0, 'delta': piece,
                 'finish_reason': None if index == 0 else 'stop'}]}) + '\n\n' for index, piece in enumerate(pieces))
         return httpx.Response(200, text=data + 'data: [DONE]\n\n', headers={'content-type': 'text/event-stream'})
-    context, state = setup([], question='查物流', intent='物流')
+    context, state = setup([], question='这个商品怎么使用', intent='商品咨询')
+    state['route'] = 'knowledge'
     context.settings = settings
     context.context_logger = logger
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
@@ -262,7 +263,7 @@ async def test_actual_factory_json_format_is_decision_only_and_preserves_model(t
         context.decision_model = model_with_output_budget(model, settings, 2048)
         try:
             result, _ = await run(context, state)
-            assert result['final_answer'] == '请提供订单号。' and result['tool_call_count'] == 0
+            assert result['final_answer'] == '请提供型号。' and result['tool_call_count'] == 0
             assert model.extra_body == initial_extra == {token_field: final_output}
             assert context.decision_model.extra_body == {token_field: 2048}
             assert context.model.extra_body == {token_field: 512}

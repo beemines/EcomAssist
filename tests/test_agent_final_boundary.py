@@ -9,7 +9,7 @@ from langgraph.errors import NodeCancelledError
 
 from app.core.errors import ServiceError
 from app.workflow.persistence import checkpoint_config
-from tests.fakes import decode_sse
+from tests.fakes import FAQStub, decode_sse
 from tests.test_workflow_agent import setup, run, control
 from tests.test_workflow_api import workflow_app, request, intent, Store
 from tests.workflow_fakes import ScriptedWorkflowModel, workflow_call
@@ -18,12 +18,15 @@ from tests.workflow_fakes import ScriptedWorkflowModel, workflow_call
 @pytest.mark.parametrize('valid', [False, True])
 async def test_clarification_validated_before_any_public_delta(tmp_path, valid):
     """把验证移回流末尾即泄漏多片历史事实，实际HTTP和SQL会发现。"""
-    parts = ['请提供', '订单号。'] if valid else ['台灯已经签收，', '签收日期为2026-10-13。']
-    model = ScriptedWorkflowModel([control('clarification')], intent_replies=[intent('物流')],
+    parts = ['请提供', '型号。'] if valid else ['台灯已经签收，', '签收日期为2026-10-13。']
+    quality = AIMessage('{"useful":true,"reason":"可用于使用说明澄清","response_kind":"knowledge"}',
+                        response_metadata={'finish_reason': 'stop'})
+    model = ScriptedWorkflowModel([control('clarification')], intent_replies=[intent('商品咨询'), quality],
         final_chunks=[*(AIMessageChunk(p) for p in parts), AIMessageChunk('', response_metadata={'finish_reason': 'stop'})])
     store = Store()
-    async with workflow_app(tmp_path, model=model, store=store) as app:
-        frames = decode_sse((await request(app, '查一下物流')).text)
+    faq = FAQStub([{'id': 1, 'question': '使用前需要哪些信息', 'answer': '请提供商品型号。', 'category': '使用'}])
+    async with workflow_app(tmp_path, model=model, store=store, faq=faq) as app:
+        frames = decode_sse((await request(app, '这个商品怎么使用')).text)
         snapshot = await app.state.chat_service.graph.aget_state(checkpoint_config('1'))
         assert not app.state.chat_service._tasks
         app.state.chat_service.locks.acquire('1').release()
@@ -91,7 +94,7 @@ async def test_failed_matching_current_read_cannot_clarify_or_retry():
 @pytest.mark.parametrize('failure', ['invalid', 'partial', 'truncated', 'timeout', 'cancel', 'success'])
 async def test_final_attempt_accounting_survives_every_exit(failure):
     """最终验证或取消之前漏记调用、实际usage重复累加都改变终端快照。"""
-    chunks = [AIMessageChunk('请提供订单号。')]
+    chunks = [AIMessageChunk('请提供型号。')]
     if failure == 'invalid':
         chunks = [AIMessageChunk('订单已经签收。')]
     if failure in ('partial', 'timeout', 'cancel'):
@@ -99,7 +102,8 @@ async def test_final_attempt_accounting_survives_every_exit(failure):
     else:
         chunks.append(AIMessageChunk('', response_metadata={'finish_reason': 'length' if failure == 'truncated' else 'stop'},
             usage_metadata={'input_tokens': 11, 'output_tokens': 7, 'total_tokens': 18}))
-    context, state = setup([control('clarification')], question='查订单', chunks=chunks)
+    context, state = setup([control('clarification')], question='这个商品怎么使用', intent='商品咨询', chunks=chunks)
+    state['route'] = 'knowledge'
     observations = []
     context.usage_observer = observations.append
     if failure == 'success':
@@ -127,7 +131,7 @@ async def test_control_failed_attempt_is_observable(reply):
 
 
 async def test_service_actual_usage_replaces_estimates_without_stale_overwrite(tmp_path):
-    """实际父图custom/update排队后终端账本必须是四次调用的替换快照。"""
+    """标准订单号追问没有最终模型调用，已收到的实际用量仍必须替换估算。"""
     reply = control('clarification')
     reply.usage_metadata = {'input_tokens': 13, 'output_tokens': 4, 'total_tokens': 17}
     model = ScriptedWorkflowModel([reply], intent_replies=[intent('订单')], final_chunks=[
@@ -139,9 +143,10 @@ async def test_service_actual_usage_replaces_estimates_without_stale_overwrite(t
         events = [event async for event in service.stream(prepared)]
         service.release(prepared)
         assert events[-1].event == 'done'
-        assert prepared.audit['usage']['actual'] == 36  # 理解1+控制17+最终18。
-        assert prepared.audit['usage']['actual_calls'] == 3
+        assert prepared.audit['usage']['actual'] == 18  # 理解1+控制17，无最终调用。
+        assert prepared.audit['usage']['actual_calls'] == 2
         assert prepared.audit['usage']['estimated_calls'] == 1  # 分类未回usage。
+        assert model.streams == 0
 
 
 async def test_explicit_unselected_order_keeps_clarification_despite_history():
@@ -159,7 +164,8 @@ async def test_explicit_unselected_order_keeps_clarification_despite_history():
 async def test_received_actual_usage_survives_deadline_before_delta():
     """已收到实际usage的片段随后遇截止，必须采用actual且不能公开任何文字。"""
     from app.workflow.agent import finalize_answer
-    context, state = setup([], question='查订单')
+    context, state = setup([], question='这个商品怎么使用', intent='商品咨询')
+    state['route'] = 'knowledge'
     state['reply_mode'] = 'clarification'
     observations, events = [], []
     context.usage_observer = observations.append
@@ -167,7 +173,7 @@ async def test_received_actual_usage_survives_deadline_before_delta():
         async def astream(self, messages):
             """网络已返回片段，但此时整轮期限刚过。"""
             context.deadline = 0
-            yield AIMessageChunk('请提供订单号。', response_metadata={'finish_reason': 'stop'},
+            yield AIMessageChunk('请提供型号。', response_metadata={'finish_reason': 'stop'},
                 usage_metadata={'input_tokens': 11, 'output_tokens': 7, 'total_tokens': 18})
     context.model = Model()
     with pytest.raises(ServiceError) as caught:
