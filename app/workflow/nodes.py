@@ -229,7 +229,7 @@ async def workflow_tool(state, runtime, node, name, args, operation):
     identity = {'tool': name, 'tool_call_id': identifier, 'origin': 'workflow'}
     runtime.stream_writer({'event': 'status', 'data': {**identity, 'status': 'running'}})
     from app.tools.catalog_types import BoundCatalog
-    if isinstance(context.registry, BoundCatalog):
+    if isinstance(getattr(context, 'registry', None), BoundCatalog):
         from app.workflow.tool_calls import run_workflow_tool, forced_read_registration, execution_context
         from app.tools.types import ToolCall
         definition = context.registry.definition(name)

@@ -26,7 +26,9 @@ def test_mapping_matches_all_supplied_columns_and_constraints():
             'checkpoint_id', 'offer_id', 'user_id', 'order_id', 'pending_key', 'reason', 'amount_cents',
             'currency', 'status', 'order_snapshot', 'policy_snapshot', 'decision_snapshot', 'created_at'],
     }
-    assert set(Conversation.metadata.tables) == {"conversations", "conversation_summaries", "messages", "faq", "tickets", "knowledge_chunks", "qa_extraction_staging", "low_confidence_questions", "faith_cases", 'refund_requests'}
+    assert set(Conversation.metadata.tables) == {"conversations", "conversation_summaries", "messages", "faq", "tickets", "knowledge_chunks", "qa_extraction_staging", "low_confidence_questions", "faith_cases", 'refund_requests', 'tool_audit_logs'}
+    from app.db.models import ToolAuditLog
+    assert not ToolAuditLog.__table__.foreign_keys
     for model, columns in expected.items():
         table = model.__table__
         assert list(table.columns.keys()) == columns

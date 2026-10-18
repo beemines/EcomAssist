@@ -184,7 +184,7 @@ async def test_dynamic_schema_change_rejected_before_model_request():
 
 
 # 验证实际工具只执行一次，并使用已落库的用户消息编号而非预览上下文。
-async def test_real_execution_uses_persisted_id_without_preview_execution():
+async def test_legacy_write_without_confirmation_is_denied_with_persisted_identity():
     from app.tools.executor import ToolExecutor
     from app.tools.registry import build_registry
     from tests.tool_fakes import FAQ
@@ -200,7 +200,10 @@ async def test_real_execution_uses_persisted_id_without_preview_execution():
     prepared = await service.prepare("42", "需要人工帮助")
     events = await collect(service, prepared)
     assert events[-1].event == "done"
-    assert len(captured) == 1 and captured[0]["user_message_id"] == prepared.user_message_id == 101
+    # Legacy Agent has no frontend confirmation grant: the unified engine must deny it.
+    assert captured == [] and prepared.user_message_id == 101
+    outcomes = [message for message in service.repository.rows if message.role == 'tool']
+    assert len(outcomes) == 1 and 'permission_denied' in outcomes[0].content
 
 
 # 验证最终流出现工具调用等协议错误时关闭当前模型迭代器。

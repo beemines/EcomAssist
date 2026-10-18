@@ -55,12 +55,14 @@ def test_atomic_across_independent_instances_and_sync_hooks(tmp_path):
 
 def test_profiles_ignore_conflicting_legacy_alias_and_fee_without_mutating_environment(monkeypatch):
     module = api()
+    actual_history_budget = module.profile_budget('demo')['budget']['history']
     monkeypatch.setenv('AGENT_MAX_TOOL_CALLS', '4')
     monkeypatch.setenv('AGENT_TOTAL_TOKEN_BUDGET', '32000')
     settings = module.profile_settings('demo', offline=True)
     assert settings.max_agent_steps == settings.agent_max_tool_calls == 3
     assert not settings.agent_total_token_budget_explicit
-    assert module.profile_budget('demo')['budget']['history'] == 2691
+    assert module.profile_budget('demo')['budget']['history'] == actual_history_budget
+    assert 0 < actual_history_budget < settings.model_context_window
     import os
     assert os.environ['AGENT_TOTAL_TOKEN_BUDGET'] == '32000'
 

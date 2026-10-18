@@ -198,9 +198,9 @@ async def test_user_selected_ticket_type_overrides_intent(tmp_path, intent_name)
 
 async def test_long_original_question_does_not_override_manual_description(tmp_path):
     """原话即使超长，也应保存用户重新填写的描述而不擅自截断原话建单。"""
-    # 此例验证原话与手填描述的绑定；为旧注入路径的完整系统提示和2104字符原话留足输入空间。
+    # 此例验证原话与手填描述的绑定；为新增工具提示和2104字符原话留足夹具空间。
     async with offered_app(tmp_path, question='我要投诉' + 'broken ' * 300,
-                           tool_input_token_budget=9000) as (_, client, tickets, _, payload):
+                           tool_input_token_budget=12000) as (_, client, tickets, _, payload):
         response = await confirm(client, {**payload, 'description': '设备故障，请协助维修。'})
         assert response.status_code == 200
         description = tickets.calls[-1]['description']
