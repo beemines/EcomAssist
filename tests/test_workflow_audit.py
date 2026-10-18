@@ -17,8 +17,10 @@ from tests.workflow_fakes import ScriptedWorkflowModel
 
 def test_default_uvicorn_visible_safe_audit():
     """默认配置若隐藏 INFO、漏记终态/工单或泄漏内容，真实控制台断言必须失败。"""
+    import os
+    environment = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1]))
     result = subprocess.run([sys.executable, str(Path(__file__).resolve())],
-        capture_output=True, text=True, encoding='utf-8', timeout=60)
+        capture_output=True, text=True, encoding='utf-8', timeout=60, env=environment)
     assert result.returncode == 0, result.stderr
     records = [json.loads(line) for line in result.stderr.splitlines() if line.startswith('{')]
     assert any(r.get('node') == 'retrieve_knowledge' for r in records)
