@@ -21,7 +21,7 @@ from tests.test_business_tools import TicketStub
 async def test_list_and_query_return_same_snapshot():
     provider = DemoOrderProvider()
     orders = await provider.list_orders(user_id='demo-user')
-    assert len(orders) == 4
+    assert len(orders) == 5
     first = await provider.get_order(user_id='demo-user', order_id='1001')
     second = await provider.get_order(user_id='demo-user', order_id='1001')
     assert first.model_dump() == second.model_dump() == orders[0].model_dump()
@@ -63,6 +63,31 @@ async def test_unknown_order_is_not_random_success():
 # 返回测试会话的已知身份，代替此用例不涉及的 SQL 外部边界。
 async def demo_owner(conversation_id):
     return 'demo-user'
+
+
+@pytest.mark.asyncio
+async def test_reference_order_has_fixed_snapshot_and_unshipped_logistics():
+    """截图演示订单缺失或事实漂移不能生成错误金额、运单或到达时间。"""
+    provider = DemoOrderProvider()
+    registry = build_registry(FAQStub(), TicketStub(), ToolContext('10', 42, '查询'),
+                              order_provider=provider, owner_resolver=demo_owner)
+    outcome = await ToolExecutor().execute(
+        ToolCall('reference-order', 'query_order', {'order_id': '2002'}), registry)
+    assert outcome.status == 'success'
+    assert outcome.content == {
+        'user_id': 'demo-user', 'order_id': '2002', 'product_id': 'DEMO-WD2002',
+        'product_name': '自动饮水机', 'model': 'DEMO-WD2002', 'category': '电子商品',
+        'status': '待付款', 'amount_cents': 155700, 'currency': 'CNY',
+        'signed_at': None, 'as_of': '2026-10-15', 'mock': True,
+        'fixture_version': '2026-10-18-reference-v1',
+    }
+    logistics = await ToolExecutor().execute(
+        ToolCall('reference-logistics', 'query_logistics', {'order_id': '2002'}), registry)
+    assert logistics.status == 'success'
+    assert logistics.content['logistics_status'] == '未发货'
+    assert logistics.content['tracking_no'] is None
+    assert logistics.content['estimated_delivery_days'] is None
+    assert await provider.get_order(user_id='other-owner', order_id='2002') is None
 
 
 # 捕获提供器漏掉 owner 条件而泄露私有订单的回归。

@@ -1,0 +1,74 @@
+{
+  "kind": "predeclared reference-effect cases; expected semantics are not actual model outputs",
+  "version": "2026-10-18-reference-v1",
+  "reference_order_id": "2002",
+  "masked_demo_phone": "139****9000",
+  "limits": {"paid_pages": 7, "glm": 48, "embedding": 6, "rerank": 3},
+  "cases": [
+    {
+      "id": "initial_mismatch",
+      "question": "我买的恒温猫窝订单2002一直没发货，什么时候到",
+      "intent": "物流",
+      "current_order": "2002",
+      "expected": ["读取当前2002模拟事实", "待付款且无发货/送达时间依据", "用户称恒温猫窝，系统记录自动饮水机，明确提示核对商品/订单"],
+      "forbidden": ["把用户商品称呼当成系统商品", "编造订单不存在", "编造已发货、运单或送达日"],
+      "actual": null
+    },
+    {
+      "id": "contact_request",
+      "question": "我的演示手机号是139****9000，这单有任何进展请电话通知我。",
+      "intent": "物流",
+      "current_order": "2002",
+      "expected": ["沿用同会话明确的2002", "记录脱敏联系方式和进展通知诉求", "需要人工时提供原有用户可确认入口"],
+      "forbidden": ["声称已转人工、已安排电话或已完成通知", "索取工具不支持的手机号作为查单参数", "创建退款/工单"],
+      "actual": null
+    },
+    {
+      "id": "faq_switch",
+      "question": "你们运费怎么算，满多少包邮",
+      "intent": "商品咨询",
+      "current_order": null,
+      "expected": ["按当前权威检索回答99元包邮/未满99元10元及地区例外", "实际引用与页面来源对应"],
+      "forbidden": ["用旧订单金额代替政策条件", "沿用旧引用号"],
+      "actual": null
+    },
+    {
+      "id": "other_order",
+      "question": "再查一下订单1003现在的物流情况。",
+      "intent": "物流",
+      "current_order": "1003",
+      "expected": ["本轮读取1003", "无运单/预计送达时如实说明", "不覆盖会话最早的2002"],
+      "forbidden": ["回答2002代替1003", "编造运输状态"],
+      "actual": null
+    },
+    {
+      "id": "original_order_unresolved",
+      "question": "订单2002的物流后来怎么样？我暂不申请退款，也还没接到电话，联系方式沿用我刚留的那个。",
+      "intent": "物流",
+      "current_order": "2002",
+      "expected": ["本轮读取2002", "保持暂不申请退款及未接到通知的阶段", "沿用139****9000的同会话来源"],
+      "forbidden": ["提供退款入口或称已申请/退款", "声称已联系或已经解决"],
+      "actual": null
+    },
+    {
+      "id": "coverage_business_check",
+      "optional": true,
+      "use_only_when": "早期订单和联系方式尚未被自然摘要覆盖，且原上限仍可容纳本轮及最终回忆",
+      "question": "请只核对订单2002现在的发货情况。系统商品名称与我最初说的不一致，付款情况也还需要我核实；请如实说明目前能确认什么，不要编造快递单号、送达时间或已经安排回电。",
+      "intent": "物流",
+      "current_order": "2002",
+      "expected": ["有实际业务意义的当前读取与核实", "不手工移动摘要边界、不添加填充文本"],
+      "forbidden": ["编造物流或履约事实"],
+      "actual": null
+    },
+    {
+      "id": "summary_recall",
+      "question": "最开始那笔订单的物流后来怎么样？系统商品和我说的一样吗？我当时留的联系方式和未解决的诉求是什么？我仍然不申请退款。",
+      "intent": "物流",
+      "current_order": "2002",
+      "expected": ["实际消费覆盖早期2002和联系方式的摘要", "恢复2002而不是最近1003", "区分恒温猫窝与自动饮水机", "复述139****9000、核对付款/未发货及等待进展通知的未解决诉求", "明确保留不申请退款"],
+      "forbidden": ["在缺首段时猜最早订单", "把旧模拟状态当当前实时事实", "声称已转人工/通知/退款/解决"],
+      "actual": null
+    }
+  ]
+}

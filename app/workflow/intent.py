@@ -112,8 +112,25 @@ class IntentClassifier:
         ledger = UsageLedger()
         record_usage(raw, ledger, estimated_input=cost, output_limit=output_tokens)
         self.usage = {key: getattr(ledger, key) for key in self.usage}
-        if (not isinstance(raw, AIMessage) or raw.response_metadata.get('finish_reason') != 'stop'
-                or raw.tool_calls or raw.invalid_tool_calls or raw.additional_kwargs.get('tool_calls')):
-            raise invalid_output(finish_reason=raw.response_metadata.get('finish_reason') if isinstance(raw, AIMessage) else None)
-        result = validate_structured_output(output, _IntentOutput)
+        try:
+            if (not isinstance(raw, AIMessage) or raw.response_metadata.get('finish_reason') != 'stop'
+                    or raw.tool_calls or raw.invalid_tool_calls or raw.additional_kwargs.get('tool_calls')):
+                raise invalid_output(finish_reason=raw.response_metadata.get('finish_reason') if isinstance(raw, AIMessage) else None)
+            result = validate_structured_output(output, _IntentOutput)
+        except ServiceError:
+            if context_logger is not None and snapshot is not None:
+                try:
+                    text = raw.text if isinstance(raw, AIMessage) else ''
+                    finish = raw.response_metadata.get('finish_reason') if isinstance(raw, AIMessage) else None
+                    context_logger.event('intent_control_rejected', {
+                        'conversation_id': snapshot.conversation_id, 'user_message_id': snapshot.user_message_id,
+                        'snapshot_id': snapshot.snapshot_id,
+                        'finish_reason': finish if type(finish) is str and finish in (
+                            'stop', 'length', 'content_filter', 'tool_calls', 'function_call') else None,
+                        'control_text': text[:8192], 'control_text_length': len(text),
+                        'control_text_truncated': len(text) > 8192})
+                except Exception:
+                    # Optional evidence must never replace the original rejection or expose its body.
+                    pass
+            raise
         return IntentResult(result.intent, result.intent if result.confidence >= 0.70 else '其他', result.confidence)
