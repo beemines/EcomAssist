@@ -1,5 +1,6 @@
 # 工具调用数据契约，区分可信请求上下文、模型申请和执行结果。
 from dataclasses import dataclass
+from collections.abc import Awaitable, Callable
 from typing import Literal
 
 
@@ -26,3 +27,25 @@ class ToolOutcome:
     content: dict
     status: Literal["success", "error"]
     attempts: int
+
+
+@dataclass(frozen=True)
+class ConfirmationGrant:
+    source: Literal['chat_preview', 'legacy_form']
+    conversation_id: str
+    user_message_id: int
+    tool_call_id: str
+    arguments_fingerprint: str
+
+
+@dataclass(frozen=True)
+class ExecutionContext:
+    conversation_id: str
+    user_message_id: int
+    intent: str
+    raw_question: str
+    deadline: float | None = None
+    ticket_requested: bool = False
+    grant: ConfirmationGrant | None = None
+    policy: object | None = None
+    order_authorizer: Callable[[str], Awaitable[bool]] | None = None
