@@ -203,6 +203,32 @@ def _settle(state, context, ledger, reply, estimate, output):
     observe_usage(context, {'usage': _usage(ledger), 'stage_usage': state['stage_usage']})
 
 
+def _native_read_stop(selected, state, context, registry):
+    """Native stop can request final generation; its unchecked prose is discarded."""
+    if (not isinstance(registry, BoundCatalog) or state['route'] != 'business'
+            or state['intent'] not in ('订单', '物流') or state.get('ticket_request')
+            or not selected.text.strip() or selected.text.lstrip().startswith(('{', '[', '`'))):
+        return False
+    current = _current_read(state, context)
+    if current is None or current[2] != 'success':
+        return False
+    _, _, pending, _ = _parts(state)
+    if not pending or len(pending) % 2:
+        return False
+    for request, result in zip(pending[::2], pending[1::2]):
+        if (not isinstance(request, AIMessage) or len(request.tool_calls) != 1
+                or not isinstance(result, ToolMessage) or result.status != 'success'):
+            return False
+        call = request.tool_calls[0]
+        if (call['name'] not in registry or registry.definition(call['name']).operation != 'read'
+                or result.tool_call_id != call['id']):
+            return False
+        payload = json.loads(result.content)
+        if not isinstance(payload, dict) or 'error' in payload:
+            return False
+    return True
+
+
 async def _decision_attempt(state, context, limits, ledger, packet, schema, registry, bound):
     """Generate and strictly parse once, before any selected tool escapes the node."""
     control_type = UnifiedAgentControl
@@ -255,6 +281,13 @@ async def _decision_attempt(state, context, limits, ledger, packet, schema, regi
     requests = [message for message in pending if isinstance(message, AIMessage)]
     if call is not None and any(request.tool_calls[0]['id'] == call.id for request in requests):
         raise ServiceError('upstream_error', '模型重复使用了工具调用标识。', 502)
+    if call is None and _native_read_stop(selected, state, context, registry):
+        # parse_tool_selection already verified finish=stop and no hidden/native calls.
+        # Never persist, stream, or feed the draft into final generation. Existing
+        # final reserve, evidence and answer validators still govern that stage.
+        control = UnifiedAgentControl(reply_mode='answer', suggested_actions=[],
+            refund_decision=None, decision_reason=None)
+        return selected, None, control, 'native_read_stop'
     if call is None or native_control:
         try:
             if native_control:
