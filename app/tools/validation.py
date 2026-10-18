@@ -10,7 +10,11 @@ def validate_arguments(definition, arguments):
             'message': '参数必须为业务字段对象，不能填写内部身份或确认字段。'}}, 'error', 0)
     schema = deepcopy(definition.input_schema)
     # A permissive external object must never accept extra model-injected authority.
-    errors = list(validator_for(schema)(schema).iter_errors(arguments))
+    try:
+        errors = list(validator_for(schema)(schema).iter_errors(arguments))
+    except Exception:
+        return ToolOutcome({'error': {'code': 'tool_execution_error',
+            'message': '工具参数定义不可用，请稍后重试。'}}, 'error', 0)
     if errors:
         paths = [('.'.join(map(str, error.absolute_path)) or '$') for error in errors[:5]]
         return ToolOutcome({'error': {'code': 'invalid_arguments',

@@ -79,6 +79,9 @@ class ToolCatalogProvider:
         policy, discovered = await self._current()
         return self.catalog.snapshot(policy=policy, discovered=discovered)
 
-    async def restore(self, manifest):
+    async def restore(self, manifest, *, required=None):
+        if required is not None and required == {'create_ticket'}:
+            # Deterministic ticket continuation needs no remote discovery or new plugins.
+            return self.catalog.restore(manifest, policy=self.policies.load(), required=required)
         policy, discovered = await self._current()
-        return self.catalog.restore(manifest, policy=policy, discovered=discovered)
+        return self.catalog.restore(manifest, policy=policy, discovered=discovered, required=required)

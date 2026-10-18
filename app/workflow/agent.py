@@ -292,11 +292,11 @@ async def _decision_attempt(state, context, limits, ledger, packet, schema, regi
     return selected, call, control, transport
 
 
-def decision_transport_model(model, *, ticket_requested=False):
+def decision_transport_model(model, *, ticket_requested=False, native_catalog=False):
     if not isinstance(model, ChatOpenAI):
         return model
     body = dict(model.extra_body or {})
-    if ticket_requested:
+    if ticket_requested or native_catalog:
         # GLM在工单函数与JSON正文模式并用时会把参数作为正文；保留原生调用，
         # 控制正文仍由同一严格四字段解析器校验，绝不把正文解析成业务动作。
         body.pop('response_format', None)
@@ -335,7 +335,8 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
         return {'selected': None, 'reply_mode': 'answer', 'suggested_actions': [],
                 'refund_decision': None, 'decision_reason': None}
     model = model_with_output_budget(context.decision_model, context.settings, limits.decision_output_tokens)
-    model = decision_transport_model(model, ticket_requested=bool(state.get('ticket_request')))
+    model = decision_transport_model(model, ticket_requested=bool(state.get('ticket_request')),
+                                     native_catalog=isinstance(context.registry, BoundCatalog))
     bound = model.bind_tools(schema, tool_choice='auto', parallel_tool_calls=False)
     started = time.monotonic()
     initial_usage = _usage(ledger)

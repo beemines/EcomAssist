@@ -57,6 +57,25 @@ def test_duplicate_name_is_never_overwritten():
         catalog.register(item)
 
 
+def test_dangling_local_reference_is_rejected_before_publication():
+    item = make_registration('broken')
+    schema = {'type': 'object', 'properties': {'value': {'$ref': '#/$defs/missing'}}}
+    with pytest.raises(ValueError):
+        ToolCatalog().register(replace(item, definition=replace(item.definition, input_schema=schema)))
+
+
+def test_valid_local_reference_stays_supported_and_invalid_runtime_schema_settles():
+    from app.tools.validation import validate_arguments
+    item = make_registration('reference')
+    schema = {'type': 'object', '$defs': {'value': {'type': 'integer'}},
+              'properties': {'value': {'$ref': '#/$defs/value'}}}
+    valid = replace(item.definition, input_schema=schema)
+    ToolCatalog().register(replace(item, definition=valid))
+    assert validate_arguments(valid, {'value': 3}) == {'value': 3}
+    malformed = replace(valid, input_schema={'type': 'object', '$ref': '#/$defs/gone'})
+    assert validate_arguments(malformed, {}).content['error']['code'] == 'tool_execution_error'
+
+
 def test_manifest_does_not_expand_and_detects_contract_change():
     catalog = ToolCatalog()
     first, second = make_registration('first'), make_registration('second')

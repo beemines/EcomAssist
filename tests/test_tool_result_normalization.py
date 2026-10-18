@@ -36,3 +36,17 @@ def test_empty_faq_keeps_retrieval_contract_for_low_confidence_gate():
     assert result.status == 'error' and result.content['error']['code'] == 'not_found'
     assert result.content['matches'] == []
     assert result.content['retrieval']['strategy'] == 'hybrid_rerank'
+
+
+def test_upstream_business_error_never_exposes_remote_details_or_extra_fields():
+    result = normalize_result({'error': {'code': 'database_stack', 'message': None}, 'secret': 'private'},
+                              make_registration('read').definition)
+    assert result.status == 'error'
+    assert result.content == {'error': {'code': 'tool_execution_error', 'message': '工具执行失败。'}}
+
+
+def test_oversized_result_becomes_bounded_persistable_error():
+    from app.repositories.records import record_from_message
+    result = normalize_result({'note': '中文' * 12500}, make_registration('read').definition)
+    assert result.status == 'error' and result.content['error']['code'] == 'tool_result_too_large'
+    record_from_message(ToolMessage(content=json.dumps(result.content, ensure_ascii=False), tool_call_id='large'))

@@ -64,6 +64,12 @@ def _temporary_connection_error(exc: Exception) -> bool:
     return False
 
 
+def _timeout_error(exc):
+    if isinstance(exc, ExceptionGroup):
+        return bool(exc.exceptions) and all(_timeout_error(item) for item in exc.exceptions)
+    return isinstance(exc, (TimeoutError, httpx.TimeoutException))
+
+
 class ToolExecutor:
     """每次逻辑调用至多重试一次；取消直接传播，结果只含安全业务数据。"""
 
@@ -100,28 +106,31 @@ class ToolExecutor:
             return outcome
         finally:
             if self.audit_sink is not None:
-                error = outcome.content.get('error', {}) if outcome is not None else {'code': 'cancelled', 'message': '调用已取消。'}
-                code = error.get('code') if isinstance(error, dict) else 'tool_execution_error'
-                audit_status = ('success' if outcome is not None and outcome.status == 'success' else
-                    'timeout' if code == 'tool_timeout' else
-                    'validation_blocked' if code == 'invalid_arguments' else
-                    'permission_denied' if code in ('permission_denied', 'unknown_tool') else 'failed')
-                conv = getattr(context, 'conversation_id', None)
-                conv = int(conv) if isinstance(conv, str) and conv.isdecimal() and 0 < int(conv) < 2**64 else None
-                row = ToolAuditRecord(conversation_id=conv,
-                    tool_call_id=str(call.id)[:64], tool_name=str(call.name)[:64],
-                    source=definition.source if definition else 'unknown',
-                    arguments=deepcopy(call.args) if isinstance(call.args, dict) else {'invalid': True},
-                    result_summary=json.dumps(outcome.content if outcome else {'error': 'cancelled'}, ensure_ascii=False, default=str)[:4000],
-                    status=audit_status, error_code=code,
-                    error_message=error.get('message', '')[:512] if isinstance(error, dict) else '工具执行失败。',
-                    retry_count=max(0, outcome.attempts - 1) if outcome else 0,
-                    elapsed_ms=max(0, round((monotonic() - started) * 1000)))
                 try:
-                    async with asyncio.timeout(.5):
-                        await self.audit_sink.write(row)
+                    await self._audit(call, context, definition, outcome, started)
                 except Exception as exc:
                     logger.warning('stage=tool_audit status=unavailable type=%s', type(exc).__name__)
+
+    async def _audit(self, call, context, definition, outcome, started):
+        error = outcome.content.get('error', {}) if outcome is not None else {'code': 'cancelled', 'message': '调用已取消。'}
+        code = error.get('code') if isinstance(error, dict) else 'tool_execution_error'
+        audit_status = ('success' if outcome is not None and outcome.status == 'success' else
+            'timeout' if code == 'tool_timeout' else
+            'validation_blocked' if code == 'invalid_arguments' else
+            'permission_denied' if code in ('permission_denied', 'unknown_tool') else 'failed')
+        conv = getattr(context, 'conversation_id', None)
+        conv = int(conv) if isinstance(conv, str) and conv.isdecimal() and 0 < int(conv) < 2**64 else None
+        row = ToolAuditRecord(conversation_id=conv,
+            tool_call_id=str(call.id)[:64], tool_name=str(call.name)[:64],
+            source=definition.source if definition else 'unknown',
+            arguments=deepcopy(call.args) if isinstance(call.args, dict) else {'invalid': True},
+            result_summary=json.dumps(outcome.content if outcome else {'error': 'cancelled'}, ensure_ascii=False, default=str)[:4000],
+            status=audit_status, error_code=code,
+            error_message=str(error.get('message') or '')[:512] if isinstance(error, dict) else '工具执行失败。',
+            retry_count=max(0, outcome.attempts - 1) if outcome else 0,
+            elapsed_ms=max(0, round((monotonic() - started) * 1000)))
+        async with asyncio.timeout(.5):
+            await self.audit_sink.write(row)
 
     async def _execute(self, call, registry, *, context, definition):
         tool = registry.get(call.name)
@@ -200,7 +209,7 @@ class ToolExecutor:
                 if task is not None and task.cancelling():
                     raise asyncio.CancelledError() from None
                 # 仅超时或暂时失联可重试；参数、业务冲突和其他执行错误直接返回。
-                if isinstance(exc, TimeoutError):
+                if _timeout_error(exc):
                     code, retry = "tool_timeout", True
                 elif _temporary_connection_error(exc):
                     code, retry = "tool_connection_error", True

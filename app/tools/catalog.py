@@ -25,6 +25,17 @@ def validate_definition(definition: ToolDefinition) -> None:
             for key in ('$ref', '$dynamicRef', '$recursiveRef'):
                 if key in value and not str(value[key]).startswith('#/'):
                     raise ValueError('Nonlocal schema references are forbidden.')
+                if key in value:
+                    from urllib.parse import unquote
+                    target = schema
+                    try:
+                        for part in unquote(value[key][2:]).split('/'):
+                            part = part.replace('~1', '/').replace('~0', '~')
+                            target = target[int(part)] if isinstance(target, list) else target[part]
+                        if not isinstance(target, (dict, bool)):
+                            raise ValueError('Reference target is not a schema.')
+                    except (KeyError, IndexError, TypeError, ValueError) as exc:
+                        raise ValueError('Unresolvable local schema reference.') from exc
             for v in value.values():
                 check_refs(v)
         elif isinstance(value, list):
@@ -74,15 +85,19 @@ class ToolCatalog:
             effective[definition.name] = replace(registration, definition=definition)
         return CatalogSnapshot(effective)
 
-    def restore(self, manifest: dict, *, policy: PolicySnapshot, discovered=()) -> CatalogSnapshot:
+    def restore(self, manifest: dict, *, policy: PolicySnapshot, discovered=(), required=None) -> CatalogSnapshot:
         if not isinstance(manifest, dict) or set(manifest) != {'tools', 'version'} or fingerprint({'tools': manifest['tools']}) != manifest['version']:
             raise ValueError('Invalid persisted catalog manifest.')
         current = self.snapshot(policy=policy, discovered=discovered)
         selected = {}
         for raw in manifest['tools']:
             definition = ToolDefinition(**raw)
+            if required is not None and definition.name not in required:
+                continue
             registration = current._registrations.get(definition.name)
             if registration is None or registration.definition.fingerprint != definition.fingerprint:
                 raise ValueError('Persisted tool contract changed or was revoked.')
             selected[definition.name] = registration
+        if required is not None and set(selected) != set(required):
+            raise ValueError('Required tool was not in the original manifest.')
         return CatalogSnapshot(selected)

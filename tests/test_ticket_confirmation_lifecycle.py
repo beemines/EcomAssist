@@ -120,6 +120,41 @@ async def test_restart_pending_keeps_request_and_usage_without_model_replay(tmp_
         assert tickets.calls == 1
 
 
+@pytest.mark.parametrize('change', ['unrelated_revocation', 'server_outage'])
+@pytest.mark.parametrize('value', ['confirm', 'cancel'])
+async def test_unrelated_catalog_changes_do_not_block_deterministic_ticket_resume(tmp_path, change, value):
+    async with ticket_app(tmp_path) as (app, client, tickets):
+        service = app.state.chat_service
+        if change == 'server_outage':
+            from tests.tool_system_fakes import make_registration
+            item = make_registration('remote_status', source='mcp:logistics')
+            class ChangingDiscovery:
+                available = True
+                calls = 0
+                async def discover(self, policy):
+                    self.calls += 1
+                    return DiscoveryResult((item,) if self.available else (), {} if self.available else {'logistics': 'offline'})
+            service.catalog_provider.discovery = ChangingDiscovery()
+            policy = json.loads(service.catalog_provider.policies.path.read_text())
+            policy['tools'].append({'source': 'mcp:logistics', 'name': 'remote_status', 'operation': 'read'})
+            service.catalog_provider.policies.path.write_text(json.dumps(policy))
+        preview, _ = await proposal(client)
+        discoveries = service.catalog_provider.discovery.calls if change == 'server_outage' else None
+        if change == 'server_outage':
+            service.catalog_provider.discovery.available = False
+        else:
+            policy = json.loads(service.catalog_provider.policies.path.read_text())
+            policy['tools'] = [rule for rule in policy['tools'] if rule['name'] != 'query_order']
+            service.catalog_provider.policies.path.write_text(json.dumps(policy))
+        response = await client.post('/api/conversations/1/actions/confirm-ticket', json=decision(preview, value))
+        assert response.status_code == 200, response.text
+        frames = decode_sse(response.text)
+        assert frames[-1][0] == 'done', frames
+        assert tickets.calls == (1 if value == 'confirm' else 0)
+        if change == 'server_outage':
+            assert service.catalog_provider.discovery.calls == discoveries
+
+
 async def test_new_user_message_expires_old_preview_and_pairs_denial(tmp_path):
     async with ticket_app(tmp_path) as (app, client, tickets):
         preview, _ = await proposal(client)

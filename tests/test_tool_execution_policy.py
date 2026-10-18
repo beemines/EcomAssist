@@ -52,6 +52,38 @@ async def test_grant_cannot_be_reused_for_different_write(changed):
     assert result.attempts == 0 and result.content['error']['code'] == 'permission_denied'
 
 
+async def test_malformed_remote_error_cannot_break_audit_or_tool_settlement():
+    async def handler(): return {'error': {'code': 'remote_stack', 'message': None}, 'secret': 'private'}
+    audit = AuditSink()
+    outcome = await ToolExecutor(audit_sink=audit).execute(ToolCall('malformed', 'read', {}),
+        bound(make_registration('read', handler=handler)), context=ctx())
+    assert outcome.status == 'error' and audit.records[-1].status == 'failed'
+    assert 'private' not in audit.records[-1].result_summary
+
+
+async def test_audit_record_construction_failure_cannot_reverse_success(monkeypatch):
+    def broken_record(**kwargs): raise ValueError('audit construction failure')
+    monkeypatch.setattr('app.tools.executor.ToolAuditRecord', broken_record)
+    result = await ToolExecutor(audit_sink=AuditSink()).execute(ToolCall('record', 'read', {}),
+        bound(make_registration('read')), context=ctx())
+    assert result.status == 'success'
+
+
+@pytest.mark.parametrize('operation,attempts', [('read', 2), ('write', 1)])
+async def test_nested_mcp_network_timeout_keeps_timeout_audit_and_write_zero_retry(operation, attempts):
+    import httpx
+    async def handler():
+        raise ExceptionGroup('transport', [httpx.ReadTimeout('internal timeout detail')])
+    name = 'read' if operation == 'read' else 'create_ticket'
+    audit = AuditSink()
+    grant = ConfirmationGrant('chat_preview', '1', 2, 'nested', fingerprint({}))
+    outcome = await ToolExecutor(audit_sink=audit).execute(ToolCall('nested', name, {}),
+        bound(make_registration(name, operation=operation, handler=handler)), context=ctx(grant=grant, ticket_requested=True))
+    assert outcome.content['error']['code'] == 'tool_timeout'
+    assert outcome.attempts == attempts
+    assert audit.records[-1].status == 'timeout' and audit.records[-1].retry_count == attempts - 1
+
+
 @pytest.mark.parametrize('operation,want_attempts,want_retries', [('read', 2, 1), ('write', 1, 0)])
 async def test_timeout_physical_attempts_and_audit(operation, want_attempts, want_retries):
     attempts = []
