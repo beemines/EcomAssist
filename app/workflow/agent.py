@@ -181,7 +181,7 @@ def _settle(state, context, ledger, reply, estimate, output):
 
 
 async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dict:
-    """最多五次决策并预留最终预算；协议失败仅记录不含正文的白名单诊断。"""
+    """最多五次决策并预留最终预算；拒绝正文仅写入专用内容日志。"""
     context, limits = runtime.context, _limits(runtime.context)
     ensure_answer_active(context.deadline)
     if state['decision_count'] >= limits.max_decisions:
@@ -279,6 +279,22 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
                     'conversation_id': state['conversation_id'], 'user_message_id': state['user_message_id'],
                     'reason': 'control_schema', **tool_protocol_diagnostic(selected), 'usage': _usage(ledger)},
                     ensure_ascii=True, separators=(',', ':'), allow_nan=False))
+                if context.context_logger is not None:
+                    try:
+                        text = selected.text
+                        fields = {'conversation_id': state['conversation_id'],
+                            'user_message_id': state['user_message_id'], 'transport': transport,
+                            'finish_reason': selected.response_metadata.get('finish_reason'),
+                            'control_text': text[:8192], 'control_text_length': len(text),
+                            'control_text_truncated': len(text) > 8192}
+                        if native_control:
+                            arguments = json.dumps(call.args, ensure_ascii=False, allow_nan=False)
+                            fields.update(arguments_text=arguments[:8192],
+                                arguments_text_length=len(arguments), arguments_text_truncated=len(arguments) > 8192)
+                        context.context_logger.event('decision_control_rejected', fields)
+                    except Exception:
+                        # Optional evidence must never replace the original rejection or leak its body.
+                        pass
             raise
         if required is None:
             return {**update, **control.model_dump()}

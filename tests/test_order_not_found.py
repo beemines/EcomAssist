@@ -15,11 +15,11 @@ from tests.workflow_fakes import ScriptedWorkflowModel, workflow_call
 
 
 @pytest.mark.parametrize('name,question,tool', [
-    ('物流', '我买的恒温猫窝订单2002一直没发货，什么时候到', 'query_logistics'),
-    ('订单', '查询订单2002的状态', 'query_order'),
+    ('物流', '我买的恒温猫窝订单9999一直没发货，什么时候到', 'query_logistics'),
+    ('订单', '查询订单9999的状态', 'query_order'),
 ])
 async def test_unknown_order_completes_business_reply_without_claiming_delivery(tmp_path, name, question, tool):
-    """真实固定订单提供器、父图/API/SSE与检查点，未知2002不可随机造成功。"""
+    """真实固定订单提供器、父图/API/SSE与检查点，未知9999不可随机造成功。"""
     model = ScriptedWorkflowModel([control('clarification'), control('clarification')],
                                   intent_replies=[intent(name)])
     store = Store()
@@ -46,12 +46,12 @@ async def test_unknown_order_completes_business_reply_without_claiming_delivery(
     ('error', {'error': {'code': 'tool_connection_error'}}),
     ('error', {'error': {'code': 'tool_execution_error'}}),
     ('success', {'error': {'code': 'not_found'}}),
-    ('error', {'order_id': '2002', 'status': '已签收', 'error': {'code': 'not_found'}}),
+    ('error', {'order_id': '9999', 'status': '已签收', 'error': {'code': 'not_found'}}),
 ])
 async def test_operational_or_conflicting_outcomes_still_fail_closed(status, payload):
     """只处理规范业务未找到；真正失败与自相矛盾结果不能变成成功答复。"""
-    context, state = setup([control('clarification')], question='订单2002物流', intent='物流')
-    read = workflow_call('query_logistics', {'order_id': '2002'})
+    context, state = setup([control('clarification')], question='订单9999物流', intent='物流')
+    read = workflow_call('query_logistics', {'order_id': '9999'})
     state['messages'] += [read, ToolMessage(json.dumps(payload), tool_call_id=read.tool_calls[0]['id'], status=status)]
     with pytest.raises(ServiceError) as caught:
         await llm_call(state, Runtime(context=context))

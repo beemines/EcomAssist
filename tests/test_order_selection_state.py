@@ -109,7 +109,7 @@ async def test_prepare_uses_trusted_identity_and_creates_independent_candidates(
     prepared = await prepare_order_selection(turn(), Runtime(context=runtime))
     selection = prepared['order_selection']
     assert prepared['turn_status'] == 'awaiting_order'
-    assert [card['order_id'] for card in selection['cards']] == ['1001', '1002', '1003', '1004']
+    assert [card['order_id'] for card in selection['cards']] == ['1001', '1002', '1003', '1004', '2002']
     again = await prepare_order_selection(turn(), Runtime(context=runtime))
     assert again['order_selection']['selection_id'] != selection['selection_id']
     runtime.user_id = 'other-user'
