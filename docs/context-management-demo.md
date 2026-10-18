@@ -40,6 +40,13 @@ D:/vue/node.exe scripts/test-context-browser-options.cjs
 
 8004由 `scripts/start-context-demo.ps1` Hidden启动/重启，停止前复查创建时间、解释器、完整命令/工作区、launch祖先及监听PID；未知占用直接拒绝。8002/8003未操作。default/demo分别保存 `runtime/workflow/context-{profile}-8004.sqlite`。
 
+用户手动交互演示：在本worktree根目录运行下列命令，然后访问 `http://127.0.0.1:8004`；切换默认配置时将 `demo` 改为 `default`。
+
+```powershell
+pwsh -NoProfile -File scripts/start-context-demo.ps1 -Profile demo
+```
+
+当前有界验收服务只余1次GLM额度。上面普通演示命令由用户手动执行，不带验收RunId/caps；此处仅提供文档示例，不是agent继续调用或重置旧验收账本。
 此前获批实际启动使用如下完整有界参数；当前调用已停止，下面仅是已用入口的记录，不授权重跑：
 
 ```powershell
