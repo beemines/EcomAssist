@@ -1,10 +1,16 @@
 {
-  "servers": {},
+  "servers": {
+    "logistics": {"transport": "streamable_http", "url": "http://127.0.0.1:8101/mcp", "timeout": 3, "sse_read_timeout": 4},
+    "aftersales": {"transport": "streamable_http", "url": "http://127.0.0.1:8102/mcp", "timeout": 3, "sse_read_timeout": 4}
+  },
   "plugins": [],
   "tools": [
     {"source": "builtin", "name": "query_order", "operation": "read"},
     {"source": "builtin", "name": "query_product", "operation": "read"},
     {"source": "builtin", "name": "query_faq", "operation": "read", "max_retries": 0},
-    {"source": "builtin", "name": "create_ticket", "operation": "write", "max_retries": 0}
+    {"source": "builtin", "name": "create_ticket", "operation": "write", "max_retries": 0},
+    {"source": "mcp:logistics", "name": "query_logistics", "operation": "read", "order_id_arg": "order_id"},
+    {"source": "mcp:aftersales", "name": "query_warranty", "operation": "read", "order_id_arg": "order_id"},
+    {"source": "mcp:aftersales", "name": "query_return_progress", "operation": "read", "order_id_arg": "order_id"}
   ]
 }

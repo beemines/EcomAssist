@@ -70,6 +70,7 @@ class Settings(BaseSettings):
     # 工具输入含 Schema 和结果，超时与重试有硬上限，重试可关闭但不能无限增加。
     tool_input_token_budget: int = Field(default=8000, gt=0, validation_alias="TOOL_INPUT_TOKEN_BUDGET")
     tool_timeout_seconds: float = Field(default=5.0, gt=0, validation_alias="TOOL_TIMEOUT_SECONDS")
+    tool_policy_path: Path = Field(default=Path('config/tool-policy.json'), validation_alias='TOOL_POLICY_PATH')
     tool_max_retries: int = Field(default=1, ge=0, le=1, validation_alias="TOOL_MAX_RETRIES")
     faq_timeout_seconds: float = Field(default=90, gt=0, le=90, validation_alias='FAQ_TIMEOUT_SECONDS')
     chat_timeout_seconds: float = Field(default=240, gt=0, le=240, validation_alias='CHAT_TIMEOUT_SECONDS')
