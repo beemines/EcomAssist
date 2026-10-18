@@ -18,17 +18,20 @@ from app.workflow.prompts import INTENT_SYSTEM
 from app.context.view import compose_call
 
 
-def intent_packet(raw_question, snapshot, *, resolved_question=None, output_tokens=2048):
+def intent_packet(raw_question, snapshot, *, resolved_question=None, output_tokens=2048, ticket_request=None):
+    attachment = {'resolved_question': resolved_question or raw_question}
+    if ticket_request:
+        attachment['ticket_request'] = {'active': True, 'origin_user_message_id': ticket_request['origin_user_message_id']}
     return compose_call(snapshot, system=SystemMessage(INTENT_SYSTEM),
         current=HumanMessage(resolved_question or raw_question, id=snapshot.user_message_id),
-        attachment={'resolved_question': resolved_question or raw_question}, pending=(), tools=(),
+        attachment=attachment, pending=(), tools=(),
         output_tokens=output_tokens)
 
 
-Intent = Literal['物流','订单','商品咨询','退款退货','售后','投诉','闲聊','其他']
+Intent = Literal['物流','订单','商品咨询','退款退货','售后','投诉','闲聊','其他','工单']
 Route = Literal['knowledge','business','after_sales','complaint','social','other']
 _SOCIAL = re.compile(r'(?:你好|您好|嗨|哈喽|谢谢(?:你|您)?|多谢|辛苦了|再见|拜拜|早上好|下午好|晚上好)[！!。.?？\s]*')
-_ROUTES = {'商品咨询': 'knowledge', '退款退货': 'after_sales', '物流': 'business',
+_ROUTES = {'工单': 'business', '商品咨询': 'knowledge', '退款退货': 'after_sales', '物流': 'business',
            '订单': 'business', '售后': 'after_sales', '投诉': 'complaint', '闲聊': 'social', '其他': 'other'}
 
 
@@ -44,6 +47,15 @@ class _IntentOutput(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     intent: Intent
     confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
+
+
+def has_explicit_ticket_request(text: str) -> bool:
+    """Trusted write evidence only; LLM still selects business intent."""
+    if re.search(r'(?:不要|不想|不需要|不用|不必|别|不|没|未|取消)[^，。！？!?,;；\n]{0,12}(?:工单|建单|提交)|(?:怎么|如何)[^，。！？!?,;；\n]{0,10}(?:工单|建单)', text):
+        return False
+    if re.search(r'(?:能不能|可以)[^，。！？!?,;；\n]{0,10}(?:工单|建单)', text) and not re.search(r'(?:帮我|给我|我要|我想|请)', text):
+        return False
+    return re.search(r'(?:帮我|给我|我要|我想|请)[^，。！？!?,;；\n]{0,12}(?:建|创建|提交|开)[个一张份]*[^，。！？!?,;；\n]{0,8}工单|(?:创建|提交|建|开)[个一张份]*(?:售后|投诉|咨询)?工单', text) is not None
 
 
 def social_fast_path(raw_question: str) -> bool:
@@ -70,7 +82,7 @@ class IntentClassifier:
         self.usage = {'actual': 0, 'estimated': 0, 'actual_calls': 0, 'estimated_calls': 0}
 
     async def classify(self, raw_question: str, *, snapshot=None, resolved_question=None,
-                       context_logger=None, call_index=2, output_tokens=2048) -> IntentResult:
+                       context_logger=None, call_index=2, output_tokens=2048, ticket_request=None) -> IntentResult:
         """只处理本轮原话；无效 JSON、非 stop 或上游故障全部保持错误。"""
         if not isinstance(raw_question, str) or not raw_question.strip():
             raise ValueError('raw question must be nonempty')
@@ -78,8 +90,10 @@ class IntentClassifier:
         if social_fast_path(raw_question):
             return IntentResult('闲聊', '闲聊', 1.0)
         packet = intent_packet(raw_question, snapshot, resolved_question=resolved_question,
-                               output_tokens=output_tokens) if snapshot else None
+                               output_tokens=output_tokens, ticket_request=ticket_request) if snapshot else None
         messages = list(packet.messages) if packet else build_intent_messages(raw_question)
+        if packet is None and ticket_request:
+            messages.append(HumanMessage('当前为用户主动要求建单后的补充轮，先核对是否仍在补充问题描述；明确切换/否定优先。'))
         cost = packet.estimated_tokens if packet is not None else estimate_call_input(messages, [])
         if packet is None and cost > self.input_budget:
             raise InputTooLong()

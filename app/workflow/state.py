@@ -15,6 +15,11 @@ class OrderSelection(TypedDict):
 
 
 class WorkflowState(TypedDict):
+    tool_catalog_version: str | None
+    tool_manifest: dict[str, Any] | None
+    ticket_request: dict[str, Any] | None
+    ticket_proposal: dict[str, Any] | None
+    ticket_confirmation: dict[str, Any] | None
     state_version: int
     context_version: int
     context_bootstrap: bool
@@ -66,6 +71,11 @@ def new_turn_state(*, conversation_id: str, user_message_id: int, raw_question: 
     if prepared and isinstance(prepared[-1], HumanMessage):
         prepared[-1].id = str(user_message_id)
     return {
+        'tool_catalog_version': None,
+        'tool_manifest': None,
+        'ticket_request': None,
+        'ticket_proposal': None,
+        'ticket_confirmation': None,
         'state_version': 2,
         'context_version': 1,
         'context_bootstrap': False,
