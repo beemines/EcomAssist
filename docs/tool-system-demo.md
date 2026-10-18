@@ -1,5 +1,7 @@
 # 第八步：可插拔工具演示
 
+想按页面逐项验收，直接看[手动验收步骤](ch08-manual-acceptance.md)，其中物流、追问、预览确认/取消及组合查询已于2026-10-19真实复验。
+
 在本章工作树、已配置项目.env且MySQL/Milvus可用的PowerShell7中运行：
 
 ```powershell

@@ -351,4 +351,4 @@ uv run --locked python -m evals.evaluate_intent_routing --mode chat --split acce
 
 2026-10-16连续追问定点修复：当前84b3626在8003通过真实四轮“查1001物流→这个能退吗→那大概什么时候到→slkfnsiogn”，SQL364–379与精确完成根核对PASS。补齐已绑定订单的政策评分输入（含仅订单号的等价表达）、理解阶段旧FAQ挤掉订单历史、模拟说明遗漏和OTHER明确澄清；页面安全呈现加粗。退款needs_review，来源119原文、空白原因表单打开取消通过，未提交业务申请。相关129/218/107项分别通过，不相加当全量；原48题、7/8及维修缺口不变。失败358的问题池id13保留。少量页面GLM与既有BGE完整链路测试已持续授权，上百次评估另行确认。命令及失败/最终证据见[本轮验收](docs/validation/2026-10-15-intent-routing-acceptance.md)，过程见[第六步记录](dev-notes/ch06.md)。
 
-第八步可插拔工具：见[演示命令](docs/tool-system-demo.md)、[验收报告](docs/superpowers/reports/2026-10-18-pluggable-tools-acceptance.md)和[开发过程](dev-notes/ch08.md)。8005客服、8101物流、8102售后分别启动，原8004保持。
+第八步可插拔工具：见[手动验收步骤](docs/ch08-manual-acceptance.md)、[演示命令](docs/tool-system-demo.md)、[最新复验报告](docs/superpowers/reports/2026-10-19-pluggable-tools-reacceptance.md)和[开发过程](dev-notes/ch08.md)。2026-10-19截图主流程及两个组合失败原句已真实复验；8005客服、8101物流、8102售后分别运行，原8004保持。
