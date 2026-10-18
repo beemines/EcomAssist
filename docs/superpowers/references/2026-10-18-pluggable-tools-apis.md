@@ -68,3 +68,8 @@ MCP1.30.0要求Python>=3.10、httpx>=0.27.1,<1.0.0、Python<3.14时pydantic>=2.1
 - 官方Schema API：https://python-jsonschema.readthedocs.io/en/stable/validate/ 。安装源码jsonschema/validators.py核对validator_for(schema)、check_schema(schema)、iter_errors(instance)，错误类型SchemaError独立，不假设ValueError。禁止远程引用，先完整校验再发布。
 - SQLAlchemy官方2.0：https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html 、https://docs.sqlalchemy.org/en/20/core/type_basics.html#sqlalchemy.types.JSON 。安装2.0.54的ext/asyncio/session.py与sql/sqltypes.py核对独立AsyncSession事务、JSON(none_as_null=True)；审计与工单分别开Session，不共享失败事务。
 - uv完整解析成功，新增mcp1.30.0/adapters0.3.2/jsonschema4.26.0及其新依赖，原有固定框架未升级。基线148通过。
+
+## 实施核对：MCP结构化输出
+
+- 已安装mcp1.30.0的fastmcp/server.py、utilities/func_metadata.py和adapters0.3.2的tools.py核对。裸dict不生成结构化Schema；dict[str,Any]经RootModel保留对象字段。MCPToolArtifact为TypedDict，structured_content通过字典读取；isError被适配成status=error，不吞transport异常。
+- FastMCP.run(transport='streamable-http')使用自身ASGI lifespan；get_tools(*,server_name=None)按Server隔离发现；真实HTTP回归通过。
