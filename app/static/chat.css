@@ -1183,3 +1183,13 @@ textarea:disabled {
     padding:21px 20px
   }
 }
+.ticket-preview { margin-top: 16px; padding: 20px; background: #f7faf5; border: 1px solid #cadac9; border-radius: 15px; color: #31594f; }
+.ticket-preview h3 { margin: 2px 0 16px; font-size: 18px; font-weight: 600; }
+.ticket-preview-eyebrow { margin: 0 0 8px; color: #78917e; font-size: 12px; letter-spacing: .04em; }
+.ticket-preview-type { margin: 0 0 10px; font-size: 13px; color: #638073; }
+.ticket-preview-description { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.75; margin: 0; max-height: 18em; overflow-y: auto; }
+.ticket-preview-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+.ticket-preview-confirm { background: #34675b !important; border-color: #34675b !important; color: white !important; }
+.ticket-preview-status { font-size: 12px; color: #7c8e7c; line-height: 1.5; margin: 12px 0 0; }
+.ticket-preview button:disabled { opacity: .55; cursor: default; }
+@media (max-width: 600px) { .ticket-preview { padding: 16px; } .ticket-preview-actions > button { flex: 1; min-height: 44px; } }
