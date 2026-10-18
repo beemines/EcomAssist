@@ -177,11 +177,16 @@ async def test_boundary_conflict_and_restart(repository):
 
 async def test_frozen_target_splits_contiguous_complete_raw_turns(repository):
     from app.context.manager import SummaryManager
+    from app.context.summarizer import SUMMARY_OUTPUT_TOKENS, summary_input_tokens
     await seed(repository, turns=3, size=180)
     generator, events = GatedGenerator(), Events()
     manager = SummaryManager(repository, generator, budget_provider=budget, event_logger=events)
-    # Each raw turn fits; two raw turns exceed W once actual wrappers/O/M are counted.
-    limited = budget(window=3200, safety=256)
+    # Derive capacity from the real model view; prompt size and projection may
+    # change, while the complete raw turns and their SQL coverage stay fixed.
+    one_turn = await repository.load_batch('1', target_upto=102)
+    two_turns = await repository.load_batch('1', target_upto=104)
+    limited = budget(window=summary_input_tokens(one_turn) + SUMMARY_OUTPUT_TOKENS + 256, safety=256)
+    assert summary_input_tokens(two_turns) + SUMMARY_OUTPUT_TOKENS + limited.safety > limited.window
     manager.notify('1', layer2_tokens=5000, budget=limited)
     await generator.entered.wait('entered')
     async with repository.database.session() as session, session.begin():

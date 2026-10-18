@@ -29,6 +29,7 @@ from app.workflow.runtime import WorkflowRuntime
 from app.workflow.state import WorkflowState
 from app.workflow.history import replay_turns
 from app.workflow.logging import log_audit
+from app.workflow.recovery import recover_generation
 
 
 def remaining_timeout(context: WorkflowRuntime, limit: float) -> float:
@@ -93,20 +94,41 @@ async def model_stage(state, runtime, stage, service, operation, messages, *, fo
     final, _ = workflow_packet(state, context, phase='final')
     control, _ = workflow_packet(state, context, phase='decision', tools=stable_read_schema(context.registry))
     reserve = final.estimated_tokens + final.output_tokens + control.estimated_tokens + control.output_tokens + following * settings.intent_max_output_tokens
-    reserve_context_call(messages, [], ledger, output_limit=settings.intent_max_output_tokens, final_reserve=reserve)
+    def reserve_attempt():
+        reserve_context_call(messages, [], ledger, output_limit=settings.intent_max_output_tokens, final_reserve=reserve)
+    reserve_attempt()
     started = time.monotonic()
-    try:
-        async with asyncio.timeout(remaining_timeout(context, context.settings.llm_timeout_seconds)):
-            result = await operation()
-    except BaseException:
-        update = stage_update(state, stage, service, started, messages)
+    consumed = dict.fromkeys(state['usage'], 0)
+    def update_usage():
+        for key in consumed:
+            consumed[key] += service.usage[key]
+            setattr(ledger, key, state['usage'][key] + consumed[key])
+        previous = state['stage_usage'].get(stage, {})
+        return {'model_recovery_used': context.model_recovery_used,
+            'usage': {key: state['usage'][key] + consumed[key] for key in consumed},
+            'stage_usage': {**state['stage_usage'], stage: {
+                **{key: previous.get(key, 0) + consumed[key] for key in consumed},
+                'elapsed_seconds': previous.get('elapsed_seconds', 0) + time.monotonic() - started}}}
+    for attempt in range(2):
+        service.usage = dict.fromkeys(consumed, 0)
+        try:
+            async with asyncio.timeout(remaining_timeout(context, context.settings.llm_timeout_seconds)):
+                result = await operation(attempt)
+        except BaseException as exc:
+            if isinstance(exc, TimeoutError):
+                exc = ServiceError('upstream_timeout', '模型响应超时，请稍后重试。', 504)
+            update = update_usage()
+            observe_usage(context, update)
+            runtime.stream_writer({'event': 'usage', 'data': {'stage': stage, **update}})
+            log_node(state, stage if stage != 'understanding' else 'resolve_reference', usage=update['usage'])
+            if recover_generation(context, state, runtime, stage, exc, update['usage'],
+                    attempted=service.usage['actual_calls'] + service.usage['estimated_calls'] > 0,
+                    reserve=reserve_attempt):
+                continue
+            raise exc
+        update = update_usage()
         observe_usage(context, update)
-        runtime.stream_writer({'event': 'usage', 'data': {'stage': stage, **update}})
-        log_node(state, stage if stage != 'understanding' else 'resolve_reference', usage=update['usage'])
-        raise
-    update = stage_update(state, stage, service, started, messages)
-    observe_usage(context, update)
-    return result, update
+        return result, update
 
 
 def stage_update(state, stage, service, started, messages):
@@ -134,7 +156,8 @@ async def resolve_reference(state: WorkflowState, runtime: Runtime[WorkflowRunti
     else:
         messages = build_understanding_messages(state['raw_question'], history, context.settings.tool_input_token_budget)
     result, update = await model_stage(state, runtime, 'understanding', context.understanding,
-        lambda: context.understanding.resolve(state['raw_question'], history, **kwargs), messages, following=2)
+        lambda attempt: context.understanding.resolve(state['raw_question'], history, **kwargs,
+            call_index=1 + attempt), messages, following=2)
     return {**update, 'resolved_question': result.query, 'turn_status': 'running'}
 
 
@@ -158,7 +181,7 @@ async def classify_intent(state: WorkflowState, runtime: Runtime[WorkflowRuntime
             kwargs, question = {}, state['resolved_question']
             messages = build_intent_messages(question)
         result, update = await model_stage(state, runtime, 'classification', classifier,
-            lambda: classifier.classify(question, **kwargs), messages, following=1)
+            lambda attempt: classifier.classify(question, **kwargs, call_index=2 + attempt), messages, following=1)
         intent = result.intent
         raw_intent, confidence = result.raw_intent, result.confidence
     route = route_intent(intent)
@@ -247,7 +270,8 @@ async def expand_queries(state: WorkflowState, runtime: Runtime[WorkflowRuntime]
             attachment={'resolved_question': state['resolved_question'], 'order': state['order_snapshot']},
             output_tokens=context.settings.intent_max_output_tokens).messages
     queries, update = await model_stage(state, runtime, 'expansion', context.expander,
-        lambda: context.expander.expand(state['resolved_question'], order, **kwargs), messages)
+        lambda attempt: context.expander.expand(state['resolved_question'], order, **kwargs,
+            call_index=1 + attempt), messages)
     log_node(state, 'expand_queries', usage=update['usage'])
     return {**update, 'retrieval_queries': list(queries)}
 

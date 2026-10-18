@@ -91,7 +91,7 @@ def test_entities_from_assistant_failed_or_unpaired_tools_are_not_trusted():
 
 
 @pytest.mark.parametrize('limit_field', ['max_tokens', 'max_completion_tokens'])
-async def test_actual_http_request_has_512_reserve_json_mode_raw_source_and_no_retry(limit_field):
+async def test_actual_http_request_has_512_reserve_json_mode_trusted_source_and_no_retry(limit_field):
     from app.context.summarizer import SummaryGenerator
     from app.core.llm import create_model
     requests = []
@@ -110,7 +110,9 @@ async def test_actual_http_request_has_512_reserve_json_mode_raw_source_and_no_r
     assert sent['response_format'] == {'type':'json_object'}
     assert 'tools' not in sent
     data = json.loads(sent['messages'][1]['content'])
-    assert data['source_rows'][-1]['content'] == '原文'*100
+    assert len(data['source_rows']) == 1
+    assert data['source_rows'][0]['role'] == 'user'
+    assert data['source_rows'][0]['content'] == '订单 O-101 的包裹未找到'
     assert 'summaries' not in data
 
 

@@ -303,6 +303,7 @@ class WorkflowChatService:
                     await self._verify_sql_turn(conversation_id, state, completed=completed)
                     runtime = await self._runtime(conversation_id, int(payload.turn_id), state['raw_question'],
                         state.get('category'), deadline, started, state.get('active_elapsed_seconds', 0.0))
+                    runtime.model_recovery_used = state.get('model_recovery_used', False)
                     if not completed:
                         await self._prepare_context(state, runtime,
                             await self.repository.load_messages(conversation_id), resume=True)

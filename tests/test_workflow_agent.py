@@ -31,9 +31,12 @@ def graph():
     return module.build_agent_graph()
 
 
-def setup(replies, *, question='订单 A-42 的状态和物流', intent='订单', answer='模拟查询：订单待发货，物流运输中。', chunks=None):
+def setup(replies, *, question='订单 A-42 的状态和物流', intent='订单', answer='模拟查询：订单待发货，物流运输中。', chunks=None,
+          single_attempt=False):
     """只替换模型和数据库边界，保留真实工具注册与执行器。"""
     context = workflow_runtime(intent=intent)
+    # Protocol/guard isolation tests can explicitly start after the shared allowance is spent.
+    context.model_recovery_used = single_attempt
     context.model = ScriptedWorkflowModel(final_chunks=chunks if chunks is not None else [
         AIMessageChunk(answer), AIMessageChunk('', response_metadata={'finish_reason': 'stop'})])
     context.decision_model = ScriptedWorkflowModel(replies)

@@ -58,7 +58,7 @@ async def test_parent_current_read_and_normalized_prompts(raw, resolved, order):
         AIMessage('历史模拟结果：已签收。')]
     state['messages'] = prior + state['messages']
     original = state['messages'][-1].model_copy(deep=True)
-    async def resolve(question, history):
+    async def resolve(question, history, **kwargs):
         """只替换理解网络边界，实体验证由生产控制边界保留。"""
         return Resolution(resolved, True)
     context.understanding.resolve = resolve
@@ -122,7 +122,7 @@ async def test_final_attempt_accounting_survives_every_exit(failure):
 @pytest.mark.parametrize('reply', [AIMessage('not-json', response_metadata={'finish_reason': 'stop'}), TimeoutError(), asyncio.CancelledError()])
 async def test_control_failed_attempt_is_observable(reply):
     """非法控制与等待故障没有图update也必须记录本次尝试。"""
-    context, state = setup([reply], question='查订单')
+    context, state = setup([reply], question='查订单', single_attempt=True)
     observations = []
     context.usage_observer = observations.append
     with pytest.raises((ServiceError, asyncio.CancelledError, NodeCancelledError)):
