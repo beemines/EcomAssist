@@ -67,7 +67,7 @@ def safe_fields(values):
             result[key] = {stage: {**safe_fields({'usage': data}).get('usage', {}),
                 **safe_fields({'elapsed_seconds': data.get('elapsed_seconds')})}
                 for stage, data in value.items() if stage in
-                {'understanding', 'classification', 'expansion', 'sufficiency', 'retrieval'} and isinstance(data, dict)}
+                {'understanding', 'classification', 'expansion', 'sufficiency', 'retrieval', 'decision'} and isinstance(data, dict)}
         elif key in {'prior_pending', 'useful'} and type(value) is bool:
             result[key] = value
         elif key == 'elapsed_seconds' and type(value) in (int, float) and math.isfinite(value) and value >= 0:

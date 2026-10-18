@@ -47,7 +47,7 @@ class QueryExpander:
         self.usage = {'actual': 0, 'estimated': 0, 'actual_calls': 0, 'estimated_calls': 0}
 
     async def expand(self, question: str, order: OrderSnapshot, *, snapshot=None, raw_question=None,
-                     context_logger=None, on_packet=None, on_calibration=None, output_tokens=2048) -> tuple[str, ...]:
+                     context_logger=None, on_packet=None, on_calibration=None, output_tokens=2048, call_index=1) -> tuple[str, ...]:
         """原问题首条逐字保留；重复归一空白后不足两条视为坏协议。"""
         self.usage = dict.fromkeys(self.usage, 0)
         if not isinstance(question, str) or not question.strip():
@@ -70,7 +70,7 @@ class QueryExpander:
         ledger = UsageLedger()
         record_usage(None, ledger, estimated_input=cost, output_limit=output_tokens)
         self.usage = {key: getattr(ledger, key) for key in self.usage}
-        log_model_call(context_logger, packet, phase='expansion', on_packet=on_packet,
+        log_model_call(context_logger, packet, phase='expansion', call_index=call_index, on_packet=on_packet,
             conversation_id=snapshot.conversation_id if snapshot else None,
             user_message_id=snapshot.user_message_id if snapshot else None)
         output = None

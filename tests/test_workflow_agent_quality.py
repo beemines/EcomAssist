@@ -162,7 +162,7 @@ async def test_captured_policy_prose_remains_invalid_control_output(path):
         response_metadata={'finish_reason': 'stop'}, tool_calls=[], invalid_tool_calls=[])
     replies = [captured] if path == 'mandatory_faq' else [workflow_call('query_logistics'), captured]
     context, state = setup(replies, question='退货政策是什么？' if path == 'mandatory_faq' else '订单 A-42 物流到哪了？',
-        intent='退款退货' if path == 'mandatory_faq' else '物流')
+        intent='退款退货' if path == 'mandatory_faq' else '物流', single_attempt=True)
     if path == 'mandatory_faq':
         state.update(route='knowledge', tool_call_count=1,
             quality={'useful': True, 'reason': '本轮资料已通过闸门', 'response_kind': 'knowledge', 'source': None})

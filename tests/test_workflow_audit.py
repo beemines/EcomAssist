@@ -70,7 +70,8 @@ async def audit_scenarios(root):
         await request(app, 'SECRET_SENTINEL 政策')
     for name, failure in [('service', ServiceError('invalid_structured_output', 'SECRET_SENTINEL', 502)),
             ('timeout', TimeoutError('SECRET_SENTINEL'))]:
-        model = ScriptedWorkflowModel(intent_replies=[failure])
+        # Both allowed attempts return the same provider failure; no queue-empty substitute.
+        model = ScriptedWorkflowModel(intent_replies=[failure, failure])
         async with workflow_app(root / name, model=model) as app:
             assert decode_sse((await request(app, 'SECRET_SENTINEL')).text)[-1][0] == 'error'
     async with blocked_clarification_app(root / 'deadline', model=BlockedModel()) as app:

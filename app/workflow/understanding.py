@@ -129,18 +129,37 @@ class QueryUnderstanding:
         ledger = UsageLedger()
         record_usage(raw, ledger, estimated_input=cost, output_limit=output_tokens)
         self.usage = {key: getattr(ledger, key) for key in self.usage}
-        if (not isinstance(raw, AIMessage) or raw.response_metadata.get('finish_reason') != 'stop'
-                or raw.tool_calls or raw.invalid_tool_calls or raw.additional_kwargs.get('tool_calls')):
-            raise invalid_output(finish_reason=raw.response_metadata.get('finish_reason') if isinstance(raw, AIMessage) else None)
-        result = validate_structured_output(output, _UnderstandingOutput)
-        query = preserve_dropped_greeting(raw_question, result.query)
-        if snapshot is None and len(query) > 512:
-            raise invalid_output()  # Legacy callers retain the old contract until activation.
-        if estimate_text_tokens(json.dumps({'query': query}, ensure_ascii=False)) > output_tokens:
-            raise invalid_output()
-        if snapshot is not None:
-            validate_snapshot_entities(raw_question, query, snapshot, provenance)
-        else:
-            validate_resolved_entities(raw_question, query, messages[1:-1])
+        rejection = 'raw'
+        try:
+            if (not isinstance(raw, AIMessage) or raw.response_metadata.get('finish_reason') != 'stop'
+                    or raw.tool_calls or raw.invalid_tool_calls or raw.additional_kwargs.get('tool_calls')):
+                raise invalid_output(finish_reason=raw.response_metadata.get('finish_reason') if isinstance(raw, AIMessage) else None)
+            rejection = 'schema'
+            result = validate_structured_output(output, _UnderstandingOutput)
+            query = preserve_dropped_greeting(raw_question, result.query)
+            if snapshot is None and len(query) > 512:
+                raise invalid_output()  # Legacy callers retain the old contract until activation.
+            if estimate_text_tokens(json.dumps({'query': query}, ensure_ascii=False)) > output_tokens:
+                raise invalid_output()
+            rejection = 'entity'
+            if snapshot is not None:
+                validate_snapshot_entities(raw_question, query, snapshot, provenance)
+            else:
+                validate_resolved_entities(raw_question, query, messages[1:-1])
+        except ServiceError:
+            if context_logger is not None and snapshot is not None:
+                try:
+                    text = raw.text if isinstance(raw, AIMessage) else ''
+                    finish = raw.response_metadata.get('finish_reason') if isinstance(raw, AIMessage) else None
+                    context_logger.event('understanding_control_rejected', {
+                        'conversation_id': snapshot.conversation_id, 'user_message_id': snapshot.user_message_id,
+                        'snapshot_id': snapshot.snapshot_id, 'rejection': rejection, 'call_index': call_index,
+                        'finish_reason': finish if type(finish) is str and finish in (
+                            'stop', 'length', 'content_filter', 'tool_calls', 'function_call') else None,
+                        'control_text': text[:8192], 'control_text_length': len(text),
+                        'control_text_truncated': len(text) > 8192})
+                except Exception:
+                    pass
+            raise
 
         return Resolution(query, query != raw_question)

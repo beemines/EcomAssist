@@ -51,6 +51,7 @@ class WorkflowState(TypedDict):
     decision_count: int
     tool_call_count: int
     usage: dict[str, int]
+    model_recovery_used: bool
     reply_mode: Literal['answer', 'clarification'] | None
     final_answer: str | None
     final_message_id: str | None
@@ -100,6 +101,7 @@ def new_turn_state(*, conversation_id: str, user_message_id: int, raw_question: 
         'decision_count': 0,
         'tool_call_count': 0,
         'usage': {'actual': 0, 'estimated': 0, 'actual_calls': 0, 'estimated_calls': 0},
+        'model_recovery_used': False,
         'reply_mode': None,
         'final_answer': None,
         'final_message_id': None,

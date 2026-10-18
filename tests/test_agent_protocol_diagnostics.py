@@ -153,7 +153,7 @@ async def test_invalid_decision_stage_is_private_accounted_and_still_rejected(ca
     reply.additional_kwargs['reasoning_content'] = SECRET
     reply.response_metadata.update(reasoning_content=SECRET, conversation_id=SECRET, user_message_id=SECRET)
     reply.usage_metadata = {'input_tokens': 10, 'output_tokens': 5, 'total_tokens': 15}
-    context, state = setup([reply], question='我的订单1001到哪了', intent='物流')
+    context, state = setup([reply], question='我的订单1001到哪了', intent='物流', single_attempt=True)
     observed = []
     context.usage_observer = observed.append
     with caplog.at_level(logging.WARNING), pytest.raises(ServiceError) as caught:

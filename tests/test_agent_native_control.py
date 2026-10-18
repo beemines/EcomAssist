@@ -91,7 +91,7 @@ async def test_native_control_is_not_business_execution_or_sql_or_badge(caplog):
 async def test_native_control_schema_failure_never_executes_or_streams(args):
     if 'suggested_actions' in args:
         args = {'refund_decision': None, 'decision_reason': None, **args}
-    context, state = setup([native(args)], question='查物流', intent='物流')
+    context, state = setup([native(args)], question='查物流', intent='物流', single_attempt=True)
     with pytest.raises(ServiceError) as caught:
         await run(context, state)
     assert caught.value.code == 'invalid_structured_output'
@@ -167,7 +167,7 @@ async def test_internal_name_collision_fails_before_model_or_business_execution(
 async def test_native_after_sales_strict_schema_rejects_invalid_values(changes):
     args = {'reply_mode': 'answer', 'suggested_actions': [], 'refund_decision': 'needs_review', 'decision_reason': '待核验'}
     args.update(changes)
-    context, state = setup([native(args)], question='订单1001能退吗', intent='退款退货')
+    context, state = setup([native(args)], question='订单1001能退吗', intent='退款退货', single_attempt=True)
     state['route'] = 'after_sales'
     with pytest.raises(ServiceError) as caught:
         await llm_call(state, Runtime(context=context))
@@ -186,7 +186,7 @@ async def test_after_sales_keeps_semantic_control_checks(intent, mode, decision,
     args = {'reply_mode': mode, 'suggested_actions': ['create_ticket'],
         'refund_decision': decision, 'decision_reason': '条件待核验'}
     reply = native(args) if transport == 'native_control' else AIMessage(json.dumps(args), response_metadata={'finish_reason': 'stop'})
-    context, state = setup([reply], question='订单1001售后', intent=intent)
+    context, state = setup([reply], question='订单1001售后', intent=intent, single_attempt=True)
     state['route'] = 'after_sales'
     if valid:
         result = await llm_call(state, Runtime(context=context))
@@ -207,7 +207,7 @@ async def test_after_sales_keeps_semantic_control_checks(intent, mode, decision,
 @pytest.mark.parametrize('reply,valid', [(control('clarification'), True),
     (AIMessage('普通回答正文', response_metadata={'finish_reason': 'stop'}), False)])
 async def test_primary_json_control_remains_strict(reply, valid, caplog):
-    context, state = setup([reply], question='查物流', intent='物流')
+    context, state = setup([reply], question='查物流', intent='物流', single_attempt=True)
     with caplog.at_level(logging.INFO, logger='app.workflow.audit'):
         if valid:
             result = await llm_call(state, Runtime(context=context))
@@ -287,7 +287,8 @@ async def test_json_mode_does_not_relax_strict_control_validation(body):
             body = json.dumps({'refund_decision': None, 'decision_reason': None, **parsed})
     except json.JSONDecodeError:
         pass
-    context, state = setup([AIMessage(body, response_metadata={'finish_reason': 'stop'})], question='查物流', intent='物流')
+    context, state = setup([AIMessage(body, response_metadata={'finish_reason': 'stop'})],
+        question='查物流', intent='物流', single_attempt=True)
     with pytest.raises(ServiceError) as caught:
         await run(context, state)
     assert caught.value.code == 'invalid_structured_output'

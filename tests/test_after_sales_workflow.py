@@ -23,8 +23,9 @@ def context(intent='退款退货', *, data=None):
     ctx.order_provider, ctx.user_id = DemoOrderProvider(), 'demo-user'
     class Expand:
         usage = {'actual': 10, 'estimated': 0, 'actual_calls': 1, 'estimated_calls': 0}
-        async def expand(self, question, order):
+        async def expand(self, question, order, **context):
             """只在已选订单后给出独立检索角度。"""
+            self.usage = {'actual': 10, 'estimated': 0, 'actual_calls': 1, 'estimated_calls': 0}
             assert order.order_id in ('1001', '1002')
             return (question, order.model + '退货及保修政策')
     class Retrieve:
@@ -185,8 +186,9 @@ async def test_understanding_consumes_complete_history_and_classifies_resolved()
     ctx = context()
     class Understanding:
         usage = {'actual': 20, 'estimated': 0, 'actual_calls': 1, 'estimated_calls': 0}
-        async def resolve(self, raw, history):
+        async def resolve(self, raw, history, **context):
             """唯一可追溯订单来自已完成SQL轮次。"""
+            self.usage = {'actual': 20, 'estimated': 0, 'actual_calls': 1, 'estimated_calls': 0}
             assert raw == '它能退吗？' and [m.content for m in history] == ['订单1001是什么', '此前答复']
             return Resolution('订单1001能退吗？', True)
     ctx.understanding = Understanding()

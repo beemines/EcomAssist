@@ -13,7 +13,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
-from openai import APITimeoutError
+from openai import APITimeoutError, ContentFilterFinishReasonError, LengthFinishReasonError
 from pydantic import ValidationError
 
 from app.agent.bare import UNFINISHED_ANSWER
@@ -36,6 +36,7 @@ from app.context.logging import log_model_call, log_calibration
 from app.workflow.entities import validate_snapshot_entities, explicit_order_ids
 from app.workflow.prompts import KNOWLEDGE_FALLBACK, agent_decision_system, agent_final_system
 from app.workflow.runtime import WorkflowRuntime
+from app.workflow.recovery import recover_generation
 from app.workflow.state import WorkflowState
 from app.workflow.history import replay_turns
 
@@ -180,51 +181,23 @@ def _settle(state, context, ledger, reply, estimate, output):
     observe_usage(context, {'usage': _usage(ledger), 'stage_usage': state['stage_usage']})
 
 
-async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dict:
-    """最多五次决策并预留最终预算；拒绝正文仅写入专用内容日志。"""
-    context, limits = runtime.context, _limits(runtime.context)
-    ensure_answer_active(context.deadline)
-    if state['decision_count'] >= limits.max_decisions:
-        return {'stop_reason': 'step_limit', 'selected': None}
-    registry = _registry(state, context)
-    if INTERNAL_RESPONSE_CONTROL in context.registry:
-        raise ValueError('Internal response control conflicts with business registry')
+async def _decision_attempt(state, context, limits, ledger, packet, schema, registry, bound):
+    """Generate and strictly parse once, before any selected tool escapes the node."""
     control_type = UnifiedAgentControl
-    schema = stable_read_schema(context.registry)
-    ledger = _ledger(state, limits)
-    try:
-        packet, evidence = _packet(state, context, agent_decision_system(None), schema)
-        final_packet, _ = _packet(state, context, agent_final_system(None, None))
-        final_reserve = estimate_call_input(final_packet.messages, []) + limits.final_output_tokens
-        reserve_call(packet.messages, schema, ledger, output_limit=limits.decision_output_tokens,
-            final_reserve=final_reserve)
-    except (InputTooLong, ServiceError) as exc:
-        if isinstance(exc, ContextCapacityError):
-            raise
-        if exc.code not in ('input_too_long', 'token_budget'):
-            raise
-        return {'stop_reason': 'token_budget', 'selected': None}
-    required = _current_read(state, context)
-    if required is not None and required[2] == 'not_found':
-        # 已完成当前账号查询且无此单，无需再付费让模型解释固定业务结果。
-        log_node(state, 'order_lookup_result', name=required[0], status='not_found')
-        return {'selected': None, 'reply_mode': 'answer', 'suggested_actions': [],
-                'refund_decision': None, 'decision_reason': None}
-    model = model_with_output_budget(context.decision_model, context.settings, limits.decision_output_tokens)
-    if isinstance(model, ChatOpenAI):
-        # BigModel仅支持auto；JSON模式经extra_body进入同次HTTP请求，避免SDK
-        # 顶层response_format触发strict工具自动解析。仅改副本，最终流不带该格式。
-        model = model.model_copy(update={'extra_body': {**(model.extra_body or {}),
-            'response_format': {'type': 'json_object'}}}, deep=False)
-    bound = model.bind_tools(schema, tool_choice='auto', parallel_tool_calls=False)
+    timeout = remaining_timeout(context, context.settings.llm_timeout_seconds)
     selected = None
+    control = None
     estimate = _attempt(ledger, packet.messages, schema, limits.decision_output_tokens)
     log_model_call(context.context_logger, packet, conversation_id=state['conversation_id'],
                    user_message_id=state['user_message_id'], phase='decision', call_index=state['decision_count']+1,
                    on_packet=context.context_packet_observer)
     try:
-        async with asyncio.timeout(remaining_timeout(context, context.settings.llm_timeout_seconds)):
+        async with asyncio.timeout(timeout):
             selected = await bound.ainvoke(packet.messages)
+    except LengthFinishReasonError as exc:
+        raise invalid_output(finish_reason='length') from exc
+    except ContentFilterFinishReasonError as exc:
+        raise invalid_output(finish_reason='content_filter') from exc
     except (TimeoutError, httpx.TimeoutException, APITimeoutError) as exc:
         raise ServiceError('upstream_timeout', '模型响应超时，请稍后重试。', 504) from exc
     except ServiceError:
@@ -245,13 +218,10 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
             'conversation_id': state['conversation_id'], 'user_message_id': state['user_message_id'],
             'reason': exc.reason.value, **tool_protocol_diagnostic(selected), 'usage': _usage(ledger)},
             ensure_ascii=True, separators=(',', ':'), allow_nan=False))
+        exc.finish_reason = selected.response_metadata.get('finish_reason') if isinstance(selected, AIMessage) else None
         raise
-    update = {'decision_count': state['decision_count'] + 1, 'usage': _usage(ledger), 'selected': None, 'selected_origin': 'agent', 'stop_reason': None}
     native_control = call is not None and call.name == INTERNAL_RESPONSE_CONTROL
     transport = 'native_control' if native_control else 'json_control' if call is None else 'business_tool'
-    log_node(state, 'llm_call', decision_count=update['decision_count'], usage=update['usage'], decision_transport=transport)
-    if ledger.remaining < final_reserve:
-        return {**update, 'stop_reason': 'token_budget'}
     if call is not None and selected.text.strip():
         logger.warning(json.dumps({'event': 'agent_decision_protocol_failure',
             'conversation_id': state['conversation_id'], 'user_message_id': state['user_message_id'],
@@ -296,6 +266,86 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
                         # Optional evidence must never replace the original rejection or leak its body.
                         pass
             raise
+    return selected, call, control, transport
+
+
+async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dict:
+    """最多五次决策并预留最终预算；拒绝正文仅写入专用内容日志。"""
+    context, limits = runtime.context, _limits(runtime.context)
+    ensure_answer_active(context.deadline)
+    if state['decision_count'] >= limits.max_decisions:
+        return {'stop_reason': 'step_limit', 'selected': None}
+    registry = _registry(state, context)
+    if INTERNAL_RESPONSE_CONTROL in context.registry:
+        raise ValueError('Internal response control conflicts with business registry')
+    schema = stable_read_schema(context.registry)
+    ledger = _ledger(state, limits)
+    try:
+        packet, evidence = _packet(state, context, agent_decision_system(None), schema)
+        final_packet, _ = _packet(state, context, agent_final_system(None, None))
+        final_reserve = estimate_call_input(final_packet.messages, []) + limits.final_output_tokens
+        reserve_call(packet.messages, schema, ledger, output_limit=limits.decision_output_tokens,
+            final_reserve=final_reserve)
+    except (InputTooLong, ServiceError) as exc:
+        if isinstance(exc, ContextCapacityError):
+            raise
+        if exc.code not in ('input_too_long', 'token_budget'):
+            raise
+        return {'stop_reason': 'token_budget', 'selected': None}
+    required = _current_read(state, context)
+    if required is not None and required[2] == 'not_found':
+        # 已完成当前账号查询且无此单，无需再付费让模型解释固定业务结果。
+        log_node(state, 'order_lookup_result', name=required[0], status='not_found')
+        return {'selected': None, 'reply_mode': 'answer', 'suggested_actions': [],
+                'refund_decision': None, 'decision_reason': None}
+    model = model_with_output_budget(context.decision_model, context.settings, limits.decision_output_tokens)
+    if isinstance(model, ChatOpenAI):
+        # BigModel仅支持auto；JSON模式经extra_body进入同次HTTP请求，避免SDK
+        # 顶层response_format触发strict工具自动解析。仅改副本，最终流不带该格式。
+        model = model.model_copy(update={'extra_body': {**(model.extra_body or {}),
+            'response_format': {'type': 'json_object'}}}, deep=False)
+    bound = model.bind_tools(schema, tool_choice='auto', parallel_tool_calls=False)
+    started = time.monotonic()
+    initial_usage = _usage(ledger)
+    decision_count = state['decision_count']
+    previous = state['stage_usage'].get('decision', {})
+    def observed():
+        return {'model_recovery_used': context.model_recovery_used,
+            'usage': _usage(ledger), 'stage_usage': {**state['stage_usage'], 'decision': {
+            **{key: previous.get(key, 0) + getattr(ledger, key) - initial_usage[key] for key in initial_usage},
+            'elapsed_seconds': previous.get('elapsed_seconds', 0) + time.monotonic() - started}}}
+    def reserve_recovery():
+        if decision_count >= limits.max_decisions:
+            raise ServiceError('token_budget', '本轮决策次数已达上限。', 422)
+        reserve_call(packet.messages, schema, ledger, output_limit=limits.decision_output_tokens,
+                     final_reserve=final_reserve)
+    for attempt in range(2):
+        before_calls = ledger.actual_calls + ledger.estimated_calls
+        try:
+            selected, call, control, transport = await _decision_attempt(
+                {**state, 'decision_count': decision_count}, context, limits, ledger, packet, schema, registry, bound)
+        except BaseException as exc:
+            attempted = ledger.actual_calls + ledger.estimated_calls > before_calls
+            decision_count += int(attempted)
+            update = observed()
+            observe_usage(context, update)
+            runtime.stream_writer({'event': 'usage', 'data': {'stage': 'decision', **update}})
+            if recover_generation(context, state, runtime, 'decision', exc, update['usage'],
+                    attempted=attempted, reserve=reserve_recovery):
+                continue
+            raise
+        decision_count += 1
+        break
+    update = {**observed(), 'decision_count': decision_count, 'selected': None,
+              'selected_origin': 'agent', 'stop_reason': None}
+    observe_usage(context, update)
+    log_node(state, 'llm_call', decision_count=decision_count, usage=update['usage'], decision_transport=transport)
+    if ledger.remaining < final_reserve:
+        return {**update, 'stop_reason': 'token_budget'}
+    native_control = call is not None and call.name == INTERNAL_RESPONSE_CONTROL
+    _, _, pending, _ = _parts(state)
+    requests = [message for message in pending if isinstance(message, AIMessage)]
+    if call is None or native_control:
         if required is None:
             return {**update, **control.model_dump()}
         name, order, status = required

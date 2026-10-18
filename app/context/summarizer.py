@@ -7,10 +7,10 @@ from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 
 from app.context.prompts import summary_messages
+from app.context.summary_sources import summary_source_rows
 from app.context.tokens import estimate_payload
 from app.context.types import SummaryBatch
 from app.core.llm import model_with_output_budget
-from app.repositories.records import decode_tool_calls
 from app.workflow.entities import explicit_order_ids
 
 
@@ -50,23 +50,9 @@ def _tokens(text):
 
 def _sources(batch):
     """User text plus adjacent, matched, successful tool objects; never assistant identities."""
-    users = [row.content or '' for row in batch.source_rows if row.role == 'user']
-    facts = []
-    for request, result in zip(batch.source_rows, batch.source_rows[1:]):
-        if request.role != 'assistant' or not request.tool_calls_json or result.role != 'tool':
-            continue
-        try:
-            calls = decode_tool_calls(json.loads(request.tool_calls_json))
-            payload = json.loads(result.content)
-        except (ValueError, TypeError, KeyError):
-            continue
-        if (len(calls) != 1 or calls[0]['id'] != result.tool_call_id or not isinstance(payload, dict)
-                or 'error' in payload or payload.get('success') is False or payload.get('status') == 'error'):
-            continue
-        asked = calls[0]['args'].get('order_id')
-        if asked is not None and payload.get('order_id') != asked:
-            continue
-        facts.append(payload)
+    rows = summary_source_rows(batch)
+    users = [row.content or '' for row in rows if row.role == 'user']
+    facts = [json.loads(row.content) for row in rows if row.role == 'tool']
     return users, facts
 
 

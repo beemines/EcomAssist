@@ -36,6 +36,8 @@ async def test_rejected_control_evidence_is_private_bounded_and_does_not_execute
     reason = 'SECRET_SENTINEL 原始原因' + ('😀' * 8300 if large else '')
     reply, args = rejected_reply(transport, reason)
     context, state = setup([reply], question='查物流', intent='物流')
+    # These tests isolate one rejected attempt after the shared allowance is spent.
+    context.model_recovery_used = True
     path = tmp_path / 'content.jsonl'
     content_logger = ContextLogger(path)
     context.context_logger = content_logger
@@ -79,6 +81,7 @@ async def test_optional_rejection_logger_failure_preserves_original_error_and_us
         has_logger, monkeypatch, tmp_path):
     reply, _ = rejected_reply('json_control')
     context, state = setup([reply], question='查物流', intent='物流')
+    context.model_recovery_used = True
     errors, observed = [], []
     original_parse = agent.parse_control
 

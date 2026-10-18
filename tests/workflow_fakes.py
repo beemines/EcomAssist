@@ -150,6 +150,7 @@ def workflow_runtime(*, intent='商品咨询', payload=None, useful=True, error=
         async def resolve(self, question, history, **context):
             """保持已完整问题，不替模型声称准确率。"""
             from app.workflow.understanding import Resolution
+            self.usage = {'actual': 1, 'estimated': 0, 'actual_calls': 1, 'estimated_calls': 0}
             return Resolution(question, False)
 
     faq = FAQ()

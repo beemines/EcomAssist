@@ -166,11 +166,11 @@ async def test_concurrent_click_executes_one_resume(tmp_path):
     from app.workflow.expansion import QueryExpander
     class BlockingExpand(QueryExpander):
         """外部模型门禁保留真实扩写协议及图执行。"""
-        async def expand(self, question, order):
+        async def expand(self, question, order, **kwargs):
             """停在扩写边界以制造真实HTTP竞争窗口。"""
             entered.set()
             await gate.wait()
-            return await super().expand(question, order)
+            return await super().expand(question, order, **kwargs)
     entered, gate = asyncio.Event(), asyncio.Event()
     from unittest.mock import patch
     async with app_context(tmp_path) as (app, client):
@@ -428,6 +428,8 @@ async def test_cancelled_stage_audit_is_isolated_from_other_conversation(tmp_pat
         task = asyncio.create_task(consume())
         await asyncio.wait_for(entered.wait(), 3)
         second = await service.prepare('2', '请帮我看看退货条件')
+        # Isolate cancellation accounting from B's independent recovery policy.
+        second.runtime.model_recovery_used = True
         try:
             frames = [event async for event in service.stream(second)]
             assert frames[-1].event == 'error'
