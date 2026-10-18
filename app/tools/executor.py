@@ -51,6 +51,8 @@ def _error(code: str, attempts: int) -> ToolOutcome:
 
 # 识别可重试的暂时连接故障，排除一般 SQL 和约束错误。
 def _temporary_connection_error(exc: Exception) -> bool:
+    if isinstance(exc, ExceptionGroup):
+        return bool(exc.exceptions) and all(_temporary_connection_error(item) for item in exc.exceptions)
     if isinstance(exc, (ConnectionError, httpx.TransportError)):
         return True
     if isinstance(exc, httpx.HTTPStatusError):

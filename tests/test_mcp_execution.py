@@ -38,3 +38,20 @@ async def test_actual_remote_iserror_remains_failure(tmp_path):
         found = await MCPDiscovery(client).discover(local)
         definition = found.registrations[0].definition
         assert normalize_result(raw, definition).status == 'error'
+
+
+async def test_remote_transport_failure_retries_once_and_is_audited(tmp_path):
+    import asyncio
+    async with server_process('business_mcp.logistics', tmp_path) as (process, connection):
+        local = PolicySnapshot.from_dict(policy({'logistics': connection}))
+        found = await MCPDiscovery(MultiServerMCPClient(local.servers)).discover(local)
+        catalog = ToolCatalog().snapshot(policy=local, discovered=found.registrations).bind(ToolContext('1', 2, '查物流1001'))
+        process.terminate()
+        await asyncio.to_thread(process.wait, timeout=5)
+        async def owner(order_id): return order_id == '1001'
+        audit = AuditSink()
+        context = ExecutionContext('1', 2, '物流', '查物流1001', policy=local, order_authorizer=owner)
+        result = await ToolExecutor(audit_sink=audit).execute(
+            ToolCall('down', 'query_logistics', {'order_id': '1001'}), catalog, context=context)
+        assert result.content['error']['code'] == 'tool_connection_error'
+        assert result.attempts == 2 and audit.records[-1].retry_count == 1

@@ -235,6 +235,13 @@ def create_app(
                 await verify_quality(database)
                 await verify_refunds(database)
                 await verify_context(database)
+                # 审计为尽力留痕；只读核验提醒显式迁移，不因审计库故障阻断业务。
+                from app.tool_audit.migration import verify_tool_audit
+                try:
+                    await verify_tool_audit(database)
+                except Exception as exc:
+                    import logging
+                    logging.getLogger(__name__).warning('stage=tool_audit_schema status=unavailable type=%s', type(exc).__name__)
             # 默认禁用不恢复或写历史；注入管理器与注入模型一样由调用方持有。
             if owns_evaluation_manager and evaluation_settings.rag_evaluation_enabled:
                 resources.push_async_callback(evaluation_manager.shutdown)

@@ -27,3 +27,12 @@ def test_text_blocks_json_and_malformed_content_are_classified():
     definition = make_registration('read').definition
     assert normalize_result(ToolMessage(content=[{'type': 'text', 'text': '{"answer":"中文"}'}], tool_call_id='call'), definition).content == {'answer': '中文'}
     assert normalize_result(ToolMessage(content='not json', tool_call_id='call'), definition).status == 'error'
+
+
+def test_empty_faq_keeps_retrieval_contract_for_low_confidence_gate():
+    definition = make_registration('query_faq').definition
+    payload = {'found': False, 'matches': [], 'retrieval': {'strategy': 'hybrid_rerank'}}
+    result = normalize_result(payload, definition)
+    assert result.status == 'error' and result.content['error']['code'] == 'not_found'
+    assert result.content['matches'] == []
+    assert result.content['retrieval']['strategy'] == 'hybrid_rerank'
