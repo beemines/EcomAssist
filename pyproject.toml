@@ -20,6 +20,9 @@ dependencies = [
     "aiomysql==0.3.2",
     "pymysql[rsa]==1.2.3",
     "pymilvus==3.0.2",
+    "mcp==1.30.0",
+    "langchain-mcp-adapters==0.3.2",
+    "jsonschema>=4.20,<5",
 ]
 
 # 测试依赖只放在开发组中，避免混入业务依赖清单。
