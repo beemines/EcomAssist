@@ -49,6 +49,7 @@ _PHASES = {'selecting', 'checking', 'answering', 'tool_running', 'tool_completed
 
 @dataclass
 class PreparedWorkflowChat:
+    # Set only by validated server-side recovery of an already running root.
     conversation_id: str
     user_message_id: int
     lease: Lease
@@ -58,6 +59,7 @@ class PreparedWorkflowChat:
     task: asyncio.Task | None = field(default=None, repr=False)
     audit: dict = field(default_factory=dict)
     terminal_logged: bool = False
+    continue_pending: bool = False
     cancel_outcome: str = 'cancelled'
     graph_input: dict | Command | None = None
     replay_checkpoint_id: str | None = None
@@ -233,6 +235,11 @@ class WorkflowChatService:
         try:
             async with asyncio.timeout_at(deadline):
                 await self.repository.require_open(conversation_id)
+                previous = await self.graph.aget_state(checkpoint_config(conversation_id))
+                from app.workflow.ticket_actions import pending_ticket, expire_pending_ticket
+                superseding_ticket = pending_ticket(previous, conversation_id)
+                if superseding_ticket:
+                    await expire_pending_ticket(self, previous)
                 turns = _history(await self.repository.load_messages(conversation_id))
                 current = HumanMessage(message)
                 snapshot = await self.catalog_provider.acquire() if self.catalog_provider is not None else None
@@ -245,7 +252,6 @@ class WorkflowChatService:
                         raise InputTooLong()
                 elif len(message) > 20000 or estimate_text_tokens(message) > self.settings.max_user_input_tokens:
                     raise InputTooLong()
-                previous = await self.graph.aget_state(checkpoint_config(conversation_id))
                 prior_ticket_verified = False
                 if previous.values.get('ticket_request') and not previous.next and await durable_completed_root(self.checkpointer, previous, conversation_id):
                     try:
@@ -269,7 +275,7 @@ class WorkflowChatService:
                     previous_verified=prior_ticket_verified)
                 if snapshot:
                     state.update(tool_catalog_version=snapshot.version, tool_manifest=snapshot.to_manifest())
-                if pending_selection(previous, conversation_id):
+                if pending_selection(previous, conversation_id) or superseding_ticket:
                     state['supersedes_turn_id'] = previous.values['user_message_id']
                 runtime = await self._runtime(conversation_id, identifier, message, category, deadline, started, registry=registry)
                 await self._prepare_context(state, runtime, rows)
@@ -382,7 +388,8 @@ class WorkflowChatService:
                 await self._completed_events(prepared, prepared.state, prepared.replay_checkpoint_id, queue, replay=True)
                 outcome = 'success'
                 return
-            stream = self.graph.astream(prepared.graph_input if prepared.graph_input is not None else prepared.state,
+            graph_input = None if prepared.continue_pending else prepared.graph_input if prepared.graph_input is not None else prepared.state
+            stream = self.graph.astream(graph_input,
                 config=config, context=prepared.runtime, stream_mode=['custom', 'updates'], subgraphs=True, durability='sync')
             async with asyncio.timeout_at(prepared.deadline):
                 await queue.put(StreamEvent('status', {'phase': 'selecting'}))
@@ -416,6 +423,17 @@ class WorkflowChatService:
                         await queue.put(StreamEvent('delta', {'delta': data['text']}))
                 snapshot = await self.graph.aget_state(config)
                 final = snapshot.values
+                from app.workflow.ticket_actions import pending_ticket
+                ticket = pending_ticket(snapshot, prepared.conversation_id)
+                if ticket and ticket['turn_id'] == str(prepared.user_message_id):
+                    from app.workflow.ticket_actions import verify_ticket_sql
+                    await verify_ticket_sql(self, prepared.conversation_id, final)
+                    prepared.state = final
+                    await queue.put(StreamEvent('ticket_confirmation', ticket))
+                    await queue.put(StreamEvent('paused', {key: ticket[key] for key in
+                        ('turn_id', 'confirmation_id', 'checkpoint_id')} | {'reason': 'ticket_confirmation'}))
+                    outcome = 'paused'
+                    return
                 pending = pending_selection(snapshot, prepared.conversation_id)
                 if pending and pending['turn_id'] == str(prepared.user_message_id):
                     await self._verify_sql_turn(prepared.conversation_id, final)

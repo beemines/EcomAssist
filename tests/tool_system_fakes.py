@@ -17,3 +17,10 @@ def make_registration(name, *, source='builtin', operation='read', handler=None)
 def allow_policy(*registrations):
     return PolicySnapshot.from_dict({'tools': [dict(source=r.definition.source,
         name=r.definition.name, operation=r.definition.operation) for r in registrations]})
+
+
+def confirmed_test_context(call, *, conversation_id='10', user_message_id=42):
+    from app.tools.types import ConfirmationGrant, ExecutionContext
+    from app.tools.catalog_types import fingerprint
+    grant = ConfirmationGrant('legacy_form', conversation_id, user_message_id, call.id, fingerprint(call.args))
+    return ExecutionContext(conversation_id, user_message_id, '工单', '用户表单确认', grant=grant)

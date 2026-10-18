@@ -50,6 +50,14 @@ def build_workflow_graph(agent_graph: CompiledStateGraph, *, checkpointer: BaseC
         return agent_delta(before_ids, result)
 
     graph.add_node('agent', call_agent)
+    from app.workflow import ticket_confirmation
+    for name in ('prepare_ticket_confirmation', 'await_ticket_confirmation', 'execute_ticket_confirmation', 'ticket_confirmation_response'):
+        graph.add_node(name, getattr(ticket_confirmation, name))
+    graph.add_conditional_edges('agent', lambda state: 'prepare_ticket_confirmation' if state.get('ticket_proposal') else 'log_response')
+    graph.add_edge('prepare_ticket_confirmation', 'await_ticket_confirmation')
+    graph.add_edge('await_ticket_confirmation', 'execute_ticket_confirmation')
+    graph.add_edge('execute_ticket_confirmation', 'ticket_confirmation_response')
+    graph.add_edge('ticket_confirmation_response', 'log_response')
     graph.add_edge(START, 'resolve_reference')
     graph.add_edge('resolve_reference', 'classify_intent')
     graph.add_conditional_edges('classify_intent', _intent_route, {'knowledge': 'retrieve_knowledge',
@@ -62,7 +70,7 @@ def build_workflow_graph(agent_graph: CompiledStateGraph, *, checkpointer: BaseC
     graph.add_edge('retrieve_policies', 'confidence_gate')
     graph.add_edge('retrieve_knowledge', 'confidence_gate')
     graph.add_conditional_edges('confidence_gate', _gate_route)
-    for name in ('agent', 'knowledge_fallback', 'complaint_response', 'social_response', 'other_response', 'no_order_response'):
+    for name in ('knowledge_fallback', 'complaint_response', 'social_response', 'other_response', 'no_order_response'):
         graph.add_edge(name, 'log_response')
     graph.add_edge('log_response', END)
     return graph.compile(checkpointer=checkpointer)

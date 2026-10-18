@@ -186,8 +186,11 @@ async def test_ticket_commit_then_timeout_keeps_one_row(mysql_database, owned_ro
 
     tickets = CommitThenTimeout()
     registry = build_registry(FAQStub(), tickets, ToolContext(identifier, message_id, "请求人工"))
-    outcome = await ToolExecutor().execute(ToolCall("same-id", "create_ticket", {"description": "损坏", "ticket_type": "售后"}), registry)
-    assert outcome.status == "success" and outcome.attempts == 2
+    from tests.tool_system_fakes import confirmed_test_context
+    call = ToolCall("same-id", "create_ticket", {"description": "损坏", "ticket_type": "售后"})
+    outcome = await ToolExecutor().execute(call, registry, context=confirmed_test_context(call, conversation_id=identifier, user_message_id=message_id))
+    assert outcome.status == "error" and outcome.attempts == tickets.calls == 1
+    assert outcome.content['error']['code'] == 'tool_timeout'
     async with mysql_database.session() as session:
         ticket_count = await session.scalar(select(func.count()).select_from(Ticket).where(Ticket.conversation_id == int(identifier)))
         conversation = await session.get(Conversation, int(identifier))
@@ -346,7 +349,9 @@ async def test_ticket_cancel_after_commit_does_not_retry(mysql_database, owned_r
             await asyncio.Event().wait()
 
     registry = build_registry(FAQStub(), CommitThenWait(), ToolContext(identifier, message_id, "人工"))
-    task = asyncio.create_task(ToolExecutor().execute(ToolCall("same-id", "create_ticket", {"description": "人工", "ticket_type": "咨询"}), registry))
+    from tests.tool_system_fakes import confirmed_test_context
+    call = ToolCall("same-id", "create_ticket", {"description": "人工", "ticket_type": "咨询"})
+    task = asyncio.create_task(ToolExecutor().execute(call, registry, context=confirmed_test_context(call, conversation_id=identifier, user_message_id=message_id)))
     await committed.wait()
     task.cancel()
     with pytest.raises(asyncio.CancelledError):

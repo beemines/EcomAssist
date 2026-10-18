@@ -72,10 +72,10 @@ async def test_old_completed_offer_after_new_message(tmp_path):
         await client.post('/api/chat', json={'conversation_id': '1', 'message': '你好'})
         calls, original = [], app.state.chat_service.executor.execute
 
-        async def record_execute(call, registry):
+        async def record_execute(call, registry, **kwargs):
             """观察真实执行器边界的申请，随后仍执行既有工具。"""
             calls.append(call)
-            return await original(call, registry)
+            return await original(call, registry, **kwargs)
 
         app.state.chat_service.executor.execute = record_execute
         response = await confirm(client, payload)

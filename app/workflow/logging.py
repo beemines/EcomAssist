@@ -17,7 +17,7 @@ _ENUMS = {
         'llm_call', 'tool_node', 'finalize_answer', 'other_response', 'resolve_order', 'prepare_order_selection',
         'await_order_selection', 'load_order', 'expand_queries', 'retrieve_policies', 'classification', 'expansion', 'no_order_response'},
     'phase': {'prepared', 'checkpoint_complete', 'terminal', 'confirmed', 'result'},
-    'intent': {'物流', '订单', '商品咨询', '退款退货', '售后', '投诉', '闲聊', '其他'},
+    'intent': {'物流', '订单', '商品咨询', '退款退货', '售后', '投诉', '闲聊', '其他', '工单'},
     'route': {'knowledge', 'business', 'complaint', 'social', 'other', 'after_sales'},
     'reason_code': {'retrieval_low_conf', 'self_check'},
     'origin': {'workflow', 'agent'}, 'name': {'query_faq', 'query_order', 'query_logistics', 'query_product'},

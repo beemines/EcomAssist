@@ -37,7 +37,7 @@ async def durable_completed_root(checkpointer, snapshot, conversation_id: str, *
     return (identity.get('thread_id') == conversation_id and identity.get('checkpoint_ns') == ''
         and raw.get('turn_status') == 'completed' and raw.get('conversation_id') == conversation_id
         and bool(raw.get('final_message_id')) and all(raw.get(key) == final.get(key) for key in
-        ('user_message_id', 'final_message_id', 'final_answer', 'order_selection', 'refund_offer',
+        ('user_message_id', 'final_message_id', 'final_answer', 'order_selection', 'refund_offer', 'ticket_confirmation',
          'suggested_actions', 'citations')))
 
 

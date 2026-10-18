@@ -89,6 +89,11 @@ class ToolExecutor:
         try:
             if isinstance(registry, BoundCatalog) and call.name in registry:
                 definition = registry.definition(call.name)
+            elif call.name == 'create_ticket' and call.name in registry:
+                tool = registry[call.name]
+                schema = tool.tool_call_schema
+                schema = schema if isinstance(schema, dict) else schema.model_json_schema()
+                definition = ToolDefinition('create_ticket', tool.description, schema, operation='write')
             outcome = await self._execute(call, registry, context=context, definition=definition)
             return outcome
         finally:

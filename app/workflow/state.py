@@ -60,7 +60,7 @@ class WorkflowState(TypedDict):
     reply_mode: Literal['answer', 'clarification'] | None
     final_answer: str | None
     final_message_id: str | None
-    turn_status: Literal['pending', 'running', 'awaiting_order', 'superseded', 'completed', 'failed', 'cancelled']
+    turn_status: Literal['pending', 'running', 'awaiting_order', 'awaiting_ticket', 'superseded', 'completed', 'failed', 'cancelled']
 
 
 def new_turn_state(*, conversation_id: str, user_message_id: int, raw_question: str,

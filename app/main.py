@@ -12,6 +12,8 @@ from fastapi.staticfiles import StaticFiles
 from app.api.chat import router as chat_router
 from app.api.chat_actions import router as chat_actions_router
 from app.api.order_actions import router as order_actions_router
+from app.api.ticket_confirmation import router as ticket_confirmation_router
+from app.workflow.ticket_actions import TicketConfirmationService
 from app.api.refunds import router as refunds_router
 from app.api.conversations import router as conversations_router
 from app.api.extract import router as extract_router
@@ -166,6 +168,7 @@ def create_app(
             action_registry, service.executor, service.locks)
             if isinstance(service, WorkflowChatService) else None)
         app.state.order_action_service = OrderActionService(service) if isinstance(service, WorkflowChatService) else None
+        app.state.ticket_confirmation_service = TicketConfirmationService(service) if isinstance(service, WorkflowChatService) else None
         app.state.refund_action_service = (RefundActionService(service.graph, service.repository,
             RefundRepository(database), service.checkpointer, service.locks)
             if isinstance(service, WorkflowChatService) else None)
@@ -270,6 +273,7 @@ def create_app(
             yield
 
     app = FastAPI(lifespan=lifespan)
+    app.include_router(ticket_confirmation_router)
     app.state.rag_evaluation_settings = evaluation_settings
     app.state.evaluation_manager = evaluation_manager
     app.state.chat_action_allowed_origins = settings.rag_evaluation_allowed_origins

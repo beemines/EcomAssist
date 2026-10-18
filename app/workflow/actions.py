@@ -2,7 +2,8 @@
 from app.core.errors import ServiceError
 from app.repositories.conversations import _conversation_id
 from app.schemas.chat_actions import TicketActionRequest
-from app.tools.types import ToolCall, ToolContext
+from app.tools.types import ToolCall, ToolContext, ExecutionContext, ConfirmationGrant
+from app.tools.catalog_types import fingerprint
 from app.workflow.persistence import checkpoint_config
 from app.workflow.logging import log_audit
 
@@ -52,8 +53,11 @@ class TicketActionService:
             log_audit('workflow_ticket', phase='confirmed', **audit)
             # 归属来自已核验的旧回复；业务内容来自用户表单，不再从原话/意图推断。
             registry = self.registry_factory(ToolContext(conversation_id, user_id, user.content, state.get('category')))
-            outcome = await self.executor.execute(ToolCall(f'ui_ticket:{payload.assistant_message_id}', 'create_ticket',
-                {'description': payload.description, 'ticket_type': payload.ticket_type}), registry)
+            call = ToolCall(f'ui_ticket:{payload.assistant_message_id}', 'create_ticket',
+                {'description': payload.description, 'ticket_type': payload.ticket_type})
+            grant = ConfirmationGrant('legacy_form', conversation_id, user_id, call.id, fingerprint(call.args))
+            trusted = ExecutionContext(conversation_id, user_id, state.get('intent') or '投诉', user.content, grant=grant)
+            outcome = await self.executor.execute(call, registry, context=trusted)
             if outcome.status != 'success':
                 code = outcome.content.get('error', {}).get('code', 'tool_execution_error')
                 raise ServiceError(code, '工单暂时无法创建，请稍后重试。', 503)
