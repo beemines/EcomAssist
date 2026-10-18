@@ -1,6 +1,6 @@
 # Chapter7 final intent-recall prompt repair
 
-Current status (Task11 R1): the first prompt candidate failed its real gate; the subsequent resolved-input integration candidate passed235 offline checks and remains **HOLD** for scoped review and bounded real acceptance. Sections through “Failed attempts and limits” preserve the first candidate's history; the appended R1 section is the current handoff. This does not claim chapter completion.
+Current status (Task11 R2): R1 classification passed6/6 actual gold calls, while the original-history page failed after understanding copied an unresolved positional referent. R2 is a minimal understanding-prompt clarification, offline-verified215 checks, **HOLD** for one scoped review and bounded real acceptance. Earlier sections preserve the prior candidates' history; R2 below is the current handoff. This does not claim chapter completion.
 
 ## Scope and source identity
 
@@ -139,3 +139,56 @@ New ignored factory artifact: `runtime/context-evidence/final-intent-recall-2026
 No failed implementation or annotation attempts in R1. An initial evidence read omitted the enclosing `ch07-demo-21-20261017` directory and returned a missing-path error; `rg --files --no-ignore` located the actual result before analysis. A read-only filename/glob probe also hit missing paths; subsequent reads used exact files. Neither was a test failure or external action. The meaningful2-test RED, earlier launcher issue, first-candidate actual OTHER0.95, original20/21 capacity failure, v3 summary failure and prior summary-R1 classifier OTHER0.6 all remain disclosed separately.
 
 R1 implementer real API/browser/application-DB/restart/business-submission calls: **zero**; no agents. Current physical demo allowance is126GLM/16embedding/16rerank, hard150/50/25, remaining24/34/9, prior total298/36/36. The controller's preceding dev-notes entry describing the actual first-candidate failure is preserved with the completed R1 four-field entry. Only explicit code/test/design/report/dev-notes files are committed; ignored gold, scripts, logs and same-stem scratch report are not force-added. No merge/push. **HOLD** for one scoped R1 review and the acceptance owner's bounded actual checks; no chapter-completion claim.
+
+## R2 — distinguish grammatical completeness from resolved order identity
+
+R2 base/source freeze: `55b28c100e3772e26ecb9cd173a132bcc913fb8c`. This continues the same Task11. Only two existing `UNDERSTANDING_SYSTEM` lines change in `app/workflow/prompts.py`; no classifier rework, deterministic rewrite, order pinning, source side channel or new API. Candidate understanding-prompt SHA256: `9b2be584b35eb05efe79aa27fb201279d3c2b46bee06b381d3f70aacde7bc80c`; prompt source-file SHA256: `3a3863f0ff55ec99d24ff44baf66a90c5f377930b6fb05c8092d6ba1f76abfd7`. `INTENT_SYSTEM` SHA remains64c61897d3aa44e02b11ace5c33a06e15b8e723341fc9853c70074eda345f1bd, and the R1 normalized-current packet fix remains unchanged.
+
+### R1 actual classification success, then a separate page failure
+
+Read actual `runtime/context-evidence/ch07-demo-21-20261017/final-intent-recall-r1/classifier-cases/result.json`: all6 cases passed on frozen55b28c, each once through `IntentClassifier.classify(raw, snapshot, resolved_question=...)`. This cost6GLM, demo126→132, embedding/rerank16/16. The original and logistics paraphrase returned物流0.94/0.96; explicit refund and complaint returned their requested intents0.97/0.97; ambiguous refund stayed退款退货0.9 and unintelligible input stayed其他0.95. This gate is separate from E2E acceptance.
+
+Read all saved `final-intent-recall-r1/original-final/{targeted-inspection.json,result.json,physical-packets.jsonl,nonstream-replies.jsonl,context-events.json}`. User587 asked the exact original question `最开始那个订单后来怎么说？我当时的诉求是什么？`. Actual understanding physical index1 returned that raw question unchanged, with strict valid query JSON/normal stop, despite selected seq1/2/3 and omitted[]. Classification consumed that actual result, correctly preserving the R1 integration contract, and returned物流0.85. The decision selected clarification; there was no current business tool call; the final page emitted `invalid_answer` and did not complete. Four physical GLM requests cost132→136. The rejected final stream text was **not captured**; no exact wording or precise content violation is inferred from the final error. No conditional continuation/restart followed.
+
+The actual ten-message understanding request equals the saved `model_ctx` message-for-message. Its seq1 establishes conversation order: user first queried1001/MH-LP200 logistics and declined refund, then queried1002. Although1002's delivery date is earlier, delivery chronology does not define the first-mentioned order. `QueryUnderstanding.resolve` validates the raw provider query and applies only the narrow dropped-greeting restoration; it does not coerce this output back to raw. Entity validation accepts an unchanged unresolved question, so structural/provenance guards alone cannot demonstrate successful semantic resolution.
+
+### Minimal priority clarification and testable hypothesis
+
+The previous instruction “already complete and explicit questions must be copied” can conflict with the earliest-referent rule if grammatical completeness is treated as explicit identity. That is an observable prompt-priority hypothesis, not a statement of model-internal cause. R2 changes the earlier copying definition itself, then tightens the existing chronology paragraph rather than appending redundant end-of-prompt examples:
+
+- Copying requires explicit object identity, not grammar alone. Positional references such as “最开始那个订单/最早那单” first require source-supported unique resolution.
+- For “the first order discussed”, use this conversation's mention/query sequence, never delivery dates, numeric order IDs or recency. An explicitly ordered first segment may resolve the earlier order; an unordered multi-order list may not.
+- Fill only the referent and supported business topic, retaining every requested question without answering history or inventing a handling action. Explicit current order, direction and negation remain authoritative under the unchanged existing rules.
+- A first visible summary seq greater than1 does not establish the conversation's beginning. Missing beginning or unclear chronology preserves ambiguity and must not select a later/recent order.
+
+No application-specific1001 rule or new example was added. The original strict query-only JSON,20000-character/output-budget bound, history/tool-role boundaries, provenance checks, negative/repair/refund distinctions, summary content, SQL originals, checkpoint/history storage, attachment shape, model, retries0, classifier threshold0.70 and capacity rules remain unchanged. The next two actual calls can falsify this hypothesis by checking resolution with intact source and ambiguity without the first segment.
+
+### Two separate human annotations through the production packet/provenance contract
+
+Ignored new artifact: `runtime/context-evidence/final-understanding-recall-20261018/annotated-cases-r2.json`, SHA256 `04c7b40d5c64ba127ab8bd7f4b7be554b1328ca26fb10aa285e39bb8d41564bf`. Old classifier golds and actual outputs remain unchanged. The artifact records source-file hashes, exact saved negative/request/session, restorable `serialized_snapshot`, complete `snapshot_provenance` values (`from_msg_id/summary_seq/order_ids/texts`), exact candidate SDK wire messages, input differences and separately labelled human expectations/reference queries. Both candidate output fields are **null** until the acceptance owner saves actual outputs separately; references and evaluation labels are never put into the request.
+
+1. `actual-587-earliest-order-supported`: actual saved snapshot/restored source rows, same selected seq1/2/3,22 production provenance entries, same current user ID587 and complete history. Its ten-message candidate differs from the actual request only at system index0. Human reference: `最开始那个订单1001（智能猫砂盆Max，MH-LP200）后来物流怎么说？我当时的诉求是什么？`. The local acceptance criteria require supported1001/logistics and both questions without a historical answer or invented handling action; equivalent faithful wording need not match that reference byte-for-byte.
+2. `human-contrast-first-summary-omitted`: an explicitly artificial omission contrast, not an actual saved request. It removes only seq1, marks the restorable snapshot's omitted metadata[1], uses17 rebuilt production provenance entries, and gives the snapshot the labelled identity `human-r2-first-summary-omitted`. History, current question and remaining segments are unchanged. Candidate differences are system index0 and final attachment index9. The actual wire has only the existing `kind/summaries/data` fields, `data={}`, and visible seq2/3; it does **not** add an omitted list, a hint field or an expected answer. The model must preserve ambiguity from incomplete visible source chronology. The human reference is the unchanged raw question;1001 or1002 may not be invented as the earliest order.
+
+The ignored script `.cache/final-understanding-recall-r2-check.py` calls actual `understanding_packet`, restores the saved snapshot and uses production `snapshot_provenance` against saved `MessageRecord` rows, without an application database. It verifies exact wire/event/nonstream agreement, human references passing the unchanged entity guard, and both1001/1002 guesses being rejected for the omitted-source contrast. It hash-checks the old golds, actual outputs and storage source unchanged. It ran once: **exit0**, `.cache/final-understanding-recall-r2-annotations.txt`. These are annotated contract checks, not generated candidate outputs or a model-quality pass.
+
+### Fresh narrow coverage and source-bound prior full run
+
+From this worktree, PowerShell loginfalse with UTF8/unbuffered/worktree-PYTHONPATH and the established narrow elevated virtualenv launcher from the first attempt:
+
+```text
+.venv/Scripts/python.exe .cache/final-understanding-recall-r2-check.py
+.venv/Scripts/python.exe -m pytest tests/test_query_understanding.py tests/test_understanding_input_projection.py tests/test_context_understanding_role.py tests/test_context_prefix.py tests/test_context_budget.py tests/test_context_workflow.py tests/test_context_long_conversation.py -q
+```
+
+Focused command: **exit0, 215 passed in15.39s**, `.cache/final-understanding-recall-r2-focused.txt`, session19975. It ran once, with no new wording assertions or tests for this pure prompt revision. Controlled providers and temporary offline SQLite in existing tests are distinct from actual provider/application-DB calls.
+
+Separately, the controller already completed the one final full `.venv/Scripts/python.exe -m pytest -q` on **frozen55b28c**, source unchanged during that run: **exit0, 2725 passed / 184 skipped in417.96s**, `.cache/ch07-final-full-20261018.txt`. Its output tail was read. That full result belongs to55b28c, not the later R2 prompt. R2 did not repeat the full suite.
+
+### Actual factory arithmetic and remaining boundary
+
+Fresh ignored `runtime/context-evidence/final-understanding-recall-20261018/factory-and-prefix-r2.json`, SHA256 `4e5e7ef24ab415872b9281f4ab94e30ed6c33deb98f6967ed13b43f4d86403c9`, contains both actual production-registry factories and the prior R1 comparison. Understanding F2303→2597 (+294 estimator units); default/demo H stay59880/2691, layer1 stay41916/1883 and layer2 stay17964/808. Derived cumulative fee caps1136025→1136319/default and174969→175263/demo reflect the changed one-call understanding prefix. No capacity setting was raised to fit.
+
+The exact original understanding packet input estimate4634→4928, with unchanged output2048 and demo safety540 totals7516<18000. The omitted contrast input is4738. These use the unchanged heuristic `cjk-ascii-protocol-v1`, not claimed provider tokenizer measurements. Prefix cost, dynamic input and derived fee are kept distinct from actual usage and physical call allowance.
+
+R2 has no failed implementation/annotation/test attempts, launcher stall, real provider retry or approval rejection to hide. All original20/21, v3, prior classifier failures and the R1 page failure remain preserved. Implementer API/browser/application-DB/restart/business-submission calls: **zero**, no agents. Demo remains136/16/16 against150/50/25, remaining14/34/9; aggregate prior308/36/36. After explicit source/report/dev-notes commit: **HOLD** for one scoped R2 review, then only the acceptance owner's already bounded two understanding calls, original page and conditional restart continuation within the same remaining14. No new broad batch, merge/push or chapter-completion claim.
