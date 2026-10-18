@@ -19,3 +19,4 @@ runtime/workflow/
 log/app.log
 # Acceptance logs, screenshots, call ledger and replay results are local evidence.
 runtime/context-evidence/
+runtime/tool-system-evidence/

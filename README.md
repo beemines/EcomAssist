@@ -350,3 +350,5 @@ uv run --locked python -m evals.evaluate_intent_routing --mode chat --split acce
 本次定点复验已完成：08f0889使用智谱官方auto+json_object，每个决策仍可继续读工具或严格结束控制，最终流保持正文。相关394项通过（36.57秒）、增量独立审查PASS；用户批准后的一次诊断与三条真实页面问句均通过，SQL289–300与各轮done精确检查点核对一致，8003 PID62496。物流由既有Workflow当前读取保护执行；不能据此宣称Agent自主调用或整章全部验收完成。前端修正Workflow物流误标“知识检索”，node --check及后两条真实页面确认。原失败不删除，模型/预算/零重试不变，未提交退款或工单。用户已持续授权少量页面GLM测试，上百次大批量调用另行确认；详见[验收记录](docs/validation/2026-10-15-intent-routing-acceptance.md)。
 
 2026-10-16连续追问定点修复：当前84b3626在8003通过真实四轮“查1001物流→这个能退吗→那大概什么时候到→slkfnsiogn”，SQL364–379与精确完成根核对PASS。补齐已绑定订单的政策评分输入（含仅订单号的等价表达）、理解阶段旧FAQ挤掉订单历史、模拟说明遗漏和OTHER明确澄清；页面安全呈现加粗。退款needs_review，来源119原文、空白原因表单打开取消通过，未提交业务申请。相关129/218/107项分别通过，不相加当全量；原48题、7/8及维修缺口不变。失败358的问题池id13保留。少量页面GLM与既有BGE完整链路测试已持续授权，上百次评估另行确认。命令及失败/最终证据见[本轮验收](docs/validation/2026-10-15-intent-routing-acceptance.md)，过程见[第六步记录](dev-notes/ch06.md)。
+
+第八步可插拔工具：见[演示命令](docs/tool-system-demo.md)、[验收报告](docs/superpowers/reports/2026-10-18-pluggable-tools-acceptance.md)和[开发过程](dev-notes/ch08.md)。8005客服、8101物流、8102售后分别启动，原8004保持。
