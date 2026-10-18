@@ -1,6 +1,6 @@
 # Chapter7 final intent-recall prompt repair
 
-Current status (Task11 R2): R1 classification passed6/6 actual gold calls, while the original-history page failed after understanding copied an unresolved positional referent. R2 is a minimal understanding-prompt clarification, offline-verified215 checks, **HOLD** for one scoped review and bounded real acceptance. Earlier sections preserve the prior candidates' history; R2 below is the current handoff. This does not claim chapter completion.
+Current status (Task11 R3): R2's supported case found the right identity but failed the strict topic check; its omitted-source case guessed a later order and was rejected by the production guard. R3 places source coverage first and adds generic A/B contrasts, offline-verified215 checks, **HOLD** for scoped review and bounded real acceptance. Earlier sections preserve prior candidates' history; R3 below is the current handoff. This does not claim chapter completion.
 
 ## Scope and source identity
 
@@ -192,3 +192,43 @@ Fresh ignored `runtime/context-evidence/final-understanding-recall-20261018/fact
 The exact original understanding packet input estimate4634→4928, with unchanged output2048 and demo safety540 totals7516<18000. The omitted contrast input is4738. These use the unchanged heuristic `cjk-ascii-protocol-v1`, not claimed provider tokenizer measurements. Prefix cost, dynamic input and derived fee are kept distinct from actual usage and physical call allowance.
 
 R2 has no failed implementation/annotation/test attempts, launcher stall, real provider retry or approval rejection to hide. All original20/21, v3, prior classifier failures and the R1 page failure remain preserved. Implementer API/browser/application-DB/restart/business-submission calls: **zero**, no agents. Demo remains136/16/16 against150/50/25, remaining14/34/9; aggregate prior308/36/36. After explicit source/report/dev-notes commit: **HOLD** for one scoped R2 review, then only the acceptance owner's already bounded two understanding calls, original page and conditional restart continuation within the same remaining14. No new broad batch, merge/push or chapter-completion claim.
+
+## R3 — check missing beginning before choosing a visible referent
+
+Base: `c6d485a7ecb881091d3233b972b2090db33da5b9`. Only `UNDERSTANDING_SYSTEM` changes. Candidate prompt SHA256 `da4dc82ab6bad67d2abae7df8d5b7ca99e3fbea650ffa0c20475c9b0b8425ac9`; prompt source-file SHA256 `5d9f2d789962fc5599f4023f2c1b859e871cd425dea331f6b6c91a5843c65572`. INTENT_SYSTEM, R1 packet fix, producer schema, entity guard/provenance, routing, SQL/history/checkpoint/summary data, model/retries/thresholds and configured capacities remain unchanged.
+
+### Preserved R2 actual failures
+
+Read the actual result/request/response under `runtime/context-evidence/ch07-demo-21-20261017/final-understanding-recall-r2/`:
+
+- `understanding-cases/result.json`, SHA256 `667dc96f0ddf1124afafc4edf997c73dbe7d72d4bef55c2d47ad4ca88315adf2`: complete-source query was `订单1001（智能猫砂盆Max，MH-LP200）后来怎么说？我当时的诉求是什么？`. Identity, both questions and no-answer/action aspects are preserved, but explicit物流 is absent. The original strict helper **FAIL** remains unchanged; no relabelling or repeat call turns it into a gold pass. Cost1GLM,136→137.
+- `understanding-omitted-case/result.json`, SHA256 `7d8e101606d1ac7429e3d987439f45a0a28304799b960c7706312aa94c7cdd0d`, and its physical capture: visible seq2/3 contained no seq1 and no extra omitted field. Actual normal-stop JSON query was `订单1002后来怎么说？我当时的诉求是什么？`. Production entity validation rejected it with `invalid_structured_output`; this is a real wrong-identity failure. The controller's bounded diagnostic exception called only that previously unrun case once, preserving the first strict failure. Cost1GLM,137→138. No page or restart followed.
+
+The R3 offline script independently replays the unchanged identity guard against both saved queries: the supported identity is allowed, and the omitted-source1002 guess remains rejected. The prompt had described missing coverage later, after ordinary identity-rewrite instructions; the testable hypothesis is that making coverage a prerequisite and showing paired outcomes can reduce this demonstrated conflict. No model-internal reasoning is claimed, and the next actual omitted-case result remains decisive.
+
+### Narrow source diff
+
+Immediately after the existing JSON/role contract, add the coverage decision before ordinary copying or reference resolution: current explicit identity/negation still wins; otherwise, for earliest-conversation positional references, first visible summary seq>1 or missing beginning requires query to equal the current raw text exactly, with no further resolution. A unique later visible order, recent assistant text or earlier delivery date cannot recover absent beginning. Add two short generic examples: seq1 explicitly first queriedA logistics thenB yields a query aboutA **and logistics** retaining both questions without answering; onlyseq2/B and noseq1 yields the unchanged ambiguous question. The later duplicate coverage clause is removed, while conversation chronology, unordered-list ambiguity and other existing rules remain. No application1001-specific rewrite, extra data field or source lookup is introduced.
+
+### Same two gold inputs and expectations, separate R3 artifact
+
+Ignored `runtime/context-evidence/final-understanding-recall-20261018/annotated-cases-r3.json`, SHA256 `d51cf9a14dec0f1fad2deb33651281951a39527a74dcfd6f92dad1a4e2175e0a`, retains both R2 raw inputs, history, selected sources, current ID587, restorable snapshots, production provenance, exact `expected` fields and exact human references. The logistics-topic requirement is not relaxed. Each production `understanding_packet` has only its system message changed relative to that R2 gold; attachment shapes, no-omission-sidechannel property, and full remaining content are asserted unchanged. Both R3 actual outputs are **null**. Old golds/results/source storage are hash-checked unchanged.
+
+The controller's economical actual plan is recorded separately: run only the omitted standalone case first; on real success, the original-history page tests the supported case through its own current production packet, followed conditionally by restart continuation. The positive standalone gold may remain uncalled/null; a successful separate page must not be described as execution of that identical standalone input or a2/2 gold result. No expected/reference values are sent to the model.
+
+Ignored `.cache/final-understanding-recall-r3-check.py` ran once **exit0**, `.cache/final-understanding-recall-r3-annotations.txt`. It restores against the current actual factory, rebuilds production provenance from the same saved SQL rows, compares both paid R2 wire requests to the preserved R2 gold, checks references/old failures under the unchanged guard and generates the distinct R3 packet artifact. No provider/application-DB call.
+
+### One bounded coverage run and actual costs
+
+PowerShell loginfalse, UTF8/unbuffered/worktree-PYTHONPATH, established narrow elevated virtualenv launcher:
+
+```text
+.venv/Scripts/python.exe .cache/final-understanding-recall-r3-check.py
+.venv/Scripts/python.exe -m pytest tests/test_query_understanding.py tests/test_understanding_input_projection.py tests/test_context_understanding_role.py tests/test_context_prefix.py tests/test_context_budget.py tests/test_context_workflow.py tests/test_context_long_conversation.py -q
+```
+
+Focused **exit0, 215 passed in14.49s**, `.cache/final-understanding-recall-r3-focused.txt`, session9087. It ran once; no new wording assertions, larger evaluation or full-suite rerun. The earlier2725/184 full result stays bound to55b28c, not R3. No R3 implementation/annotation/test failure or model retry occurred.
+
+New ignored `runtime/context-evidence/final-understanding-recall-20261018/factory-and-prefix-r3.json`, SHA256 `260baf157c2903d7e4c9a51ecd2cac8a3af5f93aed3df8971d75509760c2874f`: actual understanding F2597→3005 (+408 heuristic units). H/default/demo stay59880/2691, layer1 stay41916/1883, layer2 stay17964/808. Derived cumulative fee caps1136319→1136727/default and175263→175671/demo reflect one understanding prefix; no configured capacity adjustment. Supported/omitted inputs4928→5336 and4738→5146; supported input+output2048+safety540=7924<18000. These are the unchanged heuristic estimator, not claimed provider token usage.
+
+Implementer real API/browser/application-DB/restart/business-submission calls remain **zero**, no agents. Demo remains138/16/16, hard150/50/25, remaining12/34/9; aggregate prior310/36/36. All previous20/21, summary, classifier, page and R2 failures remain intact. Commit only explicit prompt/report/dev-notes, synchronize ignored same-stem report without force-add, then **HOLD** for the same scoped reviewer and the owner's existing bounded sequence. No merge/push or chapter acceptance claim.
