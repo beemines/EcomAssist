@@ -43,6 +43,7 @@ from app.workflow.history import replay_turns
 logger = logging.getLogger(__name__)
 INTERNAL_RESPONSE_CONTROL = 'internal_response_control'
 MOCK_DATA_NOTICE = '本轮订单、物流等业务信息为模拟演示数据，仅供参考。\n\n'
+ORDER_NOT_FOUND_ANSWER = '当前账号下未找到该订单，请核对订单号后再查询。'
 
 
 AgentControl = UnifiedAgentControl
@@ -135,7 +136,7 @@ async def _check_evidence(state, runtime, packet):
 
 
 def _current_read(state, context):
-    """完整查单/物流只认可同轮同工具同订单的成功配对；失败读取禁止自动重试。"""
+    """同轮同工具同订单配对区分成功、业务未找到与真正失败，均不自动重试。"""
     if state['route'] != 'business' or state['intent'] not in ('订单', '物流'):
         return None
     turns, _, pending, _ = _parts(state)
@@ -157,6 +158,9 @@ def _current_read(state, context):
         if call['name'] == name and call['args'].get('order_id') == order and result.tool_call_id == call['id']:
             payload = json.loads(result.content)
             success = result.status == 'success' and 'error' not in payload and payload.get('order_id') == order
+            if (result.status == 'error' and set(payload) == {'error'}
+                    and isinstance(payload['error'], dict) and payload['error'].get('code') == 'not_found'):
+                return name, order, 'not_found'
             return name, order, 'success' if success else 'failed'
     return name, order, 'missing'
 
@@ -200,13 +204,18 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
         if exc.code not in ('input_too_long', 'token_budget'):
             raise
         return {'stop_reason': 'token_budget', 'selected': None}
+    required = _current_read(state, context)
+    if required is not None and required[2] == 'not_found':
+        # 已完成当前账号查询且无此单，无需再付费让模型解释固定业务结果。
+        log_node(state, 'order_lookup_result', name=required[0], status='not_found')
+        return {'selected': None, 'reply_mode': 'answer', 'suggested_actions': [],
+                'refund_decision': None, 'decision_reason': None}
     model = model_with_output_budget(context.decision_model, context.settings, limits.decision_output_tokens)
     if isinstance(model, ChatOpenAI):
         # BigModel仅支持auto；JSON模式经extra_body进入同次HTTP请求，避免SDK
         # 顶层response_format触发strict工具自动解析。仅改副本，最终流不带该格式。
         model = model.model_copy(update={'extra_body': {**(model.extra_body or {}),
             'response_format': {'type': 'json_object'}}}, deep=False)
-    required = _current_read(state, context)
     bound = model.bind_tools(schema, tool_choice='auto', parallel_tool_calls=False)
     selected = None
     estimate = _attempt(ledger, packet.messages, schema, limits.decision_output_tokens)
@@ -386,6 +395,18 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
         runtime.stream_writer({'event': 'citations', 'data': {'citations': []}})
         runtime.stream_writer({'event': 'delta', 'data': {'text': UNFINISHED_ANSWER}})
         return {'final_answer': UNFINISHED_ANSWER, 'reply_mode': 'answer', 'suggested_actions': ['handoff'], 'quality': {}, 'citations': []}
+    required = _current_read(state, context)
+    if required is not None and required[2] == 'not_found':
+        # 不回显提供器错误正文，也不泄露其他账号是否存在该订单。
+        answer = ORDER_NOT_FOUND_ANSWER
+        validate_business_answer(answer, EvidencePacket({}, [], [], None, 'none'), [])
+        ensure_answer_active(context.deadline)
+        runtime.stream_writer({'event': 'citations', 'data': {'citations': []}})
+        runtime.stream_writer({'event': 'status', 'data': {'phase': 'answering', 'origin': 'workflow'}})
+        runtime.stream_writer({'event': 'delta', 'data': {'text': answer}})
+        log_node(state, 'finalize_answer', usage=state['usage'])
+        return {'final_answer': answer, 'reply_mode': 'answer', 'quality': {}, 'citations': [],
+                'suggested_actions': [], 'evidence_payload': {}, 'refund_decision': None, 'decision_reason': None}
     if (state['reply_mode'] == 'clarification' and state['route'] == 'business' and state['tool_call_count'] == 0
             and state['intent'] in ('订单', '物流') and _current_read(state, context) is None):
         # Agent已决定追问，读取工具只缺订单号；固定呈现这个槽位，
