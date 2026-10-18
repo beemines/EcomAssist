@@ -170,7 +170,15 @@ def _current_read(state, context):
         if not isinstance(request, AIMessage) or not isinstance(result, ToolMessage):
             continue
         call = request.tool_calls[0]
-        if call['name'] == name and call['args'].get('order_id') == order and result.tool_call_id == call['id']:
+        argument = 'order_id'
+        eligible = call['name'] == name
+        if isinstance(context.registry, BoundCatalog) and call['name'] in context.registry:
+            definition = context.registry.definition(call['name'])
+            if (definition.operation == 'read' and definition.order_id_arg
+                    and (not definition.allowed_intents or state['intent'] in definition.allowed_intents)):
+                eligible, argument = True, definition.order_id_arg
+        if eligible and call['args'].get(argument) == order and result.tool_call_id == call['id']:
+            name = call['name']
             payload = json.loads(result.content)
             success = result.status == 'success' and 'error' not in payload and payload.get('order_id') == order
             if (result.status == 'error' and set(payload) == {'error'}
@@ -284,6 +292,19 @@ async def _decision_attempt(state, context, limits, ledger, packet, schema, regi
     return selected, call, control, transport
 
 
+def decision_transport_model(model, *, ticket_requested=False):
+    if not isinstance(model, ChatOpenAI):
+        return model
+    body = dict(model.extra_body or {})
+    if ticket_requested:
+        # GLM在工单函数与JSON正文模式并用时会把参数作为正文；保留原生调用，
+        # 控制正文仍由同一严格四字段解析器校验，绝不把正文解析成业务动作。
+        body.pop('response_format', None)
+    else:
+        body['response_format'] = {'type': 'json_object'}
+    return model.model_copy(update={'extra_body': body}, deep=False)
+
+
 async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dict:
     """最多五次决策并预留最终预算；拒绝正文仅写入专用内容日志。"""
     context, limits = runtime.context, _limits(runtime.context)
@@ -314,11 +335,7 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
         return {'selected': None, 'reply_mode': 'answer', 'suggested_actions': [],
                 'refund_decision': None, 'decision_reason': None}
     model = model_with_output_budget(context.decision_model, context.settings, limits.decision_output_tokens)
-    if isinstance(model, ChatOpenAI):
-        # BigModel仅支持auto；JSON模式经extra_body进入同次HTTP请求，避免SDK
-        # 顶层response_format触发strict工具自动解析。仅改副本，最终流不带该格式。
-        model = model.model_copy(update={'extra_body': {**(model.extra_body or {}),
-            'response_format': {'type': 'json_object'}}}, deep=False)
+    model = decision_transport_model(model, ticket_requested=bool(state.get('ticket_request')))
     bound = model.bind_tools(schema, tool_choice='auto', parallel_tool_calls=False)
     started = time.monotonic()
     initial_usage = _usage(ledger)

@@ -18,11 +18,11 @@ def ticket_request_for_turn(identifier, question, previous, *, previous_verified
 
 
 def grounded_description(description, request):
-    if not isinstance(description, str) or not description.strip() or not request:
+    if not isinstance(description, str) or not re.search(r'\w', description) or not request:
         return False
     for source in request.get('source_texts', []):
         issue = re.sub(r'(?:请|麻烦)?(?:帮我|给我|我要|我想)?(?:创建|提交|建|开)[个一张份]*(?:售后|投诉|咨询)?工单(?:吧|吗)?', '', source)
-        issue = re.sub(r'^[，。！？!?,;；\s]+|[，。！？!?,;；\s]+$', '', issue)
+        issue = re.sub(r'^[，。！？!?,;；：:\s]+', '', issue)
         if issue and description in issue:
             return True
     return False

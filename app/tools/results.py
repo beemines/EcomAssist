@@ -33,6 +33,9 @@ def normalize_result(raw, definition):
     if 'error' in content:
         return ToolOutcome(content, 'error', 0)
     if content.get('found') is False:
+        if definition.name == 'query_faq' and isinstance(content.get('matches'), list):
+            content['error'] = {'code': 'not_found', 'message': '未找到可靠知识证据。'}
+            return ToolOutcome(content, 'error', 0)
         return result_error('not_found', '未找到对应业务数据，请核对信息。')
     if definition.output_fields:
         fields = set(definition.output_fields) | {'mock', 'source'}

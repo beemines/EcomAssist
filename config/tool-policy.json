@@ -5,12 +5,12 @@
   },
   "plugins": [],
   "tools": [
-    {"source": "builtin", "name": "query_order", "operation": "read"},
-    {"source": "builtin", "name": "query_product", "operation": "read"},
+    {"source": "builtin", "name": "query_order", "operation": "read", "output_fields": ["order_id", "product_id", "product_name", "model", "category", "status", "amount_cents", "currency", "signed_at", "as_of"]},
+    {"source": "builtin", "name": "query_product", "operation": "read", "output_fields": ["product_id", "name", "price", "stock"]},
     {"source": "builtin", "name": "query_faq", "operation": "read", "max_retries": 0},
     {"source": "builtin", "name": "create_ticket", "operation": "write", "max_retries": 0},
-    {"source": "mcp:logistics", "name": "query_logistics", "operation": "read", "order_id_arg": "order_id"},
-    {"source": "mcp:aftersales", "name": "query_warranty", "operation": "read", "order_id_arg": "order_id"},
-    {"source": "mcp:aftersales", "name": "query_return_progress", "operation": "read", "order_id_arg": "order_id"}
+    {"source": "mcp:logistics", "name": "query_logistics", "operation": "read", "order_id_arg": "order_id", "allowed_intents": ["物流"], "output_fields": ["order_id", "status", "tracking_no", "events"]},
+    {"source": "mcp:aftersales", "name": "query_warranty", "operation": "read", "order_id_arg": "order_id", "allowed_intents": ["订单"], "output_fields": ["order_id", "warranty_status", "warranty_months", "note"]},
+    {"source": "mcp:aftersales", "name": "query_return_progress", "operation": "read", "order_id_arg": "order_id", "allowed_intents": ["订单"], "output_fields": ["order_id", "return_status", "note"]}
   ]
 }
