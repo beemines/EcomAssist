@@ -6,6 +6,7 @@ from app.repositories.tickets import TicketRepository
 from app.tools.registry import build_registry
 from app.tools.types import ToolCall, ToolContext
 from tests.fakes import FAQStub
+from tests.tool_system_fakes import confirmed_test_context
 
 
 class TicketStub:
@@ -27,7 +28,8 @@ async def test_registry_hides_context_and_injects_actual_call_id():
     assert set(registry) == {"query_order", "query_product", "query_logistics", "query_faq", "create_ticket"}
     properties = registry["create_ticket"].tool_call_schema.model_json_schema()["properties"]
     assert set(properties) == {"description", "ticket_type"}
-    outcome = await ToolExecutor().execute(ToolCall("call-1", "create_ticket", {"description": "订单损坏", "ticket_type": "售后"}), registry)
+    call = ToolCall("call-1", "create_ticket", {"description": "订单损坏", "ticket_type": "售后"})
+    outcome = await ToolExecutor().execute(call, registry, context=confirmed_test_context(call))
     assert outcome.content == {"ticket_no": "T123", "status": "待处理"}
     assert outcome.status == "success"
     assert tickets.inputs == [{"conversation_id": "10", "user_message_id": 42, "tool_call_id": "call-1", "description": "订单损坏", "ticket_type": "售后"}]
@@ -87,7 +89,8 @@ async def test_faq_matches_return_question_answer_category():
 async def test_business_arguments_reject_bad_lengths_types_and_extra_fields(name, args):
     tickets = TicketStub()
     registry = build_registry(FAQStub(), tickets, ToolContext("10", 42, "x"))
-    outcome = await ToolExecutor().execute(ToolCall("call", name, args), registry)
+    call = ToolCall("call", name, args)
+    outcome = await ToolExecutor().execute(call, registry, context=confirmed_test_context(call))
     assert outcome.status == "error" and outcome.attempts == 0
     assert outcome.content["error"]["code"] == "invalid_arguments"
     assert tickets.inputs == []
@@ -116,7 +119,8 @@ async def test_blank_business_text_is_rejected_before_any_execution(blank, name,
     args = {field: blank}
     if name == "create_ticket":
         args["ticket_type"] = "咨询"
-    outcome = await ToolExecutor().execute(ToolCall("call", name, args), registry)
+    call = ToolCall("call", name, args)
+    outcome = await ToolExecutor().execute(call, registry, context=confirmed_test_context(call))
     assert outcome.status == "error" and outcome.content["error"]["code"] == "invalid_arguments"
     assert outcome.attempts == 0
     assert invocations == [] and faq.keywords == [] and tickets.inputs == []
@@ -144,7 +148,8 @@ async def test_nonblank_faq_and_ticket_text_preserve_surrounding_whitespace():
     faq, tickets = FAQStub(), TicketStub()
     registry = build_registry(faq, tickets, ToolContext("10", 42, "请问 \t退货\n 政策"))
     faq_outcome = await ToolExecutor().execute(ToolCall("faq", "query_faq", {"keyword": " \t退货\n "}), registry)
-    ticket_outcome = await ToolExecutor().execute(ToolCall("ticket", "create_ticket", {"description": "\u3000损坏\t\n", "ticket_type": "售后"}), registry)
+    call = ToolCall("ticket", "create_ticket", {"description": "\u3000损坏\t\n", "ticket_type": "售后"})
+    ticket_outcome = await ToolExecutor().execute(call, registry, context=confirmed_test_context(call))
     assert faq_outcome.status == "success" and faq_outcome.attempts == 1
     assert faq.keywords == [" \t退货\n "]
     assert ticket_outcome.status == "success" and ticket_outcome.attempts == 1

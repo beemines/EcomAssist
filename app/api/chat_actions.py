@@ -11,6 +11,8 @@ from app.schemas.chat_actions import TicketActionRequest
 
 
 ERRORS = {
+    'ticket_confirmation_conflict': (409, '工单预览已经失效或权限发生变化，请重新发起。'),
+    'permission_denied': (403, '该工单调用未获得确认或权限。'),
     'invalid_refund_action': (422, '该回复不允许提交退款申请。'),
     'refund_conflict': (409, '该订单已有申请或表单内容与原申请冲突。'),
     'selection_conflict': (409, '选单已经失效或与本轮不匹配，请重新发起。'),

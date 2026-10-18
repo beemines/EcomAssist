@@ -480,6 +480,11 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
     """证据闸后按实际回复模式验证唯一最终流；澄清须通过非事实守卫。"""
     context, limits = runtime.context, _limits(runtime.context)
     ensure_answer_active(context.deadline)
+    if (state.get('intent') == '工单' and state.get('reply_mode') == 'clarification'
+            and not state.get('tool_error') and not state.get('stop_reason')):
+        answer = '请补充问题描述。'
+        runtime.stream_writer({'event': 'delta', 'data': {'text': answer}})
+        return {'final_answer': answer, 'quality': {}, 'citations': [], 'evidence_payload': {}}
     if state.get('tool_error'):
         error = state['tool_error']
         raise ServiceError(error.get('code', 'tool_execution_error'),

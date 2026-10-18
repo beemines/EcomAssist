@@ -73,3 +73,8 @@ MCP1.30.0要求Python>=3.10、httpx>=0.27.1,<1.0.0、Python<3.14时pydantic>=2.1
 
 - 已安装mcp1.30.0的fastmcp/server.py、utilities/func_metadata.py和adapters0.3.2的tools.py核对。裸dict不生成结构化Schema；dict[str,Any]经RootModel保留对象字段。MCPToolArtifact为TypedDict，structured_content通过字典读取；isError被适配成status=error，不吞transport异常。
 - FastMCP.run(transport='streamable-http')使用自身ASGI lifespan；get_tools(*,server_name=None)按Server隔离发现；真实HTTP回归通过。
+
+## 实施核对：LangGraph持久恢复与FastAPI
+
+- https://docs.langchain.com/oss/python/langgraph/interrupts ：锁定langgraph1.2.15的types.interrupt/Command、Pregel astream durability='sync'、SQLite saver aget_tuple/aput核对。等待与业务写独立节点；官方resume重跑等待节点，工具不会在等待节点中执行。额外故障测试确认aput失败后completed-task pending writes可投影到State而next为空，因此仅经原根/SQL核验后以None继续该根。
+- https://fastapi.tiangolo.com/tutorial/body/ ：安装FastAPI0.142.2 APIRouter/APIRoute请求模型与现有ManagedChatResponse同形接线；确认体只有严格四字段，额外业务参数在图执行前拒绝。
