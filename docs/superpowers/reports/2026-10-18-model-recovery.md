@@ -67,3 +67,9 @@ final-audit.json：历史原消息和seq1逐字不变，SQL与checkpoint完整�
 普通8004 PID48344，health仅ok/demo、无acceptance，已加载最终投影代码；临时观察器原SHA匹配。浏览器保留实际回复和来源，旧失败记录作为历史原文保留。工作树和本地证据保留，没有合并或推送。
 
 演示命令（在本工作树）：`pwsh -NoProfile -File scripts/start-context-demo.ps1 -Profile demo`，访问http://127.0.0.1:8004/；目前服务已启动。过程见dev-notes/ch07.md。证据均在runtime/context-evidence/stability-20261018/，主要为fixed-original-pass.json/.png、fixed-faq-pass.json、final-ordinary-storage.json、frozen-final-source.json、source-projection-summary-probe.json和final-audit.json。
+
+## 2026-10-18 · 集成补记
+
+用户随后明确要求合并、提交、推送，并归档第七步原始提示词。第六步是第七步分支祖先，两步已一起快进合并到 master；合并前完整离线回归2825通过/184跳过（412.58s），合并后主工作区同样2825通过/184跳过（454.49s）。首次推送与远程核验确认 origin/master=79c33e83008689b5877f7bc77e1d8c616f4f9a5f，本补记随后同步提交。因此上文“未合并推送”是稳定性续修结束时的历史状态，不是本次集成后的状态。
+
+原始提示词和两段 SQL 见 [第七步提示词](../../prompts/step-07-context-management.md)，完整过程见 [ch07 开发记录](../../../dev-notes/ch07.md)。本次仅归档与整合，没有新增付费模型验收；原始长验收及额外摘要生成诊断的限制保持。8004 服务、工作树、原始消息、摘要和本地证据均保留。
