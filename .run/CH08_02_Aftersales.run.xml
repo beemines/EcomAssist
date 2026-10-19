@@ -1,0 +1,17 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="CH08 02 - 售后 MCP 8102" type="PythonConfigurationType" factoryName="Python">
+    <envs>
+      <env name="PYTHONUTF8" value="1" />
+      <env name="PYTHONUNBUFFERED" value="1" />
+    </envs>
+    <option name="SDK_HOME" value="$PROJECT_DIR$/.venv/Scripts/python.exe" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="IS_MODULE_SDK" value="false" />
+    <option name="ADD_CONTENT_ROOTS" value="true" />
+    <option name="ADD_SOURCE_ROOTS" value="true" />
+    <option name="SCRIPT_NAME" value="business_mcp.aftersales" />
+    <option name="PARAMETERS" value="--port 8102" />
+    <option name="MODULE_MODE" value="true" />
+    <method v="2" />
+  </configuration>
+</component>

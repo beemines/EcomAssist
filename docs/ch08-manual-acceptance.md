@@ -1,5 +1,7 @@
 # 第八步手动验收步骤
 
+使用PyCharm启动、查看三个独立Run窗口和验证MCP来源/热发现，见[PyCharm验收步骤](ch08-pycharm-acceptance.md)；共享配置已放在项目`.run/`目录。
+
 最新工单澄清修复已在用户原会话85复验：连续裸请求先追问描述，补充后出现确认卡片，刷新可恢复；目前预览尚未提交，可在原会话继续确认或取消。原故障、用量及测试边界见[工单澄清修复记录](superpowers/reports/2026-10-19-ticket-clarification-fix.md)。
 
 最新1001补号故障已在原会话84保留失败历史实测通过；此前上游1113在用户充值后解除。应用补上补槽来源校验，后续遇到1113会明确提示余额/资源包并停止自动重试。复验和覆盖边界见[原会话83/84修复记录](superpowers/reports/2026-10-19-compact-order-fix.md)。下面保留此前整章验收流程，本次只重跑上述局部故障。
@@ -77,6 +79,14 @@ $env:PYTHONUTF8='1'
 ```
 
 79、80、81是这次已跑过的测试会话。你新开的对话请替换成自己的会话ID，可通过`GET /api/conversations`或log/app.log中的conversation_id确认。
+
+PyCharm终端使用Windows PowerShell 5.1时，请用以下兼容命令读取会话编号和中文首问；直接Invoke-RestMethod可能将UTF-8误解码：
+
+```powershell
+$response = Invoke-WebRequest 'http://127.0.0.1:8005/api/conversations' -UseBasicParsing
+$data = [System.Text.Encoding]::UTF8.GetString($response.RawContentStream.ToArray()) | ConvertFrom-Json
+$data.items | Select-Object id,first_question_preview | Format-Table -AutoSize -Wrap
+```
 
 核对：
 
