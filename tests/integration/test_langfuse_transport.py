@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 from dotenv import dotenv_values
+import httpx
 
 
 async def test_local_span_is_exported_and_read_back(request):
@@ -50,3 +51,27 @@ async def test_local_span_is_exported_and_read_back(request):
         assert found.type == 'SPAN'
     finally:
         await runtime.close()
+
+
+async def test_initialized_local_admin_can_sign_in(request):
+    if not request.config.getoption('--run-langfuse'):
+        pytest.skip('requires explicit --run-langfuse and local CH09 Compose')
+    from app.observability.runtime import validate_local_langfuse_url
+    root = Path(__file__).resolve().parents[2]
+    local = dict(dotenv_values(root / 'runtime/langfuse/local.env'))
+    origin = validate_local_langfuse_url(local.get('NEXTAUTH_URL'))
+    async with httpx.AsyncClient(base_url=origin, timeout=10, follow_redirects=False) as client:
+        # Discover the configured provider rather than guessing a callback URL.
+        providers = (await client.get('/api/auth/providers')).json()
+        provider = next((value for value in providers.values() if value.get('type') == 'credentials'), None)
+        assert provider is not None, 'Local credentials login is not configured'
+        callback = provider['callbackUrl']
+        assert callback.startswith(origin + '/api/auth/'), 'Refusing nonlocal auth callback'
+        csrf = (await client.get('/api/auth/csrf')).json()['csrfToken']
+        response = await client.post(callback, data={
+            'email': local['LANGFUSE_INIT_USER_EMAIL'],
+            'password': local['LANGFUSE_INIT_USER_PASSWORD'],
+            'csrfToken': csrf, 'callbackUrl': origin, 'json': 'true'})
+        assert response.status_code in (200, 302), 'Local sign-in failed'
+        session = (await client.get('/api/auth/session')).json()
+        assert session.get('user', {}).get('email') == local['LANGFUSE_INIT_USER_EMAIL']
