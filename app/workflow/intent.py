@@ -51,7 +51,14 @@ class _IntentOutput(BaseModel):
 
 def has_explicit_ticket_request(text: str) -> bool:
     """Trusted write evidence only; LLM still selects business intent."""
-    if re.search(r'(?:不要|不想|不需要|不用|不必|别|不|没|未|取消)[^，。！？!?,;；\n]{0,12}(?:工单|建单|提交)|(?:怎么|如何)[^，。！？!?,;；\n]{0,10}(?:工单|建单)', text):
+    # Keep the original denial guard conservative. Only a known fault followed
+    # immediately by a separate affirmative request is outside its scope.
+    # This is a decision-only copy; all persisted request/source text stays raw.
+    denial_text = re.sub(
+        r'(?:不(?:能)?(?:出水|开机|启动|工作|联网|充电|制冷|制热)|(?:没(?:有)?|未)(?:收到(?:货|包裹)|发货|送达))'
+        r'(?=\s*(?:(?:请(?:您|你)?|麻烦(?:您|你)?)?(?:帮我|给我|帮忙|我要|我想)|请(?:您|你)?(?:创建|提交|建|开)))',
+        '', text)
+    if re.search(r'(?:不要|不想|不需要|不用|不必|别|不|没|未|取消)[^，。！？!?,;；\n]{0,12}(?:工单|建单|提交)|(?:怎么|如何)[^，。！？!?,;；\n]{0,10}(?:工单|建单)', denial_text):
         return False
     if re.search(r'(?:能不能|可以)[^，。！？!?,;；\n]{0,10}(?:工单|建单)', text) and not re.search(r'(?:帮我|给我|我要|我想|请)', text):
         return False
