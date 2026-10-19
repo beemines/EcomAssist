@@ -42,3 +42,4 @@
 - observations.get_many的fields支持core/basic/io/metadata/usage等组；IO字段总是原始字符串，parse_io_as_json=true已废弃并返回400，读回测试必须自行JSON解析。使用trace_id过滤以及cursor分页，metadata长值须按需expand_metadata，不能假设默认完整。固定源码：https://github.com/langfuse/langfuse-python/blob/v5.0.2/langfuse/api/observations/client.py 。
 - Headless初始化按官方变量生成本地独立项目与用户，凭据存ignored的runtime/langfuse/local.env，应用仅使用四项sdk.env，来源：https://langfuse.com/self-hosting/administration/headless-initialization 。
 - 官方注册表核对得到六个固定digest，均写入compose.langfuse.yaml：web/worker为4.63.0；基础服务沿固定发布Compose的ClickHouse25.12、Postgres17、Redis7、Chainguard MinIO分支解析digest。config --quiet已通过，真实容器和读回验收尚未完成。
+- 后续本地验收：六容器启动、中文span导出和observations读回、headless用户登录session核对均通过。登录使用NextAuth公开REST的providers/csrf/callback/session，先检查provider回调为本机，再发送本章生成的凭据；不打印凭据或session。官方接口说明：https://next-auth.js.org/getting-started/rest-api 。

@@ -83,8 +83,8 @@
 - 此任务只提供可注入的client / handler资源；执行scope及其类型完全由任务2增加，任务1不能导入尚未创建的tracing模块。
 - `python -m app.observability.local_stack prepare|up|status|stop --port 3000`统一生成本地配置及调用固定Compose项目；PowerShell脚本只转发到该入口，`-PrepareOnly`对应prepare。stop保留数据卷，up先检查端口和项目归属。
 
-- [ ] **1. 建立已同意的工作区并跑基线。** 读取using-git-worktrees；核对AGENTS、git分支/状态、.worktrees忽略和已存在服务。同步现有锁定依赖到独立venv后，运行`.venv/Scripts/python.exe -m pytest -q`，保存基线日志；基线失败先报告原因，不把旧问题归到本章。
-- [ ] **2. 编写失败测试。** `test_rejects_cloud_destination`断言下例；另测缺BASE_URL、凭据被异常/日志隐藏、关闭超时有界且不反转业务结果。只对这些行为做TDD，不写镜像名称镜像式单测。
+- [x] **1. 建立已同意的工作区并跑基线。** 读取using-git-worktrees；核对AGENTS、git分支/状态、.worktrees忽略和已存在服务。同步现有锁定依赖到独立venv后，运行`.venv/Scripts/python.exe -m pytest -q`，保存基线日志；基线失败先报告原因，不把旧问题归到本章。
+- [x] **2. 编写失败测试。** `test_rejects_cloud_destination`断言下例；另测缺BASE_URL、凭据被异常/日志隐藏、关闭超时有界且不反转业务结果。只对这些行为做TDD，不写镜像名称镜像式单测。
 
 ```python
 def test_rejects_cloud_destination():
@@ -92,10 +92,10 @@ def test_rejects_cloud_destination():
         validate_local_langfuse_url('https://cloud.langfuse.com')
 ```
 
-- [ ] **3. 运行RED。** `.venv/Scripts/python.exe -m pytest tests/test_langfuse_runtime.py -q`；确认因尚未实现的本地地址/生命周期行为失败，记录失败断言，不接受拼错测试路径。
-- [ ] **4. 最小实现并集成。** 以`uv add --no-sync langfuse==5.0.2`更新锁，核对原核心版本未变后`uv sync --frozen`；若冲突停止。按固定官方Compose核对正式镜像tag/digest，写独立项目/网络/卷、回环3000、有界容器日志及关闭遥测。脚本生成ignored密钥环境文件、官方headless初始化、只检查/管理本项目；SDK仅注入必要LANGFUSE变量，不能把Compose的所有Postgres/Redis变量塞入严格Settings的.env。不打印密码。实现Runtime及`--run-langfuse`测试开关。
-- [ ] **5. 验证GREEN与本地栈。** 重跑上述单测；先`pwsh -NoProfile -File scripts/start-langfuse.ps1 -PrepareOnly`生成ignored环境文件，再`docker compose --env-file runtime/langfuse/local.env -f compose.langfuse.yaml -p ecs-ch09-langfuse config --quiet`，最后`pwsh -NoProfile -File scripts/start-langfuse.ps1`。运行`.venv/Scripts/python.exe -m pytest tests/integration/test_langfuse_transport.py --run-langfuse -q`，写入非LLM测试span并经本地API读回；服务端/SDK版本、UI可登录、端口、镜像/卷基线保存。不调用模型。
-- [ ] **6. 即时记录并提交。** 更新dev-notes的四项、本文复选框和实际镜像版本，提交`feat(ch09): bootstrap local Langfuse`。此后所有任务完成均同样即时记录。
+- [x] **3. 运行RED。** `.venv/Scripts/python.exe -m pytest tests/test_langfuse_runtime.py -q`；确认因尚未实现的本地地址/生命周期行为失败，记录失败断言，不接受拼错测试路径。
+- [x] **4. 最小实现并集成。** 以`uv add --no-sync langfuse==5.0.2`更新锁，核对原核心版本未变后`uv sync --frozen`；若冲突停止。按固定官方Compose核对正式镜像tag/digest，写独立项目/网络/卷、回环3000、有界容器日志及关闭遥测。脚本生成ignored密钥环境文件、官方headless初始化、只检查/管理本项目；SDK仅注入必要LANGFUSE变量，不能把Compose的所有Postgres/Redis变量塞入严格Settings的.env。不打印密码。实现Runtime及`--run-langfuse`测试开关。
+- [x] **5. 验证GREEN与本地栈。** 重跑上述单测；先`pwsh -NoProfile -File scripts/start-langfuse.ps1 -PrepareOnly`生成ignored环境文件，再`docker compose --env-file runtime/langfuse/local.env -f compose.langfuse.yaml -p ecs-ch09-langfuse config --quiet`，最后`pwsh -NoProfile -File scripts/start-langfuse.ps1`。运行`.venv/Scripts/python.exe -m pytest tests/integration/test_langfuse_transport.py --run-langfuse -q`，写入非LLM测试span并经本地API读回；服务端/SDK版本、UI可登录、端口、镜像/卷基线保存。不调用模型。
+- [x] **6. 即时记录并提交。** 更新dev-notes的四项、本文复选框和实际镜像版本，提交`feat(ch09): bootstrap local Langfuse`。此后所有任务完成均同样即时记录。
 
 ## Task 2：图追踪与意图Token汇总
 
