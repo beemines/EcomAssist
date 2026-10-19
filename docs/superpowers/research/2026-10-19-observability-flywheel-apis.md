@@ -35,3 +35,10 @@
 - Docker 配额约 15.46 GiB 内存、32 个逻辑 CPU；本次五个运行容器瞬时内存合计约 1.35 GiB。
 - 现有镜像 3.649 GB、数据卷 1.513 GB。后续按同一口径比较新增占用，部署前的 10～20 GB / 预留 30 GB 只作估算。
 - 普通沙箱不能访问 Docker named pipe；只读受限提升查询已成功，不代表 Docker 故障。没有拉取镜像或修改现有容器。
+
+## 实施核对（2026-10-19，Task 1进行中）
+
+- 固定SDK源码再次核对：Langfuse构造器支持base_url / timeout / tracer_provider；CallbackHandler只接受public_key / trace_context，通过同public_key的已初始化client取资源。关闭使用flush / shutdown，本章有界异步回收。依赖解析与同步成功，仅新增11个SDK相关包，原固定核心版本未变。
+- observations.get_many的fields支持core/basic/io/metadata/usage等组；IO字段总是原始字符串，parse_io_as_json=true已废弃并返回400，读回测试必须自行JSON解析。使用trace_id过滤以及cursor分页，metadata长值须按需expand_metadata，不能假设默认完整。固定源码：https://github.com/langfuse/langfuse-python/blob/v5.0.2/langfuse/api/observations/client.py 。
+- Headless初始化按官方变量生成本地独立项目与用户，凭据存ignored的runtime/langfuse/local.env，应用仅使用四项sdk.env，来源：https://langfuse.com/self-hosting/administration/headless-initialization 。
+- 官方注册表核对得到六个固定digest，均写入compose.langfuse.yaml：web/worker为4.63.0；基础服务沿固定发布Compose的ClickHouse25.12、Postgres17、Redis7、Chainguard MinIO分支解析digest。config --quiet已通过，真实容器和读回验收尚未完成。

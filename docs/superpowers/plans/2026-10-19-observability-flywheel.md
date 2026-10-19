@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python>=3.11,<3.14；现有 FastAPI0.142.2、SQLAlchemy2.0.54、MySQL8.4、LangGraph1.2.15、langchain-core1.6.6、SQLite checkpoint、Milvus3.0.2、MCP1.30.0 / adapters0.3.2；新增 langfuse==5.0.2，服务端 v4.63.0；原生 HTML/CSS/JavaScript。
 
-**Spec:** [已批准设计](../specs/2026-10-19-observability-flywheel-design.md)，用户于2026-10-19明确“批准设计，编写实施计划”。本文待用户审阅；沿用此前本会话 Native 顺序执行偏好，批准计划时同时确认工作区隔离方式。当前产品基线为 `f44e4f9`，实施起点包含其后的已批准设计和本计划文档提交。
+**Spec:** [已批准设计](../specs/2026-10-19-observability-flywheel-design.md)。用户于2026-10-19批准本文，选择“Native 顺序实现，新建第九步隔离 worktree”；实施分支feat/observability-flywheel，起点6d0f646。当前产品基线为 `f44e4f9`，实施起点包含其后的已批准设计和本计划文档提交。
 
 ## Global Constraints
 
