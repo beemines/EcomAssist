@@ -23,6 +23,22 @@ class Settings(BaseSettings):
     llm_base_url: HttpUrl = Field(validation_alias="LLM_BASE_URL")
     llm_model: str = Field(validation_alias="LLM_MODEL")
     llm_api_key: SecretStr = Field(validation_alias="LLM_API_KEY")
+    # 追踪必须显式启用并指定本机地址；缺省不初始化 SDK 或回落 Cloud。
+    langfuse_enabled: bool = Field(default=False, validation_alias='LANGFUSE_ENABLED')
+    langfuse_base_url: str | None = Field(default=None, validation_alias='LANGFUSE_BASE_URL')
+    langfuse_public_key: SecretStr | None = Field(default=None, validation_alias='LANGFUSE_PUBLIC_KEY')
+    langfuse_secret_key: SecretStr | None = Field(default=None, validation_alias='LANGFUSE_SECRET_KEY')
+
+    @model_validator(mode='after')
+    def validate_local_observability(self):
+        if self.langfuse_enabled:
+            from app.observability.runtime import validate_local_langfuse_url
+            validate_local_langfuse_url(self.langfuse_base_url)
+            for name in ('langfuse_public_key', 'langfuse_secret_key'):
+                value = getattr(self, name)
+                if value is None or not value.get_secret_value().strip():
+                    raise ValueError('Enabled Langfuse requires explicit local project keys')
+        return self
     # 在线低思考由在线资源拥有者显式启用；缺省省略，与评估专属参数相互独立。
     online_reasoning_effort: Literal['low'] | None = Field(
         default=None, validation_alias='ONLINE_REASONING_EFFORT')

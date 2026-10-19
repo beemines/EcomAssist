@@ -14,6 +14,7 @@ os.environ['PYTHON_DOTENV_DISABLED'] = '1'
 def pytest_addoption(parser):
     parser.addoption("--run-mysql", action="store_true", default=False, help="运行独立 MySQL 测试库集成测试")
     parser.addoption('--run-milvus', action='store_true', default=False, help='运行本机 Milvus knowledge_test_* 集成测试')
+    parser.addoption('--run-langfuse', action='store_true', default=False, help='运行本章本地Langfuse集成测试，不调用模型')
 
 
 # 为显式启用的测试分配随机 Milvus 集合名，检查服务并在结束后清理集合和客户端。
