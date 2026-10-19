@@ -17,12 +17,20 @@ def ticket_request_for_turn(identifier, question, previous, *, previous_verified
             'source_texts': [*request['source_texts'], question]}
 
 
-def grounded_description(description, request):
-    if not isinstance(description, str) or not re.search(r'\w', description) or not request:
-        return False
+def description_sources(request):
+    """Non-request user text in this verified scope; adequacy still belongs to the Agent."""
+    if not request:
+        return ()
+    issues = []
     for source in request.get('source_texts', []):
-        issue = re.sub(r'(?:请|麻烦)?(?:帮我|给我|我要|我想)?(?:创建|提交|建|开)[个一张份]*(?:售后|投诉|咨询)?工单(?:吧|吗)?', '', source)
+        issue = re.sub(r'(?:请(?:您|你)?|麻烦(?:您|你)?)?(?:帮我|给我|帮忙|我要|我想)?(?:创建|提交|建|开)[个一张份]*(?:售后|投诉|咨询)?工单(?:吧|吗)?', '', source)
         issue = re.sub(r'^[，。！？!?,;；：:\s]+', '', issue)
-        if issue and description in issue:
-            return True
-    return False
+        if re.search(r'\w', issue):
+            issues.append(issue)
+    return tuple(issues)
+
+
+def grounded_description(description, request):
+    if not isinstance(description, str) or not re.search(r'\w', description):
+        return False
+    return any(description in issue for issue in description_sources(request))

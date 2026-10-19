@@ -79,7 +79,7 @@ async def test_confirm_cancel_and_duplicate_receipt_are_durable(tmp_path, value,
 
 
 async def test_missing_description_clarifies_then_uses_verified_user_supplement(tmp_path):
-    model = ScriptedWorkflowModel([control('clarification'), workflow_call('create_ticket', {'ticket_type': '售后', 'description': '饮水机漏水'})],
+    model = ScriptedWorkflowModel([workflow_call('create_ticket', {'ticket_type': '售后', 'description': '饮水机漏水'})],
         intent_replies=[intent('工单'), intent('工单')], final_chunks=[AIMessageChunk('请描述具体问题。'), AIMessageChunk('', response_metadata={'finish_reason': 'stop'})])
     async with ticket_app(tmp_path, model=model) as (_, client, tickets):
         first = decode_sse((await client.post('/api/chat', json={'conversation_id': '1', 'message': '帮我建个工单'})).text)
