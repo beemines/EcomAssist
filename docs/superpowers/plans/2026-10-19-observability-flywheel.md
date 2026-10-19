@@ -99,7 +99,7 @@ def test_rejects_cloud_destination():
 
 ## Task 2：图追踪与意图Token汇总
 
-**Files:** Create app/observability/tracing.py、intent_usage.py、app/api/observability.py；Modify app/workflow/graph.py、runtime.py、nodes.py、service.py、agent.py、app/tools/executor.py、app/main.py；Test tests/test_workflow_observability.py、tests/test_intent_usage.py、tests/integration/test_langfuse_workflow.py。
+**Files:** Create app/observability/tracing.py、intent_usage.py、app/api/observability.py；Modify app/workflow/graph.py、runtime.py、nodes.py、service.py、app/tools/executor.py、app/main.py。实际接线补充app/observability/runtime.py、app/context/summarizer.py / manager.py、app/retrieval/service.py，覆盖既有后台摘要与Agent FAQ；Agent本身通过共享引擎与检索入口获得追踪，未为凑文件单独改动。Test tests/test_workflow_observability.py、tests/test_intent_usage.py、tests/integration/test_langfuse_workflow.py，扩展tests/test_langfuse_runtime.py / test_context_manager.py及相应旧测试边界。
 
 **Interfaces:**
 - `ExecutionIdentity(conversation_id: str, user_message_id: str, execution_id: str, purpose: str, replay: bool=False)`。
@@ -107,11 +107,11 @@ def test_rejects_cloud_destination():
 - `ExecutionTrace.set_intent(intent: str, confidence: float|None, route: str) -> None`；`finish(outcome: str) -> None`；`operation(name: str, *, input: dict, metadata: dict) -> context manager`。上下文按执行隔离。
 - `summarize_intent_usage(roots: Sequence[dict], observations: Sequence[dict]) -> list[dict]`消费规范化SDK副本；`IntentUsageReader.read(from_time, to_time) -> dict`负责游标、去重、缓存和服务错误。
 
-- [ ] **1. 编写失败测试。** `test_preclassification_generations_belong_to_final_intent`用root intent=物流和g1(10输入/2输出)、g2(3/1)，对返回列表的物流行断言`row['actual_tokens'] == 16`、`row['model_calls'] == 2`，重复g1不增加；父span的汇总不累加。另测缺usage单列、未知价格无货币数值、分页游标重复不死循环、并发/取消不串根、replay不产生新generation、resume关联同一逻辑轮次但新execution、exporter故障回复仍成功。
-- [ ] **2. 运行RED。** `.venv/Scripts/python.exe -m pytest tests/test_workflow_observability.py tests/test_intent_usage.py -q`，确认目标断言失败。
-- [ ] **3. 实现统一绑定与业务span。** 图构造处绑定一次handler；每次_produce/恢复请求建立execution scope，分类后更新根，结束前封存意图。自定义检索、Workflow工具和统一引擎记录子操作；模型usage只由generation记一次。Runtime仅加可选适配器，关闭本章时旧行为保持。后台链使用独立purpose根。不得复制Secret或整个Runtime到trace。
-- [ ] **4. 实现只读统计接口。** GET /api/observability/intent-usage接受带时区时间范围，默认最近7天、最长90天，SDK分页读取根和generation并按trace关联最终意图；缓存60秒。未知usage和进行中执行单列，缺页/重复游标报不完整，不返回伪全零。
-- [ ] **5. 验证并提交。** 重跑单测和本地Langfuse集成；集成用注入模型/工具运行真实LangGraph和本地导出，不消耗模型额度。复验现有workflow/工单确认测试，更新记录，提交`feat(ch09): trace workflows and aggregate intent usage`。
+- [x] **1. 编写失败测试。** `test_preclassification_generations_belong_to_final_intent`用root intent=物流和g1(10输入/2输出)、g2(3/1)，对返回列表的物流行断言`row['actual_tokens'] == 16`、`row['model_calls'] == 2`，重复g1不增加；父span的汇总不累加。另测缺usage单列、未知价格无货币数值、分页游标重复不死循环、并发/取消不串根、replay不产生新generation、resume关联同一逻辑轮次但新execution、exporter故障回复仍成功。
+- [x] **2. 运行RED。** `.venv/Scripts/python.exe -m pytest tests/test_workflow_observability.py tests/test_intent_usage.py -q`，确认目标断言失败。
+- [x] **3. 实现统一绑定与业务span。** 图构造处绑定一次handler；每次_produce/恢复请求建立execution scope，分类后更新根，结束前封存意图。自定义检索、Workflow工具和统一引擎记录子操作；模型usage只由generation记一次。Runtime仅加可选适配器，关闭本章时旧行为保持。后台链使用独立purpose根。不得复制Secret或整个Runtime到trace。
+- [x] **4. 实现只读统计接口。** GET /api/observability/intent-usage接受带时区时间范围，默认最近7天、最长90天，SDK分页读取根和generation并按trace关联最终意图；缓存60秒。未知usage和进行中执行单列，缺页/重复游标报不完整，不返回伪全零。
+- [x] **5. 验证并提交。** 重跑单测和本地Langfuse集成；集成用注入模型/工具运行真实LangGraph和本地导出，不消耗模型额度。复验现有workflow/工单确认测试，更新记录，提交`feat(ch09): trace workflows and aggregate intent usage`。
 
 ## Task 3：原DDL、补充迁移和事务仓储
 

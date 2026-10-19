@@ -96,3 +96,32 @@ def test_sdk_construction_error_fails_open_without_logging_secret(caplog):
         client_factory=broken_factory)
     assert runtime.handler is None
     assert 'sk-secret' not in caplog.text
+
+
+def test_client_masks_credentials_in_prompt_fields_and_exported_error_attributes():
+    from app.observability.runtime import LangfuseRuntime
+    from langfuse.types import MaskOtelSpansParams, OtelSpanData, OtelSpanIdentifier
+    captured = {}
+
+    def factory(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    runtime = LangfuseRuntime.from_settings(settings(
+        LANGFUSE_ENABLED=True, LANGFUSE_BASE_URL='http://127.0.0.1:3000',
+        LANGFUSE_PUBLIC_KEY='pk-secret', LANGFUSE_SECRET_KEY='sk-secret'),
+        client_factory=factory, handler_factory=lambda **kwargs: object())
+    assert runtime.handler is not None
+    masked = captured['mask'](data={'prompt': 'upstream rejected model-secret',
+                                   'nested': {'authorization': 'unknown-user-supplied-secret'},
+                                   'question': '订单1001在哪'})
+    assert masked['question'] == '订单1001在哪'
+    assert 'model-secret' not in str(masked) and 'unknown-user-supplied-secret' not in str(masked)
+    identifier = OtelSpanIdentifier('1' * 32, '2' * 16)
+    span = OtelSpanData(trace_id=identifier.trace_id, span_id=identifier.span_id,
+        parent_span_id=None, name='model-error', instrumentation_scope_name='langfuse',
+        instrumentation_scope_version='5.0.2', resource_attributes={},
+        attributes={'langfuse.observation.status_message': 'rejected model-secret'})
+    result = captured['mask_otel_spans'](params=MaskOtelSpansParams(spans={identifier: span}))
+    patch = result.span_patches[identifier]
+    assert patch.set_attributes['langfuse.observation.status_message'] == 'rejected [redacted]'

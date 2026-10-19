@@ -42,3 +42,4 @@ class WorkflowRuntime:
     # 每个 prepared turn 独立；只允许辅助阶段与 Agent 共享一次额外生成。
     model_recovery_used: bool = False
     execution_context: Any = None
+    observation_trace: Any = None

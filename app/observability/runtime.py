@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
@@ -10,6 +11,57 @@ if TYPE_CHECKING:
     from app.config import Settings
 
 logger = logging.getLogger(__name__)
+
+
+def _credential_maskers(settings):
+    from pydantic import SecretStr
+    from langfuse.types import MaskOtelSpansResult, OtelSpanPatch
+    values = [getattr(settings, name) for name in type(settings).model_fields]
+    secrets = sorted({value.get_secret_value() for value in values
+                      if isinstance(value, SecretStr) and value.get_secret_value()}, key=len, reverse=True)
+
+    def sensitive(key):
+        key = str(key).casefold().replace('-', '_')
+        return any(part in key for part in ('api_key', 'apikey', 'password', 'secret_key',
+                                            'secretkey', 'public_key', 'authorization', 'cookie'))
+
+    def scrub(value):
+        if isinstance(value, SecretStr):
+            return '[redacted]'
+        if isinstance(value, dict):
+            return {key: '[redacted]' if sensitive(key) else scrub(item) for key, item in value.items()}
+        if isinstance(value, (tuple, list)):
+            result = [scrub(item) for item in value]
+            return tuple(result) if isinstance(value, tuple) else result
+        if isinstance(value, str):
+            result = value
+            for secret in secrets:
+                result = result.replace(secret, '[redacted]')
+            # Serialized IO may contain escaped credentials inside JSON fields.
+            try:
+                decoded = json.loads(value)
+            except (ValueError, RecursionError):
+                return result
+            if isinstance(decoded, (dict, list)):
+                masked = scrub(decoded)
+                if masked != decoded:
+                    return json.dumps(masked, ensure_ascii=False, separators=(',', ':'))
+            return result
+        return value
+
+    def mask(*, data, **kwargs):
+        return scrub(data)
+
+    def mask_spans(*, params):
+        patches = {}
+        for identifier, span in params.spans.items():
+            updates = {key: scrub(value) for key, value in span.attributes.items()}
+            changed = {key: value for key, value in updates.items() if value != span.attributes[key]}
+            if changed:
+                patches[identifier] = OtelSpanPatch(set_attributes=changed)
+        return MaskOtelSpansResult(span_patches=patches)
+
+    return mask, mask_spans
 
 
 def validate_local_langfuse_url(value: str | None) -> str:
@@ -52,13 +104,14 @@ class LangfuseRuntime:
                 extra = {'tracer_provider': TracerProvider()}
             else:
                 extra = {}
+            mask, mask_spans = _credential_maskers(settings)
             client = client_factory(public_key=public_key,
                 secret_key=settings.langfuse_secret_key.get_secret_value(),
                 base_url=base_url, timeout=2, debug=False, flush_at=32,
-                flush_interval=1, environment='ch09-local', **extra)
+                flush_interval=1, environment='ch09-local', mask=mask, mask_otel_spans=mask_spans, **extra)
             if handler_factory is None:
-                from langfuse.langchain import CallbackHandler
-                handler_factory = CallbackHandler
+                from app.observability.tracing import create_callback_handler
+                handler_factory = create_callback_handler
             return cls(client=client, handler=handler_factory(public_key=public_key))
         except Exception as exc:
             # Provider exceptions can contain credentials; log only a fixed stage and type.

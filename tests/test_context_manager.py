@@ -108,6 +108,30 @@ async def test_event_blocked_summary_does_not_block_caller(repository):
     assert (await repository.load('1'))[0].summary_upto == 102
 
 
+async def test_isolated_background_task_does_not_inherit_request_callbacks(repository):
+    from langchain_core.runnables.config import var_child_runnable_config
+    from app.context.manager import SummaryManager
+    await seed(repository)
+    seen = []
+
+    class Generator:
+        async def summarize(self, batch):
+            seen.append(var_child_runnable_config.get())
+            return '订单 O-1 的包裹未找到。'
+
+    events = Events()
+    manager = SummaryManager(repository, Generator(), budget_provider=budget,
+        event_logger=events, isolate_task_context=True)
+    token = var_child_runnable_config.set({'metadata': {'request_marker': 'must-not-inherit'}})
+    try:
+        assert manager.notify('1', layer2_tokens=100, budget=budget())
+        await events.wait('summary_done')
+        assert seen == [None]
+    finally:
+        var_child_runnable_config.reset(token)
+        await manager.aclose()
+
+
 async def test_two_running_eight_waiting_one_per_conversation(repository):
     from app.context.manager import SummaryManager
     await seed(repository, range(1,12))

@@ -163,19 +163,31 @@ def _unique_object(pairs):
 
 
 class SummaryGenerator:
-    def __init__(self, model, settings, *, context_logger=None):
+    def __init__(self, model, settings, *, context_logger=None, observability=None):
         # Existing factory has zero SDK retries. Reject an externally misconfigured
         # client instead of shallow-copying a retry setting the owned SDK ignores.
         if isinstance(model, ChatOpenAI) and (model.max_retries != 0 or model.root_async_client.max_retries != 0):
             raise ValueError('Summary client must disable automatic retries.')
         self.model = model_with_output_budget(model, settings, SUMMARY_OUTPUT_TOKENS).bind(
             response_format={'type': 'json_object'})
+        self.observability = observability
+        if observability is not None and observability.handler is not None:
+            self.model = self.model.with_config(callbacks=[observability.handler])
         self.window = settings.model_context_window
         self.safety = max(256, (self.window * 3 + 99) // 100)
         self.timeout = settings.llm_timeout_seconds
         self.context_logger = context_logger
 
     async def summarize(self, batch: SummaryBatch) -> str:
+        if self.observability is None or self.observability.client is None:
+            return await self._summarize(batch)
+        from uuid import uuid4
+        from app.observability.tracing import begin_execution, ExecutionIdentity
+        identity = ExecutionIdentity(batch.conversation_id, str(batch.from_msg_id), uuid4().hex, 'summary')
+        with begin_execution(self.observability, identity):
+            return await self._summarize(batch)
+
+    async def _summarize(self, batch: SummaryBatch) -> str:
         messages = summary_messages(batch)
         if estimate_payload(messages) + SUMMARY_OUTPUT_TOKENS + self.safety > self.window:
             raise ValueError('Summary window input + output + safety exceeded.')
