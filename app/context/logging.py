@@ -4,11 +4,48 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import re
 from threading import Lock
 
 from langchain_openai.chat_models.base import _convert_message_to_dict
 
 from app.context.tokens import _plain_json
+
+
+_ERROR_TYPES = frozenset(('ServiceError InputTooLong APIConnectionError APITimeoutError APIStatusError '
+    'BadRequestError AuthenticationError PermissionDeniedError NotFoundError ConflictError '
+    'UnprocessableEntityError RateLimitError InternalServerError APIResponseValidationError '
+    'ConnectError ConnectTimeout ReadError ReadTimeout WriteError WriteTimeout RemoteProtocolError '
+    'TimeoutError ConnectionError ConnectionResetError ConnectionRefusedError OSError PermissionError '
+    'ValueError TypeError KeyError AttributeError ValidationError RuntimeError JSONDecodeError').split())
+_ERROR_CODES = frozenset(('upstream_error upstream_timeout invalid_structured_output '
+    'rate_limit_exceeded insufficient_quota invalid_api_key model_not_found '
+    'service_unavailable server_error').split())
+
+
+def log_model_failure(logger, error, *, conversation_id, user_message_id, phase):
+    """Record bounded exception categories; never inspect messages, headers or bodies."""
+    if logger is None:
+        return False
+    try:
+        causes, seen = [], set()
+        while isinstance(error, BaseException) and id(error) not in seen and len(causes) < 4:
+            seen.add(id(error))
+            name = type(error).__name__
+            item = {'exception_type': name if name in _ERROR_TYPES else 'OtherError'}
+            status = getattr(error, 'status_code', None)
+            if type(status) is int and 100 <= status <= 599:
+                item['status_code'] = status
+            code = getattr(error, 'code', None)
+            if type(code) in (str, int) and (str(code) in _ERROR_CODES or re.fullmatch(r'[0-9]{1,6}', str(code))):
+                item['code'] = str(code)
+            causes.append(item)
+            error = error.__cause__ or error.__context__
+        logger.event('model_call_failed', dict(conversation_id=conversation_id,
+            user_message_id=user_message_id, phase=phase, causes=causes))
+        return True
+    except Exception:
+        return False
 
 
 def budget_fields(budget):

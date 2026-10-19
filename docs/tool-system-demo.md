@@ -55,3 +55,5 @@ pwsh -NoProfile -File scripts/start-tool-system-demo.ps1 -Service logistics -Log
 少量页面验收使用`-Acceptance`显式开启同一持久账本40GLM/12嵌入/6重排（含失败与后台）。不要用验收模式留给用户日常聊天；恢复普通服务用`-Service customer`，/health应仅返回status=ok。
 
 本章实际结果、失败及未执行范围见[验收报告](superpowers/reports/2026-10-18-pluggable-tools-acceptance.md)，过程见[开发记录](../dev-notes/ch08.md)。
+
+模型返回智谱HTTP429/1113时，页面会明确提示账户余额不足或无可用资源包，该类错误不自动重试。核对项目Key所属账号及配置模型的标准API可用额度；[官方说明](https://docs.bigmodel.cn/cn/coding-plan/faq)明确自建应用使用标准API，编码套餐有使用场景限制。不要连续重发或改MCP配置来排查计费拒绝。本次定位及充值后补号成功证据见[原会话修复报告](superpowers/reports/2026-10-19-compact-order-fix.md)。
