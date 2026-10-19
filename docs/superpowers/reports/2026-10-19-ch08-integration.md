@@ -25,7 +25,7 @@
 | 修复前存储契约集成 | 4通过，7.38秒；显式3308独立测试库，未访问业务库 |
 | 提示词及PyCharm配置 | 7/6/5条目、原始DDL、相对链接、5个XML和解释器路径核对通过 |
 | 最终完整本地回归 | 3032通过、188跳过，412.77秒，退出0；日志`runtime/tool-system-evidence/ch08-reviewed-final-20261019-full.log` |
-| 主仓库合并后核对 | 尚未执行 |
+| 主仓库合并后核对 | 50通过，37.48秒，退出0；包含39项来源/分类、7项真实MCP协议和4项3308 SQL集成；确认导入路径为主仓库app/workflow/intent.py，使用既有锁定依赖环境 |
 
 最终代码修正提交为`b9f926f56697da0fa63beea7d268821b0eb13452`。两个中断全量保留在`ch08-premerge-20261019-full.log`、`ch08-final-20261019-full.log`，均不记通过。默认沙箱的临时目录失败与修复前反例失败分别记录在[dev-notes/ch08.md](../../../dev-notes/ch08.md)。
 
@@ -33,4 +33,13 @@
 
 ## 集成结果
 
-最终完整回归与独立后端审查已通过，代码修正已提交；归档文档提交、主仓库合并和推送核验按接下来的Git结果更新。保留用户正在使用的`.worktrees/pluggable-tools`及其本地.env、检查点和忽略证据；不将这些私有配置或完整上下文日志提交远程。
+最终完整回归、独立后端审查与主仓库合并后核对均已通过：
+
+- 代码修正提交：`b9f926f56697da0fa63beea7d268821b0eb13452`。
+- 提示词与PyCharm归档提交：`1e9e146beda511cf318dcf44fcb3f487bf3acd46`。
+- `master`从`8b10255`快进至`1e9e146`，包含完整第八步提交历史；合并树与已验证feature树一致。
+- 首次功能交付已正常推送：`origin/master`从`8e049fe`推进至`1e9e146`。随后实际`git ls-remote origin refs/heads/master`返回完整同SHA，左右差异为0/0，本地工作区干净；未强推。
+- 普通8005通过原PID身份守卫加载最终修正，PID55928，`/health`返回`status=ok`且无验收次数上限；没有重启两个MCP Server，没有新增模型请求。
+- 本报告与finish记录作为后续收尾文档提交随master推送，最新文档提交号由最终Git核对与答复提供；上述功能交付提交与测试源码不变。
+
+保留用户正在使用的`.worktrees/pluggable-tools`及其本地.env、检查点和忽略证据；不将这些私有配置或完整上下文日志提交远程。普通演示仍可从该工作树执行`pwsh -NoProfile -File scripts/start-tool-system-demo.ps1`，访问http://127.0.0.1:8005/；主仓库现在也包含business_mcp与完整提示词文件。
