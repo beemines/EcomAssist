@@ -12,6 +12,7 @@ from app.repositories.records import MessageRecord, record_from_message
 
 _ORDER = re.compile(r'(?:(?:订单(?:编号|号码|号)?|单号)\s*(?:为|是)?\s*[:：#]?\s*)([A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*)(?![A-Za-z0-9_-])')
 _COORDINATED_ORDER = re.compile(r'\s*(?:和|及|与|或|、|/|，|,)\s*(?:(?:订单(?:编号|号码|号)?|单号)\s*[:：#]?\s*)?([A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*)(?![A-Za-z0-9_-])')
+_COMPACT_ORDER = re.compile(r'^\s*(?:(?:请|帮我|麻烦(?:您|你)?)?\s*(?:查询|查一下|查看|查)\s*)?(\d{4,20})\s*(?:的)?(?:物流|订单|退款|退货|售后)')
 _MODEL = re.compile(r'(?<![A-Za-z0-9_-])[A-Za-z][A-Za-z0-9]*(?:[-_][A-Za-z0-9]+)+(?![A-Za-z0-9_-])')
 _QUANTITY = re.compile(r'\d+(?:\.\d+)?\s*(?:元|天|小时|个月|年|毫升|升|公斤|千克|克)')
 _DATE = re.compile(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}')
@@ -30,7 +31,7 @@ def completed_history(history: list[BaseMessage]) -> list[list[BaseMessage]]:
 
 
 def explicit_order_ids(question: str) -> set[str]:
-    """只有明确订单表达可充当锚点，价格、型号和任意数字不能猜成订单。"""
+    """明确前缀或句首编号紧接业务主题；型号/金额/日期/手机号不是订单。"""
     identifiers = set()
     for match in _ORDER.finditer(question):
         identifiers.add(match.group(1))
@@ -38,6 +39,9 @@ def explicit_order_ids(question: str) -> set[str]:
         while following := _COORDINATED_ORDER.match(question, end):
             identifiers.add(following.group(1))
             end = following.end()
+    compact = _COMPACT_ORDER.match(question)
+    if compact and not _PHONE.fullmatch(compact.group(1)):
+        identifiers.add(compact.group(1))
     return identifiers
 
 
