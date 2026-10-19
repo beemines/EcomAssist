@@ -108,3 +108,28 @@ async def migration_database(mysql_database):
         async with root.engine.begin() as connection:
             await connection.execute(text(f"DROP DATABASE `{name}`"))
         await root.dispose()
+
+
+@pytest_asyncio.fixture
+async def flywheel_base(migration_database):
+    """Own a fresh ch02/ch04 schema on 3308; never alter the shared business DB."""
+    from pathlib import Path
+    from app.quality.migration import _statements, migrate_quality
+    async with migration_database.engine.begin() as connection:
+        await connection.exec_driver_sql('SET NAMES utf8mb4')
+        for statement in _statements(Path('sql/schema.sql').read_text(encoding='utf-8'))[:2]:
+            await connection.exec_driver_sql(statement)
+    await migrate_quality(migration_database)
+    return migration_database
+
+
+@pytest_asyncio.fixture
+async def flywheel_database(flywheel_base):
+    from app.flywheel.migration import migrate_flywheel
+    from app.context.migration import migrate_context
+    await migrate_context(flywheel_base)
+    await migrate_flywheel(flywheel_base)
+    from sqlalchemy import text
+    async with flywheel_base.session() as session, session.begin():
+        await session.execute(text("INSERT INTO conversations(id,user_id) VALUES(1,'ch09-test')"))
+    return flywheel_base

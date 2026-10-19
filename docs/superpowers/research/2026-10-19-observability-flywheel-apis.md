@@ -47,5 +47,12 @@
 ## Task 2追踪验证
 
 - SDK5.0.2的propagate_attributes是模块级上下文接口，支持session_id和metadata；既写当前span，又传播trace维度。真实读回证实初始LangGraph回调产生的trace级intent会覆盖同名observation metadata，仅span.update不足。结束根前按持久化最终State核对，并用有界作用域propagate_attributes同步后，本地API读回意图正确。
+
+## 原轮反馈与事务接口核对（2026-10-19）
+
+- SQLAlchemy当前官方2.0文档已到2.0.55，项目继续锁定2.0.54；核对安装源码`ext/asyncio/session.py`的`begin`/`begin_nested`及异步Session归属，不为文档最新版本升级依赖。官方事务入口：https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html 。
+- FastAPI请求体使用Pydantic模型，路径参数单独绑定；官方文档：https://fastapi.tiangolo.com/tutorial/body/ 。核对已安装`fastapi/routing.py`的JSON请求解析路径；反馈沿用本机同源JSON写边界，不直接信任浏览器证据。
+- Pydantic严格JSON模式允许已声明的datetime ISO字符串，而Python严格模式不自动从字符串转换；`model_validate_json`用于读取持久化JSON。核对安装`pydantic/main.py`与官方说明：https://docs.pydantic.dev/latest/concepts/json/ 。
+- 已安装`langgraph/checkpoint/sqlite/aio.py`的`alist`持有同一saver锁直到异步迭代器结束；反馈定位原根后先用`aclosing`关闭迭代器，不在持游标期间对同saver调用`aget_tuple`。原完成根直接使用原始checkpoint channel_values，排除pending写投影。
 - 固定CallbackHandler的on_chain_start/on_chat_model_start/on_tool_start/on_retriever_start均接收keyword-only metadata；本项目薄封装在每次start读取当前execution的最新意图，仍由官方Handler实现记录及usage，不在节点反复注册。
 - SDK5.0.2的mask(data=...)处理SDK字段；mask_otel_spans(params=MaskOtelSpansParams)返回MaskOtelSpansResult，按OtelSpanIdentifier映射OtelSpanPatch，只修改导出属性、不原地改只读span。配置的SecretStr值及认证字段在两处遮盖，错误status_message也覆盖；固定源码为langfuse/types.py和_client/span_exporter.py。此处没有照搬旧SDK遮盖回调签名。
