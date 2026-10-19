@@ -1,5 +1,7 @@
 # 电商智能客服
 
+第八步工具系统与MCP：两个独立业务Server、动态工具注册、统一执行审计和工单确认流已实现。入口见[演示命令](docs/tool-system-demo.md)、[PyCharm验收](docs/ch08-pycharm-acceptance.md)、[手动验收](docs/ch08-manual-acceptance.md)及[第八步原始提示词与DDL](docs/prompts/step-08-pluggable-tools.md)。测试与真实验收的版本、失败和范围分别保留在[开发记录](dev-notes/ch08.md)及报告中。
+
 第七章分层上下文的离线21轮回放、预算profile、8004进程守卫和共享物理HTTP限额见[可复现验收说明](docs/context-management-demo.md)。离线回放与受控浏览器已验证；3307迁移、真实应用启动及真实长对话验收留待Task11，不把离线结果当作模型质量结论。
 
 300 题四策略已完成全部 1200 条尝试：1188 条成功、12 条失败，0 未执行。原 158 题保持，剩余 142 题以 8 题并发补跑约 11 分 22 秒。公平共同题集上，混合加重排的检索排名和答案要点覆盖最高。见[实际结果分析](docs/validation/merchant-rag-comparison-analysis.md)、[完整合并报告](docs/validation/merchant-rag-comparison.md)与[独立验收](docs/validation/merchant-rag-completion-proof.json)。错误及两次运行的真实来源均保留。

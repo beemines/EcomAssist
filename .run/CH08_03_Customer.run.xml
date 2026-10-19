@@ -1,0 +1,19 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="CH08 03 - 客服 8005" type="PythonConfigurationType" factoryName="Python">
+    <envs>
+      <env name="PYTHONUTF8" value="1" />
+      <env name="PYTHONUNBUFFERED" value="1" />
+      <env name="TOOL_SYSTEM_ACCEPTANCE" value="" />
+      <env name="WORKFLOW_CHECKPOINT_PATH" value="$PROJECT_DIR$/runtime/workflow/tool-system-8005.sqlite" />
+    </envs>
+    <option name="SDK_HOME" value="$PROJECT_DIR$/.venv/Scripts/python.exe" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="IS_MODULE_SDK" value="false" />
+    <option name="ADD_CONTENT_ROOTS" value="true" />
+    <option name="ADD_SOURCE_ROOTS" value="true" />
+    <option name="SCRIPT_NAME" value="uvicorn" />
+    <option name="PARAMETERS" value="app.tools.demo:create_tool_system_app --factory --host 127.0.0.1 --port 8005 --workers 1 --app-dir &quot;$PROJECT_DIR$&quot;" />
+    <option name="MODULE_MODE" value="true" />
+    <method v="2" />
+  </configuration>
+</component>
