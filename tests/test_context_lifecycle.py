@@ -57,8 +57,9 @@ async def test_owned_manager_closes_before_model_database_logger(tmp_path, monke
             assert app.state.chat_service._closing is True
             trace.append('manager')
     class Generator:
-        def __init__(self, model, settings, *, context_logger):
+        def __init__(self, model, settings, *, context_logger, observability=None):
             assert context_logger is not None
+            assert observability is not None and observability.client is None
     model = ScriptedWorkflowModel()
     async def close_async():
         trace.append('model_async')

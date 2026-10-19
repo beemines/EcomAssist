@@ -43,3 +43,9 @@
 - Headless初始化按官方变量生成本地独立项目与用户，凭据存ignored的runtime/langfuse/local.env，应用仅使用四项sdk.env，来源：https://langfuse.com/self-hosting/administration/headless-initialization 。
 - 官方注册表核对得到六个固定digest，均写入compose.langfuse.yaml：web/worker为4.63.0；基础服务沿固定发布Compose的ClickHouse25.12、Postgres17、Redis7、Chainguard MinIO分支解析digest。config --quiet已通过，真实容器和读回验收尚未完成。
 - 后续本地验收：六容器启动、中文span导出和observations读回、headless用户登录session核对均通过。登录使用NextAuth公开REST的providers/csrf/callback/session，先检查provider回调为本机，再发送本章生成的凭据；不打印凭据或session。官方接口说明：https://next-auth.js.org/getting-started/rest-api 。
+
+## Task 2追踪验证
+
+- SDK5.0.2的propagate_attributes是模块级上下文接口，支持session_id和metadata；既写当前span，又传播trace维度。真实读回证实初始LangGraph回调产生的trace级intent会覆盖同名observation metadata，仅span.update不足。结束根前按持久化最终State核对，并用有界作用域propagate_attributes同步后，本地API读回意图正确。
+- 固定CallbackHandler的on_chain_start/on_chat_model_start/on_tool_start/on_retriever_start均接收keyword-only metadata；本项目薄封装在每次start读取当前execution的最新意图，仍由官方Handler实现记录及usage，不在节点反复注册。
+- SDK5.0.2的mask(data=...)处理SDK字段；mask_otel_spans(params=MaskOtelSpansParams)返回MaskOtelSpansResult，按OtelSpanIdentifier映射OtelSpanPatch，只修改导出属性、不原地改只读span。配置的SecretStr值及认证字段在两处遮盖，错误status_message也覆盖；固定源码为langfuse/types.py和_client/span_exporter.py。此处没有照搬旧SDK遮盖回调签名。

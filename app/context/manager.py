@@ -2,6 +2,7 @@
 import asyncio
 from collections import deque
 from collections.abc import Callable
+from contextvars import Context
 from dataclasses import replace
 import json
 import logging
@@ -22,10 +23,11 @@ def _default_event(name, fields):
 
 class SummaryManager:
     def __init__(self, repository: ContextRepository, generator, *, budget_provider: Callable[[], ContextBudget],
-                 event_logger: Callable[[str, dict], None] | None = None):
+                 event_logger: Callable[[str, dict], None] | None = None, isolate_task_context: bool = False):
         self.repository, self.generator = repository, generator
         self.budget_provider = budget_provider
         self.event_logger = event_logger or _default_event
+        self.isolate_task_context = isolate_task_context
         self._running = {}
         self._waiting = deque()
         self._conversations = set()
@@ -70,7 +72,8 @@ class SummaryManager:
         return True
 
     def _launch(self, request):
-        self._running[request.conversation_id] = asyncio.create_task(self._run(request))
+        self._running[request.conversation_id] = asyncio.create_task(self._run(request),
+            context=Context() if self.isolate_task_context else None)
 
     async def startup(self) -> None:
         cursor = 0

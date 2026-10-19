@@ -93,6 +93,7 @@ def create_app(
     acceptance_call_cap: Any | None = None,
     acceptance_profile: str | None = None,
     tool_catalog_provider: Any | None = None,
+    observability_runtime: Any | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
     if acceptance_call_cap is not None and settings.rag_evaluation_enabled:
@@ -106,6 +107,7 @@ def create_app(
     owns_model = model is None
     owns_checkpointer = chat_service is None and checkpointer is None
     owns_evaluation_manager = evaluation_manager is None
+    owns_observability = observability_runtime is None
     if (context_budget_provider is None and chat_service is None
             and (owns_database or getattr(database, 'engine', None) is not None or context_repository is not None)):
         from app.workflow.context_budget import workflow_budget
@@ -151,11 +153,13 @@ def create_app(
                 audit_sink=BestEffortAuditSink(ToolAuditRepository(database))) if provider is not None else None
             app.state.chat_service = WorkflowChatService(model, repository,
                 registry_factory, ConversationLocks(), settings,
-                graph=build_workflow_graph(build_agent_graph(), checkpointer=checkpointer), checkpointer=checkpointer,
+                graph=build_workflow_graph(build_agent_graph(), checkpointer=checkpointer,
+                    callbacks=[observability_runtime.handler] if observability_runtime and observability_runtime.handler else None), checkpointer=checkpointer,
                 faq_repository=faq_repository, sufficiency_service=assessment, quality_repository=quality_repository,
                 order_provider=order_provider, workflow_retriever=retrieval,
                 context_coordinator=context_coordinator, context_logger=context_logger,
-                context_budget_provider=context_budget_provider, catalog_provider=provider, executor=executor)
+                context_budget_provider=context_budget_provider, catalog_provider=provider, executor=executor,
+                observability=observability_runtime)
         service = getattr(app.state, 'chat_service', None)
         app.state.history_reader = HistoryReader(checkpointer if checkpointer is not None else
             getattr(service, 'checkpointer', None), repository)
@@ -179,7 +183,15 @@ def create_app(
     async def lifespan(app: FastAPI):
         nonlocal database, repository, model, faq_repository, sufficiency_service, quality_repository, checkpointer
         nonlocal context_coordinator, context_logger, context_repository
+        nonlocal observability_runtime
         async with AsyncExitStack() as resources:
+            if owns_observability:
+                from app.observability.runtime import LangfuseRuntime
+                observability_runtime = LangfuseRuntime.from_settings(settings)
+                resources.push_async_callback(observability_runtime.close)
+            app.state.observability_runtime = observability_runtime
+            from app.observability.intent_usage import IntentUsageReader
+            app.state.intent_usage_reader = IntentUsageReader(observability_runtime.client)
             if owns_context_logger:
                 context_logger = ContextLogger(Path(__file__).resolve().parents[1] / 'log' / 'app.log')
                 resources.callback(context_logger.close)
@@ -260,8 +272,10 @@ def create_app(
                     registry = app.state.chat_service.registry_factory(ToolContext('0', 0, '', None))
                     return context_budget_provider(registry)
                 manager = SummaryManager(context_repository,
-                    SummaryGenerator(model, settings, context_logger=context_logger),
-                    budget_provider=recovery_budget, event_logger=context_logger.event if context_logger else None)
+                    SummaryGenerator(model, settings, context_logger=context_logger,
+                        observability=observability_runtime),
+                    budget_provider=recovery_budget, event_logger=context_logger.event if context_logger else None,
+                    isolate_task_context=bool(observability_runtime.client))
                 context_coordinator = ContextCoordinator(context_repository, manager, settings, context_logger=context_logger)
                 resources.push_async_callback(manager.aclose)
             configure(app)
@@ -280,6 +294,11 @@ def create_app(
             yield
 
     app = FastAPI(lifespan=lifespan)
+    from app.api.observability import router as observability_router
+    app.include_router(observability_router)
+    from app.observability.intent_usage import IntentUsageReader
+    app.state.intent_usage_reader = IntentUsageReader(
+        observability_runtime.client if observability_runtime else None)
     app.include_router(ticket_confirmation_router)
     app.state.rag_evaluation_settings = evaluation_settings
     app.state.evaluation_manager = evaluation_manager

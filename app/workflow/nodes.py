@@ -194,6 +194,10 @@ async def classify_intent(state: WorkflowState, runtime: Runtime[WorkflowRuntime
         intent = result.intent
         raw_intent, confidence = result.raw_intent, result.confidence
     route = route_intent(intent)
+    from app.observability.tracing import current_execution
+    trace = current_execution()
+    if trace is not None:
+        trace.set_intent(intent, confidence, route)
     log_node(state, 'classify_intent', selected_intent=intent, selected_route=route)
     return {**update, 'intent': intent, 'raw_intent': raw_intent, 'confidence': confidence, 'route': route,
             'ticket_request': state.get('ticket_request') if intent == '工单' else None}
@@ -324,14 +328,19 @@ async def retrieve_policies(state: WorkflowState, runtime: Runtime[WorkflowRunti
     async def retrieve():
         """仅成功的完整聚合结果成为本轮证据；失败不入低置信池。"""
         nonlocal audit
-        try:
-            async with asyncio.timeout(remaining_timeout(context, context.settings.faq_timeout_seconds)):
-                result = await context.workflow_retriever.retrieve(question=state['resolved_question'],
-                    queries=queries, category=state['category'], **scoring)
-        except TimeoutError as exc:
-            raise ServiceError('upstream_timeout', '知识检索超时，请稍后重试。', 504) from exc
-        audit = result.audit
-        return result.payload
+        from app.observability.tracing import operation as observe_operation
+        with observe_operation('knowledge.retrieve', input={'question': state['resolved_question'],
+                'queries': list(queries), 'category': state['category'], **scoring},
+                metadata={'observation_type': 'retriever', 'strategy': 'hybrid_rerank'}) as observation:
+            try:
+                async with asyncio.timeout(remaining_timeout(context, context.settings.faq_timeout_seconds)):
+                    result = await context.workflow_retriever.retrieve(question=state['resolved_question'],
+                        queries=queries, category=state['category'], **scoring)
+            except TimeoutError as exc:
+                raise ServiceError('upstream_timeout', '知识检索超时，请稍后重试。', 504) from exc
+            audit = result.audit
+            observation.update(output={'audit': audit, 'evidence': result.payload})
+            return result.payload
     update = await workflow_tool(state, runtime, node, 'query_faq',
         {'keyword': state['resolved_question'][:128]}, retrieve)
     packet = state_evidence({**state, **update, 'messages': [*state['messages'], *update['messages']]}, context)
