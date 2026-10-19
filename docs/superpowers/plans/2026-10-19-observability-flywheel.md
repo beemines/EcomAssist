@@ -141,11 +141,11 @@ def test_rejects_cloud_destination():
 - `FeedbackService.submit(conversation_id: str, *, user_id: str, assistant_message_id: str, checkpoint_id: str|None=None) -> PoolReceipt`只使用服务端原根与SQL。
 - `QualityRepository.commit_refusal`增加可选的可信`user_message_id`和`snapshot`；有本章上下文时助手消息与enqueue_in_session同一事务，保留旧调用兼容。
 
-- [ ] **1. 编写失败测试。** `test_feedback_reads_original_turn`构造同问句不同证据的两轮，对旧助手反馈断言`stored_snapshot == original_snapshot`且不等于新轮快照；修改知识原文后仍取旧片段。`test_no_retrieval_is_not_zero_recall`断言未检索payload为None、零召回payload['chunks']==[]。另测旧payload缺失unavailable、整根缺失409、越权会话/助手ID、伪checkpoint、未完成回答、重复点击、入池事务失败不能留半条助手/假成功、Agent追加FAQ也能回捞。
-- [ ] **2. 运行RED。** `.venv/Scripts/python.exe -m pytest tests/test_retrieval_snapshots.py tests/test_feedback_api.py tests/integration/test_feedback_storage.py --run-mysql -q`。
-- [ ] **3. 实现快照与拒答接线。** State新增每轮重置的retrieval_snapshot / retrieval_performed；在成功精排后、预算投影前捕获Top-K，以真实prompt_ids打标。Widget引用字段不变。历史完成根核验包含新快照身份；新轮可追溯，旧轮按明确兼容规则处理。两种拒答来源均写原始问句和快照。
-- [ ] **4. 实现反馈接口。** POST /api/conversations/{id}/feedback仅接受assistant_message_id和可选checkpoint_id；严格JSON，服务端demo-user归属、SQL正文及完成根核验，不能从页面接raw_question或chunks。不让查找根的游标持有期间再调用同saver其他接口造成死锁。
-- [ ] **5. 验证并提交。** 重跑集合及现有会话读取/引用/拒答测试，确认SSE done的原两字段契约未破坏；更新记录，提交`feat(ch09): collect turn-bound feedback and evidence snapshots`。
+- [x] **1. 编写失败测试。** `test_feedback_reads_original_turn`构造同问句不同证据的两轮，对旧助手反馈断言`stored_snapshot == original_snapshot`且不等于新轮快照；修改知识原文后仍取旧片段。`test_no_retrieval_is_not_zero_recall`断言未检索payload为None、零召回payload['chunks']==[]。另测旧payload缺失unavailable、整根缺失409、越权会话/助手ID、伪checkpoint、未完成回答、重复点击、入池事务失败不能留半条助手/假成功、Agent追加FAQ也能回捞。
+- [x] **2. 运行RED。** `.venv/Scripts/python.exe -m pytest tests/test_retrieval_snapshots.py tests/test_feedback_api.py tests/integration/test_feedback_storage.py --run-mysql -q`。
+- [x] **3. 实现快照与拒答接线。** State新增每轮重置的retrieval_snapshot / retrieval_performed；在成功精排后、预算投影前捕获Top-K，以真实prompt_ids打标。Widget引用字段不变。历史完成根核验包含新快照身份；新轮可追溯，旧轮按明确兼容规则处理。两种拒答来源均写原始问句和快照。
+- [x] **4. 实现反馈接口。** POST /api/conversations/{id}/feedback仅接受assistant_message_id和可选checkpoint_id；严格JSON，服务端demo-user归属、SQL正文及完成根核验，不能从页面接raw_question或chunks。不让查找根的游标持有期间再调用同saver其他接口造成死锁。
+- [x] **5. 验证并提交。** 重跑集合及现有会话读取/引用/拒答测试，确认SSE done的原两字段契约未破坏；更新记录，提交`feat(ch09): collect turn-bound feedback and evidence snapshots`。
 
 ## Task 5：Prompt标准化、分页语义查重与受管worker
 

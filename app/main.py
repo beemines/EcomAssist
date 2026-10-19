@@ -94,6 +94,7 @@ def create_app(
     acceptance_profile: str | None = None,
     tool_catalog_provider: Any | None = None,
     observability_runtime: Any | None = None,
+    flywheel_repository: Any | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
     if acceptance_call_cap is not None and settings.rag_evaluation_enabled:
@@ -163,6 +164,13 @@ def create_app(
         service = getattr(app.state, 'chat_service', None)
         app.state.history_reader = HistoryReader(checkpointer if checkpointer is not None else
             getattr(service, 'checkpointer', None), repository)
+        from app.flywheel.feedback import FeedbackService
+        from app.flywheel.repository import FlywheelRepository
+        pool = flywheel_repository
+        if pool is None and settings.flywheel_enabled and getattr(database, 'engine', None) is not None:
+            pool = FlywheelRepository(database)
+        app.state.feedback_service = (FeedbackService(checkpointer if checkpointer is not None else
+            getattr(service, 'checkpointer', None), repository, pool) if pool is not None else None)
         # 动作读取同一服务的当前注册表工厂，保留注入与测试的外部资源归属。
         def action_registry(context):
             """按原轮可信上下文复用聊天服务的既有业务工具。"""
@@ -202,6 +210,9 @@ def create_app(
                 resources.push_async_callback(database.dispose)
             if repository is None:
                 repository = ConversationRepository(database)
+            if settings.flywheel_enabled and getattr(database, 'engine', None) is not None:
+                from app.flywheel.migration import verify_flywheel
+                await verify_flywheel(database)
             if owns_model:
                 clients = {}
                 if acceptance_call_cap is not None:
@@ -296,6 +307,8 @@ def create_app(
     app = FastAPI(lifespan=lifespan)
     from app.api.observability import router as observability_router
     app.include_router(observability_router)
+    from app.api.feedback import router as feedback_router
+    app.include_router(feedback_router)
     from app.observability.intent_usage import IntentUsageReader
     app.state.intent_usage_reader = IntentUsageReader(
         observability_runtime.client if observability_runtime else None)

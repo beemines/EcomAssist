@@ -324,10 +324,10 @@ async def retrieve_policies(state: WorkflowState, runtime: Runtime[WorkflowRunti
             question = refund_policy_question(state['resolved_question'], order)
             if question != state['resolved_question']:
                 scoring['rerank_question'] = question
-    audit = {}
+    audit, full_payload = {}, None
     async def retrieve():
         """仅成功的完整聚合结果成为本轮证据；失败不入低置信池。"""
-        nonlocal audit
+        nonlocal audit, full_payload
         from app.observability.tracing import operation as observe_operation
         with observe_operation('knowledge.retrieve', input={'question': state['resolved_question'],
                 'queries': list(queries), 'category': state['category'], **scoring},
@@ -339,12 +339,23 @@ async def retrieve_policies(state: WorkflowState, runtime: Runtime[WorkflowRunti
             except TimeoutError as exc:
                 raise ServiceError('upstream_timeout', '知识检索超时，请稍后重试。', 504) from exc
             audit = result.audit
+            full_payload = result.payload
             observation.update(output={'audit': audit, 'evidence': result.payload})
             return result.payload
     update = await workflow_tool(state, runtime, node, 'query_faq',
         {'keyword': state['resolved_question'][:128]}, retrieve)
+    snapshot = None
+    if full_payload is not None and getattr(context.settings, 'flywheel_enabled', False):
+        from app.flywheel.snapshots import capture_turn_retrieval
+        snapshot = capture_turn_retrieval(state, full_payload, prompt_ids=[])
     packet = state_evidence({**state, **update, 'messages': [*state['messages'], *update['messages']]}, context)
+    if snapshot is not None:
+        prompt_ids = {str(row['id']) for row in packet.payload.get('matches', [])}
+        for chunk in snapshot.payload.chunks:
+            chunk.in_prompt = chunk.chunk_id in prompt_ids
     return {**update, 'retrieval_queries': list(queries), 'retrieval_audit': audit,
+        'retrieval_performed': full_payload is not None,
+        'retrieval_snapshot': snapshot.model_dump(mode='json') if snapshot else None,
         'evidence_payload': packet.payload, 'citations': [asdict(citation) for citation in packet.citations]}
 
 async def confidence_gate(state: WorkflowState, runtime: Runtime[WorkflowRuntime]) -> dict:
@@ -464,8 +475,12 @@ async def log_response(state: WorkflowState, runtime: Runtime[WorkflowRuntime]) 
     answer = AIMessage(state['final_answer'])
     quality = state['quality']
     if quality.get('useful') is False:
+        extra = {}
+        if getattr(runtime.context.settings, 'flywheel_enabled', False):
+            from app.flywheel.snapshots import snapshot_from_state
+            extra = {'user_message_id': state['user_message_id'], 'snapshot': snapshot_from_state(state)}
         identifier = await runtime.context.quality_repository.commit_refusal(state['conversation_id'], answer,
-            raw_question=state['raw_question'], source=quality['source'], reason=quality['reason'])
+            raw_question=state['raw_question'], source=quality['source'], reason=quality['reason'], **extra)
     else:
         identifier = await runtime.context.repository.append_message(state['conversation_id'], answer)
     answer.id = str(identifier)

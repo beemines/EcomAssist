@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     langfuse_base_url: str | None = Field(default=None, validation_alias='LANGFUSE_BASE_URL')
     langfuse_public_key: SecretStr | None = Field(default=None, validation_alias='LANGFUSE_PUBLIC_KEY')
     langfuse_secret_key: SecretStr | None = Field(default=None, validation_alias='LANGFUSE_SECRET_KEY')
+    flywheel_enabled: bool = Field(default=False, validation_alias='FLYWHEEL_ENABLED')
 
     @model_validator(mode='after')
     def validate_local_observability(self):
