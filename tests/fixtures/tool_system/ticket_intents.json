@@ -1,6 +1,10 @@
 [
   {"question":"帮我建个工单","intent":"工单","authorized":true,"description_missing":true},
   {"question":"饮水机一直漏水，请帮我提交售后工单","intent":"工单","authorized":true},
+  {"question":"饮水机不出水帮我建个工单","intent":"工单","authorized":true},
+  {"question":"饮水机不能开机请帮我创建售后工单","intent":"工单","authorized":true},
+  {"question":"订单1001没收到货帮我建个工单","intent":"工单","authorized":true},
+  {"question":"订单一直未发货请帮我建工单","intent":"工单","authorized":true},
   {"history":"用户请求建工单，客服追问问题","question":"饮水机一直漏水","intent":"工单","authorized_by_previous_request":true},
   {"question":"不要建工单，我只查订单1001物流","intent":"物流","authorized":false},
   {"question":"只转人工","intent":"其他","authorized":false},

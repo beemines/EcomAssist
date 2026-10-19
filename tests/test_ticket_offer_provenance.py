@@ -102,3 +102,55 @@ def test_explicit_ticket_and_verified_description_continuation_stay_available(ra
     service = IntentClassifier(model, input_budget=20000, timeout_seconds=1)
     result = immediate_generation(service.classify(raw, ticket_request=ticket_request))
     assert result.intent == '工单'
+
+
+@pytest.mark.parametrize('question,description', [
+    ('饮水机不出水帮我建个工单', '饮水机不出水'),
+    ('饮水机不能开机请帮我创建售后工单', '饮水机不能开机'),
+    ('订单1001没收到货帮我建个工单', '订单1001没收到货'),
+    ('订单一直未发货请帮我建工单', '订单一直未发货'),
+    ('猫砂盆不能启动请帮我建个工单', '猫砂盆不能启动'),
+    ('订单没收到包裹请帮我创建售后工单', '订单没收到包裹'),
+])
+def test_negative_fault_description_keeps_explicit_ticket_request(question, description, immediate_generation):
+    """A fault's 不/没/未 must not negate the customer's later ticket action."""
+    from app.workflow.ticket_requests import ticket_request_for_turn, grounded_description
+    request = ticket_request_for_turn('9', question, {})
+    assert request is not None
+    assert request['source_message_ids'] == ['9']
+    assert request['request_text'] == question
+    assert request['source_texts'] == [question]
+    assert grounded_description(description, request)
+    model = ScriptedWorkflowModel(intent_replies=[reply({'intent': '工单', 'confidence': .98})])
+    service = IntentClassifier(model, input_budget=20000, timeout_seconds=1)
+    assert immediate_generation(service.classify(question)).intent == '工单'
+
+
+@pytest.mark.parametrize('question', [
+    '饮水机不出水不要帮我建工单',
+    '我没有要求创建工单',
+    '我没让你帮我建工单',
+    '不用给我建工单',
+    '不能帮我创建工单',
+    '取消创建售后工单',
+    '不要现在创建工单',
+    '别急着帮我建工单',
+    '不需要帮我立即创建工单',
+    '不要未经确认就创建工单',
+    '我没让你现在帮我建工单',
+    '我没有说过要立即创建工单',
+    '我不同意现在创建工单',
+    '不应该帮我创建工单',
+    '不能立刻创建工单',
+    '别因为饮水机不出水帮我建工单',
+    '饮水机不出水请帮我建工单但不要提交',
+    '怎么建工单',
+])
+def test_ticket_action_denials_still_cannot_supply_write_evidence(question, immediate_generation):
+    from app.workflow.ticket_requests import ticket_request_for_turn
+    assert ticket_request_for_turn('9', question, {}) is None
+    model = ScriptedWorkflowModel(intent_replies=[reply({'intent': '工单', 'confidence': .98})])
+    service = IntentClassifier(model, input_budget=20000, timeout_seconds=1)
+    with pytest.raises(ServiceError) as caught:
+        immediate_generation(service.classify(question))
+    assert caught.value.code == 'invalid_structured_output'
