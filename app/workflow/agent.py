@@ -342,6 +342,12 @@ async def llm_call(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> dic
     """最多五次决策并预留最终预算；拒绝正文仅写入专用内容日志。"""
     context, limits = runtime.context, _limits(runtime.context)
     ensure_answer_active(context.deadline)
+    from app.workflow.ticket_requests import description_sources
+    if (state.get('intent') == '工单' and state.get('ticket_request')
+            and not description_sources(state['ticket_request'])):
+        # No issue in this trusted request scope: ask before any model/tool selection.
+        return {'selected': None, 'reply_mode': 'clarification', 'suggested_actions': [],
+                'refund_decision': None, 'decision_reason': None}
     if state['decision_count'] >= limits.max_decisions:
         return {'stop_reason': 'step_limit', 'selected': None}
     registry = _registry(state, context)

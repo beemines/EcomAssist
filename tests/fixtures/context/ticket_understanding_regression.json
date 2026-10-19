@@ -1,0 +1,15 @@
+{
+  "conversation_id": "85",
+  "user_message_id": "816",
+  "question": "帮我建个工单",
+  "history_question": "2002物流信息异常",
+  "captured_invalid_outputs": [
+    {"description": "订单2002物流信息异常", "ticket_type": "售后"},
+    {"kind": "tool_calls", "tool_calls": [{"type": "function", "id": "call_ticket_001", "function": {"name": "create_ticket", "arguments": "{\"description\":\"2002物流信息异常\",\"ticket_type\":\"售后\"}"}}]}
+  ],
+  "labelled_valid_queries": [
+    "帮我建个工单",
+    "请帮我建工单",
+    "饮水机漏水，请帮我建工单"
+  ]
+}
