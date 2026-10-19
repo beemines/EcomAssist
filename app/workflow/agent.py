@@ -507,6 +507,13 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
         if error.get('code') not in ('invalid_arguments', 'invalid_keyword'):
             # 先形成完整状态更新，再由收敛节点抛服务错误，不能丢失配对和计数。
             return {**update, 'tool_error': error}
+    snapshot = None
+    if call.name == 'query_faq' and outcome.status == 'success':
+        update['retrieval_performed'] = True
+        if getattr(context.settings, 'flywheel_enabled', False):
+            from app.flywheel.snapshots import capture_turn_retrieval
+            snapshot = capture_turn_retrieval(state, outcome.content, prompt_ids=[])
+            update['retrieval_snapshot'] = snapshot.model_dump(mode='json')
     try:
         packet, evidence = _packet({**state, **update, 'messages': [*state['messages'], *update['messages']]}, context, agent_final_system(None, None))
         reserve_call(packet.messages, [], _ledger(state, _limits(context)),
@@ -516,6 +523,11 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
             raise
         return {**update, 'stop_reason': 'context_capacity' if isinstance(exc, ContextCapacityError) else 'token_budget'}
     if call.name == 'query_faq' and outcome.status == 'success':
+        if snapshot is not None:
+            prompt_ids = {str(row['id']) for row in evidence.payload.get('matches', [])}
+            for chunk in snapshot.payload.chunks:
+                chunk.in_prompt = chunk.chunk_id in prompt_ids
+            update['retrieval_snapshot'] = snapshot.model_dump(mode='json')
         quality, stages = await _check_evidence(state, runtime, evidence)
         update.update(quality=quality, stage_usage=stages, evidence_payload=evidence.payload, citations=[asdict(c) for c in evidence.citations])
     return update

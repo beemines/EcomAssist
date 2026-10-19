@@ -20,7 +20,8 @@ class QualityRepository:
         self.database = database
 
     # 锁定仍开放的会话，在同一事务里写入最终助手拒答与问题池，不自动重试。
-    async def commit_refusal(self, conversation_id: str, answer: AIMessage, *, raw_question: str, source: RefusalSource, reason: str) -> int:
+    async def commit_refusal(self, conversation_id: str, answer: AIMessage, *, raw_question: str, source: RefusalSource, reason: str,
+                             user_message_id: str | None = None, snapshot=None) -> int:
         identifier = _conversation_id(conversation_id)
         if not isinstance(answer, AIMessage):
             raise ValueError("refusal must be an assistant message")
@@ -32,13 +33,29 @@ class QualityRepository:
         require_text("reason", reason, 65535, utf8=True)
         if source not in ("retrieval_low_conf", "self_check"):
             raise ValueError("invalid refusal source")
+        if (snapshot is None) != (user_message_id is None):
+            raise ValueError('Turn-bound refusal needs both user identity and snapshot')
         async with self.database.session() as session, session.begin():
             _require_conversation(await session.get(Conversation, identifier, with_for_update=True))
+            if snapshot is not None:
+                from app.flywheel.types import database_id
+                user = await session.get(Message, int(database_id(user_message_id)))
+                if (user is None or user.conversation_id != identifier or user.role != 'user'
+                        or user.content != raw_question):
+                    raise ValueError('Refusal must refer to its trusted original SQL user message')
             message = Message(conversation_id=identifier, role=record.role, content=record.content, tool_calls=record.tool_calls, tool_call_id=record.tool_call_id)
             session.add(message)
             await session.flush()
             message_id = message.id
-            session.add(LowConfidenceQuestion(conversation_id=identifier, raw_question=raw_question, source=source, reason=reason))
+            if snapshot is None:
+                session.add(LowConfidenceQuestion(conversation_id=identifier, raw_question=raw_question, source=source, reason=reason))
+            else:
+                from app.flywheel.repository import FlywheelRepository
+                from app.flywheel.types import PoolInput
+                await FlywheelRepository(self.database).enqueue_in_session(session, PoolInput(
+                    conversation_id=conversation_id, user_message_id=user_message_id,
+                    assistant_message_id=str(message_id), raw_question=raw_question,
+                    source=source, reason=reason, snapshot=snapshot))
         return message_id
 
     # 按唯一题号原子 upsert，刷新完整快照并累加次数，复发保留最近处置时间。
