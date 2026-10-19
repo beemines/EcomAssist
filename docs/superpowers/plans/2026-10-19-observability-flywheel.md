@@ -126,11 +126,11 @@ def test_rejects_cloud_destination():
 - `get_review(review_id: str) -> dict`；`list_reviews(*, status: str, offset: int=0, limit: int=20) -> dict`返回items/total；`review_details(review_id: str, *, offset: int=0, limit: int=50) -> dict`返回review/raw_questions/total，分页limit最高100。
 - `migrate_flywheel(database: Database) -> None` / `verify_flywheel(database: Database) -> None`；CLI `python -m app.flywheel.cli migrate --database test|configured`，test固定3308且校验库名，configured显式使用当前业务库。
 
-- [ ] **1. 编写失败测试。** `test_ch09_extension_is_exactly_verified`覆盖新建/重复执行原DDL和补充迁移、部分结构/错误ENUM/错误外键拒绝、utf8mb4中文、旧数据保留；旧quality核验只接受精确已知扩展，未知列/索引继续报漂移。`test_two_sources_share_one_occurrence`断言`len(raw_rows) == 2`且`review['occurrence_count'] == 1`；另测同助手同source并发唯一、归并中断整体回滚、超过2**53的合法BIGINT ID保持字符串、非法JSON版本拒绝。
-- [ ] **2. 运行RED。** `.venv/Scripts/python.exe -m pytest tests/test_flywheel_state_types.py tests/integration/test_flywheel_migration.py tests/integration/test_flywheel_repository.py --run-mysql -q`；使用独立测试库/自有行，确认功能缺失而失败。
-- [ ] **3. 实现迁移和类型。** 原DDL按spec第13节用户原文逐字段保留，补充迁移按已批准spec第6节落7个必要字段及索引。实现严格结构契约与已知扩展识别，启动校验不暗中ALTER。扩展quality核验只投影已验证的已知附加项，不宽松忽略任意列。新代码连接不完整schema须明确提示迁移。
-- [ ] **4. 实现短事务仓储与CLI。** 所有归并状态、计数和matched_review_id同一事务提交；锁目标仍待审，目标已审核返回ReviewChanged错误。唯一冲突重新读原回执，不能以捕获异常后盲插新行解决。新processing初始化，旧NULL默认不自动发给模型。
-- [ ] **5. 验证并提交。** 重跑RED集合及`.venv/Scripts/python.exe -m pytest tests/integration/test_quality_migration.py tests/integration/test_quality_repository.py --run-mysql -q`。只在3308应用验证迁移；业务3307留任务10显式应用。更新记录，提交`feat(ch09): persist flywheel state and safe migrations`。
+- [x] **1. 编写失败测试。** `test_ch09_extension_is_exactly_verified`覆盖新建/重复执行原DDL和补充迁移、部分结构/错误ENUM/错误外键拒绝、utf8mb4中文、旧数据保留；旧quality核验只接受精确已知扩展，未知列/索引继续报漂移。`test_two_sources_share_one_occurrence`断言`len(raw_rows) == 2`且`review['occurrence_count'] == 1`；另测同助手同source并发唯一、归并中断整体回滚、超过2**53的合法BIGINT ID保持字符串、非法JSON版本拒绝。
+- [x] **2. 运行RED。** `.venv/Scripts/python.exe -m pytest tests/test_flywheel_state_types.py tests/integration/test_flywheel_migration.py tests/integration/test_flywheel_repository.py --run-mysql -q`；使用独立测试库/自有行，确认功能缺失而失败。
+- [x] **3. 实现迁移和类型。** 原DDL按spec第13节用户原文逐字段保留，补充迁移按已批准spec第6节落7个必要字段及索引。实现严格结构契约与已知扩展识别，启动校验不暗中ALTER。扩展quality核验只投影已验证的已知附加项，不宽松忽略任意列。新代码连接不完整schema须明确提示迁移。
+- [x] **4. 实现短事务仓储与CLI。** 所有归并状态、计数和matched_review_id同一事务提交；锁目标仍待审，目标已审核返回ReviewChanged错误。唯一冲突重新读原回执，不能以捕获异常后盲插新行解决。新processing初始化，旧NULL默认不自动发给模型。
+- [x] **5. 验证并提交。** 重跑RED集合及`.venv/Scripts/python.exe -m pytest tests/integration/test_quality_migration.py tests/integration/test_quality_repository.py --run-mysql -q`。只在3308应用验证迁移；业务3307留任务10显式应用。更新记录，提交`feat(ch09): persist flywheel state and safe migrations`。
 
 ## Task 4：原轮快照、拒答入池及👎后端
 

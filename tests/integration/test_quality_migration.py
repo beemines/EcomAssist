@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 import pytest_asyncio
+from tests.schema_sources import ch04_original_ddl
 from sqlalchemy import text
 from sqlalchemy.dialects.mysql import dialect
 
@@ -33,7 +34,7 @@ def migrator():
 # 原样 SQL 文件与用户提供文本一致，重复迁移只检查、不重建或改动已有行。
 async def test_original_ddl_and_repeat_migration_preserve_rows(quality_schema):
     migrate = migrator()
-    expected = Path("prompt.md").read_text(encoding="utf-8").split("```SQL")[-1].split("```")[0].strip()
+    expected = ch04_original_ddl().strip()
     assert Path("sql/ch04-ddl.sql").read_text(encoding="utf-8").strip() == expected
     await migrate(quality_schema)
     async with quality_schema.session() as session, session.begin():
