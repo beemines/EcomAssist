@@ -16,6 +16,13 @@ _COMPACT_ORDER = re.compile(r'^\s*(?:(?:请|帮我|麻烦(?:您|你)?)?\s*(?:查
 _MODEL = re.compile(r'(?<![A-Za-z0-9_-])[A-Za-z][A-Za-z0-9]*(?:[-_][A-Za-z0-9]+)+(?![A-Za-z0-9_-])')
 _QUANTITY = re.compile(r'\d+(?:\.\d+)?\s*(?:元|天|小时|个月|年|毫升|升|公斤|千克|克)')
 _DATE = re.compile(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}')
+_TICKET_ACTION = re.compile(r'建单|(?:创建|提交|建|开)[^，。！？!?,;；\n]{0,12}工单')
+
+
+def _validate_current_actions(raw_question, resolved_question):
+    # Assistant offers and old completed requests are not a new user action.
+    if _TICKET_ACTION.search(resolved_question) and not _TICKET_ACTION.search(raw_question):
+        raise invalid_output()
 
 
 def completed_history(history: list[BaseMessage]) -> list[list[BaseMessage]]:
@@ -43,6 +50,19 @@ def explicit_order_ids(question: str) -> set[str]:
     if compact and not _PHONE.fullmatch(compact.group(1)):
         identifiers.add(compact.group(1))
     return identifiers
+
+
+def _order_reply_ids(question, recent):
+    """The number comes from this user; the fixed prompt only identifies its slot."""
+    identifier = question.strip()
+    if re.fullmatch(r'[0-9]{4,20}', identifier) and not _PHONE.fullmatch(identifier):
+        for role, content in reversed(recent):
+            if role in ('assistant', 'ai'):
+                return {identifier} if content == '请提供订单号。' else set()
+            # Failed repeated submissions remain in SQL; a changed topic ends this slot.
+            if role not in ('user', 'human') or not isinstance(content, str) or content.strip() != identifier:
+                break
+    return set()
 
 
 def _order_facts(turn: list[BaseMessage]) -> list[dict]:
@@ -78,8 +98,14 @@ def trusted_order_ids(history: list[BaseMessage]) -> set[str]:
 
 def validate_resolved_entities(raw_question: str, resolved_question: str, history: list[BaseMessage]) -> None:
     """拒绝新造订单、歧义选单、旧单覆盖及无来源型号、日期和数量。"""
+    _validate_current_actions(raw_question, resolved_question)
     turns = completed_history(history)
     raw_ids, resolved_ids = explicit_order_ids(raw_question), explicit_order_ids(resolved_question)
+    if not raw_ids:
+        raw_ids = _order_reply_ids(raw_question, [(getattr(message, 'type', None),
+                                                  getattr(message, 'content', None)) for message in history])
+    if not raw_ids and resolved_ids and re.fullmatch(r'[0-9]{4,20}', raw_question.strip()):
+        raise invalid_output()  # An unbound number cannot inherit an older order.
     latest = next((ids for turn in reversed(turns) if (ids := _turn_orders(turn))), set())
     allowed = raw_ids if raw_ids else latest if len(latest) == 1 else set()
     if not resolved_ids <= allowed or (raw_ids and not raw_ids <= resolved_ids):
@@ -158,10 +184,16 @@ _PHONE = re.compile(r'(?<!\d)1[3-9]\d{9}(?!\d)')
 
 def validate_snapshot_entities(raw_question, resolved_question, snapshot, provenance):
     """Validate finite identity constraints, not arbitrary natural-language fidelity."""
+    _validate_current_actions(raw_question, resolved_question)
     visible_seqs = {segment.seq for segment in snapshot.summaries}
     sources = [item for item in provenance if item.summary_seq is None or item.summary_seq in visible_seqs]
     groups = [item.order_ids for item in sources if item.order_ids]
     raw_ids, resolved_ids = explicit_order_ids(raw_question), explicit_order_ids(resolved_question)
+    recent = (*getattr(snapshot, 'layer2', ()), *getattr(snapshot, 'layer1', ()))
+    if not raw_ids:
+        raw_ids = _order_reply_ids(raw_question, [(row.role, row.content) for row in recent])
+    if not raw_ids and resolved_ids and re.fullmatch(r'[0-9]{4,20}', raw_question.strip()):
+        raise invalid_output()
     if '最开始' in raw_question or '最早' in raw_question or '第一单' in raw_question:
         referenced = groups[0] if groups else frozenset()
         # If the beginning was omitted, the earliest visible segment is not proof.

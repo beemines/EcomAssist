@@ -2,7 +2,8 @@
 from dataclasses import replace
 
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.runtime import Runtime
 from langchain_core.tools import StructuredTool
 
 from app.tools.catalog import ToolCatalog
@@ -50,12 +51,15 @@ def test_followup_can_resolve_to_a_proven_compact_order():
     validate_snapshot_entities('物流信息异常', '2002物流信息异常', snapshot, sources)
 
 
-async def test_captured_plain_completion_after_compact_logistics_read_reaches_checked_final():
+@pytest.mark.parametrize('failed_replies', [None, 0, 2])
+async def test_captured_plain_completion_after_compact_logistics_read_reaches_checked_final(failed_replies):
     # The user's ordinary8005 failure: MCP succeeded, then GLM stopped in prose.
-    draft = AIMessage('本轮订单、物流等业务信息为模拟演示数据，仅供参考。订单2002当前状态为运输中。UNTRUSTED_DRAFT',
+    identifier = '2002' if failed_replies is None else '1001'
+    question = '2002物流信息异常' if failed_replies is None else '1001'
+    draft = AIMessage(f'本轮订单、物流等业务信息为模拟演示数据，仅供参考。订单{identifier}当前状态为运输中。UNTRUSTED_DRAFT',
                       response_metadata={'finish_reason': 'stop'})
-    context, state = setup([workflow_call('query_logistics', {'order_id': '2002'}), draft],
-        question='2002物流信息异常', intent='物流', answer='订单2002的模拟物流查询已完成。', single_attempt=True)
+    context, state = setup([workflow_call('query_logistics', {'order_id': identifier}), draft],
+        question=question, intent='物流', answer=f'订单{identifier}的模拟物流查询已完成。', single_attempt=True)
     async def handler(order_id):
         return {'order_id': order_id, 'mock': True, 'status': '运输中'}
     item = make_registration('query_logistics', source='mcp:logistics', handler=handler)
@@ -68,10 +72,33 @@ async def test_captured_plain_completion_after_compact_logistics_read_reaches_ch
     policy = allow_policy(item)
     context.registry = catalog.snapshot(policy=policy, discovered=(item,)).bind(ToolContext('1', 1, state['raw_question']))
     async def owner(order_id):
-        return order_id == '2002'
+        return order_id == identifier
     context.execution_context = ExecutionContext('1', 1, '物流', state['raw_question'], policy=policy, order_authorizer=owner)
     context.executor = ToolExecutor()
+    if failed_replies is not None:
+        import json
+        from app.workflow.context_budget import runtime_snapshot
+        from app.workflow.nodes import resolve_reference, classify_intent
+        from app.workflow.understanding import QueryUnderstanding
+        from tests.test_context_budget import settings
+        from tests.workflow_fakes import ScriptedWorkflowModel
+        history = [HumanMessage('物流信息异常', id='old-user'),
+                   AIMessage('请提供订单号。', id='old-prompt')]
+        history.extend(HumanMessage('1001', id=f'failed-{i}') for i in range(failed_replies))
+        state['messages'] = [*history, *state['messages']]
+        context.settings = settings()
+        context.context_snapshot = runtime_snapshot(state, context)
+        understanding_model = ScriptedWorkflowModel(intent_replies=[AIMessage(
+            json.dumps({'query': '订单1001物流信息异常'}, ensure_ascii=False),
+            response_metadata={'finish_reason': 'stop'})])
+        context.understanding = QueryUnderstanding(understanding_model, input_budget=128000, timeout_seconds=1)
+        context.intent_model = ScriptedWorkflowModel(intent_replies=[AIMessage(
+            '{"intent":"物流","confidence":0.95}', response_metadata={'finish_reason': 'stop'})])
+        state.update(await resolve_reference(state, Runtime(context=context)))
+        state.update(await classify_intent(state, Runtime(context=context)))
+        assert state['resolved_question'] == '订单1001物流信息异常' and state['intent'] == '物流'
+        assert understanding_model.intents == context.intent_model.intents == 1
     result, events = await run(context, state)
-    assert result['tool_call_count'] == 1 and result['final_answer'].endswith('订单2002的模拟物流查询已完成。')
+    assert result['tool_call_count'] == 1 and result['final_answer'].endswith(f'订单{identifier}的模拟物流查询已完成。')
     assert context.model.streams == 1 and context.decision_model.decisions == 2
     assert 'UNTRUSTED_DRAFT' not in str(result) + str(events) + str(context.model.stream_inputs)

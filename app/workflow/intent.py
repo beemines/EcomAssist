@@ -131,6 +131,8 @@ class IntentClassifier:
                     or raw.tool_calls or raw.invalid_tool_calls or raw.additional_kwargs.get('tool_calls')):
                 raise invalid_output(finish_reason=raw.response_metadata.get('finish_reason') if isinstance(raw, AIMessage) else None)
             result = validate_structured_output(output, _IntentOutput)
+            if result.intent == '工单' and not (ticket_request or has_explicit_ticket_request(raw_question)):
+                raise invalid_output()
         except ServiceError:
             if context_logger is not None and snapshot is not None:
                 try:

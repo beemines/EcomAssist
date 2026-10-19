@@ -13,6 +13,7 @@ from app.core.evidence import prepare_workflow_evidence
 from app.workflow.context_budget import (runtime_settings, runtime_snapshot, workflow_packet, stage_packet,
                                         turn_token_limit, reserve_context_call)
 from app.context.tokens import estimate_payload
+from app.context.logging import log_model_failure
 from app.core.llm import model_with_output_budget
 from app.agent.controls import UsageLedger
 from app.orders.types import OrderSnapshot
@@ -115,6 +116,9 @@ async def model_stage(state, runtime, stage, service, operation, messages, *, fo
             async with asyncio.timeout(remaining_timeout(context, context.settings.llm_timeout_seconds)):
                 result = await operation(attempt)
         except BaseException as exc:
+            if isinstance(exc, Exception):
+                log_model_failure(context.context_logger, exc, conversation_id=state['conversation_id'],
+                    user_message_id=state['user_message_id'], phase=stage)
             if isinstance(exc, TimeoutError):
                 exc = ServiceError('upstream_timeout', '模型响应超时，请稍后重试。', 504)
             update = update_usage()

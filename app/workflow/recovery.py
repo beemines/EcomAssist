@@ -5,6 +5,7 @@ import logging
 import time
 
 from app.core.errors import ServiceError
+from app.core.provider_errors import is_bigmodel_quota_failure
 from app.agent.controls import ToolProtocolError, ToolProtocolReason
 from openai import ContentFilterFinishReasonError, LengthFinishReasonError
 
@@ -13,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 def _permanent_failure(error):
     """Only inspect typed markers, never provider messages/response bodies."""
+    if is_bigmodel_quota_failure(error):
+        return True
     pending, seen = [error], set()
     while pending:
         item = pending.pop()

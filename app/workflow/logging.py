@@ -24,7 +24,7 @@ _ENUMS = {
     'decision_transport': {'business_tool', 'native_control', 'json_control'},
     'status': {'success', 'error'}, 'turn_status': {'completed'}, 'action': {'create_ticket', 'submit_refund'},
     'outcome': {'success', 'error', 'timeout', 'cancelled', 'disconnected', 'paused'},
-    'code': {'upstream_error', 'upstream_timeout', 'invalid_structured_output', 'invalid_answer',
+    'code': {'upstream_error', 'upstream_timeout', 'upstream_quota_exhausted', 'invalid_structured_output', 'invalid_answer',
         'invalid_answer_citations', 'input_too_long', 'token_budget', 'tool_execution_error',
         'tool_timeout', 'invalid_arguments', 'invalid_keyword', 'conversation_ended',
         'action_not_found', 'invalid_action', 'conversation_busy', 'service_unavailable'},

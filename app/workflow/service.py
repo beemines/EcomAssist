@@ -14,6 +14,7 @@ from langgraph.types import Command
 from app.core.chat import StreamEvent
 from app.core.conversation_locks import Lease
 from app.core.errors import ServiceError
+from app.core.provider_errors import is_bigmodel_quota_failure
 from app.core.llm import model_with_output_budget
 from app.core.tool_history import build_tool_messages
 from app.retrieval.types import validate_category
@@ -464,6 +465,9 @@ class WorkflowChatService:
                 outcome = 'success'
                 terminal = {'final_message_id': final['final_message_id'], 'checkpoint_id': checkpoint_id}
         except ServiceError as exc:
+            if is_bigmodel_quota_failure(exc):
+                exc = ServiceError('upstream_quota_exhausted',
+                    '模型服务账户余额不足或无可用资源包，请联系管理员处理后再试。', 503)
             outcome, terminal = ('timeout' if exc.code == 'upstream_timeout' else 'error'), {'code': exc.code}
             await queue.put(StreamEvent('error', {'code': exc.code, 'message': exc.message}))
         except TimeoutError:
