@@ -75,3 +75,9 @@
 - Python3.13官方ZoneInfo文档明确Windows可能没有系统IANA数据，回退第一方tzdata；项目锁文件已带tzdata，继续Python3.13.13，不因文档标为3.13.16升级。03:00使用Asia/Shanghai的aware datetime，时钟注入可测：https://docs.python.org/3.13/library/zoneinfo.html 。
 - LangChain官方模型接口说明ainvoke/astream和usage_metadata：https://docs.langchain.com/oss/python/langchain/models 。核对本工作区锁定chat_models.py及OpenAI适配器，使用独立每阶段callback采实际tokens，缺usage明确记estimated。真实SDK+MockTransport验证输出预算副本复用受控HTTP客户端、SDK零重试、同步调用入口在联网前拒绝。
 - 锁定chat_models.py的agenerate在异常集合中用isinstance(res, Exception)筛选，CancelledError为BaseException，可再次触发AttributeError。请求钩子因此使用普通异常阻止外发，runner依据受管cancel_event恢复取消语义；未修改第三方库。双层账本和持锁验证均在实际HTTP请求钩子，端点指纹去凭据/查询串，恢复清理重核Milvus目标。
+
+## 2026-10-20 验收补充核对
+- 官方价格 https://docs.bigmodel.cn/cn/guide/start/pricing ：标准GLM5.3Flash每百万输入0.8/输出2.8/缓存0.23元；以日期版本标识刊例估算，非账单。
+- ECB公开汇率 https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml ：保留2026-10-19 EUR/USD1.1225及EUR/CNY7.4991原XML；CNY换USD按两者比例，不能直接把人民币写到Langfuse的USD字段。
+- https://langfuse.com/docs/observability/features/token-and-cost-tracking 以及Python v5锁定源码 CallbackHandler.on_llm_end：在run detach之前补generation cost_details，根span.update写原问题/最终答；实际SDK exporter测试确认USD及独立CNY metadata。v5 SDK无prompt/output自动根IO兜底。
+- https://docs.bigmodel.cn/cn/guide/start/migrate-to-glm-new ：low/high/max及默认max；评估继承线上low，输出预算不改。E46真实复验正常stop，不能外推所有样例都已修复。

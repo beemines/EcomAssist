@@ -20,6 +20,16 @@ def test_trend_declines_only_compare_complete_same_config_runs():
     assert compare_runs([row(3,.8),row(2,.9,'other')])['previous_id'] is None
 
 
+def test_trend_uses_ch04_absent_refusal_metric_instead_of_legacy_name():
+    from app.eval_pipeline.trends import compare_runs
+    rows=[{'id':str(index),'metrics':{'status':'completed','config_fingerprint':'same','errors':0,
+        'scores':{'absent_refusal_rate':{'value':score,'valid_n':4}}}}
+        for index,score in ((2,.75),(1,1.))]
+    result=compare_runs(rows)
+    assert result['metrics']['absent_refusal_rate']['delta']==-.25
+    assert result['declined_count']==1
+
+
 async def test_calibration_api_reads_fixed_artifact_and_rejects_cross_origin(tmp_path):
     from fastapi import FastAPI
     from app.api.observability import router

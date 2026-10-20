@@ -24,7 +24,8 @@ def _tokens(usage):
     return int(total), usage.get('input'), usage.get('output')
 
 
-def summarize_intent_usage(roots: Sequence[dict], observations: Sequence[dict], *, estimate_prices=True) -> list[dict]:
+def summarize_intent_usage(roots: Sequence[dict], observations: Sequence[dict], *, estimate_prices=True,source_scope='all') -> list[dict]:
+    if source_scope not in ('all','actual'): raise ValueError('Unknown source scope')
     by_trace, groups = {}, {}
     for root in roots:
         meta = root.get('metadata') or {}
@@ -34,7 +35,8 @@ def summarize_intent_usage(roots: Sequence[dict], observations: Sequence[dict], 
             continue
         if trace_id in by_trace:
             continue
-        key = (meta.get('purpose', 'chat'), meta.get('intent') or '未识别')
+        if source_scope=='actual' and meta.get('source_kind')!='actual': continue
+        key = ('fixture' if meta.get('source_kind')=='fixture' else meta.get('purpose', 'chat'), meta.get('intent') or '未识别')
         by_trace[trace_id] = key
         row = groups.setdefault(key, {'purpose': key[0], 'intent': key[1], 'requests': 0,
             'model_calls': 0, 'actual_calls': 0, 'estimated_calls': 0, 'unknown_calls': 0,
@@ -105,14 +107,15 @@ class IntentUsageReader:
         self._cache = {}
         self._lock = asyncio.Lock()
 
-    async def read(self, from_time, to_time, *, force_refresh=False):
+    async def read(self, from_time, to_time, *, force_refresh=False,source_scope='all'):
+        if source_scope not in ('all','actual'): raise ValueError('Unknown source scope')
         if (not isinstance(from_time, datetime) or not isinstance(to_time, datetime)
                 or from_time.utcoffset() is None or to_time.utcoffset() is None
                 or not timedelta(0) < to_time - from_time <= timedelta(days=90)):
             raise ValueError('An aware positive time range of at most 90 days is required')
         if self.client is None:
             return {'complete': False, 'reason': 'langfuse_unavailable', 'rows': []}
-        key = (from_time.isoformat(), to_time.isoformat())
+        key = (from_time.isoformat(), to_time.isoformat(),source_scope)
         async with self._lock:
             cached = self._cache.get(key)
             if cached and not force_refresh and self.clock() - cached[0] < 60:
@@ -121,10 +124,10 @@ class IntentUsageReader:
                 roots = await self._pages(from_time, to_time, name='ch09.execution', type='SPAN')
                 generations = await self._pages(from_time, to_time, type='GENERATION')
                 result = {'complete': True, 'reason': None,
-                    'from_time': key[0], 'to_time': key[1],
+                    'from_time': key[0], 'to_time': key[1],'source_scope':source_scope,
                     'in_progress': sum(1 for root in roots if not root.get('end_time')),
                     'computed_at':datetime.now(timezone.utc).isoformat(),
-                    'rows': summarize_intent_usage(roots, generations,estimate_prices=self.estimate_prices)}
+                    'rows': summarize_intent_usage(roots, generations,estimate_prices=self.estimate_prices,source_scope=source_scope)}
                 from app.observability.pricing import PRICE_VERSION,PRICE_SOURCE
                 result['pricing']={'kind':'tariff_estimate','currency':'CNY','version':PRICE_VERSION,
                     'source':PRICE_SOURCE,'enabled':self.estimate_prices}
@@ -143,7 +146,7 @@ class IntentUsageReader:
         for _ in range(self.max_pages):
             page = await asyncio.to_thread(self.client.api.observations.get_many,
                 fields='core,basic,metadata,usage,model',
-                expand_metadata='intent,purpose,replay,outcome,ch09_execution',
+                expand_metadata='intent,purpose,replay,outcome,ch09_execution,source_kind',
                 from_start_time=start, to_start_time=end, limit=1000, cursor=cursor,
                 request_options={'timeout_in_seconds': 5, 'max_retries': 0}, **filters)
             for raw in page.data:

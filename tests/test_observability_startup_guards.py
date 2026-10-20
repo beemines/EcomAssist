@@ -26,7 +26,15 @@ $commandBad=Test-ObservabilityOwner $child $owner $root $exe @($launch,$child)
 
 
 def test_unknown_listener_is_never_started_or_stopped(tmp_path):
-    launcher=Path('scripts/start-observability-demo.ps1').resolve().as_posix()
+    # A launcher test owns its script root and journal; never consume the live
+    # checkout's owner file or an in-progress browser acceptance journal.
+    scripts=tmp_path/'scripts';scripts.mkdir()
+    for name in ('start-observability-demo.ps1','observability-process-ownership.ps1',
+                 'tool-system-process-ownership.ps1','context-process-ownership.ps1'):
+        (scripts/name).write_bytes((Path('scripts')/name).read_bytes())
+    journal=tmp_path/'runtime/ch09-evidence/acceptance-owned-jobs.json'
+    journal.parent.mkdir(parents=True);journal.write_text('{"closed":false}',encoding='utf-8')
+    launcher=(scripts/'start-observability-demo.ps1').as_posix()
     result=powershell(tmp_path,'''
 $ErrorActionPreference='Stop'
 function Get-NetTCPConnection { [pscustomobject]@{OwningProcess=987654} }
@@ -55,3 +63,19 @@ async def test_intent_statistics_read_rejects_nonlocal_host():
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app),base_url='http://127.0.0.1:8006') as client:
         assert (await client.get('/api/observability/intent-usage')).status_code==200
         assert (await client.get('/api/observability/intent-usage',headers={'host':'evil.invalid'})).status_code==403
+
+
+def test_demo_prefers_available_reference_rule_without_overwriting_original(tmp_path,monkeypatch):
+    from app.observability.demo import load_ch09_settings
+    monkeypatch.delenv('CH09_SETTINGS_FILE',raising=False)
+    sdk=tmp_path/'runtime/langfuse';sdk.mkdir(parents=True)
+    sdk.joinpath('sdk.env').write_text('LANGFUSE_ENABLED=true\nLANGFUSE_BASE_URL=http://127.0.0.1:3000\n'
+        'LANGFUSE_PUBLIC_KEY=pk-offline\nLANGFUSE_SECRET_KEY=sk-offline\n',encoding='utf-8')
+    tmp_path.joinpath('.env').write_text('LLM_MODEL=fake-chat\nLLM_API_KEY=offline\nLLM_BASE_URL=https://upstream.invalid/v1\n',encoding='utf-8')
+    original=tmp_path/'runtime/ch09-evidence/calibration/rule.json'
+    original.parent.mkdir(parents=True);original.write_text('original',encoding='utf-8')
+    assert load_ch09_settings(tmp_path).evidence_confidence_rule_path==original
+    newer=tmp_path/'runtime/ch09-evidence/reference-calibration/rule.json'
+    newer.parent.mkdir(parents=True);newer.write_text('reference',encoding='utf-8')
+    assert load_ch09_settings(tmp_path).evidence_confidence_rule_path==newer
+    assert original.read_text(encoding='utf-8')=='original'
