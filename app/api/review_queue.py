@@ -13,8 +13,9 @@ from app.flywheel.types import StrictModel, ReviewChanged, database_id
 
 class ApproveRequest(StrictModel):
     approved_answer: str = Field(min_length=1, max_length=16000)
+    category: str = Field(min_length=1,max_length=255)
     normalized_question: str | None = Field(default=None, min_length=1, max_length=512)
-    @field_validator('approved_answer', 'normalized_question')
+    @field_validator('approved_answer', 'normalized_question','category')
     @classmethod
     def nonblank(cls, value):
         if value is not None and not value.strip(): raise ValueError('Human text cannot be blank')
@@ -46,13 +47,14 @@ class ReviewRoute(APIRoute):
             except ServiceError as exc:
                 allowed = {'review_conflict': 409, 'service_unavailable': 503,
                     'origin_forbidden': 403, 'json_required': 415, 'invalid_request': 422,
-                    'eval_busy':409,'eval_conflict':409,'eval_not_found':404}
+                    'eval_busy':409,'eval_conflict':409,'eval_not_found':404,'acceptance_budget':409}
                 code = exc.code if exc.code in allowed else 'service_unavailable'
                 status = allowed[code]
             except Exception: code, status = 'service_unavailable', 503
             return JSONResponse(status_code=status, content={'code': code,
                 'message': {'review_conflict': '审核或发布状态已改变，请刷新核对。',
-                    'review_not_found': '待审记录不存在。', 'service_unavailable': '审核服务暂时不可用，请稍后重试。'
+                    'review_not_found': '待审记录不存在。', 'service_unavailable': '审核服务暂时不可用，请稍后重试。',
+                    'acceptance_budget':'验收物理调用额度已用尽，重试或重启不会清零。'
                     }.get(code, '审核请求无法处理。')})
         return handle
 
@@ -114,7 +116,10 @@ async def reject(review_id: str, payload: RejectRequest, request: Request):
 
 @router.post('/api/review-queue/{review_id}/retry-publication')
 async def retry(review_id: str, payload: EmptyRequest, request: Request):
-    return (await service(request).retry_publication(identifier(review_id))).model_dump()
+    receipt=await service(request).retry_publication(identifier(review_id))
+    runtime=getattr(request.app.state,'flywheel_runtime',None)
+    if runtime is not None:await runtime.resume_worker('publication')
+    return receipt.model_dump()
 
 
 @router.post('/api/low-confidence-questions/{pool_id}/retry')
@@ -124,6 +129,9 @@ async def retry_processing(pool_id: str, payload: EmptyRequest, request: Request
     if repository is None: raise ServiceError('service_unavailable', '', 503)
     pool_id = identifier(pool_id)
     try:
-        return await repository.manage_processing(pool_id, action='retry', now=datetime.now(timezone.utc))
+        result=await repository.manage_processing(pool_id, action='retry', now=datetime.now(timezone.utc))
+        runtime=getattr(request.app.state,'flywheel_runtime',None)
+        if runtime is not None:await runtime.resume_worker('processing')
+        return result
     except ValueError:
         raise ServiceError('review_conflict', '当前原话任务不能重试，请核对状态和次数。', 409) from None

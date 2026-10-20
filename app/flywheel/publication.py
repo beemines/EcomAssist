@@ -34,8 +34,8 @@ class ReviewService:
     def __init__(self, repository):
         self.repository = repository
 
-    async def approve(self, review_id, *, approved_answer, normalized_question=None):
-        return await self.repository.approve_review(database_id(review_id),
+    async def approve(self, review_id, *, approved_answer, normalized_question=None,category='人工审核'):
+        return await self.repository.approve_review(database_id(review_id),category=_text(category,255),
             approved_answer=_text(approved_answer, 16000),
             normalized_question=_text(normalized_question, 512) if normalized_question is not None else None)
 
@@ -76,6 +76,7 @@ class PublicationWorker:
     def paused_reason(self): return self._worker.paused_reason
     def start(self): self._worker.start()
     async def close(self, timeout_seconds=30): await self._worker.close(timeout_seconds)
+    async def resume(self): await self._worker.resume()
 
     async def recover(self):
         async with self.repository.publication_lease() as lease:
@@ -120,7 +121,7 @@ class PublicationWorker:
                     async with asyncio.timeout(120):
                         with operation('knowledge.publish', input={'review_id': review_id,
                                 'knowledge_chunk_id': row['knowledge_chunk_id']}, metadata={'observation_type': 'span'}):
-                            await self.jobs.vectorize_ids([int(row['knowledge_chunk_id'])])
+                            await self.jobs.vectorize_ids([int(row['knowledge_chunk_id'])],lease=lease)
                     state.status, state.published_at = 'ready', self.clock()
                     state.next_attempt_at = state.last_error = None
                     await self.repository.save_publication(lease, review_id, state)

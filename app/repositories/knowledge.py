@@ -102,13 +102,15 @@ class KnowledgeRepository:
         if not ids:
             return
         async with self.database.session() as session, session.begin():
-            rows = (await session.scalars(select(KnowledgeChunk).where(KnowledgeChunk.id.in_(ids)).with_for_update())).all()
-            # 整批存在才允许改状态，任一缺失会让当前事务回滚。
-            if len(rows) != len(ids):
-                raise ValueError("cannot mark missing knowledge chunks done")
-            for row in rows:
-                row.vector_id = str(row.id)
-                row.vectorize_status = "done"
+            await self.mark_done_in_session(session,ids)
+
+    async def mark_done_in_session(self,session,ids):
+        """Use the caller's physical ownership connection for the authoritative commit."""
+        _ids(ids)
+        rows = (await session.scalars(select(KnowledgeChunk).where(KnowledgeChunk.id.in_(ids)).with_for_update())).all()
+        if len(rows) != len(ids):raise ValueError('cannot mark missing knowledge chunks done')
+        for row in rows:
+            row.vector_id=str(row.id);row.vectorize_status='done'
 
     # 按输入主键顺序返回已完成向量化的记录，忽略缺失或未完成项。
     async def get_done(self, ids: list[int]) -> list[ChunkRecord]:

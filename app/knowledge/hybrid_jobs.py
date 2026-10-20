@@ -14,7 +14,7 @@ def _batch_size(value: int) -> None:
 
 
 class HybridKnowledgeJobs:
-    async def vectorize_ids(self, ids):
+    async def vectorize_ids(self, ids, *, lease=None):
         """Caller owns the shared knowledge lock; no unrelated pending rows are read."""
         from app.repositories.knowledge import _ids
         ids = list(ids)
@@ -23,8 +23,12 @@ class HybridKnowledgeJobs:
         if {row.id for row in [*pending, *done]} != set(ids):
             raise ValueError('Selected publication knowledge is missing')
         if pending:
-            await self._write(pending)
-            await self.repository.mark_done([row.id for row in pending])
+            await self._write(pending,lease=lease)
+            if lease is None:
+                await self.repository.mark_done([row.id for row in pending])
+            else:
+                async with lease.transaction() as session:
+                    await self.repository.mark_done_in_session(session,[row.id for row in pending])
         await self.verify_ids(ids)
         return len(pending)
 
@@ -45,17 +49,23 @@ class HybridKnowledgeJobs:
         self.repository, self.embedder, self.index = repository, embedder, index
 
     # 仓储读取已结束短事务，随后嵌入三栏正文、按原主键覆盖并核对 ACK 和读回。
-    async def _write(self, records: list[ChunkRecord]) -> None:
+    async def _write(self, records: list[ChunkRecord], *, lease=None) -> None:
         if self.embedder is None:
             raise ValueError('embedding is required to write hybrid knowledge')
+        if lease is not None:
+            async with lease.transaction():pass
         texts = [embedding_text(record) for record in records]
         vectors = await self.embedder.embed(texts)
         if not isinstance(vectors, list) or len(vectors) != len(records):
             raise ValueError('embedding count differs from knowledge chunks')
+        if lease is not None:
+            async with lease.transaction():pass
         rows = [IndexedChunk(record.id, vector, text, record.category)
                 for record, vector, text in zip(records, vectors, texts)]
         ids = [row.id for row in rows]
         validate_acknowledged_ids(await self.index.upsert(rows), ids)
+        if lease is not None:
+            async with lease.transaction():pass
         await self.index.verify_rows(rows)
 
     # 重建只遍历 done，不改变任何 MySQL 状态；每批读回后最后核对全集与原文。
