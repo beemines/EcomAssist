@@ -28,16 +28,20 @@ def recompute_reference_report(root):
     from datetime import datetime,timezone
     from pathlib import Path
     from app.rag_evaluation.dataset import load_dataset,DATASET_ID
-    from app.quality.calibration import CalibrationSample,CalibrationSplit
+    from app.quality.calibration import CalibrationSample,CalibrationSplit,build_calibration_split
     from app.quality.evidence_confidence import canonical_hash,parse_rule,verify_rule
     from app.quality.reference_confidence import fit_reference_rule
     root=Path(root).resolve()
     original=root/'runtime/ch09-evidence/calibration'
     dataset=load_dataset(DATASET_ID,root=root/'evals/datasets')
     split=CalibrationSplit.model_validate_json((original/'split.json').read_text(encoding='utf-8'))
+    if split!=build_calibration_split(dataset):
+        raise ValueError('Frozen split differs from deterministic dataset partition')
     old=parse_rule((original/'rule.json').read_text(encoding='utf-8'))
     verify_rule(old,top_k=old.source.top_k,budget_fingerprint=old.source.budget_fingerprint,
         dataset_fingerprint=dataset.fingerprint,corpus_hash=dataset.corpus_hash,require_actual=True)
+    if old.split_fingerprint!=split.fingerprint or tuple(old.calibration_ids)!=split.calibration_ids:
+        raise ValueError('Frozen split differs from verified source rule')
     manifest=json.loads((original/'manifest.json').read_text(encoding='utf-8'))
     if manifest.get('state')!='completed' or not manifest.get('cleanup',{}).get('ok'):
         raise ValueError('Original retrieval run is incomplete')
@@ -52,6 +56,9 @@ def recompute_reference_report(root):
     cases={case.eval_id:case for case in dataset.cases}
     samples=[CalibrationSample.model_validate_json(line) for line in
         (original/'samples.jsonl').read_text(encoding='utf-8').splitlines() if line.strip()]
+    by_id={row.eval_id:row for row in samples}
+    if canonical_hash([by_id[key].model_dump(mode='json') for key in split.calibration_ids])!=old.calibration_fingerprint:
+        raise ValueError('Original calibration labels differ from verified source rule')
     texts={row.eval_id:{'question':cases[row.eval_id].query,'matches':[
         {'id':item.chunk_id,'question':by_physical[item.chunk_id].questions,
             'answer':by_physical[item.chunk_id].answer} for item in row.rankings]} for row in samples}

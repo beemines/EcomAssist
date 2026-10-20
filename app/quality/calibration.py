@@ -52,6 +52,27 @@ class CalibrationSplit(StrictModel):
     regression_sides: dict[str, Literal['calibration', 'held_out']]
     fingerprint: str = Field(pattern=r'^[0-9a-f]{64}$')
 
+    @model_validator(mode='after')
+    def valid_integrity(self):
+        ids=(*self.calibration_ids,*self.held_out_ids)
+        if (len(set(ids))!=len(ids) or self.calibration_ids!=tuple(sorted(self.calibration_ids))
+                or self.held_out_ids!=tuple(sorted(self.held_out_ids))):
+            raise ValueError('Calibration split sides must be sorted, unique and disjoint')
+        if (set(self.case_groups)!=set(ids)|set(self.regression_sides)
+                or set(self.case_groups.values())!=set(self.group_buckets)
+                or not set(self.group_buckets.values())<=set(BUCKETS.values())):
+            raise ValueError('Calibration split group identities mismatch')
+        training={self.case_groups[key] for key in self.calibration_ids}
+        held={self.case_groups[key] for key in self.held_out_ids}
+        if training & held:
+            raise ValueError('Calibration groups cross held-out boundary')
+        for key,side in self.regression_sides.items():
+            if self.case_groups[key] not in (training if side=='calibration' else held):
+                raise ValueError('Regression split side mismatch')
+        if self.fingerprint!=canonical_hash(self.model_dump(mode='json',exclude={'fingerprint'})):
+            raise ValueError('Calibration split fingerprint mismatch')
+        return self
+
     @classmethod
     def from_ids(cls, calibration_ids, held_out_ids, *, dataset_fingerprint,
                  case_groups=None, group_buckets=None, regression_sides=None):

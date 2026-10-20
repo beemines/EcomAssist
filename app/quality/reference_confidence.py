@@ -8,13 +8,13 @@ from app.quality.evidence_confidence import (
     ConfidenceRule,EvidenceDecision,canonical_hash,selected_rankings,
 )
 
-REFERENCE_ALGORITHM='ch09-four-signal-zero-allow-v2'
+REFERENCE_ALGORITHM='ch09-four-signal-zero-allow-v3'
 WEIGHTS=(5,2,2,1)
 _FILLER=re.compile(r'请问|麻烦|一下|这个|那个|可以|能不能|是否|多少|怎么|如何|什么|有没有|的话|我的|你们|我们|我想|知道|告诉我')
 
 
 class ReferenceConfidenceRule(ConfidenceRule):
-    algorithm: Literal['ch09-four-signal-zero-allow-v2']
+    algorithm: Literal['ch09-four-signal-zero-allow-v2','ch09-four-signal-zero-allow-v3']
     weights: tuple[int,int,int,int]
 
     @model_validator(mode='after')
@@ -36,15 +36,39 @@ def _normalize(value):
     return re.sub(r'\s+','',unicodedata.normalize('NFKC',value).casefold())
 
 
-def clause_features(question,matches):
+_UNITS={alias:canonical for canonical,aliases in (
+    ('kg',('kg','公斤','千克')),('g',('g','克')),('l',('l','升')),('ml',('ml','毫升')),
+    ('w',('w','瓦')),('v',('v','伏')),('mm',('mm','毫米')),('cm',('cm','厘米')),('m',('m','米')),
+    ('元',('元',)),('天',('天',)),('个月',('个月',)),('年',('年',)),
+    ('小时',('小时',)),('分钟',('分钟',)),('%',('%',))) for alias in aliases}
+_QUANTITY=re.compile(r'(?<![a-z0-9.])(\d+(?:\.\d+)?)('+ '|'.join(
+    re.escape(unit) for unit in sorted(_UNITS,key=len,reverse=True))+r')(?![a-z])')
+
+
+def _quantities(value):
+    result=set()
+    for number,unit in _QUANTITY.findall(value):
+        whole,_,fraction=number.partition('.')
+        whole=whole.lstrip('0') or '0';fraction=fraction.rstrip('0')
+        result.add(whole+('.'+fraction if fraction else '')+_UNITS[unit])
+    return result
+
+
+def clause_features(question,matches,*,legacy=False):
     if not isinstance(question,str) or not question.strip():
         raise ValueError('Four-signal confidence requires the actual question')
     query=_normalize(question)
     body=_normalize('\n'.join(str(row.get(key) or '') for row in matches
         for key in ('question','answer','content')))
-    anchors=sorted(set(re.findall(r'[a-z][a-z0-9_-]*\d[a-z0-9_-]*|\d+(?:\.\d+)?(?:元|天|个月|年|瓦|毫升|小时|分钟|%)',query)))
+    pattern=r'[a-z][a-z0-9_-]*\d[a-z0-9_-]*'
+    if legacy: pattern+=r'|\d+(?:\.\d+)?(?:元|天|个月|年|瓦|毫升|小时|分钟|%)'
+    anchors=sorted(set(re.findall(pattern,query)))
     # Substring matching must not confuse XM-A1 with XM-A17 or 99 with 199.
     missing=[anchor for anchor in anchors if re.search(r'(?<![a-z0-9])'+re.escape(anchor)+r'(?![a-z0-9])',body) is None]
+    if not legacy:
+        quantities=_quantities(query)
+        anchors+=sorted(quantities)
+        missing+=sorted(quantities-_quantities(body))
     terms=set()
     for token in re.findall(r'[\u4e00-\u9fff]+',_FILLER.sub(' ',query)):
         terms.update(token[i:i+2] for i in range(len(token)-1))
@@ -54,7 +78,7 @@ def clause_features(question,matches):
         'clause_terms':len(terms),'matched_terms':sum(term in body for term in terms)}
 
 
-def reference_features(scores,*,question,matches,score_floor,top_k):
+def reference_features(scores,*,question,matches,score_floor,top_k,legacy=False):
     scores=sorted(scores,reverse=True)
     if any(not math.isfinite(score) or not 0<=score<=1 for score in scores):
         raise ValueError('Four-signal rule requires bounded authoritative rerank scores')
@@ -64,7 +88,7 @@ def reference_features(scores,*,question,matches,score_floor,top_k):
     count=sum(score>score_floor for score in scores)
     return {'top1':top1,'top1_signal':top1,'gap':gap,'gap_signal':gap,
         'has_top2':has_top2,'selected_count':len(scores),'effective_count':count,
-        'count_ratio':count/top_k,**clause_features(question,matches)}
+        'count_ratio':count/top_k,**clause_features(question,matches,legacy=legacy)}
 
 
 def reference_score(features):
@@ -76,7 +100,8 @@ def evaluate_reference(payload,rule,*,question,top_k):
     ranked=selected_rankings(payload)
     if len(ranked)>top_k: raise ValueError('Too many selected chunks')
     features=reference_features([score for _,score in ranked],question=question,
-        matches=payload['matches'],score_floor=rule.score_floor,top_k=top_k)
+        matches=payload['matches'],score_floor=rule.score_floor,top_k=top_k,
+        legacy=rule.algorithm=='ch09-four-signal-zero-allow-v2')
     score=reference_score(features) if ranked else 0.
     useful=bool(ranked) and features['anchors_complete'] and score>rule.threshold
     return EvidenceDecision(useful=useful,evidence_confidence=score,features=features,
@@ -85,6 +110,8 @@ def evaluate_reference(payload,rule,*,question,top_k):
 
 
 def fit_reference_rule(samples,split,texts):
+    from app.quality.calibration import CalibrationSplit
+    split=CalibrationSplit.model_validate_json(split.model_dump_json())
     from app.quality.calibration import _matrix
     from app.quality.confidence_report import distribution,rate_summary
     samples=sorted(samples,key=lambda item:item.eval_id)

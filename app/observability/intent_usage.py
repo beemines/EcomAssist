@@ -27,6 +27,7 @@ def _tokens(usage):
 def summarize_intent_usage(roots: Sequence[dict], observations: Sequence[dict], *, estimate_prices=True,source_scope='all') -> list[dict]:
     if source_scope not in ('all','actual'): raise ValueError('Unknown source scope')
     by_trace, groups = {}, {}
+    coverage={}
     for root in roots:
         meta = root.get('metadata') or {}
         trace_id = root.get('trace_id')
@@ -38,6 +39,7 @@ def summarize_intent_usage(roots: Sequence[dict], observations: Sequence[dict], 
         if source_scope=='actual' and meta.get('source_kind')!='actual': continue
         key = ('fixture' if meta.get('source_kind')=='fixture' else meta.get('purpose', 'chat'), meta.get('intent') or '未识别')
         by_trace[trace_id] = key
+        coverage[trace_id]={'calls':0,'actual':0}
         row = groups.setdefault(key, {'purpose': key[0], 'intent': key[1], 'requests': 0,
             'model_calls': 0, 'actual_calls': 0, 'estimated_calls': 0, 'unknown_calls': 0,
             'input_tokens': None, 'output_tokens': None, 'actual_tokens': None,
@@ -52,6 +54,8 @@ def summarize_intent_usage(roots: Sequence[dict], observations: Sequence[dict], 
             continue
         seen.add(identifier)
         row = groups[by_trace[trace_id]]
+        covered=coverage[trace_id]
+        covered['calls']+=1
         row['model_calls'] += 1
         details=observation.get('cost_details') or {}
         cost=details.get('total',observation.get('total_cost'))
@@ -74,6 +78,7 @@ def summarize_intent_usage(roots: Sequence[dict], observations: Sequence[dict], 
             row['estimated_calls'] += 1
             row['estimated_tokens'] = (row['estimated_tokens'] or 0) + total
         else:
+            covered['actual']+=1
             row['actual_calls'] += 1
             row['actual_tokens'] = (row['actual_tokens'] or 0) + total
             for field, value in (('input_tokens', input_tokens), ('output_tokens', output_tokens)):
@@ -83,9 +88,15 @@ def summarize_intent_usage(roots: Sequence[dict], observations: Sequence[dict], 
     totals={purpose:sum(row['actual_tokens'] or 0 for row in result if row['purpose']==purpose)
         for purpose,_ in groups}
     for row in result:
-        row['average_tokens']=row['actual_tokens']/row['requests'] if row['actual_tokens'] is not None else None
+        key=(row['purpose'],row['intent'])
+        row['complete_requests']=sum(by_trace[trace_id]==key and value['calls']>0 and value['calls']==value['actual']
+            for trace_id,value in coverage.items())
+    complete={purpose:all(row['complete_requests']==row['requests'] for row in result if row['purpose']==purpose)
+        for purpose,_ in groups}
+    for row in result:
+        row['average_tokens']=row['actual_tokens']/row['requests'] if row['actual_tokens'] is not None and row['complete_requests']==row['requests'] else None
         denominator=totals[row['purpose']]
-        row['token_share']=row['actual_tokens']/denominator if row['actual_tokens'] is not None and denominator else None
+        row['token_share']=row['actual_tokens']/denominator if row['actual_tokens'] is not None and denominator and complete[row['purpose']] else None
     return result
 
 

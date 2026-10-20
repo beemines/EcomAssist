@@ -39,7 +39,7 @@ def load_online_rule(path, *, top_k, budget_fingerprint, rerank_model):
 
 def parse_rule(value):
     data=json.loads(value) if isinstance(value,str) else value
-    if data.get('algorithm')=='ch09-four-signal-zero-allow-v2':
+    if data.get('algorithm') in ('ch09-four-signal-zero-allow-v2','ch09-four-signal-zero-allow-v3'):
         from app.quality.reference_confidence import ReferenceConfidenceRule
         return ReferenceConfidenceRule.model_validate_json(json.dumps(data))
     return ConfidenceRule.model_validate_json(json.dumps(data))
@@ -156,7 +156,7 @@ def verify_rule(rule, *, top_k, budget_fingerprint, model_fingerprint=None,
 
 def evaluate_evidence(payload, rule, *, top_k, budget_fingerprint,question=None):
     verify_rule(rule, top_k=top_k, budget_fingerprint=budget_fingerprint)
-    if rule.algorithm=='ch09-four-signal-zero-allow-v2':
+    if rule.algorithm in ('ch09-four-signal-zero-allow-v2','ch09-four-signal-zero-allow-v3'):
         from app.quality.reference_confidence import evaluate_reference
         return evaluate_reference(payload,rule,question=question,top_k=top_k)
     ranked = selected_rankings(payload)
