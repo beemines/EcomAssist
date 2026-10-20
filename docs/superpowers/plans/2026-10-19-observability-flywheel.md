@@ -156,11 +156,11 @@ def test_rejects_cloud_destination():
 - `FlywheelProcessor.process(pool_id: str) -> ReviewAssignment|None`用注入模型、仓储、时钟、调用计数；`FlywheelWorker.start() -> None` / `async close(timeout_seconds: float=30) -> None`管理强引用任务和数据库锁。
 - `FlywheelRuntime`是main生命周期绑定器，拥有独立后台资源；聊天不等待process。`record_retry`持久化status/attempt_count/next_attempt_at/安全错误，后台暂停原因可读。
 
-- [ ] **1. 先固化Prompt评估材料。** 创建12组标注用例，覆盖同义/不同型号/不同条件/否定/实时订单/无依据/注入。每组声明标准化必须保留事实、是否应匹配和人工示例答案边界；提供CPU离线schema检查。本任务不以解析测试代替语义验证，真实最多24次Prompt调用统一留任务10执行。
-- [ ] **2. 编写并运行RED。** `test_out_of_batch_match_does_not_mutate_queue`断言队列/归并ID均不变；`test_quota_error_pauses_worker`断言首条1113后`model_calls == 1`且下一条未处理；`test_lost_lock_cannot_commit`断言丢锁后无归并。另测字符串布尔/额外字段、超预算候选分页全扫才新建、审批同时发生则重验、模型调用不持SQL事务、进程取消/重启不重复计数、最多3次临时重试。运行`.venv/Scripts/python.exe -m pytest tests/test_flywheel_processing.py tests/test_flywheel_worker.py tests/integration/test_flywheel_recovery.py --run-mysql -q`。
-- [ ] **3. 实现Prompt及处理器。** 标准化和查重严格JSON，示例明确为待审草稿；候选每批最多20条且输入最多12000估算Token，保存draft/cursor/fingerprint以恢复。每次process至多6次模型调用且总期限120秒，超预算保留游标、停留未归并，不能把未扫描部分当作无重复；最多三个持久化尝试使重启也不能无限重发。标准化材料优先原始问题和预算内完整证据块，完整快照仍保留供人工看。只处理待审候选，模型返回ID须属于本批。队列空时直接新建，不为此多调一次模型。配额/鉴权及无效结构不做自动修复循环。
-- [ ] **4. 实现worker和生命周期。** MySQL命名锁绑定独占连接，取任务/递增尝试/提交分别用短事务。临时失败退避5秒、30秒，第三次失败进入failed；永久失败立即failed。恢复遗留running要先获得唯一所有权。余额/鉴权错误暂停后台，显式管理重试或服务重启后才再尝试；统一账本不重置。关闭有界收回子任务，不只丢失create_task引用。
-- [ ] **5. 验证并提交。** 重跑TDD与标注材料离线检查，mock模型同时压测不同会话以证明聊天不等后台；更新记录，提交`feat(ch09): normalize and deduplicate knowledge gaps in background`。
+- [x] **1. 先固化Prompt评估材料。** 创建12组标注用例，覆盖同义/不同型号/不同条件/否定/实时订单/无依据/注入。每组声明标准化必须保留事实、是否应匹配和人工示例答案边界；提供CPU离线schema检查。本任务不以解析测试代替语义验证，真实最多24次Prompt调用统一留任务10执行。
+- [x] **2. 编写并运行RED。** `test_out_of_batch_match_does_not_mutate_queue`断言队列/归并ID均不变；`test_quota_error_pauses_worker`断言首条1113后`model_calls == 1`且下一条未处理；`test_lost_lock_cannot_commit`断言丢锁后无归并。另测字符串布尔/额外字段、超预算候选分页全扫才新建、审批同时发生则重验、模型调用不持SQL事务、进程取消/重启不重复计数、最多3次临时重试。运行`.venv/Scripts/python.exe -m pytest tests/test_flywheel_processing.py tests/test_flywheel_worker.py tests/integration/test_flywheel_recovery.py --run-mysql -q`。
+- [x] **3. 实现Prompt及处理器。** 标准化和查重严格JSON，示例明确为待审草稿；候选每批最多20条且输入最多12000估算Token，保存draft/cursor/fingerprint以恢复。每次process至多6次模型调用且总期限120秒，超预算保留游标、停留未归并，不能把未扫描部分当作无重复；最多三个持久化尝试使重启也不能无限重发。标准化材料优先原始问题和预算内完整证据块，完整快照仍保留供人工看。只处理待审候选，模型返回ID须属于本批。队列空时直接新建，不为此多调一次模型。配额/鉴权及无效结构不做自动修复循环。
+- [x] **4. 实现worker和生命周期。** MySQL命名锁绑定独占连接，取任务/递增尝试/提交分别用短事务。临时失败退避5秒、30秒，第三次失败进入failed；永久失败立即failed。恢复遗留running要先获得唯一所有权。余额/鉴权错误暂停后台，显式管理重试或服务重启后才再尝试；统一账本不重置。关闭有界收回子任务，不只丢失create_task引用。
+- [x] **5. 验证并提交。** 重跑TDD与标注材料离线检查，mock模型同时压测不同会话以证明聊天不等后台；更新记录，提交`feat(ch09): normalize and deduplicate knowledge gaps in background`。
 
 ## Task 6：可复现校准与正式证据检查
 
