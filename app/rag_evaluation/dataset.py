@@ -230,12 +230,14 @@ def load_dataset(dataset_id: str, *, root: Path) -> FrozenDataset:
         regressions = _jsonl(files["regressions.jsonl"])
         _require(len(regressions) == 2 and {row["original_eval_id"] for row in regressions} == {"D3", "D30"}, "原库外误标题缺少可答回归")
         originals = {row["id"]: row for row in _csv(files["original.csv"])}
+        regression_links = []
         for row in regressions:
             case = _case(row["case"], chunk_map, regression=True)
             _require(case.eval_id == "R" + row["original_eval_id"][1:] and _text(row["reason"]), "回归题标识或理由错误")
             _require(case.query == originals[row["original_eval_id"]]["问题(query)"] and not case.should_refuse, "回归未保留原可答题面")
+            regression_links.append((case.eval_id, row['original_eval_id']))
         corpus_hash = _hash(_canonical({"documents": manifest["documents"], "chunking": manifest["chunking"], "chunks_sha256": manifest["files"]["chunks.jsonl"]}))
-        return FrozenDataset(dataset_id, _hash(_canonical(manifest)), corpus_hash, _hash(files["cases.jsonl"]), _hash(files["audit.jsonl"]), chunks, cases, _PILOT)
+        return FrozenDataset(dataset_id, _hash(_canonical(manifest)), corpus_hash, _hash(files["cases.jsonl"]), _hash(files["audit.jsonl"]), chunks, cases, _PILOT, tuple(regression_links))
     except DatasetError:
         raise
     except (OSError, ValueError, TypeError, KeyError, AttributeError, csv.Error) as exc:

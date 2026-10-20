@@ -43,3 +43,4 @@ class WorkflowRuntime:
     model_recovery_used: bool = False
     execution_context: Any = None
     observation_trace: Any = None
+    confidence_rule: Any = None

@@ -66,6 +66,7 @@ class FrozenDataset:
     chunks: tuple[CorpusChunk, ...]
     cases: tuple[EvalCase, ...]
     pilot_ids: tuple[str, ...]
+    regression_links: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)

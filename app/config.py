@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     langfuse_public_key: SecretStr | None = Field(default=None, validation_alias='LANGFUSE_PUBLIC_KEY')
     langfuse_secret_key: SecretStr | None = Field(default=None, validation_alias='LANGFUSE_SECRET_KEY')
     flywheel_enabled: bool = Field(default=False, validation_alias='FLYWHEEL_ENABLED')
+    evidence_confidence_rule_path: Path | None = Field(default=None, validation_alias='EVIDENCE_CONFIDENCE_RULE_PATH')
+
+    @field_validator('evidence_confidence_rule_path', mode='before')
+    @classmethod
+    def blank_confidence_path(cls, value):
+        return None if value == '' else value
 
     @model_validator(mode='after')
     def validate_local_observability(self):

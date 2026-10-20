@@ -111,7 +111,8 @@ class WorkflowChatService:
     def __init__(self, model, repository, registry_factory, locks, settings, *, graph, checkpointer,
                  faq_repository, sufficiency_service, quality_repository, executor=None,
                  order_provider=None, workflow_retriever=None, context_coordinator=None,
-                 context_logger=None, context_budget_provider=None, catalog_provider=None, observability=None):
+                 context_logger=None, context_budget_provider=None, catalog_provider=None, observability=None,
+                 confidence_rule=None):
         """保存依赖并幂等启用专用审计，每轮单独组装运行环境及任务。"""
         configure_workflow_logging()
         self.model, self.repository, self.registry_factory = model, repository, registry_factory
@@ -123,6 +124,7 @@ class WorkflowChatService:
         self.context_budget_provider = context_budget_provider
         self.catalog_provider = catalog_provider
         self.observability = observability
+        self.confidence_rule = confidence_rule
         if (context_coordinator is None) != (context_budget_provider is None):
             raise ValueError('Context coordinator and actual budget provider must be supplied together.')
         self.executor = executor if executor is not None else ToolExecutor(settings.tool_timeout_seconds,
@@ -153,7 +155,7 @@ class WorkflowChatService:
             expander=QueryExpander(control_model, input_budget=self.settings.tool_input_token_budget,
                 timeout_seconds=self.settings.llm_timeout_seconds),
             user_id=await self.repository.get_user_id(conversation_id), active_started_at=started,
-            active_elapsed_baseline=baseline)
+            active_elapsed_baseline=baseline, confidence_rule=self.confidence_rule)
         async def authorize_order(order_id):
             if self.order_provider is None:
                 return False
