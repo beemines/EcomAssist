@@ -69,3 +69,9 @@
 - 延用锁定SQLAlchemy2.0.54的短事务、已有KnowledgeRepository._insert、HybridKnowledgeJobs._write/ACK/readback；未凭新库猜接口。原知识锁名仍为ch03:+实际库名SHA256前48位，发布租约使用同名和独占连接；旧CLI与新发布互斥。
 - SiliconFlow官方Embedding接口支持input字符串数组，故50份冻结语料按20批次只产生3次物理嵌入请求，无需缓存改造；BGE-M3输入上限8192，与原适配器一致：https://docs.siliconflow.cn/docs/api/embeddings-post 。未更改固定模型。
 - 官方错误说明列401鉴权、403权限、429速率限制、503/504服务负载；发布采用401/403暂停、429和5xx有界5/30秒重试，参数/ACK/读回错误不自动重试：https://docs.siliconflow.cn/docs/userguide/capabilities/text-generation 。HTTP402作为计费拒绝的保守暂停分支，不宣称官方目前必定用它表示余额；无自由文本错误判断或自动换模型。
+
+## 原生评估与受控调度（2026-10-20）
+
+- Python3.13官方ZoneInfo文档明确Windows可能没有系统IANA数据，回退第一方tzdata；项目锁文件已带tzdata，继续Python3.13.13，不因文档标为3.13.16升级。03:00使用Asia/Shanghai的aware datetime，时钟注入可测：https://docs.python.org/3.13/library/zoneinfo.html 。
+- LangChain官方模型接口说明ainvoke/astream和usage_metadata：https://docs.langchain.com/oss/python/langchain/models 。核对本工作区锁定chat_models.py及OpenAI适配器，使用独立每阶段callback采实际tokens，缺usage明确记estimated。真实SDK+MockTransport验证输出预算副本复用受控HTTP客户端、SDK零重试、同步调用入口在联网前拒绝。
+- 锁定chat_models.py的agenerate在异常集合中用isinstance(res, Exception)筛选，CancelledError为BaseException，可再次触发AttributeError。请求钩子因此使用普通异常阻止外发，runner依据受管cancel_event恢复取消语义；未修改第三方库。双层账本和持锁验证均在实际HTTP请求钩子，端点指纹去凭据/查询串，恢复清理重核Milvus目标。

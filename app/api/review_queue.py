@@ -5,6 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from pydantic import Field, field_validator
+from urllib.parse import urlsplit
 from app.api.chat_actions import _guard_write
 from app.core.errors import ServiceError
 from app.flywheel.types import StrictModel, ReviewChanged, database_id
@@ -38,12 +39,14 @@ class ReviewRoute(APIRoute):
         async def handle(request):
             try:
                 if request.method != 'GET': _guard_write(request)
+                else: guard_read(request)
                 return await original(request)
             except RequestValidationError: code, status = 'invalid_request', 422
             except ReviewChanged: code, status = 'review_not_found', 404
             except ServiceError as exc:
                 allowed = {'review_conflict': 409, 'service_unavailable': 503,
-                    'origin_forbidden': 403, 'json_required': 415, 'invalid_request': 422}
+                    'origin_forbidden': 403, 'json_required': 415, 'invalid_request': 422,
+                    'eval_busy':409,'eval_conflict':409,'eval_not_found':404}
                 code = exc.code if exc.code in allowed else 'service_unavailable'
                 status = allowed[code]
             except Exception: code, status = 'service_unavailable', 503
@@ -55,6 +58,23 @@ class ReviewRoute(APIRoute):
 
 
 router = APIRouter(route_class=ReviewRoute)
+
+
+def guard_read(request):
+    hosts,origins=request.headers.getlist('host'),request.headers.getlist('origin')
+    if len(hosts)!=1 or len(origins)>1: raise ServiceError('origin_forbidden','',403)
+    origin=f'{request.url.scheme}://{hosts[0]}'
+    try:
+        parsed=urlsplit(origin)
+        canonical=(parsed.scheme in ('http','https') and parsed.netloc==hosts[0] and
+            parsed.username is None and parsed.password is None and not parsed.path and not parsed.query
+            and not parsed.fragment and (parsed.port is None or 1<=parsed.port<=65535))
+        local=parsed.hostname in ('localhost','127.0.0.1','::1')
+    except ValueError: canonical=local=False
+    allowed=getattr(request.app.state,'chat_action_allowed_origins',[])
+    if (not canonical or not(local or origin in allowed) or (origins and origins[0]!=origin)
+            or (not origins and not local)):
+        raise ServiceError('origin_forbidden','',403)
 
 
 def service(request):
@@ -92,6 +112,18 @@ async def reject(review_id: str, payload: RejectRequest, request: Request):
     return {'review_id': review_id, 'review_status': '驳回'}
 
 
-@router.post('/api/review-queue/{review_id}/retry')
+@router.post('/api/review-queue/{review_id}/retry-publication')
 async def retry(review_id: str, payload: EmptyRequest, request: Request):
     return (await service(request).retry_publication(identifier(review_id))).model_dump()
+
+
+@router.post('/api/low-confidence-questions/{pool_id}/retry')
+async def retry_processing(pool_id: str, payload: EmptyRequest, request: Request):
+    from datetime import datetime, timezone
+    repository = getattr(request.app.state, 'flywheel_repository', None)
+    if repository is None: raise ServiceError('service_unavailable', '', 503)
+    pool_id = identifier(pool_id)
+    try:
+        return await repository.manage_processing(pool_id, action='retry', now=datetime.now(timezone.utc))
+    except ValueError:
+        raise ServiceError('review_conflict', '当前原话任务不能重试，请核对状态和次数。', 409) from None
