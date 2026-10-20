@@ -57,7 +57,7 @@ async def _cleanup(connection, name, acquired):
 
 
 @asynccontextmanager
-async def processing_lease(database):
+async def processing_lease(database, *, prefix='ch09-flywheel:'):
     connection = await database.engine.connect()
     acquired, name = False, ''
     try:
@@ -66,7 +66,9 @@ async def processing_lease(database):
                 target = await connection.scalar(text('SELECT DATABASE()'))
                 if target != database.engine.url.database:
                     raise RuntimeError('Flywheel lease database mismatch')
-                name = 'ch09-flywheel:' + hashlib.sha256(target.encode()).hexdigest()[:48]
+                if prefix not in ('ch09-flywheel:', 'ch03:'):
+                    raise ValueError('Unknown protected job lock')
+                name = prefix + hashlib.sha256(target.encode()).hexdigest()[:48]
                 identifier = await connection.scalar(text('SELECT CONNECTION_ID()'))
                 acquired = await connection.scalar(text('SELECT GET_LOCK(:name,0)'), {'name': name}) == 1
                 await connection.commit()

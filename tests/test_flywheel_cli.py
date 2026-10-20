@@ -41,3 +41,13 @@ def test_ch09_budget_helper_reuses_the_same_persistent_run_after_recreation(tmp_
     assert second.status()['counts'] == {'glm': 280, 'embedding': 0, 'rerank': 0}
     with pytest.raises(ValueError):
         acceptance_cap('different-run', root=tmp_path)
+
+
+def test_publication_commands_are_single_id_and_dry_by_default(monkeypatch, capsys):
+    import pytest
+    from app.flywheel import cli
+    monkeypatch.setattr(cli, 'load_settings', lambda: pytest.fail('Dry-run read credentials'))
+    cli.main(['publish', '--database', 'test', '--review-id', '1'])
+    cli.main(['retry-publication', '--database', 'test', '--review-id', '1'])
+    assert capsys.readouterr().out.count('dry-run') == 2
+    with pytest.raises(SystemExit): cli.main(['publish', '--database', 'test'])

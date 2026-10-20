@@ -107,6 +107,9 @@ class ProcessingState(TaskMetadata):
 
 
 class PublicationState(TaskMetadata):
+    # Automatic retries stop at three; each later explicit human retry adds one
+    # monotonic attempt, without changing the persisted metadata keys/version.
+    attempt_count: int = Field(default=0, ge=0, le=2**32-1)
     status: Literal['pending', 'running', 'ready', 'failed'] = 'pending'
     published_at: datetime | None = None
 
@@ -124,6 +127,17 @@ class PublicationState(TaskMetadata):
         if self.status == 'failed' and self.last_error is None:
             raise ValueError('Failed publication needs a safe reason')
         return self
+
+
+class PublicationReceipt(StrictModel):
+    review_id: str
+    knowledge_chunk_id: str | None
+    status: Literal['pending', 'running', 'ready', 'failed']
+
+    @field_validator('review_id', 'knowledge_chunk_id')
+    @classmethod
+    def identifier(cls, value):
+        return database_id(value) if value is not None else None
 
 
 class RetrievedChunk(StrictModel):

@@ -48,12 +48,28 @@ async def run(args):
                 from app.flywheel.runtime import FlywheelRuntime
                 from app.flywheel.acceptance import acceptance_cap
                 cap = acceptance_cap(args.acceptance_run) if args.acceptance_run else None
-                runtime = await FlywheelRuntime.create(settings, database=database, acceptance_call_cap=cap)
+                runtime = await FlywheelRuntime.create(settings, database=database, acceptance_call_cap=cap,
+                    enable_publication=False)
                 try:
                     receipt = await runtime.processor.process(args.pool_id)
                     result = receipt.model_dump() if receipt else {'id': args.pool_id, 'matched': False}
                 finally:
                     await runtime.close()
+            elif args.action in ('publish', 'retry-publication', 'publication-status'):
+                from app.flywheel.publication import ReviewService, publication_receipt
+                if args.action == 'retry-publication':
+                    result = (await ReviewService(repository).retry_publication(args.review_id)).model_dump()
+                elif args.action == 'publication-status':
+                    result = publication_receipt(await repository.get_review(args.review_id)).model_dump()
+                else:
+                    from app.flywheel.runtime import FlywheelRuntime
+                    from app.flywheel.acceptance import acceptance_cap
+                    cap = acceptance_cap(args.acceptance_run) if args.acceptance_run else None
+                    runtime = await FlywheelRuntime.create(settings, database=database, acceptance_call_cap=cap)
+                    try:
+                        result = (await runtime.publication_worker.publish(args.review_id)).model_dump()
+                    finally:
+                        await runtime.close()
             else:
                 result = await repository.manage_processing(args.pool_id, action=args.action, now=datetime.now(timezone.utc))
             print(json.dumps(result, ensure_ascii=False))
@@ -65,9 +81,11 @@ async def run(args):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('migrate', 'verify', 'process', 'status', 'initialize', 'retry', 'recover', 'calibrate'))
+    parser.add_argument('action', choices=('migrate', 'verify', 'process', 'status', 'initialize', 'retry', 'recover',
+        'calibrate', 'publish', 'retry-publication', 'publication-status'))
     parser.add_argument('--database', choices=('test', 'configured'), required=True)
     parser.add_argument('--pool-id', type=database_id, help='仅管理此指定问题ID，不扫描旧记录')
+    parser.add_argument('--review-id', type=database_id, help='仅发布或管理此指定待审ID')
     parser.add_argument('--execute', action='store_true', help='显式执行处理或管理；缺省仅显示dry-run')
     parser.add_argument('--acceptance-run', choices=('ch09-local-20261019',))
     parser.add_argument('--output', type=__import__('pathlib').Path)
@@ -83,6 +101,12 @@ def main(argv=None):
             split = build_calibration_split(dataset)
             print(f'dry-run: {len(dataset.cases)} retrievals; calibration={len(split.calibration_ids)}; '
                 f'held_out={len(split.held_out_ids)}; no credentials, database, models or upstream connections')
+            return
+    elif args.action in ('publish', 'retry-publication', 'publication-status'):
+        if args.review_id is None:
+            parser.error('This action requires one --review-id')
+        if args.action != 'publication-status' and not args.execute:
+            print(f'dry-run: {args.action} review_id={args.review_id}; no database writes or upstream calls')
             return
     elif args.action not in ('migrate', 'verify') and args.pool_id is None:
         parser.error('This action requires one --pool-id')
