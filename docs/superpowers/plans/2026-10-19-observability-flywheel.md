@@ -10,6 +10,83 @@
 
 **Spec:** [已批准设计](../specs/2026-10-19-observability-flywheel-design.md)。用户于2026-10-19批准本文，选择“Native 顺序实现，新建第九步隔离 worktree”；实施分支feat/observability-flywheel，起点6d0f646。当前产品基线为 `f44e4f9`，实施起点包含其后的已批准设计和本计划文档提交。
 
+## 2026-10-20 验收返工
+
+用户在审阅[18图差距与验收基线](../../ch09-reference-gap-analysis.md)后要求：“按照验收标准继续完成”。本轮延续已批准设计、技术选型、隔离worktree和Native方式；原Task1至10的历史结果保留，按以下Task11至17补齐。前端仍使用Vibe例外。新增标准覆盖原文中仅待审查重、空白核准框、仅F1优先及费用可选的旧约定，以差距表为准。
+
+- 本轮不换模型、窗口、Agent步数，不清零已有验收账本；GLM190/280、嵌入356/450、重排344/450为起点。全量两轮300题不能挤进剩余额度；先完成修复、离线验证和有界探针，若完整复验需要扩额，再带具体配置、预计次数和费用请求批准。
+- 复用已保存的300题真实检索与冻结语料做离线重算，校准标签只用于校准集，留出仅验证。截图阈值及满分不直接套用。
+- 新增管理接口沿用本机Host/Origin规则；保留旧URL、快照语义、人工确认及发布幂等。历史池只提供明确范围的预览与显式处理，不自动整库外发。
+
+## Task 11：评估配置和失败诊断
+
+**Files:** app/eval_pipeline/resources.py、types.py、runner.py；tests/test_eval_pipeline_resources.py、test_eval_pipeline_runner.py。
+
+**Interfaces:** 评估专属reasoning配置优先，未设置时继承online配置；同样进入config fingerprint。每阶段失败保留安全的code与停止状态，不能吞成通用错误或伪造成功。
+
+- [ ] 读取两轮逐题报告与请求工厂，确定预算、reasoning和错误传递；先写HTTP传输层回归，确认未继承online effort的RED。
+- [ ] 修复配置传递和指纹，保持model、窗口、阶段输出预算及零重试；补断言取消与真实错误code。
+- [ ] 验证：`.venv/Scripts/python.exe -m pytest tests/test_eval_pipeline_resources.py tests/test_eval_pipeline_runner.py tests/test_rag_judgment.py -q`，预期全通过；追加ch09记录并提交。
+
+## Task 12：四信号校准和可读报告
+
+**Files:** app/quality/evidence_confidence.py、calibration.py、calibration_resources.py；app/quality/confidence_report.py；tests/test_evidence_confidence.py、test_confidence_report.py。
+
+**Interfaces:** 旧v1规则仍可读；新规则记录四信号、问题与条款匹配算法版本、校准选择目标。误放约束优先；原始采集与新派生报告分开，留出不参与选参。报告输出分布、扫描、混淆矩阵、样本分母、推荐/在用配置。
+
+- [ ] 先写误放优先、问题关键条款、旧规则兼容、报告分母和扫描边界的RED。
+- [ ] 只用问题和实际原文构建第四信号，特征不能读取金标；复用冻结采集作离线重算，保留原报告；增加有界、默认不收费的重算入口。
+- [ ] 验证：`.venv/Scripts/python.exe -m pytest tests/test_evidence_confidence.py tests/test_confidence_gate_integration.py tests/test_confidence_report.py -q`，预期全通过；追加结果与取舍并提交。
+
+## Task 13：根Trace和可靠成本
+
+**Files:** app/observability/tracing.py、intent_usage.py、pricing.py；app/workflow/service.py、app/eval_pipeline/runner.py；tests/test_workflow_observability.py、test_intent_usage.py、test_observability_pricing.py。
+
+**Interfaces:** 根input/output为原话/实际答复；标签可见且意图归属保留。币种、价格来源、价格版本显式；SDK的USD费用不混成CNY。聚合只计generation一次；未知价格和缺usage仍为未知。
+
+- [ ] 核对SDK5源码、官方价格和usage字段；先写根IO、标签及generation去重金额/币种的RED。
+- [ ] 完成根摘要、可见标签和计价；增加请求总量、单均、占比、更新时间、刷新缓存行为。
+- [ ] 验证：`.venv/Scripts/python.exe -m pytest tests/test_workflow_observability.py tests/test_intent_usage.py tests/test_observability_pricing.py -q`，预期全通过；追加记录并提交。
+
+## Task 14：审核状态归并和范围处理
+
+**Files:** app/flywheel/repository.py、processing.py、cli.py；app/api/review_queue.py；tests/integration/test_flywheel_repository.py、tests/test_flywheel_cli.py。
+
+**Interfaces:** 待审与驳回均参与查重；命中驳回保持驳回且按逻辑轮次计数；审批并发仍校验候选指纹与锁。列表支持全部。历史处理先dry-run预览确定ID范围，明确执行才初始化。
+
+- [ ] 先写真实事务回归，确认已驳回重复问题不会新建待审的RED；覆盖跨入口不重复计数与审核并发。
+- [ ] 修正归并与全部筛选，提供限定范围批处理CLI；不改人工发布确认边界。
+- [ ] 验证：`.venv/Scripts/python.exe -m pytest tests/test_flywheel_processing.py tests/test_flywheel_cli.py tests/integration/test_flywheel_repository.py --run-mysql -q`，预期全通过；追加记录并提交。
+
+## Task 15：校准与趋势管理接口
+
+**Files:** app/api/observability.py、app/api/eval_runs.py、app/eval_pipeline/manager.py、app/main.py；tests/test_eval_pipeline_api.py、tests/test_observability_reports.py。
+
+**Interfaces:** /review与/observability独立页面，旧/review-queue保留；校准报告只读可信产物，无任意路径读写；评估返回安全进度和同配置差值，运行中防重复派发；收费规则沿用现有上限。
+
+- [ ] 先写同配置比较、缺值不降为零、报告访问和重复派发的RED。
+- [ ] 完成API及独立页面路由，重算区分本地派生统计与收费采集，默认只允许本地派生。
+- [ ] 验证：`.venv/Scripts/python.exe -m pytest tests/test_eval_pipeline_api.py tests/test_observability_reports.py tests/test_observability_startup_guards.py -q`，预期全通过；追加记录并提交。
+
+## Task 16：参考管理页面
+
+**Files:** app/static/review-queue.html、review-queue.js、review-queue.css及必要的独立页面文件。
+
+**Interfaces:** 管理页采用参考橙色粗边框和紧凑布局；共享导航。审核草稿预填可编辑、显式确认；证据默认Top3，更多可展开；成本概览、评估环比与校准扫描完整可读。
+
+- [ ] 按用户Vibe例外直接实现，不套前端brainstorm、TDD或代码审查。
+- [ ] 浏览器检查待审/全部/空队列/详情/草稿/三种快照及历史缺失、统计缺值、运行进度、同配置趋势和扫描图。
+- [ ] 验证实际页面、JS语法和窄屏布局，保存截图，追加记录并提交。
+
+## Task 17：复验和交付
+
+**Files:** docs/ch09-reference-gap-analysis.md、手动/PyCharm指南、实际报告、dev-notes/ch09.md。
+
+- [ ] 运行完整离线pytest及本地数据库/索引/追踪关键集成；只对本轮后端增量做一次独立审查，修正Critical/Important，前端排除。
+- [ ] 先以剩余累计额度做有界真实探针；旧结果保留。完整两轮评估若超现有额度，先给出具体所需额度与配置再执行。
+- [ ] 走“trace→缺失问题→归并→审核→ready→新会话答对→负反馈→成本→评估→校准”并保存证据。更新差距表逐项状态；仅真实复验通过才标通过。
+- [ ] 记录所有裁决及未解决质量项，保留分支，不擅自合并推送。
+
 ## Global Constraints
 
 - 本地 Docker Compose 自部署，默认 http://127.0.0.1:3000；不回落到 Langfuse Cloud，不购买云服务器。SDK5.0.2、服务端v4.63.0和既有核心依赖不自行替换。

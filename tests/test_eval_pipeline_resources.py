@@ -25,14 +25,14 @@ class GlobalCap:
         self.used.append(provider)
 
 
-async def resources(tmp_path,*,cap=None,event=None,lease=None):
+async def resources(tmp_path,*,cap=None,event=None,lease=None,**settings_overrides):
     from app.eval_pipeline.resources import PipelineResources,ResourceStore
     from app.eval_pipeline.store import PipelineStore
     from app.rag_evaluation.resources import RequestCounter,REQUEST_STAGES
     store=PipelineStore(tmp_path); report=seed_report(str(uuid4()),status='preparing')
     await store.create(report)
     value=PipelineResources(report,settings=fake_settings(
-        siliconflow_api_key='unit-test-only'),store=store,lease=lease or Lease(),
+        siliconflow_api_key='unit-test-only',**settings_overrides),store=store,lease=lease or Lease(),
         acceptance_call_cap=cap,cancel_event=event)
     value.requests=RequestCounter(value.store,value.run_id,dict.fromkeys(REQUEST_STAGES,0))
     requests=[]
@@ -101,3 +101,42 @@ async def test_cancellation_during_owner_check_prevents_dispatch(tmp_path):
             with pytest.raises(Exception): await value.model.ainvoke([HumanMessage('离线取消')])
         assert not requests and not cap.used
     finally: await value.cleanup()
+
+
+@pytest.mark.parametrize('specific,expected', [(None,'low'),('high','high')])
+async def test_pipeline_effort_inherits_online_without_overriding_explicit_setting(tmp_path,specific,expected):
+    import json
+    value,store,requests=await resources(tmp_path,online_reasoning_effort='low',
+        rag_evaluation_reasoning_effort=specific)
+    try:
+        with value.requests.stage('judge'):
+            phase,_=value.phase_model(2048)
+            await phase.ainvoke([HumanMessage('离线配置检查')])
+        payload=json.loads(requests[0].content)
+        assert payload.get('reasoning_effort')==expected
+        assert payload['max_tokens']==2048 and len(requests)==1
+    finally: await value.cleanup()
+
+
+def test_effective_effort_changes_fingerprint_even_when_evaluation_override_is_unset():
+    from app.eval_pipeline.types import new_report
+    from tests.eval_pipeline_fakes import dataset_and_rule
+    dataset,rule,settings=dataset_and_rule()
+    reports=[new_report(str(uuid4()),'smoke_20','手动',dataset,
+        settings.model_copy(update={'online_reasoning_effort':effort,'rag_evaluation_reasoning_effort':None}),
+        rule,provider_scope='mock') for effort in (None,'low')]
+    assert reports[1].config['reasoning_effort']=='low'
+    assert reports[0].config_fingerprint!=reports[1].config_fingerprint
+
+
+def test_usage_diagnostics_distinguish_reasoning_exhaustion_without_storing_text():
+    from app.eval_pipeline.resources import UsageCollector
+    from langchain_core.messages import AIMessage
+    from langchain_core.outputs import LLMResult,ChatGeneration
+    collector=UsageCollector()
+    message=AIMessage('',additional_kwargs={'reasoning_content':'私有推理示例'},
+        response_metadata={'finish_reason':'length'},
+        usage_metadata={'input_tokens':100,'output_tokens':512,'total_tokens':612})
+    collector.on_llm_end(LLMResult(generations=[[ChatGeneration(message=message)]]))
+    assert collector.diagnostics()==[{'finish_reason':'length','output_characters':0,
+        'reasoning_characters':6,'output_tokens':512}]
