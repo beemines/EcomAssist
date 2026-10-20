@@ -27,7 +27,7 @@ def evidence_budget_fingerprint(*, top_k, token_budget):
 
 def load_online_rule(path, *, top_k, budget_fingerprint, rerank_model):
     from pathlib import Path
-    rule = ConfidenceRule.model_validate_json(Path(path).read_text(encoding='utf-8'))
+    rule = parse_rule(Path(path).read_text(encoding='utf-8'))
     verify_rule(rule, top_k=top_k, budget_fingerprint=budget_fingerprint,
         model_fingerprint=model_fingerprint(rerank_model), require_actual=True)
     from app.rag_evaluation.dataset import load_dataset, DATASET_ID
@@ -35,6 +35,14 @@ def load_online_rule(path, *, top_k, budget_fingerprint, rerank_model):
     verify_rule(rule, top_k=top_k, budget_fingerprint=budget_fingerprint,
         dataset_fingerprint=dataset.fingerprint, corpus_hash=dataset.corpus_hash, require_actual=True)
     return rule
+
+
+def parse_rule(value):
+    data=json.loads(value) if isinstance(value,str) else value
+    if data.get('algorithm')=='ch09-four-signal-zero-allow-v2':
+        from app.quality.reference_confidence import ReferenceConfidenceRule
+        return ReferenceConfidenceRule.model_validate_json(json.dumps(data))
+    return ConfidenceRule.model_validate_json(json.dumps(data))
 
 
 class CalibrationSource(StrictModel):
@@ -146,8 +154,11 @@ def verify_rule(rule, *, top_k, budget_fingerprint, model_fingerprint=None,
             raise ValueError('Confidence source signature mismatch')
 
 
-def evaluate_evidence(payload, rule, *, top_k, budget_fingerprint):
+def evaluate_evidence(payload, rule, *, top_k, budget_fingerprint,question=None):
     verify_rule(rule, top_k=top_k, budget_fingerprint=budget_fingerprint)
+    if rule.algorithm=='ch09-four-signal-zero-allow-v2':
+        from app.quality.reference_confidence import evaluate_reference
+        return evaluate_reference(payload,rule,question=question,top_k=top_k)
     ranked = selected_rankings(payload)
     if len(ranked) > top_k:
         raise ValueError('Confidence only accepts actually selected prompt evidence')
