@@ -7,6 +7,7 @@ def review_app():
     from app.api.review_queue import router
     from app.flywheel.types import PublicationReceipt
     class Service:
+        async def list_reviews(self,**kwargs): return {'items':[],'total':0}
         async def approve(self, identifier, **kwargs):
             return PublicationReceipt(review_id=identifier, knowledge_chunk_id='9007199254740993', status='pending')
         async def reject(self, identifier, **kwargs): pass
@@ -53,3 +54,26 @@ async def test_server_metadata_contract_failure_is_not_blame_on_user_input():
         invalid_id = await client.post('/api/review-queue/01/approve', json={'approved_answer': '核准答案'})
     assert damaged.status_code == 503 and 'secret-sentinel' not in damaged.text
     assert invalid_id.status_code == 422
+
+
+async def test_retry_paths_match_approved_spec_and_keep_state_server_owned():
+    app = review_app()
+    calls = []
+    class Pool:
+        async def manage_processing(self, pool_id, *, action, now):
+            calls.append((pool_id, action))
+            return {'id': pool_id, 'processing': {'status': 'pending', 'attempt_count': 1}}
+    app.state.flywheel_repository = Pool()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://127.0.0.1:8006') as client:
+        publication = await client.post('/api/review-queue/1/retry-publication', json={})
+        processing = await client.post('/api/low-confidence-questions/2/retry', json={})
+        forged = await client.post('/api/low-confidence-questions/2/retry', json={'attempt_count': 0})
+    assert publication.status_code == processing.status_code == 200
+    assert forged.status_code == 422 and calls == [('2', 'retry')]
+
+
+async def test_review_read_cannot_bypass_local_admin_host_boundary():
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(review_app()),base_url='http://127.0.0.1:8006') as client:
+        good=await client.get('/api/review-queue')
+        bad=await client.get('/api/review-queue',headers={'host':'evil.invalid'})
+    assert good.status_code==200 and bad.status_code==403

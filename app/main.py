@@ -97,8 +97,11 @@ def create_app(
     flywheel_repository: Any | None = None,
     flywheel_runtime: Any | None = None,
     confidence_rule: Any | None = None,
+    eval_pipeline_manager: Any | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
+    if acceptance_call_cap is not None and settings.eval_schedule_enabled:
+        raise ValueError('Acceptance runs cannot enable the paid evaluation schedule')
     if acceptance_call_cap is not None and settings.rag_evaluation_enabled:
         raise ValueError('Acceptance cap requires evaluation jobs disabled')
     order_provider = order_provider if order_provider is not None else DemoOrderProvider()
@@ -112,6 +115,7 @@ def create_app(
     owns_evaluation_manager = evaluation_manager is None
     owns_observability = observability_runtime is None
     owns_flywheel = flywheel_runtime is None
+    owns_eval_pipeline = eval_pipeline_manager is None
     if (context_budget_provider is None and chat_service is None
             and (owns_database or getattr(database, 'engine', None) is not None or context_repository is not None)):
         from app.workflow.context_budget import workflow_budget
@@ -177,6 +181,7 @@ def create_app(
             getattr(service, 'checkpointer', None), repository, pool) if pool is not None else None)
         from app.flywheel.publication import ReviewService
         app.state.review_service = ReviewService(pool) if settings.flywheel_enabled and pool is not None else None
+        app.state.flywheel_repository = pool if settings.flywheel_enabled else None
         # 动作读取同一服务的当前注册表工厂，保留注入与测试的外部资源归属。
         def action_registry(context):
             """按原轮可信上下文复用聊天服务的既有业务工具。"""
@@ -197,7 +202,7 @@ def create_app(
     async def lifespan(app: FastAPI):
         nonlocal database, repository, model, faq_repository, sufficiency_service, quality_repository, checkpointer
         nonlocal context_coordinator, context_logger, context_repository
-        nonlocal observability_runtime, flywheel_runtime, confidence_rule
+        nonlocal observability_runtime, flywheel_runtime, confidence_rule, eval_pipeline_manager
         async with AsyncExitStack() as resources:
             if owns_observability:
                 from app.observability.runtime import LangfuseRuntime
@@ -317,6 +322,25 @@ def create_app(
                 app.state.flywheel_runtime = flywheel_runtime
                 resources.push_async_callback(flywheel_runtime.close)
                 flywheel_runtime.start()
+            if settings.eval_pipeline_enabled:
+                if owns_eval_pipeline:
+                    from app.eval_pipeline.cli import rule_for_settings
+                    from app.eval_pipeline.manager import EvalPipelineManager
+                    from app.eval_pipeline.store import PipelineStore, EvalRunRepository
+                    if getattr(database,'engine',None) is None:
+                        raise ValueError('Enabled evaluation pipeline requires the configured database')
+                    if confidence_rule is None: confidence_rule=rule_for_settings(settings)
+                    eval_pipeline_manager=EvalPipelineManager(PipelineStore(
+                        Path(__file__).resolve().parents[1]/'runtime/eval-pipeline'),EvalRunRepository(database),
+                        settings,confidence_rule,acceptance_call_cap=acceptance_call_cap,
+                        observability=observability_runtime)
+                    resources.push_async_callback(eval_pipeline_manager.close)
+                    await eval_pipeline_manager.startup()
+                app.state.eval_pipeline_manager=eval_pipeline_manager
+                from app.eval_pipeline.schedule import EvaluationSchedule
+                schedule=EvaluationSchedule(eval_pipeline_manager,enabled=settings.eval_schedule_enabled)
+                resources.push_async_callback(schedule.close)
+                schedule.start()
             if owns_context:
                 from app.workflow.context_budget import fee_cap_diagnostic
                 startup_registry = app.state.chat_service.registry_factory(ToolContext('0', 0, '', None))
@@ -329,6 +353,9 @@ def create_app(
             yield
 
     app = FastAPI(lifespan=lifespan)
+    app.state.eval_pipeline_manager=eval_pipeline_manager if settings.eval_pipeline_enabled else None
+    from app.api.eval_runs import router as eval_pipeline_router
+    app.include_router(eval_pipeline_router)
     from app.api.observability import router as observability_router
     app.include_router(observability_router)
     from app.api.feedback import router as feedback_router

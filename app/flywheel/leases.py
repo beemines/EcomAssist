@@ -66,7 +66,7 @@ async def processing_lease(database, *, prefix='ch09-flywheel:'):
                 target = await connection.scalar(text('SELECT DATABASE()'))
                 if target != database.engine.url.database:
                     raise RuntimeError('Flywheel lease database mismatch')
-                if prefix not in ('ch09-flywheel:', 'ch03:'):
+                if prefix not in ('ch09-flywheel:', 'ch03:', 'ch09-eval:'):
                     raise ValueError('Unknown protected job lock')
                 name = prefix + hashlib.sha256(target.encode()).hexdigest()[:48]
                 identifier = await connection.scalar(text('SELECT CONNECTION_ID()'))

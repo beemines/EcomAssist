@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     langfuse_secret_key: SecretStr | None = Field(default=None, validation_alias='LANGFUSE_SECRET_KEY')
     flywheel_enabled: bool = Field(default=False, validation_alias='FLYWHEEL_ENABLED')
     evidence_confidence_rule_path: Path | None = Field(default=None, validation_alias='EVIDENCE_CONFIDENCE_RULE_PATH')
+    eval_pipeline_enabled: bool = Field(default=False, validation_alias='EVAL_PIPELINE_ENABLED')
+    eval_schedule_enabled: bool = Field(default=False, validation_alias='EVAL_SCHEDULE_ENABLED')
+
+    @model_validator(mode='after')
+    def schedule_requires_pipeline(self):
+        if self.eval_schedule_enabled and not self.eval_pipeline_enabled:
+            raise ValueError('Evaluation schedule requires the enabled pipeline')
+        return self
 
     @field_validator('evidence_confidence_rule_path', mode='before')
     @classmethod
