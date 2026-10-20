@@ -113,6 +113,7 @@ class PipelineRunner:
                 with resources.requests.stage(stage): return await operation(model)
             finally:
                 usage[stage]=collector.summary(estimated_input=estimated,output_tokens=output_tokens)
+                usage[stage]['termination']=collector.diagnostics()
         with begin_execution(self.observability,identity) as trace:
             try:
                 async with asyncio.timeout(settings.chat_timeout_seconds):
@@ -192,9 +193,11 @@ class PipelineRunner:
                     raise asyncio.CancelledError() from None
                 code,_,pause,_=PublicationWorker._error(exc)
                 stage=row['stage']
+                public_code=(exc.code if isinstance(exc,(ServiceError,JudgeError)) else
+                    'timeout' if isinstance(exc,TimeoutError) else stage+'_error')
                 row.update(status={'rewrite':'rewrite_error','retrieval':'retrieval_error','self_check':'self_check_error',
                     'answer':'answer_error','judgment':'judge_error'}[stage],
-                    error={'code':code if pause else stage+'_error','type':type(exc).__name__,'message':'该阶段执行失败'})
+                    error={'code':code if pause else public_code,'type':type(exc).__name__,'message':'该阶段执行失败'})
                 if stage=='rewrite': row['rewrite']={'policy_version':REWRITE_FAILURE_POLICY,'status':'error','error':row['error']}
                 if isinstance(exc,JudgeError): row['judge_snapshot']={
                     'prompt_version':exc.prompt_version,'finish_reason':exc.finish_reason,'raw_response':exc.raw_response}

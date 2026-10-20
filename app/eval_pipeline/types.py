@@ -126,6 +126,10 @@ def stored_view(row):
         report_locator=payload['report_locator'])
 
 
+def effective_reasoning_effort(settings):
+    return settings.rag_evaluation_reasoning_effort or settings.online_reasoning_effort
+
+
 def new_report(key, scope, triggered_by, dataset, settings, rule, *, provider_scope='actual'):
     from app.eval_pipeline.runner import select_case_ids, aggregate_metrics
     from app.rag_evaluation.runner import _seed
@@ -148,7 +152,7 @@ def new_report(key, scope, triggered_by, dataset, settings, rule, *, provider_sc
             'self_check':canonical_hash(build_sufficiency_messages('',{})[0].content),
             'answer':canonical_hash(build_grounded_answer_system_prompt()),'judge':canonical_hash(JUDGE_PROMPT)},
         'prompt_versions':{'rewrite':'query-v1','self_check':'sufficiency-v1','answer':'grounded-answer-v1','judge':PROMPT_VERSION},
-        'reasoning_effort':settings.rag_evaluation_reasoning_effort,
+        'reasoning_effort':effective_reasoning_effort(settings),
         'rule_version':rule.rule_version,'rule_source':rule.source.source_kind,
         'scope':scope,'case_ids':list(ids),'chunk_count':len(dataset.chunks),
         'top_k':settings.rerank_top_k,'evidence_token_budget':budget,

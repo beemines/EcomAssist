@@ -1,5 +1,7 @@
 # 第九步实际验收报告
 
+2026-10-20新增验收基线：用户提供18张标准流程与页面截图后，完成[参考页面差距对照](../../ch09-reference-gap-analysis.md)。**按新增标准当前尚未完整通过**；下文保留原本地运行事实，未覆盖项与质量失败以后续对照表逐项复验。
+
 验收日期：2026-10-20。工作区：`D:/shixi/ecommerce-customer-service/.worktrees/observability-flywheel`，分支 `feat/observability-flywheel`。采用已批准的 Native 顺序实施；一次独立后端整分支审查，前端按用户要求采用 Vibe Coding。设计、计划和本报告的“完成”只覆盖本章本地部署范围。
 
 ## 使用入口

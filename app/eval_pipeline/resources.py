@@ -14,7 +14,7 @@ from app.rag_evaluation.resources import OwnedResources, REQUEST_STAGES
 
 
 class UsageCollector(BaseCallbackHandler):
-    def __init__(self): self.values=[]; self._lock=Lock()
+    def __init__(self): self.values=[]; self._diagnostics=[]; self._lock=Lock()
     def on_llm_end(self,response,**kwargs):
         for batch in response.generations:
             for generation in batch:
@@ -26,6 +26,27 @@ class UsageCollector(BaseCallbackHandler):
                     total=usage.get('total_tokens')
                     if type(total) is int and total>=0:
                         with self._lock: self.values.append(total)
+                if message is not None:
+                    metadata=getattr(message,'response_metadata',{}) or {}
+                    self._record(metadata.get('finish_reason'),getattr(message,'content',''),
+                        (getattr(message,'additional_kwargs',{}) or {}).get('reasoning_content'),
+                        (usage or {}).get('output_tokens',(usage or {}).get('completion_tokens')))
+    def _record(self,finish,content,reasoning,output_tokens):
+        value={'finish_reason':finish if finish in ('stop','length','content_filter','tool_calls') else 'unknown',
+            'output_characters':len(content) if isinstance(content,str) else 0,
+            'reasoning_characters':len(reasoning) if isinstance(reasoning,str) else 0,
+            'output_tokens':output_tokens if type(output_tokens) is int and output_tokens>=0 else None}
+        with self._lock: self._diagnostics.append(value)
+    def on_llm_error(self,error,**kwargs):
+        completion=getattr(error,'completion',None)
+        choices=getattr(completion,'choices',None)
+        if choices:
+            choice=choices[0]; message=choice.message
+            self._record(choice.finish_reason,getattr(message,'content',None),
+                getattr(message,'reasoning_content',None),
+                getattr(getattr(completion,'usage',None),'completion_tokens',None))
+    def diagnostics(self):
+        with self._lock: return [dict(value) for value in self._diagnostics]
     def summary(self,*,estimated_input,output_tokens):
         with self._lock: values=list(self.values)
         return {'actual_tokens':sum(values) if values else None,'actual_calls':len(values),
@@ -95,8 +116,9 @@ class PipelineResources(OwnedResources):
         def deny(request): raise RuntimeError('Synchronous evaluation dispatch is disabled')
         sync=httpx.Client(event_hooks={'request':[deny]})
         try:
+            from app.eval_pipeline.types import effective_reasoning_effort
             model=create_model(self.settings,http_client=sync,http_async_client=self._provider_client('glm'),
-                reasoning_effort=self.settings.rag_evaluation_reasoning_effort)
+                reasoning_effort=effective_reasoning_effort(self.settings))
         except BaseException:
             sync.close(); raise
         self._register_model(model)
