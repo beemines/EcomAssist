@@ -1,5 +1,7 @@
 # 电商智能客服
 
+第九步本地可观测性与数据飞轮：本地Langfuse、正式证据置信度、三路问题池、人工审核补库和两轮留出评估已实现并实际运行。入口见[本地演示命令](docs/ch09-local-demo.md)、[PyCharm逐步验收](docs/ch09-pycharm-acceptance.md)、[手动验收](docs/ch09-manual-acceptance.md)及[真实结果与限制](docs/superpowers/reports/2026-10-19-observability-flywheel-acceptance.md)。当前客服8006、后台`/review-queue`、Langfuse3000；本章仍在独立worktree/分支，未合并推送。两轮20题各有生成/裁判失败，指标只针对有效分母，不当作全题满分。
+
 第八步工具系统与MCP：两个独立业务Server、动态工具注册、统一执行审计和工单确认流已实现。入口见[演示命令](docs/tool-system-demo.md)、[PyCharm验收](docs/ch08-pycharm-acceptance.md)、[手动验收](docs/ch08-manual-acceptance.md)及[第八步原始提示词与DDL](docs/prompts/step-08-pluggable-tools.md)。测试与真实验收的版本、失败和范围分别保留在[开发记录](dev-notes/ch08.md)及报告中。
 
 第七章分层上下文的离线21轮回放、预算profile、8004进程守卫和共享物理HTTP限额见[可复现验收说明](docs/context-management-demo.md)。离线回放与受控浏览器已验证；3307迁移、真实应用启动及真实长对话验收留待Task11，不把离线结果当作模型质量结论。
