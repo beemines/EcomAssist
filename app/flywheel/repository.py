@@ -107,7 +107,7 @@ class FlywheelRepository:
 
     @staticmethod
     async def _candidate_snapshot(session):
-        rows = (await session.execute(text("SELECT id,normalized_question FROM review_queue WHERE review_status='待审' ORDER BY id"))).all()
+        rows = (await session.execute(text("SELECT id,normalized_question FROM review_queue WHERE review_status IN ('待审','驳回') ORDER BY id"))).all()
         candidates = [ReviewCandidate(id=str(row.id), normalized_question=row.normalized_question) for row in rows]
         fingerprint = hashlib.sha256(json.dumps([row.model_dump() for row in candidates],
             ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
@@ -249,8 +249,8 @@ class FlywheelRepository:
         else:
             review_id = matched_review_id
             review = await self._review(session, review_id, lock=True)
-            if review['review_status'] != '待审':
-                raise ReviewChanged('Deduplication target is no longer pending')
+            if review['review_status'] not in ('待审','驳回'):
+                raise ReviewChanged('Deduplication target is no longer matchable')
             counted = False
             if pool['conversation_id'] is not None and pool['user_message_id'] is not None:
                 counted = await session.scalar(text('SELECT id FROM low_confidence_questions '
@@ -288,15 +288,27 @@ class FlywheelRepository:
 
     async def list_reviews(self, *, status: str, offset: int = 0, limit: int = 20) -> dict:
         _page(offset, limit)
-        if status not in ('待审', '通过', '驳回'):
+        if status not in ('待审', '通过', '驳回','全部'):
             raise ValueError('Invalid review status')
+        where='1=1' if status=='全部' else 'review_status=:status'
         async with self.database.session() as session:
-            count = await session.scalar(text('SELECT COUNT(*) FROM review_queue WHERE review_status=:status'),
+            count = await session.scalar(text('SELECT COUNT(*) FROM review_queue WHERE '+where),
                                          {'status': status})
-            rows = (await session.execute(text('SELECT * FROM review_queue WHERE review_status=:status '
+            rows = (await session.execute(text('SELECT * FROM review_queue WHERE '+where+' '
                 'ORDER BY occurrence_count DESC,id DESC LIMIT :limit OFFSET :offset'),
                 {'status': status, 'limit': limit, 'offset': offset})).mappings()
             return {'items': [row_dict(row) for row in rows], 'total': int(count)}
+
+    async def preview_legacy_batch(self,from_id,to_id,*,limit=20):
+        first,last=int(database_id(from_id)),int(database_id(to_id))
+        _page(0,limit)
+        if first>last: raise ValueError('Invalid selected history range')
+        async with self.database.session() as session:
+            rows=(await session.execute(text('SELECT id,raw_question,source,created_at FROM low_confidence_questions '
+                'WHERE id BETWEEN :first AND :last AND processing IS NULL AND matched_review_id IS NULL '
+                'ORDER BY id LIMIT :limit'),{'first':first,'last':last,'limit':limit+1})).mappings().all()
+            return {'items':[row_dict(row) for row in rows[:limit]],'has_more':len(rows)>limit,
+                'from_id':from_id,'to_id':to_id,'limit':limit}
 
     async def review_details(self, review_id: str, *, offset: int = 0, limit: int = 50) -> dict:
         _page(offset, limit)

@@ -57,11 +57,31 @@ async def test_review_changed_rolls_back_assignment(flywheel_database):
     target = await repo.assign(first.id, matched_review_id=None, draft=draft())
     second = await repo.enqueue(item(user='3', assistant='4'))
     async with flywheel_database.session() as session, session.begin():
-        await session.execute(text("UPDATE review_queue SET review_status='驳回' WHERE id=:id"), {'id': int(target.review_id)})
+        await session.execute(text("UPDATE review_queue SET review_status='通过' WHERE id=:id"), {'id': int(target.review_id)})
     with pytest.raises(ReviewChanged):
         await repo.assign(second.id, matched_review_id=target.review_id, draft=draft())
     async with flywheel_database.session() as session:
         assert await session.scalar(text('SELECT matched_review_id FROM low_confidence_questions WHERE id=:id'), {'id': int(second.id)}) is None
+
+
+async def test_rejected_recurrence_matches_original_gap_and_stays_rejected(flywheel_database):
+    from app.flywheel.repository import FlywheelRepository
+    repo=FlywheelRepository(flywheel_database)
+    first=await repo.enqueue(item())
+    target=await repo.assign(first.id,matched_review_id=None,draft=draft())
+    await repo.reject_review(target.review_id,reason='低频临时问题')
+    async with flywheel_database.session() as session:
+        candidates,_=await repo._candidate_snapshot(session)
+    assert [candidate.id for candidate in candidates]==[target.review_id]
+    second=await repo.enqueue(item(user='3',assistant='4'))
+    await repo.assign(second.id,matched_review_id=target.review_id,draft=draft())
+    feedback=await repo.enqueue(item('user_feedback',user='3',assistant='4'))
+    await repo.assign(feedback.id,matched_review_id=target.review_id,draft=draft())
+    review=await repo.get_review(target.review_id)
+    assert review['review_status']=='驳回' and review['occurrence_count']==2
+    all_rows=await repo.list_reviews(status='全部')
+    assert all_rows['total']==1
+    assert (await repo.list_reviews(status='待审'))['total']==0
 
 
 async def test_enqueue_in_session_does_not_commit_on_behalf_of_caller(flywheel_database):
@@ -101,3 +121,17 @@ async def test_new_table_mappings_round_trip_original_defaults(flywheel_database
     assert (await FlywheelRepository(flywheel_database).get_review(str(review_id)))['review_status'] == '待审'
     async with flywheel_database.session() as session:
         assert await session.scalar(text('SELECT triggered_by FROM eval_runs WHERE id=:id'), {'id': run_id}) == '定时'
+
+
+async def test_history_preview_only_returns_uninitialized_rows_in_selected_range(flywheel_database):
+    from app.flywheel.repository import FlywheelRepository
+    repo=FlywheelRepository(flywheel_database)
+    async with flywheel_database.session() as session,session.begin():
+        for key in range(1,4):
+            await session.execute(text("INSERT INTO low_confidence_questions(id,raw_question,source,reason) "
+                "VALUES(:id,'历史模拟问题','self_check','旧数据')"),{'id':key})
+    result=await repo.preview_legacy_batch('1','2',limit=1)
+    assert [row['id'] for row in result['items']]==['1']
+    assert result['has_more'] is True
+    async with flywheel_database.session() as session:
+        assert await session.scalar(text('SELECT COUNT(*) FROM low_confidence_questions WHERE processing IS NULL'))==3
