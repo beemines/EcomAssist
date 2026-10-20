@@ -9,13 +9,14 @@
 - [页面手动验收步骤](../../ch09-manual-acceptance.md)
 - [开发过程](../../../dev-notes/ch09.md)
 - [独立后端审查与一轮修复](2026-10-20-observability-flywheel-review.md)
+- [全部执行裁决与finish验证](2026-10-20-observability-flywheel-execution.md)
 - 客服 `http://127.0.0.1:8006/`；审核与统计 `http://127.0.0.1:8006/review-queue`；本地Langfuse `http://127.0.0.1:3000/`。
 
 本章文件在独立worktree里，主目录master尚未合并。用户本次批准的是实施和隔离工作区，没有授权第九步合并或推送。`.env`、本地管理员密码与SDK密钥均未提交。
 
 ## 自动测试及结构
 
-后端最终完整回归：**3215通过、255跳过，495.32秒**。真实本地MySQL3308、Milvus、本地Langfuse及旧质量/上下文/工具审计/工单确认关键集成：**136通过，89.04秒**。跳过项不当作通过，真实集成另行显式启用。
+后端最终完整回归：**3215通过、255跳过，457.77秒（交付前再次完整运行）**。真实本地MySQL3308、Milvus、本地Langfuse及旧质量/上下文/工具审计/工单确认关键集成：**136通过，89.04秒**。跳过项不当作通过，真实集成另行显式启用。
 
 三个审查Important均先观察失败后修复：API人工重试唤醒暂停消费者而不重置次数；真实向量化Jobs失锁后不能提交权威done；审核表单显式选择分类并保证同分类检索能找到新知识。审查0 Critical、3 Important、0 Minor；一轮修复后没有未解决Critical/Important，没有第二次派审。后续Prompt实测发现的草稿Minor另列下文，不能混成审查“全部无问题”。
 
@@ -107,7 +108,7 @@ SQL、审计和归属证据：`runtime/ch09-evidence/actual-page-storage.json`�
 | 实际/估算tokens | 107283 / 39339 | 108094 / 25294 |
 | 自有资源清理 | ok=true | ok=true |
 
-两轮配置指纹相同：`5f6f500a7b151ada48a3492b4a7b1c88227d9d970a25121da30496091dd3a4b4`。检索分母16排除4道预期拒答；Faithfulness分别再排除生成/裁判错误与4个无事实断言的拒答样本。有效子集均1.0，**不代表20/20生成成功，也不代表300题满分**；17个生成/裁判错误完整保留。两轮趋势页截图为 `runtime/ch09-evidence/actual-two-eval-trends.png`。
+两轮配置指纹相同：`5f6f500a7b151ada48a3492b4a7b1c88227d9d970a25121da30496091dd3a4b4`。检索分母16排除4道预期拒答；Faithfulness分别再排除生成/裁判错误与4个无事实断言的拒答样本。有效子集均1.0，**不代表20/20生成成功，也不代表300题满分**；17个生成/裁判错误完整保留。两轮趋势页截图为 `runtime/ch09-evidence/actual-two-eval-results.png`。
 
 各轮原始报告/逐题judge快照/独立资源归属和清理结果保存在 `runtime/eval-pipeline/<run_key>/`，对应 `eval_runs` 每UUID恰有一行。排除项会显示到趋势页，不能把Faithfulness的有效分母当作全部20题。第一轮部分裁判返回finish_reason=length、原文为空，固定2048输出预算未改动；未补括号或伪造判定，也没有静默重跑失败题。
 
