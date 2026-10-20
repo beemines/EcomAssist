@@ -115,7 +115,7 @@ async def test_api_returns_explicit_unavailable_and_rejects_naive_range():
     from app.api.observability import router
     app = FastAPI()
     app.include_router(router)
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://test') as client:
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://127.0.0.1:8006') as client:
         response = await client.get('/api/observability/intent-usage')
         assert response.status_code == 200 and response.json()['complete'] is False
         assert response.json()['reason'] == 'langfuse_unavailable'

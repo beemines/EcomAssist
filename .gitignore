@@ -25,3 +25,4 @@ runtime/langfuse/
 runtime/ch09-evidence/
 runtime/ch09-sources/
 runtime/uv-cache/
+runtime/eval-pipeline/
