@@ -63,3 +63,9 @@
 - 已安装OpenAI异常源码将结构化code放在APIStatusError.code；沿用项目1113判定，并按异常类型链识别本地AcceptanceLimitExceeded，SDK网络包装不应触发额外重试。未知异常只存固定安全说明，不把原始异常文本写入任务JSON。
 - 固定CallbackHandler的on_chain_start/on_chat_model_start/on_tool_start/on_retriever_start均接收keyword-only metadata；本项目薄封装在每次start读取当前execution的最新意图，仍由官方Handler实现记录及usage，不在节点反复注册。
 - SDK5.0.2的mask(data=...)处理SDK字段；mask_otel_spans(params=MaskOtelSpansParams)返回MaskOtelSpansResult，按OtelSpanIdentifier映射OtelSpanPatch，只修改导出属性、不原地改只读span。配置的SecretStr值及认证字段在两处遮盖，错误status_message也覆盖；固定源码为langfuse/types.py和_client/span_exporter.py。此处没有照搬旧SDK遮盖回调签名。
+
+## 受限发布接口与HTTP错误（2026-10-20）
+
+- 延用锁定SQLAlchemy2.0.54的短事务、已有KnowledgeRepository._insert、HybridKnowledgeJobs._write/ACK/readback；未凭新库猜接口。原知识锁名仍为ch03:+实际库名SHA256前48位，发布租约使用同名和独占连接；旧CLI与新发布互斥。
+- SiliconFlow官方Embedding接口支持input字符串数组，故50份冻结语料按20批次只产生3次物理嵌入请求，无需缓存改造；BGE-M3输入上限8192，与原适配器一致：https://docs.siliconflow.cn/docs/api/embeddings-post 。未更改固定模型。
+- 官方错误说明列401鉴权、403权限、429速率限制、503/504服务负载；发布采用401/403暂停、429和5xx有界5/30秒重试，参数/ACK/读回错误不自动重试：https://docs.siliconflow.cn/docs/userguide/capabilities/text-generation 。HTTP402作为计费拒绝的保守暂停分支，不宣称官方目前必定用它表示余额；无自由文本错误判断或自动换模型。

@@ -175,6 +175,8 @@ def create_app(
             pool = FlywheelRepository(database)
         app.state.feedback_service = (FeedbackService(checkpointer if checkpointer is not None else
             getattr(service, 'checkpointer', None), repository, pool) if pool is not None else None)
+        from app.flywheel.publication import ReviewService
+        app.state.review_service = ReviewService(pool) if settings.flywheel_enabled and pool is not None else None
         # 动作读取同一服务的当前注册表工厂，保留注入与测试的外部资源归属。
         def action_registry(context):
             """按原轮可信上下文复用聊天服务的既有业务工具。"""
@@ -331,6 +333,8 @@ def create_app(
     app.include_router(observability_router)
     from app.api.feedback import router as feedback_router
     app.include_router(feedback_router)
+    from app.api.review_queue import router as review_router
+    app.include_router(review_router)
     from app.observability.intent_usage import IntentUsageReader
     app.state.intent_usage_reader = IntentUsageReader(
         observability_runtime.client if observability_runtime else None)

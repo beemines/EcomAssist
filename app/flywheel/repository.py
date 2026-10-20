@@ -308,3 +308,125 @@ class FlywheelRepository:
             rows = (await session.execute(text('SELECT * FROM low_confidence_questions '
                 'WHERE matched_review_id=:id ORDER BY id ASC LIMIT :limit OFFSET :offset'), args)).mappings()
             return {'review': review, 'raw_questions': [row_dict(row) for row in rows], 'total': int(count)}
+
+    async def approve_review(self, review_id, *, approved_answer, normalized_question=None):
+        from app.core.errors import ServiceError
+        from app.flywheel.publication import publication_receipt
+        from app.flywheel.types import PublicationState
+        from app.repositories.knowledge import KnowledgeRepository
+        from app.knowledge.types import ChunkDraft
+        async with self.database.session() as session, session.begin():
+            row = await self._review(session, review_id, lock=True)
+            question = normalized_question if normalized_question is not None else row['normalized_question']
+            if row['review_status'] == '通过' and row['publication'] is not None:
+                if row['approved_answer'] == approved_answer and row['normalized_question'] == question:
+                    return publication_receipt(row)
+            elif row['review_status'] == '待审':
+                ids = await KnowledgeRepository(self.database).add_chunks_in_session(session, [
+                    ChunkDraft('人工审核', question, approved_answer,
+                        section_path='飞轮审核/' + review_id, content_type='faq')])
+                state = PublicationState()
+                await session.execute(text("UPDATE review_queue SET review_status='通过',"
+                    'normalized_question=:q,approved_answer=:a,knowledge_chunk_id=:k,publication=:p WHERE id=:id'),
+                    {'q': question, 'a': approved_answer, 'k': ids[0], 'p': state.model_dump_json(), 'id': int(review_id)})
+                row.update(knowledge_chunk_id=str(ids[0]), publication=state.model_dump(mode='json'))
+                return publication_receipt(row)
+            raise ServiceError('review_conflict', '审核状态或核准内容与已有记录冲突。', 409)
+
+    async def reject_review(self, review_id, *, reason):
+        from app.core.errors import ServiceError
+        from app.flywheel.types import PublicationState, TaskError
+        async with self.database.session() as session, session.begin():
+            row = await self._review(session, review_id, lock=True)
+            if (row['review_status'] == '驳回' and row['publication'] is not None
+                    and row['publication'].get('last_error', {}).get('message') == reason):
+                return
+            if row['review_status'] != '待审':
+                raise ServiceError('review_conflict', '审核状态已经改变。', 409)
+            state = PublicationState(status='failed', last_error=TaskError(code='review_rejected',
+                stage='human_review', message=reason))
+            await session.execute(text("UPDATE review_queue SET review_status='驳回',publication=:p WHERE id=:id"),
+                {'p': state.model_dump_json(), 'id': int(review_id)})
+
+    def publication_lease(self):
+        from app.flywheel.leases import processing_lease
+        return processing_lease(self.database, prefix='ch03:')
+
+    async def claim_publication(self, lease, review_id, now):
+        from app.flywheel.publication import publication_state
+        async with lease.transaction() as session:
+            row = await self._review(session, review_id, lock=True)
+            state = publication_state(row)
+            if (row['review_status'] != '通过' or state.status != 'pending' or state.attempt_count >= 2**32-1
+                    or state.next_attempt_at is not None and state.next_attempt_at > now):
+                return None
+            state.status, state.attempt_count, state.next_attempt_at = 'running', state.attempt_count + 1, None
+            await self._write_publication(session, review_id, state)
+            return row, state
+
+    async def _write_publication(self, session, review_id, state):
+        # Roundtrip strict validation before committing mutable metadata.
+        from app.flywheel.types import PublicationState
+        state = PublicationState.model_validate_json(state.model_dump_json())
+        await session.execute(text('UPDATE review_queue SET publication=:p WHERE id=:id'),
+            {'p': state.model_dump_json(), 'id': int(database_id(review_id))})
+
+    async def save_publication(self, lease, review_id, state):
+        async with lease.transaction() as session:
+            row = await self._review(session, review_id, lock=True)
+            if row['review_status'] != '通过':
+                raise ValueError('Publication no longer approved')
+            if state.status == 'ready':
+                committed = (await session.execute(text('SELECT vectorize_status,vector_id FROM knowledge_chunks '
+                    'WHERE id=:id FOR UPDATE'), {'id': int(row['knowledge_chunk_id'])})).one_or_none()
+                if committed is None or committed[0] != 'done' or committed[1] != row['knowledge_chunk_id']:
+                    raise ValueError('Publication knowledge is not durably ready')
+            await self._write_publication(session, review_id, state)
+
+    async def next_publication_id(self, now):
+        from app.flywheel.publication import publication_state
+        after = 0
+        while True:
+            async with self.database.session() as session:
+                rows = (await session.execute(text("SELECT * FROM review_queue WHERE review_status='通过' "
+                    "AND publication IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(publication,'$.status'))='pending' "
+                    'AND id>:after ORDER BY id LIMIT 100'), {'after': after})).mappings().all()
+            for row in rows:
+                state = publication_state(row)
+                if state.next_attempt_at is None or state.next_attempt_at <= now:
+                    return str(row['id'])
+            if len(rows) < 100:
+                return None
+            after = rows[-1]['id']
+
+    async def recover_publications(self, lease):
+        from app.flywheel.publication import publication_state
+        from app.flywheel.types import TaskError
+        async with lease.transaction() as session:
+            rows = (await session.execute(text("SELECT * FROM review_queue WHERE review_status='通过' "
+                "AND publication IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(publication,'$.status'))='running' "
+                'ORDER BY id FOR UPDATE'))).mappings().all()
+            for row in rows:
+                state = publication_state(row)
+                state.status = 'pending' if state.attempt_count < 3 else 'failed'
+                state.next_attempt_at = None
+                state.last_error = TaskError(code='interrupted', stage='publication',
+                    message='上次发布被中断，保留原知识ID。')
+                await self._write_publication(session, str(row['id']), state)
+
+    async def retry_publication(self, review_id):
+        from app.core.errors import ServiceError
+        from app.flywheel.publication import publication_state, publication_receipt
+        async with self.database.session() as session, session.begin():
+            row = await self._review(session, review_id, lock=True)
+            state = publication_state(row)
+            if row['review_status'] != '通过' or state.status == 'running':
+                raise ServiceError('review_conflict', '当前审核状态不允许重试。', 409)
+            if state.status in ('ready', 'pending'):
+                return publication_receipt(row)
+            if state.attempt_count >= 2**32-1:
+                raise ServiceError('review_conflict', '累计发布次数达到存储上限，保留失败记录。', 409)
+            state.status, state.next_attempt_at, state.last_error = 'pending', None, None
+            await self._write_publication(session, review_id, state)
+            row['publication'] = state.model_dump(mode='json')
+            return publication_receipt(row)

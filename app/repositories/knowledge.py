@@ -49,6 +49,23 @@ class KnowledgeRepository:
     def __init__(self, database: Database):
         self.database = database
 
+    async def add_chunks_in_session(self, session: AsyncSession, drafts: list[ChunkDraft]) -> list[int]:
+        """Borrow the caller's transaction; never commit a human review separately."""
+        if not isinstance(drafts, list) or any(not isinstance(draft, ChunkDraft) for draft in drafts):
+            raise ValueError('Validated knowledge drafts are required')
+        return await _insert(session, drafts)
+
+    async def pending_by_ids(self, ids) -> list[ChunkRecord]:
+        ids = list(ids)
+        _ids(ids)
+        if not ids:
+            return []
+        async with self.database.session() as session, session.begin():
+            rows = (await session.scalars(select(KnowledgeChunk).where(
+                KnowledgeChunk.id.in_(ids), KnowledgeChunk.vectorize_status == 'pending'))).all()
+            by_id = {row.id: row for row in rows}
+            return [_record(by_id[identifier]) for identifier in ids if identifier in by_id]
+
     # 用独立短事务保存分块，并返回按输入顺序排列的主键。
     async def add_chunks(self, drafts: list[ChunkDraft], link_neighbors: bool = False, *,
                          before_commit: Callable[[list[int]], Awaitable[None]] | None = None) -> list[int]:
