@@ -95,6 +95,7 @@ def create_app(
     tool_catalog_provider: Any | None = None,
     observability_runtime: Any | None = None,
     flywheel_repository: Any | None = None,
+    flywheel_runtime: Any | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
     if acceptance_call_cap is not None and settings.rag_evaluation_enabled:
@@ -109,6 +110,7 @@ def create_app(
     owns_checkpointer = chat_service is None and checkpointer is None
     owns_evaluation_manager = evaluation_manager is None
     owns_observability = observability_runtime is None
+    owns_flywheel = flywheel_runtime is None
     if (context_budget_provider is None and chat_service is None
             and (owns_database or getattr(database, 'engine', None) is not None or context_repository is not None)):
         from app.workflow.context_budget import workflow_budget
@@ -191,7 +193,7 @@ def create_app(
     async def lifespan(app: FastAPI):
         nonlocal database, repository, model, faq_repository, sufficiency_service, quality_repository, checkpointer
         nonlocal context_coordinator, context_logger, context_repository
-        nonlocal observability_runtime
+        nonlocal observability_runtime, flywheel_runtime
         async with AsyncExitStack() as resources:
             if owns_observability:
                 from app.observability.runtime import LangfuseRuntime
@@ -293,6 +295,17 @@ def create_app(
             if chat_service is None:
                 # 图任务必须先结束，后进先出的资源栈随后才关闭官方 saver。
                 resources.push_async_callback(app.state.chat_service.shutdown)
+            app.state.flywheel_runtime = flywheel_runtime
+            if settings.flywheel_enabled and (flywheel_runtime is not None or getattr(database, 'engine', None) is not None):
+                if owns_flywheel:
+                    from app.flywheel.runtime import FlywheelRuntime
+                    flywheel_runtime = await FlywheelRuntime.create(settings,
+                        database=None if owns_database else database,
+                        model=None if owns_model else model, observability=observability_runtime,
+                        acceptance_call_cap=acceptance_call_cap)
+                app.state.flywheel_runtime = flywheel_runtime
+                resources.push_async_callback(flywheel_runtime.close)
+                flywheel_runtime.start()
             if owns_context:
                 from app.workflow.context_budget import fee_cap_diagnostic
                 startup_registry = app.state.chat_service.registry_factory(ToolContext('0', 0, '', None))

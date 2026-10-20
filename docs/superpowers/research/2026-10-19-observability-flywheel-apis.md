@@ -54,5 +54,12 @@
 - FastAPI请求体使用Pydantic模型，路径参数单独绑定；官方文档：https://fastapi.tiangolo.com/tutorial/body/ 。核对已安装`fastapi/routing.py`的JSON请求解析路径；反馈沿用本机同源JSON写边界，不直接信任浏览器证据。
 - Pydantic严格JSON模式允许已声明的datetime ISO字符串，而Python严格模式不自动从字符串转换；`model_validate_json`用于读取持久化JSON。核对安装`pydantic/main.py`与官方说明：https://docs.pydantic.dev/latest/concepts/json/ 。
 - 已安装`langgraph/checkpoint/sqlite/aio.py`的`alist`持有同一saver锁直到异步迭代器结束；反馈定位原根后先用`aclosing`关闭迭代器，不在持游标期间对同saver调用`aget_tuple`。原完成根直接使用原始checkpoint channel_values，排除pending写投影。
+
+## 后台worker租约与错误类型（2026-10-20）
+
+- 再次发现当前工具列表仍无Context7，继续按用户授权使用官方与锁定源码。MySQL8.4命名锁按连接拥有，提交/回滚不释放，连接结束才释放；锁名最长64字符，IS_USED_LOCK返回拥有连接ID：https://dev.mysql.com/doc/refman/8.4/en/locking-functions.html 。
+- JSON任务筛选使用JSON_EXTRACT/JSON_UNQUOTE，官方定义：https://dev.mysql.com/doc/refman/8.4/en/json-search-functions.html 。重试时间仍由严格UTC类型在Python核验，避免ISO字符串的字典序冒充时间比较。
+- 已安装SQLAlchemy2.0.54 AsyncSession构造接受AsyncConnection bind；begin/close负责短事务但不拥有外部连接。租约每次写入均在同一连接的Session内重核拥有者，模型等待时无事务；没有把锁仅当作不同池连接写入前的一次性检查。
+- 已安装OpenAI异常源码将结构化code放在APIStatusError.code；沿用项目1113判定，并按异常类型链识别本地AcceptanceLimitExceeded，SDK网络包装不应触发额外重试。未知异常只存固定安全说明，不把原始异常文本写入任务JSON。
 - 固定CallbackHandler的on_chain_start/on_chat_model_start/on_tool_start/on_retriever_start均接收keyword-only metadata；本项目薄封装在每次start读取当前execution的最新意图，仍由官方Handler实现记录及usage，不在节点反复注册。
 - SDK5.0.2的mask(data=...)处理SDK字段；mask_otel_spans(params=MaskOtelSpansParams)返回MaskOtelSpansResult，按OtelSpanIdentifier映射OtelSpanPatch，只修改导出属性、不原地改只读span。配置的SecretStr值及认证字段在两处遮盖，错误status_message也覆盖；固定源码为langfuse/types.py和_client/span_exporter.py。此处没有照搬旧SDK遮盖回调签名。
