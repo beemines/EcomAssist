@@ -98,6 +98,7 @@ def create_app(
     flywheel_runtime: Any | None = None,
     confidence_rule: Any | None = None,
     eval_pipeline_manager: Any | None = None,
+    context_recover_backlog: bool = True,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
     if acceptance_call_cap is not None and settings.eval_schedule_enabled:
@@ -349,7 +350,10 @@ def create_app(
                     'fee_cap': fee_cap_diagnostic(settings, startup_budget, startup_registry),
                     'config': {key: getattr(settings, key) for key in ('model_context_window',
                         'max_user_input_tokens', 'max_agent_steps', 'tool_result_max_tokens', 'rerank_top_k', 'context_target_rounds')}})
-                await manager.startup()
+                if context_recover_backlog:
+                    await manager.startup()
+                else:
+                    await manager.startup(recover_existing=False)
             yield
 
     app = FastAPI(lifespan=lifespan)
@@ -388,6 +392,10 @@ def create_app(
     @app.get("/", response_class=FileResponse, include_in_schema=False)
     async def chat_page():
         return FileResponse(static_dir / "index.html", headers={"Cache-Control": "no-store"})
+
+    @app.get('/review-queue',response_class=FileResponse,include_in_schema=False)
+    async def review_page():
+        return FileResponse(static_dir/'review-queue.html',headers={'Cache-Control':'no-store'})
 
     # 将业务异常转换为统一的错误码、提示和 HTTP 状态。
     @app.exception_handler(ServiceError)

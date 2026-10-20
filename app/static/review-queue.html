@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MewHelp · 知识改进</title><link rel="stylesheet" href="/static/review-queue.css?v=20261020">
+<script src="/static/review-queue.js?v=20261020" defer></script></head><body>
+<header><a href="/">← 返回客服</a><strong>MewHelp / 知识改进</strong><a href="http://127.0.0.1:3000" target="_blank" rel="noopener">本地 Langfuse ↗</a></header>
+<main><p class="eyebrow">让每一个未解决的问题，都有后续</p><h1>审核、补全，再验证</h1>
+<p class="muted">先核对用户原话和召回证据，填写人工核准答案。审核通过后，等待索引就绪再回到聊天验证。</p>
+<nav aria-label="管理内容"><button data-tab="queue" aria-selected="true">待审队列</button><button data-tab="usage">意图 Token</button><button data-tab="eval">评估趋势</button></nav>
+<p id="notice" role="status" aria-live="polite"></p>
+<section id="queue"><div class="toolbar"><label>审核状态 <select id="review-status"><option>待审</option><option>通过</option><option>驳回</option></select></label><button id="refresh-queue">刷新</button><span id="queue-count"></span></div><div id="queue-list"></div><div class="toolbar"><button id="queue-prev">上一页</button><button id="queue-next">下一页</button></div></section>
+<section id="usage" hidden><div class="toolbar"><label>从 <input type="date" id="usage-from"></label><label>至 <input type="date" id="usage-to"></label><button id="refresh-usage">查询</button></div><p id="usage-state" class="muted"></p><div id="usage-chart"></div><div class="scroll"><table><thead><tr><th>用途 / 意图</th><th>请求 / 模型调用</th><th>实际 Token</th><th>估算 Token</th><th>缺 usage 调用</th><th>费用（USD）</th></tr></thead><tbody id="usage-rows"></tbody></table></div></section>
+<section id="eval" hidden><div class="toolbar"><label>范围 <select id="eval-scope"><option value="smoke_20">留出 20 题</option><option value="full_300">冻结 300 题</option></select></label><button id="refresh-eval">刷新</button><button id="run-eval">手动运行所选范围</button></div><p class="muted">手动运行会调用收费模型；定时默认关闭。不同模型、配置、语料及来源分别看趋势；N/A 表示无有效样本，不代表满分。</p><div id="eval-chart"></div><div id="eval-list"></div><div class="toolbar"><button id="eval-prev">上一页</button><button id="eval-next">下一页</button></div></section>
+</main>
+<dialog id="review-dialog"><div class="dialog-head"><h2>核对知识缺口</h2><button id="refresh-review">刷新状态</button><button id="close-review" aria-label="关闭">×</button></div><div id="review-meta"></div><h3>用户原话与当时证据</h3><div id="raw-list"></div><button id="raw-more" hidden>加载更多原话</button><h3>人工核准</h3><label>标准问题<input id="approved-question" maxlength="512"></label><label>核准答案<textarea id="approved-answer" rows="6" maxlength="16000" placeholder="请核实后填写；AI 示例不会自动作为核准答案"></textarea></label><div class="toolbar"><button id="approve">通过并入库</button><button id="retry-publication" hidden>重试入库</button></div><label>驳回原因<input id="reject-reason" maxlength="512" placeholder="例如：知识已存在，需要改进检索"></label><button id="reject" class="secondary">驳回</button><p id="detail-notice" role="status"></p></dialog>
+</body></html>
+

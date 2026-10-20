@@ -75,7 +75,9 @@ class SummaryManager:
         self._running[request.conversation_id] = asyncio.create_task(self._run(request),
             context=Context() if self.isolate_task_context else None)
 
-    async def startup(self) -> None:
+    async def startup(self, *, recover_existing: bool = True) -> None:
+        if not recover_existing:
+            return
         cursor = 0
         while not self._closed:
             page = await self.repository.list_downgraded(after_id=cursor, limit=100)
