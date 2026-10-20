@@ -18,7 +18,7 @@ async def test_publication_timeout_attempts_persist_and_never_ready(publication_
     repo, identifier, receipt = await approved(publication_db)
     class Jobs:
         calls = []
-        async def vectorize_ids(self, ids): self.calls.append(ids); raise TimeoutError()
+        async def vectorize_ids(self, ids, **options): self.calls.append(ids); raise TimeoutError()
     jobs, clock = Jobs(), Clock()
     for attempt, seconds in ((1, 5), (2, 30), (3, 0)):
         result = await PublicationWorker(repo, jobs, clock=clock).publish(identifier)
@@ -39,7 +39,7 @@ async def test_publication_cancel_restart_reuses_knowledge_and_repairs_running(p
     repo, identifier, receipt = await approved(publication_db)
     started = asyncio.Event()
     class BlockedJobs:
-        async def vectorize_ids(self, ids): started.set(); await asyncio.Event().wait()
+        async def vectorize_ids(self, ids, **options): started.set(); await asyncio.Event().wait()
     worker = PublicationWorker(repo, BlockedJobs())
     task = asyncio.create_task(worker.publish(identifier))
     await asyncio.wait_for(started.wait(), 2)
@@ -85,7 +85,7 @@ async def test_publication_http_auth_quota_pause_but_temporary_errors_retry(publ
     repo, identifier, receipt = await approved(publication_db)
     response = httpx.Response(status, request=httpx.Request('POST', 'https://api.siliconflow.cn/v1/embeddings'))
     class Jobs:
-        async def vectorize_ids(self, ids):
+        async def vectorize_ids(self, ids, **options):
             response.raise_for_status()
     worker = PublicationWorker(repo, Jobs(), clock=Clock())
     if expected:
@@ -101,7 +101,7 @@ async def test_explicit_manual_retry_keeps_id_and_monotonic_total_after_auto_cei
     from app.flywheel.publication import ReviewService, PublicationWorker
     repo, identifier, receipt = await approved(publication_db)
     class Jobs:
-        async def vectorize_ids(self, ids): raise ValueError('ACK mismatch')
+        async def vectorize_ids(self, ids, **options): raise ValueError('ACK mismatch')
     for attempt in range(1, 4):
         result = await PublicationWorker(repo, Jobs(), clock=Clock()).publish(identifier)
         assert result.status == 'failed' and result.knowledge_chunk_id == receipt.knowledge_chunk_id
@@ -126,7 +126,7 @@ async def test_publication_holds_the_original_knowledge_job_lock(publication_db)
     repo, identifier, receipt = await approved(publication_db)
     class Jobs:
         calls = 0
-        async def vectorize_ids(self, ids): self.calls += 1
+        async def vectorize_ids(self, ids, **options): self.calls += 1
     jobs = Jobs()
     async with job_lock(publication_db):
         result = await PublicationWorker(repo, jobs).publish(identifier)
@@ -138,7 +138,7 @@ async def test_lost_publication_lease_cannot_mark_ready(publication_db):
     from app.flywheel.leases import LeaseLost
     repo, identifier, receipt = await approved(publication_db)
     class Jobs:
-        async def vectorize_ids(self, ids):
+        async def vectorize_ids(self, ids, **options):
             import hashlib
             name = 'ch03:' + hashlib.sha256(publication_db.engine.url.database.encode()).hexdigest()[:48]
             async with publication_db.engine.connect() as connection:
@@ -152,7 +152,7 @@ async def test_publication_cannot_be_ready_while_knowledge_is_still_pending(publ
     from app.flywheel.publication import PublicationWorker
     repo, identifier, _ = await approved(publication_db)
     class IncompleteJobs:
-        async def vectorize_ids(self, ids): return 0
+        async def vectorize_ids(self, ids, **options): return 0
     result = await PublicationWorker(repo, IncompleteJobs()).publish(identifier)
     assert result.status == 'failed'
     assert (await repo.get_review(identifier))['publication']['published_at'] is None

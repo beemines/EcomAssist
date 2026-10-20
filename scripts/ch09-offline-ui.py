@@ -47,13 +47,16 @@ class ScriptedPrompts:
 
 class ScriptedIndexJobs:
     def __init__(self,database): self.database=database;self.failed=set()
-    async def vectorize_ids(self,ids):
+    async def vectorize_ids(self,ids,*,lease=None):
         from app.repositories.knowledge import KnowledgeRepository
         async with self.database.session() as session:
             q=await session.scalar(text('SELECT questions FROM knowledge_chunks WHERE id=:id'),{'id':ids[0]})
         if '失败' in q and ids[0] not in self.failed:
             self.failed.add(ids[0]);raise ValueError('Scripted publication failure')
-        await KnowledgeRepository(self.database).mark_done(ids)
+        if lease is None:await KnowledgeRepository(self.database).mark_done(ids)
+        else:
+            async with lease.transaction() as session:
+                await KnowledgeRepository(self.database).mark_done_in_session(session,ids)
 
 
 async def run():

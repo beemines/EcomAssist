@@ -12,6 +12,7 @@ from app.flywheel.worker import FlywheelWorker
 class FlywheelRuntime:
     def __init__(self, database, model, settings, *, observability=None, publication_jobs=None):
         self.database, self.model, self._resources = database, model, None
+        self.acceptance_call_cap=None
         self.repository = FlywheelRepository(database)
         handler = getattr(observability, 'handler', None)
         prompt_model = model_with_output_budget(model, settings, min(settings.max_output_tokens, 2000))
@@ -65,6 +66,7 @@ class FlywheelRuntime:
                 publication_jobs = HybridKnowledgeJobs(KnowledgeRepository(database), embedder, index)
             runtime = cls(database, model, settings, observability=observability, publication_jobs=publication_jobs)
             runtime._resources = resources
+            runtime.acceptance_call_cap=acceptance_call_cap
             return runtime
         except BaseException:
             await resources.aclose()
@@ -74,6 +76,18 @@ class FlywheelRuntime:
         self.worker.start()
         if self.publication_worker is not None:
             self.publication_worker.start()
+
+    async def resume_worker(self,kind):
+        from app.core.errors import ServiceError
+        if kind not in ('processing','publication'):raise ValueError('Unknown worker')
+        provider='glm' if kind=='processing' else 'embedding'
+        if self.acceptance_call_cap is not None:
+            status=self.acceptance_call_cap.status()
+            if status['counts'][provider]>=status['limits'][provider]:
+                raise ServiceError('acceptance_budget','验收物理调用额度已用尽，重试不会重置额度。',409)
+        worker=self.worker if kind=='processing' else self.publication_worker
+        if worker is None:raise ServiceError('service_unavailable','后台消费者不可用。',503)
+        await worker.resume()
 
     async def close(self):
         workers = [self.worker, *([self.publication_worker] if self.publication_worker else [])]

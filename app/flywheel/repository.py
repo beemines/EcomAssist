@@ -302,6 +302,8 @@ class FlywheelRepository:
         _page(offset, limit)
         async with self.database.session() as session:
             review = await self._review(session, review_id)
+            review['knowledge_category']=(await session.scalar(text('SELECT category FROM knowledge_chunks WHERE id=:id'),
+                {'id':review['knowledge_chunk_id']})) if review.get('knowledge_chunk_id') is not None else None
             args = {'id': int(database_id(review_id)), 'limit': limit, 'offset': offset}
             count = await session.scalar(text('SELECT COUNT(*) FROM low_confidence_questions '
                                                'WHERE matched_review_id=:id'), args)
@@ -309,7 +311,7 @@ class FlywheelRepository:
                 'WHERE matched_review_id=:id ORDER BY id ASC LIMIT :limit OFFSET :offset'), args)).mappings()
             return {'review': review, 'raw_questions': [row_dict(row) for row in rows], 'total': int(count)}
 
-    async def approve_review(self, review_id, *, approved_answer, normalized_question=None):
+    async def approve_review(self, review_id, *, approved_answer, normalized_question=None,category='人工审核'):
         from app.core.errors import ServiceError
         from app.flywheel.publication import publication_receipt
         from app.flywheel.types import PublicationState
@@ -319,11 +321,13 @@ class FlywheelRepository:
             row = await self._review(session, review_id, lock=True)
             question = normalized_question if normalized_question is not None else row['normalized_question']
             if row['review_status'] == '通过' and row['publication'] is not None:
-                if row['approved_answer'] == approved_answer and row['normalized_question'] == question:
+                previous_category=await session.scalar(text('SELECT category FROM knowledge_chunks WHERE id=:id'),
+                    {'id':row['knowledge_chunk_id']})
+                if row['approved_answer'] == approved_answer and row['normalized_question'] == question and previous_category==category:
                     return publication_receipt(row)
             elif row['review_status'] == '待审':
                 ids = await KnowledgeRepository(self.database).add_chunks_in_session(session, [
-                    ChunkDraft('人工审核', question, approved_answer,
+                    ChunkDraft(category, question, approved_answer,
                         section_path='飞轮审核/' + review_id, content_type='faq')])
                 state = PublicationState()
                 await session.execute(text("UPDATE review_queue SET review_status='通过',"

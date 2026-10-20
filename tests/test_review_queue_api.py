@@ -20,6 +20,7 @@ def review_app():
 
 
 @pytest.mark.parametrize('body', [{}, {'approved_answer': ''}, {'approved_answer': ' '},
+    {'approved_answer':'缺少人工选择的分类'},
     {'approved_answer': '人工答案', 'knowledge_chunk_id': '1'},
     {'approved_answer': '人工答案', 'publication': {'status': 'ready'}}])
 async def test_review_requires_human_answer_and_forbids_server_owned_fields(body):
@@ -30,9 +31,9 @@ async def test_review_requires_human_answer_and_forbids_server_owned_fields(body
 
 async def test_review_confirmation_is_same_origin_and_preserves_bigint():
     async with httpx.AsyncClient(transport=httpx.ASGITransport(review_app()), base_url='http://127.0.0.1:8006') as client:
-        bad = await client.post('/api/review-queue/1/approve', json={'approved_answer': '核准答案'},
+        bad = await client.post('/api/review-queue/1/approve', json={'approved_answer': '核准答案', 'category':'耳机'},
             headers={'origin': 'https://untrusted.invalid'})
-        good = await client.post('/api/review-queue/1/approve', json={'approved_answer': '核准答案'})
+        good = await client.post('/api/review-queue/1/approve', json={'approved_answer': '核准答案', 'category':'耳机'})
     assert bad.status_code == 403 and good.status_code == 200
     assert good.json()['knowledge_chunk_id'] == '9007199254740993'
 
@@ -40,7 +41,7 @@ async def test_review_confirmation_is_same_origin_and_preserves_bigint():
 async def test_disabled_review_does_not_pretend_to_publish():
     app = review_app(); app.state.review_service = None
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://127.0.0.1:8006') as client:
-        response = await client.post('/api/review-queue/1/approve', json={'approved_answer': '核准答案'})
+        response = await client.post('/api/review-queue/1/approve', json={'approved_answer': '核准答案', 'category':'耳机'})
     assert response.status_code == 503
 
 
@@ -50,8 +51,8 @@ async def test_server_metadata_contract_failure_is_not_blame_on_user_input():
         async def approve(self, *args, **kwargs): raise ValueError('unknown server state version; secret-sentinel')
     app.state.review_service = Broken()
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://127.0.0.1:8006') as client:
-        damaged = await client.post('/api/review-queue/1/approve', json={'approved_answer': '核准答案'})
-        invalid_id = await client.post('/api/review-queue/01/approve', json={'approved_answer': '核准答案'})
+        damaged = await client.post('/api/review-queue/1/approve', json={'approved_answer': '核准答案', 'category':'耳机'})
+        invalid_id = await client.post('/api/review-queue/01/approve', json={'approved_answer': '核准答案', 'category':'耳机'})
     assert damaged.status_code == 503 and 'secret-sentinel' not in damaged.text
     assert invalid_id.status_code == 422
 

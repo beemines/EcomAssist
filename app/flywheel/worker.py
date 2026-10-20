@@ -20,6 +20,16 @@ class FlywheelWorker:
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
 
+    async def resume(self):
+        """Only an explicit human retry may clear a stopped consumer's pause."""
+        if self._stop.is_set():
+            raise RuntimeError('Background worker is closing')
+        if self.paused_reason is not None and self.tasks:
+            await asyncio.gather(*tuple(self.tasks),return_exceptions=True)
+        self.tasks.difference_update(task for task in tuple(self.tasks) if task.done())
+        self.paused_reason=None
+        self.start()
+
     async def _wait(self):
         try:
             await asyncio.wait_for(self._stop.wait(), self.poll_seconds)
