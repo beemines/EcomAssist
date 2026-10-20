@@ -70,6 +70,23 @@ def recompute_reference_report(root):
     return report
 
 
+def read_confidence_report(root,active_rule=None):
+    import json
+    from pathlib import Path
+    from app.quality.evidence_confidence import parse_rule,verify_rule
+    def summary(rule):
+        return {key:getattr(rule,key) for key in ('algorithm','threshold','weights','score_floor','rule_version')}
+    active=summary(active_rule) if active_rule is not None else None
+    path=Path(root)/'runtime/ch09-evidence/reference-calibration/report.json'
+    if not path.exists(): return {'available':False,'reason':'no_calibration_report','active':active}
+    if path.stat().st_size>3*1024*1024: raise ValueError('Calibration report exceeds limit')
+    report=json.loads(path.read_text(encoding='utf-8'))
+    rule=parse_rule(report['rule'])
+    verify_rule(rule,top_k=rule.source.top_k,budget_fingerprint=rule.source.budget_fingerprint)
+    return {**report,'available':True,'active':active,'recommended':summary(rule),
+        'recommendation_active':active is not None and active['rule_version']==rule.rule_version}
+
+
 if __name__=='__main__':
     import json
     from pathlib import Path
