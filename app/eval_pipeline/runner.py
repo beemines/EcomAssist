@@ -145,6 +145,7 @@ class PipelineRunner:
                         prompt_citations=[asdict(citation) for citation in packet.citations],stage='self_check')
                     await checkpoint()
                     decision=evaluate_evidence(packet.payload,rule,top_k=settings.rerank_top_k,
+                        question=case.query,
                         budget_fingerprint=evidence_budget_fingerprint(top_k=settings.rerank_top_k,
                             token_budget=resources.report.config['evidence_token_budget']))
                     gate=decision.model_dump(mode='json')

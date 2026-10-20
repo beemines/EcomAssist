@@ -379,6 +379,7 @@ async def check_knowledge_evidence(state, runtime, packet):
         from app.quality.evidence_confidence import evaluate_evidence, evidence_budget_fingerprint
         top_k = runtime_settings(context.settings).rerank_top_k
         decision = evaluate_evidence(packet.payload, context.confidence_rule, top_k=top_k,
+            question=state['resolved_question'],
             budget_fingerprint=evidence_budget_fingerprint(top_k=top_k,
                 token_budget=runtime_snapshot(state, context).budget.evidence))
         audit['evidence_confidence'] = decision.model_dump(mode='json')
