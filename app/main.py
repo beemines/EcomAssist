@@ -223,6 +223,7 @@ def create_app(
                     top_k=settings.rerank_top_k, rerank_model=settings.rerank_model,
                     budget_fingerprint=evidence_budget_fingerprint(top_k=settings.rerank_top_k,
                         token_budget=min(6000, (settings.model_context_window + 7)//8)))
+            app.state.confidence_rule=confidence_rule
             if confidence_rule is None and (settings.rerank_min_score is None or not math.isfinite(settings.rerank_min_score)):
                 raise ValueError('online hybrid retrieval requires a calibrated finite threshold')
             if owns_database:
@@ -397,6 +398,8 @@ def create_app(
     async def chat_page():
         return FileResponse(static_dir / "index.html", headers={"Cache-Control": "no-store"})
 
+    @app.get('/review',response_class=FileResponse,include_in_schema=False)
+    @app.get('/observability',response_class=FileResponse,include_in_schema=False)
     @app.get('/review-queue',response_class=FileResponse,include_in_schema=False)
     async def review_page():
         return FileResponse(static_dir/'review-queue.html',headers={'Cache-Control':'no-store'})

@@ -149,7 +149,16 @@ class EvalPipelineManager:
             except Exception as exc: logger.warning('eval_pipeline read_repair=pending type=%s',type(exc).__name__)
         return report_view(report)
 
-    async def list_runs(self,**kwargs): return await self.repository.list(**kwargs)
+    async def list_runs(self,**kwargs):
+        from app.eval_pipeline.trends import compare_runs
+        result=await self.repository.list(**kwargs)
+        for row in result['items']:
+            metadata=row['metrics']
+            if metadata.get('status') not in TERMINAL:
+                local=await self.store.get(metadata['run_key'])
+                if local is not None: row['metrics']=local.metric_payload()
+        result['comparison']=compare_runs(result['items'])
+        return result
 
     async def get_report(self,key):
         import copy
