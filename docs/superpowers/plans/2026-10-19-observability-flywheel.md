@@ -173,11 +173,11 @@ def test_rejects_cloud_destination():
 - `build_calibration_split(dataset: FrozenDataset) -> CalibrationSplit`；`fit_confidence_rule(samples: Sequence[CalibrationSample], split: CalibrationSplit) -> CalibrationResult`只用calibration侧；`verify_rule`负责线上签名。
 - CLI `python -m app.flywheel.cli calibrate --database test --output runtime/ch09-evidence/calibration --acceptance-run ch09-local-20261019`运行真实检索但不调答案模型；默认dry-run只列范围，不连接上游，实际执行需要显式`--execute`。
 
-- [ ] **1. 编写失败测试。** `test_single_evidence_has_no_infinite_gap`断言`decision.features['gap'] == 0`且confidence有限；`test_held_out_labels_do_not_change_fit`断言仅改变留出标签后`new_result.rule == original_result.rule`。另测display夹心顺序不得当作Top1/2、空集拒答/非有限值错误、重复chunk不加count、常量特征仍可复现且不虚报好分、手填0.25/0.5不能代替校准来源、hash分组/回归不跨集合、权重平局/0权重、签名不符、内容自评不叠旧门槛及工具异常不入池。
-- [ ] **2. 运行RED。** `.venv/Scripts/python.exe -m pytest tests/test_evidence_confidence.py tests/test_evidence_calibration.py tests/test_confidence_gate_integration.py -q`。
-- [ ] **3. 实现规则与校准。** 按已批准spec精确执行分层split、百分位候选、经验分布、0～3非负权重与观察阈值搜索及平局决策。在线、校准和新评估共用prepare_workflow_evidence及同一实际evidence_token_budget / Top-K，不能各自截不同证据再算分。缺正/负标签或非法样本预检失败；保存calibration与held-out的原始特征/混淆矩阵/版本，不反向调留出。
-- [ ] **4. 接入闸门。** 统一Workflow与Agent知识证据检查器；保持订单/政策顺序和业务数据路由。充分性服务在本章模式只做内容自评；旧calibrated_score和旧工作台行为保持。未产生真实校准前只用测试注入rule，不声称线上已校准。
-- [ ] **5. 验证并提交。** 重跑TDD及现有sufficiency、after_sales、context预算用例，CPU样例确认可复现；真实300题检索和规则产出留任务10有计数执行。更新记录，提交`feat(ch09): calibrate and enforce evidence confidence`。
+- [x] **1. 编写失败测试。** `test_single_evidence_has_no_infinite_gap`断言`decision.features['gap'] == 0`且confidence有限；`test_held_out_labels_do_not_change_fit`断言仅改变留出标签后`new_result.rule == original_result.rule`。另测display夹心顺序不得当作Top1/2、空集拒答/非有限值错误、重复chunk不加count、常量特征仍可复现且不虚报好分、手填0.25/0.5不能代替校准来源、hash分组/回归不跨集合、权重平局/0权重、签名不符、内容自评不叠旧门槛及工具异常不入池。
+- [x] **2. 运行RED。** `.venv/Scripts/python.exe -m pytest tests/test_evidence_confidence.py tests/test_evidence_calibration.py tests/test_confidence_gate_integration.py -q`。
+- [x] **3. 实现规则与校准。** 按已批准spec精确执行分层split、百分位候选、经验分布、0～3非负权重与观察阈值搜索及平局决策。在线、校准和新评估共用prepare_workflow_evidence及同一实际evidence_token_budget / Top-K，不能各自截不同证据再算分。缺正/负标签或非法样本预检失败；保存calibration与held-out的原始特征/混淆矩阵/版本，不反向调留出。
+- [x] **4. 接入闸门。** 统一Workflow与Agent知识证据检查器；保持订单/政策顺序和业务数据路由。充分性服务在本章模式只做内容自评；旧calibrated_score和旧工作台行为保持。未产生真实校准前只用测试注入rule，不声称线上已校准。
+- [x] **5. 验证并提交。** 重跑TDD及现有sufficiency、after_sales、context预算用例，CPU样例确认可复现；真实300题检索和规则产出留任务10有计数执行。更新记录，提交`feat(ch09): calibrate and enforce evidence confidence`。
 
 ## Task 7：人工审核、按ID发布和失败恢复
 
@@ -189,11 +189,11 @@ def test_rejects_cloud_destination():
 - `PublicationReceipt(review_id: str, knowledge_chunk_id: str|None, status: str)`在flywheel/types.py补充定义，status只允许pending / running / ready / failed。
 - `ReviewService.approve(review_id: str, *, approved_answer: str, normalized_question: str|None=None) -> PublicationReceipt`；`reject(review_id: str, *, reason: str) -> None`；`PublicationWorker.publish(review_id: str) -> PublicationReceipt`；`retry_publication`恢复原ID。
 
-- [ ] **1. 编写并运行RED。** `test_duplicate_approval_keeps_one_knowledge_id`断言`first.knowledge_chunk_id == second.knowledge_chunk_id`且仅一条知识；`test_publication_does_not_consume_unrelated_pending`断言无关ID不在嵌入/向量写入集合。另测空核准答案422、相同内容重放/不同内容409、事务回滚无孤立知识、嵌入超时或Milvus ACK/readback失败保持pending/failed、响应丢失不重复。运行`.venv/Scripts/python.exe -m pytest tests/test_review_queue_api.py tests/test_flywheel_publication.py tests/integration/test_review_queue_storage.py tests/integration/test_flywheel_publication_storage.py --run-mysql -q`。
-- [ ] **2. 实现审核事务。** 锁待审行，同一MySQL事务保存核准答案、pending知识、唯一knowledge_chunk_id和publication。驳回保留原话/片段。读接口分页，BIGINT字符串。管理写接口沿用显式本机Host/Origin、JSON与开关，不能仅靠按钮禁用防重复。
-- [ ] **3. 实现受限发布。** 新公开按ID入口复用现有流程并持同一knowledge命名锁；只在done及索引读回完成后ready。临时错误最多3次、5/30秒退避；余额和鉴权停止，显式重试保留原知识ID。任务取消/重启不谎称就绪。
-- [ ] **4. 验证GREEN及真实本地向量适配。** 重跑上述集合，再`.venv/Scripts/python.exe -m pytest tests/integration/test_flywheel_publication_storage.py --run-mysql --run-milvus -q`，使用注入确定性嵌入向量测试真实Milvus，不调付费嵌入。旧knowledge任务、撤权工单和退款流仍通过。
-- [ ] **5. 即时记录并提交。** 提交`feat(ch09): review and publish approved knowledge idempotently`。
+- [x] **1. 编写并运行RED。** `test_duplicate_approval_keeps_one_knowledge_id`断言`first.knowledge_chunk_id == second.knowledge_chunk_id`且仅一条知识；`test_publication_does_not_consume_unrelated_pending`断言无关ID不在嵌入/向量写入集合。另测空核准答案422、相同内容重放/不同内容409、事务回滚无孤立知识、嵌入超时或Milvus ACK/readback失败保持pending/failed、响应丢失不重复。运行`.venv/Scripts/python.exe -m pytest tests/test_review_queue_api.py tests/test_flywheel_publication.py tests/integration/test_review_queue_storage.py tests/integration/test_flywheel_publication_storage.py --run-mysql -q`。
+- [x] **2. 实现审核事务。** 锁待审行，同一MySQL事务保存核准答案、pending知识、唯一knowledge_chunk_id和publication。驳回保留原话/片段。读接口分页，BIGINT字符串。管理写接口沿用显式本机Host/Origin、JSON与开关，不能仅靠按钮禁用防重复。
+- [x] **3. 实现受限发布。** 新公开按ID入口复用现有流程并持同一knowledge命名锁；只在done及索引读回完成后ready。临时错误最多3次、5/30秒退避；余额和鉴权停止，显式重试保留原知识ID。任务取消/重启不谎称就绪。
+- [x] **4. 验证GREEN及真实本地向量适配。** 重跑上述集合，再`.venv/Scripts/python.exe -m pytest tests/integration/test_flywheel_publication_storage.py --run-mysql --run-milvus -q`，使用注入确定性嵌入向量测试真实Milvus，不调付费嵌入。旧knowledge任务、撤权工单和退款流仍通过。
+- [x] **5. 即时记录并提交。** 提交`feat(ch09): review and publish approved knowledge idempotently`。
 
 ## Task 8：单策略评估、落表和受控定时
 
@@ -207,11 +207,11 @@ def test_rejects_cloud_destination():
 - `EvaluationSchedule.next_due(now: datetime) -> datetime`按Asia/Shanghai每天03:00；`tick(now) -> str|None`注入时钟，开关默认关闭。
 - CLI `python -m app.eval_pipeline.cli run --scope smoke_20 --run-key <UUID> --acceptance-run ch09-local-20261019 --execute`；缺execute只显示预检。full_300命令同接口，不属于本次真实运行额度。
 
-- [ ] **1. 编写并运行RED。** `test_no_claims_is_not_perfect_faithfulness`断言`metrics['faithfulness']['value'] is None`且valid_n==0；`test_replaying_run_key_does_not_dispatch`断言第二次start后请求计数不变；`test_schedule_is_disabled_by_default`断言tick返回None。另测固定样例Recall/MRR等于ch04公共指标、错误/未执行分母、发布补存、重启不重放、03:00边界、手动/定时互斥、配置标记与scope分组。运行`.venv/Scripts/python.exe -m pytest tests/test_eval_pipeline_metrics.py tests/test_eval_pipeline_manager.py tests/test_eval_pipeline_schedule.py tests/integration/test_eval_runs_storage.py --run-mysql -q`。
-- [ ] **2. 实现冻结范围及运行器。** 从留出侧每桶hash前4题组成smoke_20，full_300保留300题；冻结清单在收费前校验。最多2题并发，每题最多4次GLM（改写/自评/生成/裁判），规则拒答可少于4次，模型SDK零重试；同源共享全局call cap。评估用3308自有行和临时集合，结果写当前业务eval_runs；评估拒答只进入独立评估产物/测试库，不自动制造生产待审任务，不触碰生产知识正文或原四策略报告。
-- [ ] **3. 实现持久化管理及调度。** runtime manifest先记录run_key/归属/配置，再异步执行，终态幂等落eval_runs；数据库级互斥，关闭收回、重启修复中断。定时开关默认关闭，每轮也有本地上限，API不允许任意文件路径/模型/预算覆盖。
-- [ ] **4. 验证GREEN与旧工作台兼容。** 重跑集合，以及现有rag_evaluation数据装载/指标/报告/manager/API测试；以注入模型跑两个完整smoke_20流程核对落表与清理，不将其称为真模型结果。
-- [ ] **5. 即时记录并提交。** 提交`feat(ch09): persist evaluation runs and schedule bounded regressions`。
+- [x] **1. 编写并运行RED。** `test_no_claims_is_not_perfect_faithfulness`断言`metrics['faithfulness']['value'] is None`且valid_n==0；`test_replaying_run_key_does_not_dispatch`断言第二次start后请求计数不变；`test_schedule_is_disabled_by_default`断言tick返回None。另测固定样例Recall/MRR等于ch04公共指标、错误/未执行分母、发布补存、重启不重放、03:00边界、手动/定时互斥、配置标记与scope分组。运行`.venv/Scripts/python.exe -m pytest tests/test_eval_pipeline_metrics.py tests/test_eval_pipeline_manager.py tests/test_eval_pipeline_schedule.py tests/integration/test_eval_runs_storage.py --run-mysql -q`。
+- [x] **2. 实现冻结范围及运行器。** 从留出侧每桶hash前4题组成smoke_20，full_300保留300题；冻结清单在收费前校验。最多2题并发，每题最多4次GLM（改写/自评/生成/裁判），规则拒答可少于4次，模型SDK零重试；同源共享全局call cap。评估用3308自有行和临时集合，结果写当前业务eval_runs；评估拒答只进入独立评估产物/测试库，不自动制造生产待审任务，不触碰生产知识正文或原四策略报告。
+- [x] **3. 实现持久化管理及调度。** runtime manifest先记录run_key/归属/配置，再异步执行，终态幂等落eval_runs；数据库级互斥，关闭收回、重启修复中断。定时开关默认关闭，每轮也有本地上限，API不允许任意文件路径/模型/预算覆盖。
+- [x] **4. 验证GREEN与旧工作台兼容。** 重跑集合，以及现有rag_evaluation数据装载/指标/报告/manager/API测试；以注入模型跑两个完整smoke_20流程核对落表与清理，不将其称为真模型结果。
+- [x] **5. 即时记录并提交。** 提交`feat(ch09): persist evaluation runs and schedule bounded regressions`。
 
 ## Task 9：前端Vibe Coding与可操作的演示入口
 
@@ -222,11 +222,11 @@ def test_rejects_cloud_destination():
 - `start-observability-demo.ps1 -Acceptance`启动8006且默认不启动真实定时；没有-Acceptance时不得带着耗尽账本作为普通服务。若已有8101/8102则只核对，不接管不明PID。
 - `ch09-storage-evidence.py --conversation-id <id> --review-id <id> --run-key <UUID>`只读输出白名单事实，不输出Key或全库历史。
 
-- [ ] **1. 直接实现页面。** 沿用现有视觉样式；聊天👎提交assistant_message_id，成功才锁定“已反馈”，失败可重试；历史回答使用原消息ID。后台列表、原话/证据详情、人工答案编辑、通过/驳回、发布状态与重试、意图Token表/图及评估趋势可操作。全部外来文本按textContent渲染。无前端brainstorm/TDD/code review。
-- [ ] **2. 编写并跑后端守卫RED。** `test_restart_keeps_used_allowance`断言重新构造同run cap后counts不变；`test_ordinary_mode_has_no_acceptance_cap`断言普通模式health响应JSON不含验收run。另测cap覆盖后台/评估、PID复用和命令/路径不符拒绝终止，不结束真实不明进程。`.venv/Scripts/python.exe -m pytest tests/test_observability_startup_guards.py tests/test_ch09_acceptance_cap.py -q`。
-- [ ] **3. 实现演示脚本及配置。** PyCharm本地栈配置使用Python模块app.observability.local_stack参数up，不依赖额外Shell插件；8006使用uvicorn factory，离线检查用pytest模块。运行配置只存设置文件路径，不存密钥。后台Start-Process使用Hidden，持久化真实进程身份。普通、验收配置分明；模型请求hook覆盖GLM、嵌入、重排的每个实际HTTP客户端。
-- [ ] **4. 浏览器离线效果核验。** ch09-offline-ui.py在3308受控行上注入模型/规则/固定数据并标明离线预览，禁止真实上游dispatch；走反馈成功/失败、空队列、片段详情、审批验证、发布失败/ready和两轮图表，修正显示及交互。后端守卫重跑GREEN；该预览不作为最终普通服务。
-- [ ] **5. 即时记录并提交。** 提交`feat(ch09): add flywheel admin and local acceptance entrypoints`。
+- [x] **1. 直接实现页面。** 沿用现有视觉样式；聊天👎提交assistant_message_id，成功才锁定“已反馈”，失败可重试；历史回答使用原消息ID。后台列表、原话/证据详情、人工答案编辑、通过/驳回、发布状态与重试、意图Token表/图及评估趋势可操作。全部外来文本按textContent渲染。无前端brainstorm/TDD/code review。
+- [x] **2. 编写并跑后端守卫RED。** `test_restart_keeps_used_allowance`断言重新构造同run cap后counts不变；`test_ordinary_mode_has_no_acceptance_cap`断言普通模式health响应JSON不含验收run。另测cap覆盖后台/评估、PID复用和命令/路径不符拒绝终止，不结束真实不明进程。`.venv/Scripts/python.exe -m pytest tests/test_observability_startup_guards.py tests/test_ch09_acceptance_cap.py -q`。
+- [x] **3. 实现演示脚本及配置。** PyCharm本地栈配置使用Python模块app.observability.local_stack参数up，不依赖额外Shell插件；8006使用uvicorn factory，离线检查用pytest模块。运行配置只存设置文件路径，不存密钥。后台Start-Process使用Hidden，持久化真实进程身份。普通、验收配置分明；模型请求hook覆盖GLM、嵌入、重排的每个实际HTTP客户端。
+- [x] **4. 浏览器离线效果核验。** ch09-offline-ui.py在3308受控行上注入模型/规则/固定数据并标明离线预览，禁止真实上游dispatch；走反馈成功/失败、空队列、片段详情、审批验证、发布失败/ready和两轮图表，修正显示及交互。后端守卫重跑GREEN；该预览不作为最终普通服务。
+- [x] **5. 即时记录并提交。** 提交`feat(ch09): add flywheel admin and local acceptance entrypoints`。
 
 ## Task 10：整分支审查、真实闭环与交付
 
@@ -234,16 +234,16 @@ def test_rejects_cloud_destination():
 
 **Interfaces:** 沿用任务1～9全部公共入口，不在验收脚本另造绕过正式检查器、权限或仓储的实现。一次独立后端整分支审查，前端按用户例外排除。
 
-- [ ] **1. 提交前核对与一次独立审查。** 使用requesting-code-review，审查范围为后端/API/迁移/部署资源/计数/评估，检查五项Review Focus及spec覆盖；Native不做逐任务子代理。若有反馈，按receiving-code-review验证并补失败测试后修复，记录结论，不能仅根据代理口头结论宣称通过。
-- [ ] **2. 跑最新自动回归。** `.venv/Scripts/python.exe -m pytest -q`保存全量结果；再运行本章integration文件加`--run-mysql --run-milvus --run-langfuse`，以及现有quality / context / tool-audit / ticket-confirmation关键集成。测试临时资源只清理有本轮归属的行/集合；临时目录位于工作区runtime，沙箱不能读本地服务时只对明确检查提升。
-- [ ] **3. 应用业务增量迁移并准备计数。** 保存3307现状结构，运行`.venv/Scripts/python.exe -m app.flywheel.cli migrate --database configured`，再只读verify；不清表/重建。检查本轮账本初始状态、模型名称/端点和三个provider hooks，未覆盖不得发收费请求。
-- [ ] **4. 在同一计数账本执行真实校准。** 运行任务6的calibrate命令加`--execute`，冻结split与rule，输出新旧闸门留出结果；运行旧八题的有限回归或明确其离线范围。将真实rule配置给8006，不改模型/窗口/步数来掩盖问题；记录嵌入/重排实际用量。
-- [ ] **5. 执行有标注的Prompt评估。** `evals/evaluate_flywheel.py`以12组规范化/查重标注运行，最多24次GLM且零SDK重试；输出保留型号/否定/条件、查重命中/拒绝和草稿边界结果。仅改Prompt时按该集验证；若需额外请求从剩余额度记账，不自动扩容。
-- [ ] **6. 页面真实闭环。** `pwsh -NoProfile -File scripts/start-observability-demo.ps1 -Acceptance`，仅新会话：问验收专用缺失FAQ→兜底→后台出现原话及当时片段→人工填明确标记为模拟政策的核准答案并通过→等待ready→新会话再问，依据真实检索核准答案回答。另对一条回答点👎、重复点/刷新重试验证幂等；同义问合并，不同型号/否定不误合。保留每轮trace URL、原话/快照/队列/知识ID及截图。
-- [ ] **7. 核对多意图花销和旧章主链路。** 真实物流1001通过MCP、知识咨询、闲聊等新增问句产生完整trace；read-only统计与generation去重汇总对账，分类前消耗纳入最终意图，缺usage明确标记。工单确认/取消和退款的写入约束以自动回归证明，真实页面本轮不额外建工单/退款。页面及后台总计最多80次GLM，超限停止。
-- [ ] **8. 两轮真实评估。** 通过正式评估API/CLI，以两个不同UUID run_key连续运行同一smoke_20和rule，所有资源共用本轮cap；单轮最多80次GLM，两轮最多160。核对eval_runs恰有两行、各20题、真实逐题裁判及非零Faithfulness有效分母、趋势/分母/失败点。不得复用旧报告填第二轮，也不承诺第二轮分数必然上涨。失败先保留产物，不静默重跑整轮。
-- [ ] **9. 收尾与普通模式。** 只清理本轮受控临时评估资源，保留必要演示FAQ与trace及归属记录。记录Docker镜像/卷相对3.649/1.513GB的实际增量。把8006重启为普通模式，health确认无验收cap、定时收费仍关闭，本地Langfuse保留可查。用户手工重跑走明确命令，不再留“额度耗尽但服务就绪”的验收配置。
-- [ ] **10. 验证文档并提交交付。** 使用verification-before-completion，按真实证据分别标注自动/本地集成/Prompt/页面/两轮评估结论、实际请求数、已知失败和未执行的full_300。提供PowerShell及PyCharm逐步流程，中文HTTP输出兼容Windows PowerShell5.1，优先用storage-evidence脚本避免乱码。更新dev-notes四项与finish记录，提交`docs(ch09): deliver verified local observability and flywheel`。分支集成/推送由用户后续明确指示，不把文档或测试完成等同于功能已验收。
+- [x] **1. 提交前核对与一次独立审查。** 使用requesting-code-review，审查范围为后端/API/迁移/部署资源/计数/评估，检查五项Review Focus及spec覆盖；Native不做逐任务子代理。若有反馈，按receiving-code-review验证并补失败测试后修复，记录结论，不能仅根据代理口头结论宣称通过。
+- [x] **2. 跑最新自动回归。** `.venv/Scripts/python.exe -m pytest -q`保存全量结果；再运行本章integration文件加`--run-mysql --run-milvus --run-langfuse`，以及现有quality / context / tool-audit / ticket-confirmation关键集成。测试临时资源只清理有本轮归属的行/集合；临时目录位于工作区runtime，沙箱不能读本地服务时只对明确检查提升。
+- [x] **3. 应用业务增量迁移并准备计数。** 保存3307现状结构，运行`.venv/Scripts/python.exe -m app.flywheel.cli migrate --database configured`，再只读verify；不清表/重建。检查本轮账本初始状态、模型名称/端点和三个provider hooks，未覆盖不得发收费请求。
+- [x] **4. 在同一计数账本执行真实校准。** 运行任务6的calibrate命令加`--execute`，冻结split与rule，输出新旧闸门留出结果；运行旧八题的有限回归或明确其离线范围。将真实rule配置给8006，不改模型/窗口/步数来掩盖问题；记录嵌入/重排实际用量。
+- [x] **5. 执行有标注的Prompt评估。** `evals/evaluate_flywheel.py`以12组规范化/查重标注运行，最多24次GLM且零SDK重试；输出保留型号/否定/条件、查重命中/拒绝和草稿边界结果。仅改Prompt时按该集验证；若需额外请求从剩余额度记账，不自动扩容。
+- [x] **6. 页面真实闭环。** `pwsh -NoProfile -File scripts/start-observability-demo.ps1 -Acceptance`，仅新会话：问验收专用缺失FAQ→兜底→后台出现原话及当时片段→人工填明确标记为模拟政策的核准答案并通过→等待ready→新会话再问，依据真实检索核准答案回答。另对一条回答点👎、重复点/刷新重试验证幂等；同义问合并，不同型号/否定不误合。保留每轮trace URL、原话/快照/队列/知识ID及截图。
+- [x] **7. 核对多意图花销和旧章主链路。** 真实物流1001通过MCP、知识咨询、闲聊等新增问句产生完整trace；read-only统计与generation去重汇总对账，分类前消耗纳入最终意图，缺usage明确标记。工单确认/取消和退款的写入约束以自动回归证明，真实页面本轮不额外建工单/退款。页面及后台总计最多80次GLM，超限停止。
+- [x] **8. 两轮真实评估。** 通过正式评估API/CLI，以两个不同UUID run_key连续运行同一smoke_20和rule，所有资源共用本轮cap；单轮最多80次GLM，两轮最多160。核对eval_runs恰有两行、各20题、真实逐题裁判及非零Faithfulness有效分母、趋势/分母/失败点。不得复用旧报告填第二轮，也不承诺第二轮分数必然上涨。失败先保留产物，不静默重跑整轮。
+- [x] **9. 收尾与普通模式。** 只清理本轮受控临时评估资源，保留必要演示FAQ与trace及归属记录。记录Docker镜像/卷相对3.649/1.513GB的实际增量。把8006重启为普通模式，health确认无验收cap、定时收费仍关闭，本地Langfuse保留可查。用户手工重跑走明确命令，不再留“额度耗尽但服务就绪”的验收配置。
+- [x] **10. 验证文档并提交交付。** 使用verification-before-completion，按真实证据分别标注自动/本地集成/Prompt/页面/两轮评估结论、实际请求数、已知失败和未执行的full_300。提供PowerShell及PyCharm逐步流程，中文HTTP输出兼容Windows PowerShell5.1，优先用storage-evidence脚本避免乱码。更新dev-notes四项与finish记录，提交`docs(ch09): deliver verified local observability and flywheel`。分支集成/推送由用户后续明确指示，不把文档或测试完成等同于功能已验收。
 
 ## 内联计划自审与执行交接
 
