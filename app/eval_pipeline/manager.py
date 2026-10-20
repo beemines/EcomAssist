@@ -154,8 +154,8 @@ class EvalPipelineManager:
         result=await self.repository.list(**kwargs)
         for row in result['items']:
             metadata=row['metrics']
-            if metadata.get('status') not in TERMINAL:
-                local=await self.store.get(metadata['run_key'])
+            if metadata.get('status') in ('preparing','running') and metadata.get('run_key'):
+                local=await self.store.get(run_key(metadata['run_key']))
                 if local is not None: row['metrics']=local.metric_payload()
         result['comparison']=compare_runs(result['items'])
         return result

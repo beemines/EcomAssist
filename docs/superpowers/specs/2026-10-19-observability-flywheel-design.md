@@ -308,3 +308,7 @@ ALTER TABLE low_confidence_questions
   ADD KEY idx_matched_review_id (matched_review_id),
   ADD CONSTRAINT fk_lcq_review FOREIGN KEY (matched_review_id) REFERENCES review_queue (id) ON DELETE SET NULL;
 ```
+
+### 最终审查补充
+
+数值单位漏检修正使用新算法版本ch09-four-signal-zero-allow-v3；kg/公斤/千克、L/升、ml/毫升等别名作同单位精确归一，不推断证据未写明的范围，也不把不同单位自动换算成等价。超大数值按字符串规范化，避免舍入变成相等。v1/v2历史语义保留供旧报告复现；线上使用当前已核验派生v3。校准与留出边界在JSON反序列化时校验唯一/互斥/分组/hash，重算再绑定冻结数据集划分、原始规则及校准样本hash。新的实际20题发生在v2阶段；v3仅做同一批已存证据的离线锚点回放（20条决策相同），不记作第二轮付费评估。

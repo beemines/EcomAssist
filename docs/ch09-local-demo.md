@@ -86,3 +86,21 @@ Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8007/api/offline/stop' -Co
 ```
 
 `start-observability-demo.ps1 -Acceptance` 专供已批准的 `ch09-local-20261019` 验收批次，GLM280、嵌入450、重排450，失败也计数，所有入口共享持久账本，重启不清零。不要把该模式作为正常聊天服务。切回正常模式前须先结束/排除该批次自己的未完成任务，不能带着未完测试任务继续无上限外发。
+
+## 2026-10-20参考页补充
+
+待审入口现为 http://127.0.0.1:8006/review，观测入口为 http://127.0.0.1:8006/observability；旧review-queue兼容保留。完整逐页步骤见ch09-manual-acceptance.md。
+
+下面是无需收费调用的本地派生重算；保留原始采集，输出当前reference-calibration报告：
+
+```powershell
+.venv\Scripts\python.exe -m app.quality.confidence_report
+```
+
+历史问题批处理先只读预览（示例ID须换成明确授权范围）：
+
+```powershell
+.venv\Scripts\python.exe -m app.flywheel.cli batch --database test --from-id 1 --to-id 10 --limit 10 --preview
+```
+
+加--execute才会初始化并标准化指定范围；本次没有执行历史客户数据。当前实际累计278/280 GLM、383/450嵌入、367/450重排。旧两轮20题有错误，新20题完整；本轮停止付费，不切模式绕过额度补跑。

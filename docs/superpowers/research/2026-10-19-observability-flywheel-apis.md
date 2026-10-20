@@ -81,3 +81,5 @@
 - ECB公开汇率 https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml ：保留2026-10-19 EUR/USD1.1225及EUR/CNY7.4991原XML；CNY换USD按两者比例，不能直接把人民币写到Langfuse的USD字段。
 - https://langfuse.com/docs/observability/features/token-and-cost-tracking 以及Python v5锁定源码 CallbackHandler.on_llm_end：在run detach之前补generation cost_details，根span.update写原问题/最终答；实际SDK exporter测试确认USD及独立CNY metadata。v5 SDK无prompt/output自动根IO兜底。
 - https://docs.bigmodel.cn/cn/guide/start/migrate-to-glm-new ：low/high/max及默认max；评估继承线上low，输出预算不改。E46真实复验正常stop，不能外推所有样例都已修复。
+
+- 临时MCP测试端口核对：锁定Uvicorn0.54.0的.venv/Lib/site-packages/uvicorn/server.py第227–229行，port=0时用已绑定listener.getsockname()[1]输出实际端口；business_mcp CLI向FastMCP直接传入port。测试夹具以该已发布地址等待真实HTTP就绪，避免探测socket释放后的窗口；业务8101/8102配置不变。

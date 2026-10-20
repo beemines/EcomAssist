@@ -2,8 +2,10 @@
 import asyncio
 from contextlib import asynccontextmanager
 import socket
+import re
 import subprocess
 import sys
+from uuid import uuid4
 
 import httpx
 
@@ -16,19 +18,28 @@ def free_port():
 
 @asynccontextmanager
 async def server_process(module, tmp_path, *, plugin=None):
-    port = free_port()
-    command = [sys.executable, '-m', module, '--port', str(port)]
+    # Let the child bind port0 itself; closing a probe socket leaves a race and
+    # can hit transient Windows/Docker port reservations before uvicorn binds.
+    command = [sys.executable, '-m', module, '--port', '0']
     if plugin:
         command += ['--plugin-module', plugin]
-    with (tmp_path / f'{port}.log').open('w', encoding='utf-8') as log:
+    log_path=tmp_path/f'mcp-{uuid4().hex}.log'
+    with log_path.open('w', encoding='utf-8') as log:
         process = subprocess.Popen(command, stdout=log, stderr=log,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0)
-        url = f'http://127.0.0.1:{port}/mcp'
+        url=None
         try:
             async with httpx.AsyncClient(timeout=.5, trust_env=False) as client:
                 for _ in range(200):
                     if process.poll() is not None:
-                        raise RuntimeError(f'MCP child exited: {tmp_path / str(port)}')
+                        raise RuntimeError(f'MCP child exited ({process.returncode}): {log_path}')
+                    if url is None:
+                        bound=re.search(r'Uvicorn running on http://127\.0\.0\.1:(\d+)',
+                            log_path.read_text(encoding='utf-8',errors='replace'))
+                        if bound is None:
+                            await asyncio.sleep(.05)
+                            continue
+                        url=f'http://127.0.0.1:{int(bound.group(1))}/mcp'
                     try:
                         response = await client.get(url)
                         if response.status_code in (400, 405, 406):
