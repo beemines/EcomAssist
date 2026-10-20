@@ -17,7 +17,8 @@ def local_exporter():
     public_key = 'pk-test-' + uuid4().hex
     client = Langfuse(public_key=public_key, secret_key='unused',
         base_url='http://127.0.0.1:1', tracer_provider=TracerProvider(), span_exporter=exporter)
-    yield LangfuseRuntime(client=client, handler=create_callback_handler(public_key=public_key)), exporter
+    yield LangfuseRuntime(client=client, handler=create_callback_handler(public_key=public_key,
+        priced_model='glm-5.3-flash')), exporter
     client.shutdown()
 
 
@@ -90,6 +91,46 @@ def test_replay_does_not_create_new_observations(local_exporter):
             pass
     runtime.client.flush()
     assert exporter.get_finished_spans() == ()
+
+
+def test_root_preview_contains_question_answer_and_visible_intent_tag(local_exporter):
+    from app.observability.tracing import begin_execution
+    runtime,exporter=local_exporter
+    with begin_execution(runtime,identity(),input='猫窝可以机洗吗？') as trace:
+        trace.set_intent('商品咨询',.9,'knowledge')
+        trace.finish('success',output='请按洗涤标签确认。[1]')
+    runtime.client.flush()
+    [span]=[value for value in exporter.get_finished_spans() if value.name=='ch09.execution']
+    assert span.attributes['langfuse.observation.input']=='猫窝可以机洗吗？'
+    assert span.attributes['langfuse.observation.output']=='请按洗涤标签确认。[1]'
+    assert 'intent:商品咨询' in span.attributes['langfuse.trace.tags']
+
+
+async def test_actual_sdk_generation_exports_dollar_cost_and_cny_tariff_metadata(local_exporter):
+    import httpx
+    from app.core.llm import create_model
+    from app.observability.tracing import begin_execution
+    from tests.fakes import fake_settings
+    from langchain_core.messages import HumanMessage
+    runtime,exporter=local_exporter
+    def respond(request):
+        return httpx.Response(200,json={'id':'offline-price','object':'chat.completion','created':1,
+            'model':'glm-5.3-flash','choices':[{'index':0,'finish_reason':'stop',
+                'message':{'role':'assistant','content':'模拟答案'}}],
+            'usage':{'prompt_tokens':1000,'completion_tokens':200,'total_tokens':1200}})
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+        model=create_model(fake_settings().model_copy(update={'llm_model':'glm-5.3-flash'}),http_async_client=http)
+        try:
+            with begin_execution(runtime,identity(),input='模拟知识问句') as trace:
+                await model.ainvoke([HumanMessage('模拟知识问句')],config={'callbacks':[runtime.handler]})
+                trace.finish('success',output='模拟答案')
+        finally: model.root_client.close()
+    runtime.client.flush()
+    [generation]=[span for span in exporter.get_finished_spans()
+        if span.attributes.get('langfuse.observation.type')=='generation']
+    costs=json.loads(generation.attributes['langfuse.observation.cost_details'])
+    assert costs['total']==pytest.approx(.00136*.14968462882212532)
+    assert metadata(generation,'pricing')['cost_cny']==pytest.approx(.00136)
 
 
 async def test_cancellation_finishes_root_without_leaking_context(local_exporter):

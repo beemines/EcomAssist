@@ -114,7 +114,7 @@ class PipelineRunner:
             finally:
                 usage[stage]=collector.summary(estimated_input=estimated,output_tokens=output_tokens)
                 usage[stage]['termination']=collector.diagnostics()
-        with begin_execution(self.observability,identity) as trace:
+        with begin_execution(self.observability,identity,input=case.query) as trace:
             try:
                 async with asyncio.timeout(settings.chat_timeout_seconds):
                     await checkpoint()
@@ -185,7 +185,7 @@ class PipelineRunner:
                         claim_verdicts=[asdict(item) for item in judgment.claims],judge_snapshot={
                             'prompt_version':judgment.prompt_version,'finish_reason':judgment.finish_reason,
                             'raw_response':judgment.raw_response})
-                    trace.finish('success')
+                    trace.finish('success',output=answer)
             except asyncio.CancelledError:
                 row['status']='cancelled'; trace.finish('cancelled'); raise
             except Exception as exc:

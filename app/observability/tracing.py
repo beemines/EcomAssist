@@ -25,8 +25,9 @@ class ExecutionIdentity:
 
 
 class ExecutionTrace:
-    def __init__(self, runtime, identity):
+    def __init__(self, runtime, identity, *, input=None):
         self.identity = identity
+        self.input=input
         self.client = getattr(runtime, 'client', None)
         self._stack, self._span, self._token = ExitStack(), None, None
         self._finished = False
@@ -50,7 +51,7 @@ class ExecutionTrace:
                 metadata={'purpose': self.identity.purpose,
                           'execution_id': self.identity.execution_id}))
             self._span = self._stack.enter_context(self.client.start_as_current_observation(
-                name='ch09.execution', metadata=dict(self.metadata)))
+                name='ch09.execution', input=self.input, metadata=dict(self.metadata)))
         except Exception as exc:
             _degraded('begin', exc)
             try:
@@ -68,12 +69,12 @@ class ExecutionTrace:
             # SDK v5 also writes trace-level metadata from the initial graph root.
             # Its initial intent must not override the completed observation when
             # the local server combines those two dimensions on read-back.
-            with propagate_attributes(metadata={'intent': intent, 'route': route}):
+            with propagate_attributes(tags=[f'intent:{intent}'],metadata={'intent': intent, 'route': route}):
                 self._span.update(metadata=dict(self.metadata))
         except Exception as exc:
             _degraded('intent', exc)
 
-    def finish(self, outcome: str):
+    def finish(self, outcome: str, *, output=None):
         if self._finished:
             return
         self._finished = True
@@ -81,6 +82,7 @@ class ExecutionTrace:
         if self._span is not None:
             try:
                 self._span.update(metadata=dict(self.metadata),
+                    **({'output':output} if output is not None else {}),
                     level='ERROR' if outcome in ('error', 'timeout') else 'DEFAULT')
             except Exception as exc:
                 _degraded('finish', exc)
@@ -140,7 +142,7 @@ def current_execution():
     return _CURRENT.get()
 
 
-def create_callback_handler(*, public_key):
+def create_callback_handler(*, public_key, priced_model=None):
     from langfuse.langchain import CallbackHandler
 
     def enrich(kwargs):
@@ -163,6 +165,20 @@ def create_callback_handler(*, public_key):
         def on_chat_model_start(self, *args, **kwargs):
             return super().on_chat_model_start(*args, **enrich(kwargs))
 
+        def on_llm_end(self,response,*,run_id,parent_run_id=None,**kwargs):
+            try:
+                from langfuse.langchain.CallbackHandler import _parse_model,_parse_usage
+                from app.observability.pricing import estimate_cost
+                generation=self._runs.get(run_id)
+                model=_parse_model(response) or priced_model
+                price=estimate_cost(model,_parse_usage(response)) if priced_model else None
+                if generation is not None and price is not None:
+                    generation.update(cost_details=price['usd_details'],metadata={'pricing':{
+                        key:value for key,value in price.items() if key!='usd_details'}})
+            except Exception as exc:
+                _degraded('pricing',exc)
+            return super().on_llm_end(response,run_id=run_id,parent_run_id=parent_run_id,**kwargs)
+
         def on_tool_start(self, *args, **kwargs):
             return super().on_tool_start(*args, **enrich(kwargs))
 
@@ -172,8 +188,8 @@ def create_callback_handler(*, public_key):
     return ExecutionCallbackHandler(public_key=public_key)
 
 
-def begin_execution(runtime, identity):
-    return ExecutionTrace(runtime, identity)
+def begin_execution(runtime, identity, *, input=None):
+    return ExecutionTrace(runtime, identity,input=input)
 
 
 @contextmanager

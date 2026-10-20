@@ -111,7 +111,9 @@ class LangfuseRuntime:
                 flush_interval=1, environment='ch09-local', mask=mask, mask_otel_spans=mask_spans, **extra)
             if handler_factory is None:
                 from app.observability.tracing import create_callback_handler
-                handler_factory = create_callback_handler
+                from app.observability.pricing import standard_bigmodel_endpoint
+                priced_model=settings.llm_model if standard_bigmodel_endpoint(settings.llm_base_url) else None
+                handler_factory = lambda **kwargs:create_callback_handler(**kwargs,priced_model=priced_model)
             return cls(client=client, handler=handler_factory(public_key=public_key))
         except Exception as exc:
             # Provider exceptions can contain credentials; log only a fixed stage and type.

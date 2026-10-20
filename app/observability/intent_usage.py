@@ -6,7 +6,7 @@ import copy
 import math
 import time
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,timezone
 
 
 def _tokens(usage):
@@ -24,7 +24,7 @@ def _tokens(usage):
     return int(total), usage.get('input'), usage.get('output')
 
 
-def summarize_intent_usage(roots: Sequence[dict], observations: Sequence[dict]) -> list[dict]:
+def summarize_intent_usage(roots: Sequence[dict], observations: Sequence[dict], *, estimate_prices=True) -> list[dict]:
     by_trace, groups = {}, {}
     for root in roots:
         meta = root.get('metadata') or {}
@@ -39,7 +39,8 @@ def summarize_intent_usage(roots: Sequence[dict], observations: Sequence[dict]) 
         row = groups.setdefault(key, {'purpose': key[0], 'intent': key[1], 'requests': 0,
             'model_calls': 0, 'actual_calls': 0, 'estimated_calls': 0, 'unknown_calls': 0,
             'input_tokens': None, 'output_tokens': None, 'actual_tokens': None,
-            'estimated_tokens': None, 'currency_cost': None})
+            'estimated_tokens': None, 'currency_cost': None,'cost_currency':'USD',
+            'estimated_cost_cny':None,'priced_calls':0,'unpriced_calls':0,'unknown_cost_calls':0})
         row['requests'] += 1
     seen = set()
     for observation in observations:
@@ -50,6 +51,17 @@ def summarize_intent_usage(roots: Sequence[dict], observations: Sequence[dict]) 
         seen.add(identifier)
         row = groups[by_trace[trace_id]]
         row['model_calls'] += 1
+        details=observation.get('cost_details') or {}
+        cost=details.get('total',observation.get('total_cost'))
+        if type(cost) in (int,float) and math.isfinite(cost) and cost>=0:
+            row['currency_cost']=(row['currency_cost'] or 0)+cost
+        else: row['unknown_cost_calls']+=1
+        from app.observability.pricing import estimate_cost
+        price=estimate_cost(observation.get('model'),observation.get('usage_details')) if estimate_prices else None
+        if price and (observation.get('metadata') or {}).get('usage_source')!='estimated':
+            row['estimated_cost_cny']=(row['estimated_cost_cny'] or 0)+price['cost_cny']
+            row['priced_calls']+=1
+        else: row['unpriced_calls']+=1
         tokens = _tokens(observation.get('usage_details'))
         if tokens is None:
             row['unknown_calls'] += 1
@@ -65,7 +77,14 @@ def summarize_intent_usage(roots: Sequence[dict], observations: Sequence[dict]) 
             for field, value in (('input_tokens', input_tokens), ('output_tokens', output_tokens)):
                 if value is not None:
                     row[field] = (row[field] or 0) + int(value)
-    return [groups[key] for key in sorted(groups)]
+    result=[groups[key] for key in sorted(groups)]
+    totals={purpose:sum(row['actual_tokens'] or 0 for row in result if row['purpose']==purpose)
+        for purpose,_ in groups}
+    for row in result:
+        row['average_tokens']=row['actual_tokens']/row['requests'] if row['actual_tokens'] is not None else None
+        denominator=totals[row['purpose']]
+        row['token_share']=row['actual_tokens']/denominator if row['actual_tokens'] is not None and denominator else None
+    return result
 
 
 def _dict(value):
@@ -79,13 +98,14 @@ class _IncompletePagination(Exception):
 
 
 class IntentUsageReader:
-    def __init__(self, client, *, clock=time.monotonic, max_pages=100):
+    def __init__(self, client, *, clock=time.monotonic, max_pages=100,estimate_prices=False):
         self.client = client
+        self.estimate_prices=estimate_prices
         self.clock, self.max_pages = clock, max_pages
         self._cache = {}
         self._lock = asyncio.Lock()
 
-    async def read(self, from_time, to_time):
+    async def read(self, from_time, to_time, *, force_refresh=False):
         if (not isinstance(from_time, datetime) or not isinstance(to_time, datetime)
                 or from_time.utcoffset() is None or to_time.utcoffset() is None
                 or not timedelta(0) < to_time - from_time <= timedelta(days=90)):
@@ -95,7 +115,7 @@ class IntentUsageReader:
         key = (from_time.isoformat(), to_time.isoformat())
         async with self._lock:
             cached = self._cache.get(key)
-            if cached and self.clock() - cached[0] < 60:
+            if cached and not force_refresh and self.clock() - cached[0] < 60:
                 return copy.deepcopy(cached[1])
             try:
                 roots = await self._pages(from_time, to_time, name='ch09.execution', type='SPAN')
@@ -103,7 +123,11 @@ class IntentUsageReader:
                 result = {'complete': True, 'reason': None,
                     'from_time': key[0], 'to_time': key[1],
                     'in_progress': sum(1 for root in roots if not root.get('end_time')),
-                    'rows': summarize_intent_usage(roots, generations)}
+                    'computed_at':datetime.now(timezone.utc).isoformat(),
+                    'rows': summarize_intent_usage(roots, generations,estimate_prices=self.estimate_prices)}
+                from app.observability.pricing import PRICE_VERSION,PRICE_SOURCE
+                result['pricing']={'kind':'tariff_estimate','currency':'CNY','version':PRICE_VERSION,
+                    'source':PRICE_SOURCE,'enabled':self.estimate_prices}
             except _IncompletePagination:
                 return {'complete': False, 'reason': 'pagination_incomplete', 'rows': []}
             except Exception:
@@ -118,7 +142,7 @@ class IntentUsageReader:
         cursor, seen, records = None, set(), {}
         for _ in range(self.max_pages):
             page = await asyncio.to_thread(self.client.api.observations.get_many,
-                fields='core,basic,metadata,usage',
+                fields='core,basic,metadata,usage,model',
                 expand_metadata='intent,purpose,replay,outcome,ch09_execution',
                 from_start_time=start, to_start_time=end, limit=1000, cursor=cursor,
                 request_options={'timeout_in_seconds': 5, 'max_retries': 0}, **filters)
