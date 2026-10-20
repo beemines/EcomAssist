@@ -2,6 +2,7 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -14,12 +15,14 @@ router = APIRouter(prefix='/api/observability', tags=['observability'],route_cla
 
 @router.get('/intent-usage')
 async def intent_usage(request: Request, from_time: datetime | None = None,
-                       to_time: datetime | None = None,refresh:bool=False):
+                       to_time: datetime | None = None,refresh:bool=False,source_scope:Literal['all','actual']='all'):
     end = to_time or datetime.now(timezone.utc).replace(second=0, microsecond=0)
     start = from_time or end - timedelta(days=7)
     reader = getattr(request.app.state, 'intent_usage_reader', None) or IntentUsageReader(None)
     try:
-        return await reader.read(start, end,**({'force_refresh':True} if refresh else {}))
+        options={'force_refresh':True} if refresh else {}
+        if source_scope!='all': options['source_scope']=source_scope
+        return await reader.read(start,end,**options)
     except ValueError:
         raise ServiceError('invalid_request','Use timezone-aware dates and a positive range no longer than 90 days',422) from None
 

@@ -84,8 +84,9 @@ def validate_local_langfuse_url(value: str | None) -> str:
 
 
 class LangfuseRuntime:
-    def __init__(self, *, client=None, handler=None):
+    def __init__(self, *, client=None, handler=None,source_kind='unknown'):
         self.client, self.handler = client, handler
+        self.source_kind=source_kind
         self._closed = False
 
     @classmethod
@@ -94,6 +95,7 @@ class LangfuseRuntime:
             return cls()
         base_url = validate_local_langfuse_url(settings.langfuse_base_url)
         public_key = settings.langfuse_public_key.get_secret_value()
+        source_kind='fixture' if client_factory is not None or handler_factory is not None else 'actual'
         client = None
         try:
             if client_factory is None:
@@ -114,11 +116,11 @@ class LangfuseRuntime:
                 from app.observability.pricing import standard_bigmodel_endpoint
                 priced_model=settings.llm_model if standard_bigmodel_endpoint(settings.llm_base_url) else None
                 handler_factory = lambda **kwargs:create_callback_handler(**kwargs,priced_model=priced_model)
-            return cls(client=client, handler=handler_factory(public_key=public_key))
+            return cls(client=client, handler=handler_factory(public_key=public_key),source_kind=source_kind)
         except Exception as exc:
             # Provider exceptions can contain credentials; log only a fixed stage and type.
             logger.warning('langfuse init degraded error_type=%s', type(exc).__name__)
-            return cls(client=client)
+            return cls(client=client,source_kind=source_kind)
 
     async def close(self, timeout_seconds=5):
         if self._closed:

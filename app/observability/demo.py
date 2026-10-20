@@ -19,10 +19,12 @@ def load_ch09_settings(root):
     validate_local_langfuse_url(sdk['LANGFUSE_BASE_URL'])
     path=Path(os.environ.get('CH09_SETTINGS_FILE') or root/'.env')
     if not path.is_absolute(): path=root/path
+    rule_path=root/'runtime/ch09-evidence/reference-calibration/rule.json'
+    if not rule_path.is_file(): rule_path=root/'runtime/ch09-evidence/calibration/rule.json'
     return Settings(_env_file=path,**sdk,flywheel_enabled=True,eval_pipeline_enabled=True,
         eval_schedule_enabled=False,rag_evaluation_enabled=False,
         workflow_checkpoint_path=root/'runtime/workflow/observability-8006.sqlite',
-        evidence_confidence_rule_path=root/'runtime/ch09-evidence/calibration/rule.json')
+        evidence_confidence_rule_path=rule_path)
 
 
 def guard_acceptance_jobs(root):

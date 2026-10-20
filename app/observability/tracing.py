@@ -35,7 +35,7 @@ class ExecutionTrace:
             'user_message_id': identity.user_message_id,
             'logical_turn_id': f'{identity.conversation_id}:{identity.user_message_id}',
             'execution_id': identity.execution_id, 'purpose': identity.purpose,
-            'replay': identity.replay, 'intent': '未识别'}
+            'replay': identity.replay, 'intent': '未识别','source_kind':getattr(runtime,'source_kind','unknown')}
 
     def __enter__(self):
         self._token = _CURRENT.set(self)

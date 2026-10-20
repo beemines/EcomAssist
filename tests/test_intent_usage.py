@@ -41,6 +41,17 @@ def test_missing_usage_is_not_zero_and_estimates_are_separate():
     assert row['actual_tokens'] is None
 
 
+def test_actual_scope_excludes_fixture_and_unmarked_roots_from_request_average():
+    from app.observability.intent_usage import summarize_intent_usage
+    roots=[root('actual'),root('fixture'),root('legacy')]
+    roots[0]['metadata']['source_kind']='actual'
+    roots[1]['metadata']['source_kind']='fixture'
+    observations=[generation('a',{'input':10,'output':2},trace_id='actual'),
+        generation('f',{'total':10000},trace_id='fixture'),generation('l',{'total':100},trace_id='legacy')]
+    [row]=summarize_intent_usage(roots,observations,source_scope='actual')
+    assert row['requests']==1 and row['actual_tokens']==12 and row['average_tokens']==12
+
+
 def test_replay_and_in_progress_are_excluded_and_background_is_separate():
     from app.observability.intent_usage import summarize_intent_usage
     roots = [root(), root('t2', purpose='flywheel'), root('t3', closed=False), root('t4', replay=True)]

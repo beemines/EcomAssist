@@ -2,7 +2,7 @@
 import json
 import math
 
-METRICS=('recall_at_5','recall_at_10','mrr_at_10','faithfulness','refusal_accuracy')
+METRICS=('recall_at_5','recall_at_10','mrr_at_10','faithfulness','absent_refusal_rate')
 
 
 def compare_runs(rows):
