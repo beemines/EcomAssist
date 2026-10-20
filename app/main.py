@@ -211,7 +211,9 @@ def create_app(
                 resources.push_async_callback(observability_runtime.close)
             app.state.observability_runtime = observability_runtime
             from app.observability.intent_usage import IntentUsageReader
-            app.state.intent_usage_reader = IntentUsageReader(observability_runtime.client)
+            from app.observability.pricing import standard_bigmodel_endpoint
+            app.state.intent_usage_reader = IntentUsageReader(observability_runtime.client,
+                estimate_prices=standard_bigmodel_endpoint(settings.llm_base_url))
             if owns_context_logger:
                 context_logger = ContextLogger(Path(__file__).resolve().parents[1] / 'log' / 'app.log')
                 resources.callback(context_logger.close)
@@ -367,8 +369,10 @@ def create_app(
     from app.api.review_queue import router as review_router
     app.include_router(review_router)
     from app.observability.intent_usage import IntentUsageReader
+    from app.observability.pricing import standard_bigmodel_endpoint
     app.state.intent_usage_reader = IntentUsageReader(
-        observability_runtime.client if observability_runtime else None)
+        observability_runtime.client if observability_runtime else None,
+        estimate_prices=standard_bigmodel_endpoint(settings.llm_base_url))
     app.include_router(ticket_confirmation_router)
     app.state.rag_evaluation_settings = evaluation_settings
     app.state.evaluation_manager = evaluation_manager

@@ -388,7 +388,7 @@ class WorkflowChatService:
         from app.observability.tracing import ExecutionIdentity, begin_execution
         identity = ExecutionIdentity(prepared.conversation_id, str(prepared.user_message_id),
             uuid4().hex, 'chat', replay=bool(prepared.replay_checkpoint_id))
-        with begin_execution(self.observability, identity) as trace:
+        with begin_execution(self.observability, identity,input=prepared.state.get('raw_question')) as trace:
             if prepared.runtime is not None:
                 prepared.runtime.observation_trace = trace
             if prepared.state.get('intent'):
@@ -497,7 +497,8 @@ class WorkflowChatService:
                 if prepared.state.get('intent'):
                     trace.set_intent(prepared.state['intent'], prepared.state.get('confidence'),
                                      prepared.state.get('route', 'other'))
-                trace.finish(prepared.cancel_outcome if outcome == 'cancelled' else outcome)
+                trace.finish(prepared.cancel_outcome if outcome == 'cancelled' else outcome,
+                    output=prepared.state.get('final_answer') if outcome=='success' else {'status':outcome,**terminal})
             log_terminal(prepared, prepared.cancel_outcome if outcome == 'cancelled' else outcome, **terminal)
             if stream is not None:
                 await stream.aclose()
