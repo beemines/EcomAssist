@@ -93,7 +93,7 @@ def identifier(value):
 
 
 @router.get('/api/review-queue')
-async def list_reviews(request: Request, status: Literal['待审','通过','驳回']='待审',
+async def list_reviews(request: Request, status: Literal['待审','通过','驳回','全部']='待审',
         offset: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=100)):
     return await service(request).list_reviews(status=status, offset=offset, limit=limit)
 

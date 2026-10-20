@@ -39,7 +39,28 @@ async def run(args):
             await verify_flywheel(database)
             from app.flywheel.repository import FlywheelRepository, row_dict
             repository = FlywheelRepository(database)
-            if args.action == 'status':
+            if args.action=='batch':
+                selected=await repository.preview_legacy_batch(args.from_id,args.to_id,limit=args.limit)
+                if args.preview:
+                    result={'mode':'preview','model_calls':0,**selected}
+                else:
+                    from app.flywheel.runtime import FlywheelRuntime
+                    from app.flywheel.acceptance import acceptance_cap
+                    cap=acceptance_cap(args.acceptance_run) if args.acceptance_run else None
+                    runtime=await FlywheelRuntime.create(settings,database=database,
+                        acceptance_call_cap=cap,enable_publication=False)
+                    receipts=[]
+                    try:
+                        for row in selected['items']:
+                            await repository.manage_processing(row['id'],action='initialize',now=datetime.now(timezone.utc))
+                            receipt=await runtime.processor.process(row['id'])
+                            receipts.append(receipt.model_dump() if receipt else {'id':row['id'],'matched':False})
+                    finally: await runtime.close()
+                    result={'mode':'execute','selected_count':len(selected['items']),
+                        'created_reviews':sum(bool(row.get('created')) for row in receipts),
+                        'merged':sum(row.get('created') is False for row in receipts),
+                        'receipts':receipts,'has_more':selected['has_more']}
+            elif args.action == 'status':
                 async with database.session() as session:
                     row = (await session.execute(text('SELECT id,processing,matched_review_id FROM '
                         'low_confidence_questions WHERE id=:id'), {'id': int(args.pool_id)})).mappings().one_or_none()
@@ -82,15 +103,27 @@ async def run(args):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=('migrate', 'verify', 'process', 'status', 'initialize', 'retry', 'recover',
-        'calibrate', 'publish', 'retry-publication', 'publication-status'))
+        'calibrate', 'publish', 'retry-publication', 'publication-status','batch'))
     parser.add_argument('--database', choices=('test', 'configured'), required=True)
     parser.add_argument('--pool-id', type=database_id, help='仅管理此指定问题ID，不扫描旧记录')
     parser.add_argument('--review-id', type=database_id, help='仅发布或管理此指定待审ID')
     parser.add_argument('--execute', action='store_true', help='显式执行处理或管理；缺省仅显示dry-run')
+    parser.add_argument('--preview',action='store_true',help='只读预览指定历史范围，不发模型请求')
+    parser.add_argument('--from-id',type=database_id)
+    parser.add_argument('--to-id',type=database_id)
+    parser.add_argument('--limit',type=int,default=20)
     parser.add_argument('--acceptance-run', choices=('ch09-local-20261019',))
     parser.add_argument('--output', type=__import__('pathlib').Path)
     args = parser.parse_args(argv)
-    if args.action == 'calibrate':
+    if args.action=='batch':
+        if (args.from_id is None or args.to_id is None or int(args.from_id)>int(args.to_id)
+                or not 1<=args.limit<=100 or args.preview and args.execute):
+            parser.error('Batch needs an ordered --from-id/--to-id, --limit 1..100, and either preview or execute')
+        if not args.preview and not args.execute:
+            print(f'dry-run: selected history IDs {args.from_id}..{args.to_id}, maximum {args.limit}; '
+                'use --preview for local rows, --execute to initialize/process only selected IDs; no credentials or model calls')
+            return
+    elif args.action == 'calibrate':
         if args.database != 'test' or args.output is None:
             parser.error('Calibration requires --database test and --output')
         if not args.execute:

@@ -51,3 +51,15 @@ def test_publication_commands_are_single_id_and_dry_by_default(monkeypatch, caps
     cli.main(['retry-publication', '--database', 'test', '--review-id', '1'])
     assert capsys.readouterr().out.count('dry-run') == 2
     with pytest.raises(SystemExit): cli.main(['publish', '--database', 'test'])
+
+
+def test_history_batch_defaults_to_no_credentials_and_requires_a_bounded_range(monkeypatch,capsys):
+    import pytest
+    from app.flywheel import cli
+    monkeypatch.setattr(cli,'load_settings',lambda:pytest.fail('Dry-run read credentials'))
+    cli.main(['batch','--database','test','--from-id','1','--to-id','20','--limit','5'])
+    assert 'dry-run' in capsys.readouterr().out
+    for arguments in (['batch','--database','test'],
+        ['batch','--database','test','--from-id','20','--to-id','1'],
+        ['batch','--database','test','--from-id','1','--to-id','20','--limit','101']):
+        with pytest.raises(SystemExit): cli.main(arguments)
