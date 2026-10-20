@@ -96,6 +96,7 @@ def create_app(
     observability_runtime: Any | None = None,
     flywheel_repository: Any | None = None,
     flywheel_runtime: Any | None = None,
+    confidence_rule: Any | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
     if acceptance_call_cap is not None and settings.rag_evaluation_enabled:
@@ -131,7 +132,8 @@ def create_app(
         assessment = sufficiency_service if sufficiency_service is not None else SufficiencyService(
             model_with_output_budget(model, settings, settings.sufficiency_max_output_tokens),
             input_budget=settings.tool_input_token_budget, timeout=settings.sufficiency_timeout_seconds,
-            minimum_rerank_score=settings.rerank_min_score)
+            minimum_rerank_score=settings.rerank_min_score,
+            mode='content_ablation' if confidence_rule is not None else 'calibrated_score')
         if chat_service is not None:
             app.state.chat_service = chat_service
         elif checkpointer is not None:
@@ -162,7 +164,7 @@ def create_app(
                 order_provider=order_provider, workflow_retriever=retrieval,
                 context_coordinator=context_coordinator, context_logger=context_logger,
                 context_budget_provider=context_budget_provider, catalog_provider=provider, executor=executor,
-                observability=observability_runtime)
+                observability=observability_runtime, confidence_rule=confidence_rule)
         service = getattr(app.state, 'chat_service', None)
         app.state.history_reader = HistoryReader(checkpointer if checkpointer is not None else
             getattr(service, 'checkpointer', None), repository)
@@ -193,7 +195,7 @@ def create_app(
     async def lifespan(app: FastAPI):
         nonlocal database, repository, model, faq_repository, sufficiency_service, quality_repository, checkpointer
         nonlocal context_coordinator, context_logger, context_repository
-        nonlocal observability_runtime, flywheel_runtime
+        nonlocal observability_runtime, flywheel_runtime, confidence_rule
         async with AsyncExitStack() as resources:
             if owns_observability:
                 from app.observability.runtime import LangfuseRuntime
@@ -205,7 +207,13 @@ def create_app(
             if owns_context_logger:
                 context_logger = ContextLogger(Path(__file__).resolve().parents[1] / 'log' / 'app.log')
                 resources.callback(context_logger.close)
-            if settings.rerank_min_score is None or not math.isfinite(settings.rerank_min_score):
+            if settings.evidence_confidence_rule_path is not None:
+                from app.quality.evidence_confidence import load_online_rule, evidence_budget_fingerprint
+                confidence_rule = load_online_rule(settings.evidence_confidence_rule_path,
+                    top_k=settings.rerank_top_k, rerank_model=settings.rerank_model,
+                    budget_fingerprint=evidence_budget_fingerprint(top_k=settings.rerank_top_k,
+                        token_budget=min(6000, (settings.model_context_window + 7)//8)))
+            if confidence_rule is None and (settings.rerank_min_score is None or not math.isfinite(settings.rerank_min_score)):
                 raise ValueError('online hybrid retrieval requires a calibrated finite threshold')
             if owns_database:
                 database = Database(settings.database_url)
@@ -252,7 +260,8 @@ def create_app(
             if sufficiency_service is None:
                 sufficiency_service = SufficiencyService(model_with_output_budget(model, settings, settings.sufficiency_max_output_tokens),
                     input_budget=settings.tool_input_token_budget,
-                    timeout=settings.sufficiency_timeout_seconds, minimum_rerank_score=settings.rerank_min_score)
+                    timeout=settings.sufficiency_timeout_seconds, minimum_rerank_score=settings.rerank_min_score,
+                    mode='content_ablation' if confidence_rule is not None else 'calibrated_score')
             if quality_repository is None:
                 quality_repository = QualityRepository(database)
             # 真实数据库即使注入仍核验；纯仓储注入不凭空创建连接池。

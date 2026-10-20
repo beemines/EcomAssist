@@ -21,6 +21,14 @@ def database_url(settings, target):
 
 async def run(args):
     settings = load_settings()
+    if args.action == 'calibrate':
+        from app.flywheel.acceptance import acceptance_cap
+        from app.quality.calibration import run_calibration
+        result = await run_calibration(settings, args.output,
+            acceptance_cap(args.acceptance_run) if args.acceptance_run else None)
+        print(json.dumps({'rule_version': result.rule.rule_version,
+            'calibration': result.calibration, 'held_out': result.held_out}, ensure_ascii=False))
+        return
     database = Database(database_url(settings, args.database))
     try:
         if args.action == 'migrate':
@@ -57,13 +65,26 @@ async def run(args):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('migrate', 'verify', 'process', 'status', 'initialize', 'retry', 'recover'))
+    parser.add_argument('action', choices=('migrate', 'verify', 'process', 'status', 'initialize', 'retry', 'recover', 'calibrate'))
     parser.add_argument('--database', choices=('test', 'configured'), required=True)
     parser.add_argument('--pool-id', type=database_id, help='仅管理此指定问题ID，不扫描旧记录')
     parser.add_argument('--execute', action='store_true', help='显式执行处理或管理；缺省仅显示dry-run')
     parser.add_argument('--acceptance-run', choices=('ch09-local-20261019',))
+    parser.add_argument('--output', type=__import__('pathlib').Path)
     args = parser.parse_args(argv)
-    if args.action not in ('migrate', 'verify') and args.pool_id is None:
+    if args.action == 'calibrate':
+        if args.database != 'test' or args.output is None:
+            parser.error('Calibration requires --database test and --output')
+        if not args.execute:
+            from pathlib import Path
+            from app.rag_evaluation.dataset import DATASET_ID, load_dataset
+            from app.quality.calibration import build_calibration_split
+            dataset = load_dataset(DATASET_ID, root=Path(__file__).parents[2] / 'evals/datasets')
+            split = build_calibration_split(dataset)
+            print(f'dry-run: {len(dataset.cases)} retrievals; calibration={len(split.calibration_ids)}; '
+                f'held_out={len(split.held_out_ids)}; no credentials, database, models or upstream connections')
+            return
+    elif args.action not in ('migrate', 'verify') and args.pool_id is None:
         parser.error('This action requires one --pool-id')
     if args.action in ('process', 'initialize', 'retry', 'recover') and not args.execute:
         print(f'dry-run: {args.action} pool_id={args.pool_id}; no database writes or model calls')

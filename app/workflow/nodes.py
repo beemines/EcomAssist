@@ -344,6 +344,11 @@ async def retrieve_policies(state: WorkflowState, runtime: Runtime[WorkflowRunti
             return result.payload
     update = await workflow_tool(state, runtime, node, 'query_faq',
         {'keyword': state['resolved_question'][:128]}, retrieve)
+    receipt = update['messages'][-1]
+    if receipt.status == 'error':
+        result = json.loads(receipt.content)
+        if result.get('error', {}).get('code') != 'not_found' or result.get('matches') != []:
+            raise ServiceError('tool_execution_error', '知识检索服务失败，请稍后重试。', 502)
     snapshot = None
     if full_payload is not None and getattr(context.settings, 'flywheel_enabled', False):
         from app.flywheel.snapshots import capture_turn_retrieval
@@ -360,21 +365,36 @@ async def retrieve_policies(state: WorkflowState, runtime: Runtime[WorkflowRunti
 
 async def confidence_gate(state: WorkflowState, runtime: Runtime[WorkflowRuntime]) -> dict:
     """空/低分先拒绝，达标才内容自评，任何服务异常保持错误。"""
-    context = runtime.context
-    stages = state['stage_usage']
     runtime.stream_writer({'event': 'status', 'data': {'phase': 'checking', 'origin': 'workflow'}})
-    packet = state_evidence(state, context)
-    threshold = context.settings.rerank_min_score
-    if packet.strategy != 'hybrid_rerank' or threshold is None:
-        raise ValueError('online knowledge gate requires hybrid_rerank and calibrated threshold')
-    if not packet.citations or packet.best_score is None or packet.best_score < threshold:
+    quality, stages, audit = await check_knowledge_evidence(state, runtime, state_evidence(state, runtime.context))
+    log_node(state, 'confidence_gate', useful=quality['useful'], reason_code=quality['source'])
+    return {'quality': quality, 'stage_usage': stages, 'retrieval_audit': audit}
+
+
+async def check_knowledge_evidence(state, runtime, packet):
+    """Workflow and Agent share the exact selected-evidence gate, before content assessment."""
+    context, stages = runtime.context, state['stage_usage']
+    audit = dict(state.get('retrieval_audit') or {})
+    if context.confidence_rule is not None:
+        from app.quality.evidence_confidence import evaluate_evidence, evidence_budget_fingerprint
+        top_k = runtime_settings(context.settings).rerank_top_k
+        decision = evaluate_evidence(packet.payload, context.confidence_rule, top_k=top_k,
+            budget_fingerprint=evidence_budget_fingerprint(top_k=top_k,
+                token_budget=runtime_snapshot(state, context).budget.evidence))
+        audit['evidence_confidence'] = decision.model_dump(mode='json')
+        low = not decision.useful
+    else:
+        threshold = context.settings.rerank_min_score
+        if packet.strategy != 'hybrid_rerank' or threshold is None:
+            raise ValueError('online knowledge gate requires hybrid_rerank and calibrated threshold')
+        low = not packet.citations or packet.best_score is None or packet.best_score < threshold
+    if low:
         quality = {'useful': False, 'reason': '当前知识证据为空或低于已校准重排门槛。',
             'response_kind': 'knowledge', 'source': 'retrieval_low_conf'}
     else:
         decision, stages = await assess_sufficiency(state, runtime, packet)
         quality = decision.model_dump()
-    log_node(state, 'confidence_gate', useful=quality['useful'], reason_code=quality['source'])
-    return {'quality': quality, 'stage_usage': stages}
+    return quality, stages, audit
 
 
 async def assess_sufficiency(state, runtime, packet):

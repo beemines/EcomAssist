@@ -139,15 +139,8 @@ def _normalize(selected, call, question):
 
 async def _check_evidence(state, runtime, packet):
     """新增 FAQ 与实际最终副本均执行真实重排门槛，外部故障保持 ServiceError。"""
-    context = runtime.context
-    threshold = context.settings.rerank_min_score
-    if packet.strategy != 'hybrid_rerank' or threshold is None:
-        raise ValueError('online knowledge gate requires hybrid_rerank and calibrated threshold')
-    if not packet.citations or packet.best_score is None or packet.best_score < threshold:
-        return {'useful': False, 'reason': '当前知识证据为空或低于已校准重排门槛。',
-            'response_kind': 'knowledge', 'source': 'retrieval_low_conf'}, state['stage_usage']
-    decision, stages = await assess_sufficiency(state, runtime, packet)
-    return decision.model_dump(), stages
+    from app.workflow.nodes import check_knowledge_evidence
+    return await check_knowledge_evidence(state, runtime, packet)
 
 
 def _current_read(state, context):
@@ -504,11 +497,14 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
     log_node(state, 'tool_node', **{key: value for key, value in trace.items() if key != 'node'})
     if call.name == 'query_faq' and outcome.status == 'error':
         error = outcome.content.get('error', {})
-        if error.get('code') not in ('invalid_arguments', 'invalid_keyword'):
+        if (error.get('code') not in ('invalid_arguments', 'invalid_keyword')
+                and not (error.get('code') == 'not_found' and outcome.content.get('matches') == [])):
             # 先形成完整状态更新，再由收敛节点抛服务错误，不能丢失配对和计数。
             return {**update, 'tool_error': error}
     snapshot = None
-    if call.name == 'query_faq' and outcome.status == 'success':
+    faq_evidence = call.name == 'query_faq' and (outcome.status == 'success' or
+        outcome.content.get('error', {}).get('code') == 'not_found' and outcome.content.get('matches') == [])
+    if faq_evidence:
         update['retrieval_performed'] = True
         if getattr(context.settings, 'flywheel_enabled', False):
             from app.flywheel.snapshots import capture_turn_retrieval
@@ -522,14 +518,15 @@ async def tool_node(state: _AgentState, runtime: Runtime[WorkflowRuntime]) -> di
         if exc.code not in ('input_too_long', 'token_budget'):
             raise
         return {**update, 'stop_reason': 'context_capacity' if isinstance(exc, ContextCapacityError) else 'token_budget'}
-    if call.name == 'query_faq' and outcome.status == 'success':
+    if faq_evidence:
         if snapshot is not None:
             prompt_ids = {str(row['id']) for row in evidence.payload.get('matches', [])}
             for chunk in snapshot.payload.chunks:
                 chunk.in_prompt = chunk.chunk_id in prompt_ids
             update['retrieval_snapshot'] = snapshot.model_dump(mode='json')
-        quality, stages = await _check_evidence(state, runtime, evidence)
-        update.update(quality=quality, stage_usage=stages, evidence_payload=evidence.payload, citations=[asdict(c) for c in evidence.citations])
+        quality, stages, audit = await _check_evidence(state, runtime, evidence)
+        update.update(quality=quality, stage_usage=stages, retrieval_audit=audit,
+            evidence_payload=evidence.payload, citations=[asdict(c) for c in evidence.citations])
     return update
 
 
@@ -607,15 +604,16 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
     clarification = state['reply_mode'] == 'clarification'
     quality = {}
     stages = state['stage_usage']
+    audit = state.get('retrieval_audit') or {}
     if has_faq:
         if evidence.payload == state['evidence_payload'] and state['quality']:
             quality = state['quality']
         else:
-            quality, stages = await _check_evidence(state, runtime, evidence)
+            quality, stages, audit = await _check_evidence(state, runtime, evidence)
         if not quality['useful']:
             runtime.stream_writer({'event': 'citations', 'data': {'citations': [asdict(c) for c in evidence.citations]}})
             runtime.stream_writer({'event': 'delta', 'data': {'text': KNOWLEDGE_FALLBACK}})
-            return {'quality': quality, 'stage_usage': stages, 'final_answer': KNOWLEDGE_FALLBACK, 'reply_mode': 'answer',
+            return {'quality': quality, 'stage_usage': stages, 'retrieval_audit': audit, 'final_answer': KNOWLEDGE_FALLBACK, 'reply_mode': 'answer',
                 'suggested_actions': ['handoff'], 'citations': [asdict(c) for c in evidence.citations], 'evidence_payload': evidence.payload}
     elif not clarification and (state['route'] == 'knowledge' or not any('error' not in p and 'matches' not in p for p in payloads)):
         raise ServiceError('invalid_answer', '当前结果不足以生成事实回答，请补充必要信息。', 502)
@@ -663,7 +661,7 @@ async def finalize_answer(state: _AgentState, runtime: Runtime[WorkflowRuntime])
         if clarification:
             runtime.stream_writer({'event': 'delta', 'data': {'text': answer}})
         log_node(state, 'finalize_answer', usage=_usage(ledger))
-        return {'final_answer': answer, 'quality': quality, 'stage_usage': stages, 'usage': _usage(ledger), 'evidence_payload': evidence.payload,
+        return {'final_answer': answer, 'quality': quality, 'stage_usage': stages, 'retrieval_audit': audit, 'usage': _usage(ledger), 'evidence_payload': evidence.payload,
             'citations': [] if clarification else [asdict(c) for c in evidence.citations]}
     except (TimeoutError, httpx.TimeoutException, APITimeoutError) as exc:
         raise ServiceError('upstream_timeout', '模型响应超时，请稍后重试。', 504) from exc
