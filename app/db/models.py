@@ -3,12 +3,29 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import FetchedValue, ForeignKey, Index, text
-from sqlalchemy.dialects.mysql import BIGINT, DATETIME, ENUM, INTEGER, JSON, TEXT, TINYINT, VARCHAR
+from sqlalchemy.dialects.mysql import BIGINT, CHAR, DATETIME, ENUM, INTEGER, JSON, TEXT, TINYINT, VARCHAR
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
     """只映射已有表；建表始终由用户提供的 sql/schema.sql 执行。"""
+
+
+class TopicClassification(Base):
+    """CH10 side-channel results; the chat workflow never writes these rows."""
+    __tablename__ = 'topic_classifications'
+    __table_args__ = (Index('uk_question_id', 'question_id', unique=True),
+        Index('idx_topic_model_version', 'model_version'),
+        {'mysql_engine': 'InnoDB', 'mysql_charset': 'utf8mb4', 'comment': '主题分类结果'})
+    id: Mapped[int] = mapped_column(BIGINT(unsigned=True), primary_key=True, autoincrement=True)
+    question_id: Mapped[int] = mapped_column(BIGINT(unsigned=True),
+        ForeignKey('low_confidence_questions.id', name='fk_topic_question'), nullable=False)
+    labels: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    classified_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    model_version: Mapped[str | None] = mapped_column(VARCHAR(128), nullable=True)
+    taxonomy_version: Mapped[str | None] = mapped_column(VARCHAR(96), nullable=True)
+    input_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
+    batch_id: Mapped[str | None] = mapped_column(CHAR(36), nullable=True)
 
 
 # 会话主表保存用户归属、生命周期状态及数据库生成的时间。
