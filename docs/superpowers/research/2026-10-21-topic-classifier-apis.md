@@ -53,3 +53,7 @@ HFL公开模型元数据返回revision `5c58d0b8ec1d9014354d691c538661bf00bfdb44
 | [ml_stratifiers.py](https://raw.githubusercontent.com/trent-b/iterative-stratification/0.1.9/iterstrat/ml_stratifiers.py) | `5bdfa0db803e006884e2d228c2a97377e438b5ad9a0f24891fe77f2c53f54bf3` | MultilabelStratifiedShuffleSplit及固定random_state |
 
 [FastAPI lifespan](https://fastapi.tiangolo.com/advanced/events/)用于加载一次服务模型及释放资源；[HTTPX超时](https://www.python-httpx.org/advanced/timeouts/)分连接/读/写/连接池，read timeout不是整次操作总时限，旁路调用还须外层总超时。
+
+实施前另核对[huggingface_hub v2.2.0 snapshot_download](https://raw.githubusercontent.com/huggingface/huggingface_hub/v2.2.0/src/huggingface_hub/_snapshot_download.py)，源码SHA-256为`33aea763186df2d6600e2008e91ebb862cfc12907638caeab97e9865cf052d97`；支持`revision`、`local_dir`、`allow_patterns`、`token=False`，不使用已移除的`local_dir_use_symlinks`。上述Transformers锁定源码的`from_pretrained`支持`weights_only=True`、`local_files_only`、`use_safetensors`，底座从固定revision下载后离线安全加载，不执行远端代码。
+
+GPU探测另按[PyTorch2.14 AMP文档](https://docs.pytorch.org/docs/2.14/amp.html)和[AdamW接口](https://docs.pytorch.org/docs/2.14/generated/torch.optim.AdamW.html)核对`torch.amp.GradScaler('cuda')`、autocast、unscale后裁剪与optimizer step；实际安装版本再核验，旧cuda.amp入口已弃用。独立ML锁文件SHA-256为`d8fc8a32b203781aae689f781c3f941b83b4e00bd01695be3c6beb5fbbff0da3`。

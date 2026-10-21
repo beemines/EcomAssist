@@ -15,3 +15,5 @@
 /docs/validation/merchant-rag-completion-*.* -text
 /docs/validation/merchant-rag-comparison*.* -text
 /docs/validation/merchant-rag-degraded-*.* -text
+# 模型身份引用独立训练锁文件的字节摘要，checkout 不得改换行。
+/ml/topic_classifier/uv.lock text eol=lf
