@@ -43,6 +43,9 @@ async def snapshot_command(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
+    budget_init = commands.add_parser('budget-init', help='Preview or initialize the single approved CNY10 ledger')
+    budget_init.add_argument('--execute', action='store_true')
+    commands.add_parser('budget-status', help='Read existing budget; never create or reset it')
     snapshot = commands.add_parser('snapshot', help='Preview, then export a bounded read-only pool snapshot')
     snapshot.add_argument('--database', choices=['configured'], default='configured')
     snapshot.add_argument('--from-id', type=int, default=1)
@@ -53,7 +56,18 @@ def main():
     snapshot.add_argument('--preview-file', type=Path)
     snapshot.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    asyncio.run(snapshot_command(args))
+    if args.command.startswith('budget-'):
+        from app.topics.budget import APPROVAL_ID, BUDGET_PATH, LIMIT_MICRO, MAX_ATTEMPTS, BudgetLedger, initialize_budget
+        if args.command == 'budget-init':
+            if not args.execute:
+                print(json.dumps(dict(mode='preview', approval_id=APPROVAL_ID,
+                    limit_micro=LIMIT_MICRO, maximum_physical_attempts=MAX_ATTEMPTS,
+                    path=str(BUDGET_PATH)), ensure_ascii=False))
+                return
+            initialize_budget(BUDGET_PATH, APPROVAL_ID)
+        print(BudgetLedger(BUDGET_PATH, APPROVAL_ID).summary().model_dump_json())
+    else:
+        asyncio.run(snapshot_command(args))
 
 
 if __name__ == '__main__':
