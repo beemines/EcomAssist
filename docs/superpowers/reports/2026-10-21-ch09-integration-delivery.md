@@ -33,3 +33,7 @@
 合并不表示全部模型质量通过：[实际验收报告](2026-10-20-reference-acceptance.md)仍保留旧两轮20题的9/8阶段错误、新配置仅一轮完整20题、Faithfulness0.875、留出4误放/9误拒及延期F08草稿质量项。自动验收累计账本仍278/280 GLM、383/450嵌入、367/450重排；本次没有增加收费请求或运行300题、收费定时。
 
 [演示命令](../../ch09-local-demo.md) · [PyCharm步骤](../../ch09-pycharm-acceptance.md) · [逐页验收](../../ch09-manual-acceptance.md) · [阶段记录](../../../dev-notes/ch09.md)
+
+## 远端交付回执
+
+首次普通推送已成功：origin/master从f44e4f9前进到42c5751f63ed2a95a05b18a47d59ada007e17590，包含上述源码合并和交付记录；git ls-remote返回值与本地HEAD完全一致，git status显示master与origin/master同步。此段及对应finish开发记录作为后续纯文档提交推送，不改变任何已验证源码、DDL或运行数据。
