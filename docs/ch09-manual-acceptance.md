@@ -9,7 +9,9 @@
 - 观测与成本：<http://127.0.0.1:8006/observability>
 - Langfuse：<http://127.0.0.1:3000/>
 
-Langfuse登录后选EcomAssist CH09项目，再点Observability → Tracing。账户密码在本worktree的runtime/langfuse/local.env内查看；SDK Key引用sdk.env，别复制进命令输出或截图。
+Langfuse使用预置管理员admin@ch09.local登录，密码在本worktree的runtime/langfuse/local.env中LANGFUSE_INIT_USER_PASSWORD字段查看。登录后选组织EcomAssist Local → 项目EcomAssist CH09，再点Observability → Tracing。SDK Key引用sdk.env，别复制进命令输出或截图。
+
+如果首页只显示“开始使用／新组织”，先核对左下角登录邮箱。用户自行注册的个人账号没有自动加入预置组织，应退出后使用上述管理员登录；不要为查看已有链路另建组织。2026-10-21已刷新确认管理员仍能访问原项目与会话95链路。
 
 ## 2. 验证完整链路
 

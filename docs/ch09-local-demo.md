@@ -1,6 +1,6 @@
 # 第九步：本地运行入口
 
-本章开发工作区：`D:\shixi\ecommerce-customer-service\.worktrees\observability-flywheel`。请在此目录执行以下命令；主目录的 master 在本章合并前不会自动出现这些文件。
+本机当前验收服务使用的工作区：`D:\shixi\ecommerce-customer-service\.worktrees\observability-flywheel`。以下命令继续在此目录执行。第九步源码合并到master后，主目录也会具备相关代码；本机密钥、真实校准产物和运行记录被Git忽略，仍保留在该worktree，不随合并自动迁移或清理。从其他检出启动时须先按设计准备它自己的本地配置，不能把缺少配置当成源码未合并。
 
 ## 正常启动
 

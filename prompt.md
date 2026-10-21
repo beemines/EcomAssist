@@ -903,3 +903,14 @@ D60,D_absent,"我想在你们平台开店卖东西,怎么入驻",,,是
 本次要求用 Workflow 确定性编排作为骨架、主力 Agent 作为核心节点，补齐裸 Agent 循环、LangGraph State 与检查点、七类意图四路分流、检索后的置信度闸，以及用户独立确认的转人工和手填工单交互。
 
 完整原始提示词、用户后续确认的 AsyncSqliteSaver／闲聊规则、主题弹窗与独立气泡纠偏，归档于[第五步提示词](docs/prompts/step-05-workflow-agent.md)。开发过程见[dev-notes/ch05.md](dev-notes/ch05.md)。
+
+# 第九步
+
+## 使用插件
+
+- Superpowers
+- Context7（原始要求；本章经用户批准以官方文档与锁定源码核对替代）
+
+## 完整原始提示词与建表DDL
+
+完整功能需求、技术栈、六项验收标准、五项工作要求及review_queue、eval_runs、low_confidence_questions的原始DDL，归档于[第九步提示词](docs/prompts/step-09-observability-flywheel.md)。原始需求与后续批准的实施调整分开保留；过程记录见[dev-notes/ch09.md](dev-notes/ch09.md)，实际结果及剩余质量项见[验收报告](docs/superpowers/reports/2026-10-20-reference-acceptance.md)。
