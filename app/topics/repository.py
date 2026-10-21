@@ -114,6 +114,14 @@ class TopicRepository:
     def __init__(self,database,*,runtime_root: Path | None=None):
         self.database,self.runtime_root=database,runtime_root
 
+    async def read_summary(self,filters,identity):
+        from app.topics.statistics import fetch_summary
+        return await fetch_summary(self.database,filters,identity)
+
+    async def read_questions(self,label,filters,identity,*,offset,limit):
+        from app.topics.statistics import fetch_questions
+        return await fetch_questions(self.database,label,filters,identity,offset=offset,limit=limit)
+
     async def preview_pending(self,*,from_id,to_id,limit,identity,reclassify=False):
         lower=_id(from_id)
         upper=_id(to_id) if to_id is not None else None
@@ -128,8 +136,8 @@ class TopicRepository:
             bound=min(int(upper) if upper is not None else water,water)
             clause='t.question_id IS NULL'
             if reclassify:
-                clause+=' OR t.model_version IS NULL OR t.model_version<>:model OR t.taxonomy_version IS NULL '
-                clause+='OR t.taxonomy_version<>:taxonomy OR t.input_hash IS NULL OR t.input_hash<>SHA2(q.raw_question,256)'
+                clause+=' OR t.model_version IS NULL OR BINARY t.model_version<>BINARY :model OR t.taxonomy_version IS NULL '
+                clause+='OR BINARY t.taxonomy_version<>BINARY :taxonomy OR t.input_hash IS NULL OR BINARY t.input_hash<>BINARY SHA2(q.raw_question,256)'
             rows=(await session.execute(text('SELECT q.id,q.raw_question FROM low_confidence_questions q '
                 'LEFT JOIN topic_classifications t ON t.question_id=q.id WHERE q.id>=:lower AND q.id<=:upper AND ('
                 +clause+') ORDER BY q.id LIMIT :limit'),dict(lower=int(lower),upper=bound,limit=limit,

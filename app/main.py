@@ -99,8 +99,16 @@ def create_app(
     confidence_rule: Any | None = None,
     eval_pipeline_manager: Any | None = None,
     context_recover_backlog: bool = True,
+    topic_profile: Any | None = None,
+    topic_service: Any | None = None,
+    background_tasks_enabled: bool = True,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
+    if type(background_tasks_enabled) is not bool:
+        raise ValueError('Background startup mode must be a trusted boolean')
+    if not background_tasks_enabled:
+        settings=settings.model_copy(update=dict(eval_pipeline_enabled=False,eval_schedule_enabled=False,
+                                                  rag_evaluation_enabled=False))
     if acceptance_call_cap is not None and settings.eval_schedule_enabled:
         raise ValueError('Acceptance runs cannot enable the paid evaluation schedule')
     if acceptance_call_cap is not None and settings.rag_evaluation_enabled:
@@ -133,6 +141,12 @@ def create_app(
     def configure(app: FastAPI):
         app.state.repository = repository
         app.state.database = database
+        if topic_service is not None:
+            app.state.topic_service=topic_service
+        elif topic_profile is not None or not background_tasks_enabled:
+            from app.topics.repository import TopicRepository
+            from app.topics.statistics import TopicStatisticsService
+            app.state.topic_service=TopicStatisticsService(TopicRepository(database),topic_profile,None)
         tickets = TicketRepository(database)
         assessment = sufficiency_service if sufficiency_service is not None else SufficiencyService(
             model_with_output_budget(model, settings, settings.sufficiency_max_output_tokens),
@@ -316,7 +330,7 @@ def create_app(
                 # 图任务必须先结束，后进先出的资源栈随后才关闭官方 saver。
                 resources.push_async_callback(app.state.chat_service.shutdown)
             app.state.flywheel_runtime = flywheel_runtime
-            if settings.flywheel_enabled and (flywheel_runtime is not None or getattr(database, 'engine', None) is not None):
+            if background_tasks_enabled and settings.flywheel_enabled and (flywheel_runtime is not None or getattr(database, 'engine', None) is not None):
                 if owns_flywheel:
                     from app.flywheel.runtime import FlywheelRuntime
                     flywheel_runtime = await FlywheelRuntime.create(settings,
@@ -353,13 +367,17 @@ def create_app(
                     'fee_cap': fee_cap_diagnostic(settings, startup_budget, startup_registry),
                     'config': {key: getattr(settings, key) for key in ('model_context_window',
                         'max_user_input_tokens', 'max_agent_steps', 'tool_result_max_tokens', 'rerank_top_k', 'context_target_rounds')}})
-                if context_recover_backlog:
+                if background_tasks_enabled and context_recover_backlog:
                     await manager.startup()
                 else:
                     await manager.startup(recover_existing=False)
             yield
 
     app = FastAPI(lifespan=lifespan)
+    app.state.background_tasks_enabled=background_tasks_enabled
+    app.state.topic_service=topic_service
+    from app.api.topics import router as topics_router
+    app.include_router(topics_router)
     app.state.eval_pipeline_manager=eval_pipeline_manager if settings.eval_pipeline_enabled else None
     from app.api.eval_runs import router as eval_pipeline_router
     app.include_router(eval_pipeline_router)
@@ -404,6 +422,10 @@ def create_app(
     async def review_page():
         return FileResponse(static_dir/'review-queue.html',headers={'Cache-Control':'no-store'})
 
+    @app.get('/topics',response_class=FileResponse,include_in_schema=False)
+    async def topics_page():
+        return FileResponse(static_dir/'topics.html',headers={'Cache-Control':'no-store'})
+
     # 将业务异常转换为统一的错误码、提示和 HTTP 状态。
     @app.exception_handler(ServiceError)
     async def service_error(request: Request, exc: ServiceError):
@@ -413,6 +435,8 @@ def create_app(
     @app.get("/health")
     async def health():
         result = {"status": "ok"}
+        if not background_tasks_enabled:
+            result['background_tasks_enabled']=False
         if acceptance_profile is not None:
             result['context_profile'] = acceptance_profile
         if acceptance_call_cap is not None:
