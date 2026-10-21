@@ -23,3 +23,33 @@
 ## 后续验证边界
 
 模型权重revision、训练依赖的确切版本和wheel、混合精度/早停/多标签损失、分组多标签分层抽样、逐类2×2混淆矩阵及服务接口，进入书面设计与计划时继续核对。实现前不安装、不下载权重、不运行训练；不能用模拟日志、随机权重或关键词规则冒充全参微调的实际成绩。
+
+## 计划阶段：固定发布及源码签名（2026-10-21）
+
+以下为公开注册元数据及官方源码只读核对，尚未安装/解析完整依赖，不能当作GPU运行成功：
+
+| 组件 | 计划锁定版本 | 核对来源 |
+| --- | --- | --- |
+| Python | 3.12.13 | 本机已安装解释器清单 |
+| torch CUDA | 2.14.1+cu130 | [官方CUDA130索引](https://download.pytorch.org/whl/cu130/torch/)，有cp312-cp312-win_amd64 wheel |
+| transformers | 5.20.2 | [PyPI发布](https://pypi.org/project/transformers/5.20.2/)及官方v5.20.2源码 |
+| accelerate | 1.15.0 | [PyPI版本元数据](https://pypi.org/pypi/accelerate/1.15.0/json) |
+| numpy | 2.5.4 | [PyPI版本元数据](https://pypi.org/pypi/numpy/2.5.4/json)，有Windows cp312 wheel |
+| scikit-learn | 1.9.1 | [PyPI版本元数据](https://pypi.org/pypi/scikit-learn/1.9.1/json)，有Windows cp312 wheel |
+| iterative-stratification | 0.1.9 | [PyPI版本元数据](https://pypi.org/pypi/iterative-stratification/0.1.9/json)及原仓库0.1.9源码 |
+| safetensors | 0.8.0 | [PyPI版本元数据](https://pypi.org/pypi/safetensors/0.8.0/json)，有Windows abi3 wheel |
+
+torch Windows CUDA wheel SHA-256为`0a09031e93632d14ef49553acd6211ece3ae9cdc0969a369b8c24e3cc4d15be9`。PyPI默认wheel与该CUDA源wheel不是同一份，不能混用hash。[NVIDIA兼容说明](https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html)列CUDA13.x最低驱动580；本机610.88满足这个必要条件，但具体GPU内核仍需安装后实测。
+
+HFL公开模型元数据返回revision `5c58d0b8ec1d9014354d691c538661bf00bfdb44`；文件列表包含pytorch_model.bin与tokenizer文件，不含原生safetensors。底座加载须使用当前torch安全weights-only能力，导出服务包转为safetensors，不能假设原仓库已有该格式。只读取了文件清单，没有下载权重。
+
+| 官方固定源码 | SHA-256 | 已核对内容 |
+| --- | --- | --- |
+| [trainer.py](https://raw.githubusercontent.com/huggingface/transformers/v5.20.2/src/transformers/trainer.py) | `33ef308cf53cd54511823f05d8888eb25d6bd567c4ef0c777b51abd65306bbef` | constructor使用processing_class、compute_metrics、callbacks |
+| [training_args.py](https://raw.githubusercontent.com/huggingface/transformers/v5.20.2/src/transformers/training_args.py) | `79f2569ffcb0fd842e5ca827bd180dfa2f02f5ace42f6c2906c2c289c8c0bd68` | eval_strategy；warmup_steps可为[0,1)比例，已无warmup_ratio字段 |
+| [trainer_callback.py](https://raw.githubusercontent.com/huggingface/transformers/v5.20.2/src/transformers/trainer_callback.py) | `a9703b60f3d585627054ed976eca3dbea69fddcfd4eb01b1cc19bff67bccf00a` | early_stopping_patience/threshold和最佳checkpoint依赖 |
+| [modeling_bert.py](https://raw.githubusercontent.com/huggingface/transformers/v5.20.2/src/transformers/models/bert/modeling_bert.py) | `fca25539f04aa121d000de218baedb619d744aaef7e93726e71ef555419c6a43` | BertForSequenceClassification的multi_label分支使用BCEWithLogitsLoss |
+| [modeling_utils.py](https://raw.githubusercontent.com/huggingface/transformers/v5.20.2/src/transformers/modeling_utils.py) | `553412f58334f65abba617f3b344828698dbf63615e109159fd03dafd3422d38` | save_pretrained无显式safe_serialization参数，实施时核验实际safetensors文件而不盲传旧参数 |
+| [ml_stratifiers.py](https://raw.githubusercontent.com/trent-b/iterative-stratification/0.1.9/iterstrat/ml_stratifiers.py) | `5bdfa0db803e006884e2d228c2a97377e438b5ad9a0f24891fe77f2c53f54bf3` | MultilabelStratifiedShuffleSplit及固定random_state |
+
+[FastAPI lifespan](https://fastapi.tiangolo.com/advanced/events/)用于加载一次服务模型及释放资源；[HTTPX超时](https://www.python-httpx.org/advanced/timeouts/)分连接/读/写/连接池，read timeout不是整次操作总时限，旁路调用还须外层总超时。
