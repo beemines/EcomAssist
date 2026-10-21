@@ -35,7 +35,7 @@ def _selection_route(state: WorkflowState):
     return 'await_order_selection' if state['order_selection']['cards'] else 'no_order_response'
 
 
-def build_workflow_graph(agent_graph: CompiledStateGraph, *, checkpointer: BaseCheckpointSaver) -> CompiledStateGraph:
+def build_workflow_graph(agent_graph: CompiledStateGraph, *, checkpointer: BaseCheckpointSaver, callbacks=None) -> CompiledStateGraph:
     """父图使用显式官方 saver，受控/正式 Agent 共享同一状态和 Runtime。"""
     graph = StateGraph(WorkflowState, context_schema=WorkflowRuntime)
     for name in ('resolve_reference', 'classify_intent', 'retrieve_knowledge', 'confidence_gate',
@@ -73,4 +73,5 @@ def build_workflow_graph(agent_graph: CompiledStateGraph, *, checkpointer: BaseC
     for name in ('knowledge_fallback', 'complaint_response', 'social_response', 'other_response', 'no_order_response'):
         graph.add_edge(name, 'log_response')
     graph.add_edge('log_response', END)
-    return graph.compile(checkpointer=checkpointer)
+    compiled = graph.compile(checkpointer=checkpointer)
+    return compiled.with_config(callbacks=callbacks) if callbacks else compiled

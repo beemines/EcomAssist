@@ -11,14 +11,14 @@ from sqlalchemy import text
 
 from app.core.errors import ServiceError
 from app.repositories.conversations import ConversationRepository
+from tests.schema_sources import ch04_original_ddl
 
 
 # 执行用户权威 SQL 于自有 schema；先建立原会话/消息表，再建立质量表。
 @pytest_asyncio.fixture
 async def quality_database(migration_database):
     business = re.sub(r"(?m)^\s*--.*$", "", Path("sql/schema.sql").read_text(encoding="utf-8"))
-    prompt = Path("prompt.md").read_text(encoding="utf-8")
-    quality = prompt.split("```SQL")[-1].split("```")[0]
+    quality = ch04_original_ddl()
     quality = re.sub(r"(?m)^\s*--.*$", "", quality)
     async with migration_database.engine.begin() as connection:
         await connection.exec_driver_sql("SET NAMES utf8mb4")
@@ -27,6 +27,10 @@ async def quality_database(migration_database):
         for statement in re.split(r";(?=(?:[^']*'[^']*')*[^']*$)", quality):
             if statement.strip():
                 await connection.exec_driver_sql(statement.strip())
+    # ConversationRepository now uses ch07 anchor columns. Exercise the old
+    # quality contract against its real current conversation prerequisite.
+    from app.context.migration import migrate_context
+    await migrate_context(migration_database)
     return migration_database
 
 

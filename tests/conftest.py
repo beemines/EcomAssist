@@ -14,6 +14,7 @@ os.environ['PYTHON_DOTENV_DISABLED'] = '1'
 def pytest_addoption(parser):
     parser.addoption("--run-mysql", action="store_true", default=False, help="运行独立 MySQL 测试库集成测试")
     parser.addoption('--run-milvus', action='store_true', default=False, help='运行本机 Milvus knowledge_test_* 集成测试')
+    parser.addoption('--run-langfuse', action='store_true', default=False, help='运行本章本地Langfuse集成测试，不调用模型')
 
 
 # 为显式启用的测试分配随机 Milvus 集合名，检查服务并在结束后清理集合和客户端。
@@ -107,3 +108,28 @@ async def migration_database(mysql_database):
         async with root.engine.begin() as connection:
             await connection.execute(text(f"DROP DATABASE `{name}`"))
         await root.dispose()
+
+
+@pytest_asyncio.fixture
+async def flywheel_base(migration_database):
+    """Own a fresh ch02/ch04 schema on 3308; never alter the shared business DB."""
+    from pathlib import Path
+    from app.quality.migration import _statements, migrate_quality
+    async with migration_database.engine.begin() as connection:
+        await connection.exec_driver_sql('SET NAMES utf8mb4')
+        for statement in _statements(Path('sql/schema.sql').read_text(encoding='utf-8'))[:2]:
+            await connection.exec_driver_sql(statement)
+    await migrate_quality(migration_database)
+    return migration_database
+
+
+@pytest_asyncio.fixture
+async def flywheel_database(flywheel_base):
+    from app.flywheel.migration import migrate_flywheel
+    from app.context.migration import migrate_context
+    await migrate_context(flywheel_base)
+    await migrate_flywheel(flywheel_base)
+    from sqlalchemy import text
+    async with flywheel_base.session() as session, session.begin():
+        await session.execute(text("INSERT INTO conversations(id,user_id) VALUES(1,'ch09-test')"))
+    return flywheel_base

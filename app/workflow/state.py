@@ -40,6 +40,8 @@ class WorkflowState(TypedDict):
     order_snapshot: dict[str, Any] | None
     retrieval_queries: list[str]
     retrieval_audit: dict[str, Any]
+    retrieval_performed: bool
+    retrieval_snapshot: dict[str, Any] | None
     refund_decision: Literal['eligible', 'needs_review', 'ineligible', 'not_applicable'] | None
     decision_reason: str | None
     refund_offer: dict[str, Any] | None
@@ -96,6 +98,8 @@ def new_turn_state(*, conversation_id: str, user_message_id: int, raw_question: 
         'order_snapshot': None,
         'retrieval_queries': [],
         'retrieval_audit': {},
+        'retrieval_performed': False,
+        'retrieval_snapshot': None,
         'refund_decision': None,
         'decision_reason': None,
         'refund_offer': None,

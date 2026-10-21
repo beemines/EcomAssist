@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
+import time
 from urllib.parse import urlsplit
 from uuid import uuid4
 from weakref import WeakValueDictionary
@@ -402,7 +403,15 @@ class RunStore:
                 stream.flush()
                 os.fsync(stream.fileno())
             guarded_path(self.root, *relative.parts)
-            os.replace(temporary, path)
+            for attempt in range(4):
+                try:
+                    os.replace(temporary, path)
+                    break
+                except OSError as exc:
+                    if getattr(exc,'winerror',None) not in (5,32,33) or attempt==3:
+                        raise
+                    time.sleep(.01*(attempt+1))
+                    guarded_path(self.root,*relative.parts)
         except (OSError, ValueError, TypeError) as exc:
             self._state().runs.pop(path.relative_to(self.root).parts[0], None)
             raise StoreError("快照原子发布失败") from exc

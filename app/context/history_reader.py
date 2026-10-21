@@ -87,6 +87,8 @@ class HistoryReader:
             locator = {'assistant_message_id': final_id, 'checkpoint_id': checkpoint_id}
             item = {'turn_status': 'completed', 'citations': _citations(state.get('citations', [])),
                     'tool_badges': []}
+            if isinstance(state.get('raw_question'), str) and state['raw_question'].strip():
+                item['feedback'] = dict(locator)
             # 只提供既有接口所需定位；许可仍由后续业务接口重新核验。
             actions = state.get('suggested_actions', [])
             if isinstance(actions, list):

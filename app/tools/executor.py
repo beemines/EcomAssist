@@ -102,7 +102,15 @@ class ToolExecutor:
                 schema = tool.tool_call_schema
                 schema = schema if isinstance(schema, dict) else schema.model_json_schema()
                 definition = ToolDefinition('create_ticket', tool.description, schema, operation='write')
-            outcome = await self._execute(call, registry, context=context, definition=definition)
+            from app.observability.tracing import operation
+            metadata = {'observation_type': 'tool', 'tool_name': call.name,
+                        'source': definition.source if definition else 'builtin'}
+            with operation('tool.execute.' + str(call.name), input={
+                'tool_call_id': call.id, 'arguments': call.args}, metadata=metadata) as observation:
+                outcome = await self._execute(call, registry, context=context, definition=definition)
+                observation.update(output={'status': outcome.status, 'attempts': outcome.attempts,
+                                           'result': outcome.content},
+                    level='DEFAULT' if outcome.status == 'success' else 'ERROR')
             return outcome
         finally:
             if self.audit_sink is not None:
