@@ -70,3 +70,6 @@ const shanghaiInput=date=>new Date(date.getTime()+8*3600000).toISOString().slice
 $("usage-to").value=shanghaiInput(new Date(Date.now()+60000));
 $("usage-from").value=shanghaiInput(new Date(Date.now()-7*86400000));
 if(location.pathname==="/observability"){$("queue").hidden=true;$("observability-panels").hidden=false;$("page-title").textContent="观测与成本";$("page-description").textContent="钱花在哪类问题上 · 指标有没有下滑 · 阈值依据是什么";$("observability-link").classList.add("active");document.title="MewHelp · 观测与成本";Promise.allSettled([loadUsage(),loadEval(),loadCalibration()]);}else{$("review-link").classList.add("active");loadQueue();}
+const targetedReviewId=new URLSearchParams(location.search).get("review_id");
+if(location.pathname!=="/observability"&&targetedReviewId&&/^[1-9][0-9]{0,19}$/.test(targetedReviewId))openReview(targetedReviewId,"status");
+api("/health").then(data=>{if(data.background_tasks_enabled===false){document.body.dataset.readonly="true";$("demo-notice").hidden=false;}}).catch(()=>{});

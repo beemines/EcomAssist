@@ -103,3 +103,17 @@ $env:PYTHONIOENCODING = 'utf-8'
 ```
 
 原DDL在`sql/ch10-ddl.sql`，四个nullable追溯字段在`sql/ch10-runtime.sql`；3308自有fixture已验证迁移、默认RESTRICT外键、question_id唯一性、旧行四列NULL及ORM往返。暂不对3307执行迁移或真实批量归类；原问题池保持原样。
+
+## 当前可打开的主题页（模型尚未训练）
+
+本章演示已启动：[主题分布](http://127.0.0.1:8007/topics)。当前显示实际问题池29条；选择“用户反馈没解决”后点“查询”，显示3条。当前有效分类和待复核显示“—”，原因是实际模型尚未训练/配置，不能把它们当作0条。17个主题暂时不可点；实际训练、服务、批次完成后才能验收非空分布和分页。
+
+PyCharm重新启动本章页面：工作目录选择第十步worktree，解释器选择业务`.venv/Scripts/python.exe`，运行配置“模块名称”填`uvicorn`，参数填：
+
+```text
+app.topics.demo:create_app --factory --host 127.0.0.1 --port 8007
+```
+
+环境变量填`CH10_ENV_FILE=D:/shixi/ecommerce-customer-service/.env`、`PYTHONUTF8=1`、`PYTHONIOENCODING=utf-8`。启动前确认8007没有其他进程；当前演示仍在运行时，不要再启动第二份。`CH10_TOPIC_PROFILE`在实际模型包就绪后再填三字段JSON路径，不放API Key，不用空壳manifest伪装模型。
+
+这个入口不恢复飞轮消费、摘要历史或收费评估，不启动分类Worker；审核页只读，完整第九步审核与评估仍在原[8006后台](http://127.0.0.1:8006/review)。主题页刷新仅发送GET。点击已有归并缺口链接可到`/review?review_id=...`查看，未归并的原话不造链接。
