@@ -57,3 +57,5 @@ HFL公开模型元数据返回revision `5c58d0b8ec1d9014354d691c538661bf00bfdb44
 实施前另核对[huggingface_hub v2.2.0 snapshot_download](https://raw.githubusercontent.com/huggingface/huggingface_hub/v2.2.0/src/huggingface_hub/_snapshot_download.py)，源码SHA-256为`33aea763186df2d6600e2008e91ebb862cfc12907638caeab97e9865cf052d97`；支持`revision`、`local_dir`、`allow_patterns`、`token=False`，不使用已移除的`local_dir_use_symlinks`。上述Transformers锁定源码的`from_pretrained`支持`weights_only=True`、`local_files_only`、`use_safetensors`，底座从固定revision下载后离线安全加载，不执行远端代码。
 
 GPU探测另按[PyTorch2.14 AMP文档](https://docs.pytorch.org/docs/2.14/amp.html)和[AdamW接口](https://docs.pytorch.org/docs/2.14/generated/torch.optim.AdamW.html)核对`torch.amp.GradScaler('cuda')`、autocast、unscale后裁剪与optimizer step；实际安装版本再核验，旧cuda.amp入口已弃用。独立ML锁文件SHA-256为`d8fc8a32b203781aae689f781c3f941b83b4e00bd01695be3c6beb5fbbff0da3`。
+
+Task2按[SQLAlchemy2.0异步文档](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html)核对独立短会话及execute/scalar，按[text绑定参数接口](https://docs.sqlalchemy.org/en/20/core/sqlelement.html#sqlalchemy.sql.expression.text)使用命名参数，不拼接用户范围为SQL。业务锁定2.0.54；复用现有Database.session及3308隔离fixture，不新建第二个引擎生命周期框架。
