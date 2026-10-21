@@ -110,3 +110,48 @@ class ModelIdentity(StrictRecord):
     @classmethod
     def version_not_blank(cls, value):
         return _nonblank(value)
+
+
+class ClassifyItem(StrictRecord):
+    id: str = Field(min_length=1, max_length=128, pattern=r'^[A-Za-z0-9][A-Za-z0-9_.:-]*$')
+    text: str = Field(min_length=1, max_length=512)
+
+    @field_validator('text')
+    @classmethod
+    def question_not_blank(cls, value):
+        return _nonblank(value)
+
+
+class ClassifyRequest(StrictRecord):
+    request_id: str = Field(min_length=1, max_length=64, pattern=r'^[A-Za-z0-9][A-Za-z0-9_.:-]*$')
+    items: tuple[ClassifyItem, ...] = Field(min_length=1, max_length=64)
+
+    @field_validator('items', mode='before')
+    @classmethod
+    def item_array(cls, value):
+        return _sequence(value)
+
+    @model_validator(mode='after')
+    def unique_ids(self):
+        if len({item.id for item in self.items}) != len(self.items):
+            raise ValueError('Classification IDs must be unique within a request')
+        return self
+
+
+class ClassifyResponse(StrictRecord):
+    request_id: str = Field(min_length=1, max_length=64, pattern=r'^[A-Za-z0-9][A-Za-z0-9_.:-]*$')
+    identity: ModelIdentity
+    items: tuple[Prediction, ...] = Field(min_length=1, max_length=64)
+
+    @field_validator('items', mode='before')
+    @classmethod
+    def prediction_array(cls, value):
+        return _sequence(value)
+
+    @model_validator(mode='after')
+    def same_model(self):
+        if (len({item.id for item in self.items}) != len(self.items)
+                or any(item.model_version != self.identity.model_version
+                       or item.taxonomy_version != self.identity.taxonomy_version for item in self.items)):
+            raise ValueError('Prediction identities must agree with the response model')
+        return self
