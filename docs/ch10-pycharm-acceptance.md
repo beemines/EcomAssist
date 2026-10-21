@@ -42,7 +42,7 @@ $env:PYTHONIOENCODING = 'utf-8'
 & $AppPy -m app.topics.data_cli pilot --snapshot "$Evidence/pool/snapshot.json" --output "$Evidence/pilot"
 ```
 
-执行版本增加`--execute`，会使用10元共享账本并向标准智谱API发送经过本地复查的单句与术语表，也会生成合成题；不发送会话历史、检索快照和数据库凭据。目前自动审批要求用户明确确认本批脱敏数据及具体接收方，确认前不执行这一步。
+执行版本增加`--execute`，会使用10元共享账本并向标准智谱API发送经过本地复查的单句与术语表，也会生成合成题；不发送会话历史、检索快照和数据库凭据。用户现已明确允许本批最多20条去重脱敏单句发送到`https://open.bigmodel.cn/api/paas/v4/chat/completions`，使用`glm-5.3-flash`；该授权不代替后续人工抽审。
 
 ```powershell
 & $AppPy -m app.topics.data_cli pilot --snapshot "$Evidence/pool/snapshot.json" --output "$Evidence/pilot" --execute
@@ -50,9 +50,11 @@ $env:PYTHONIOENCODING = 'utf-8'
 
 每个收费阶段会先留下检查点。已完成阶段重跑会复用；未完成、失败或范围变更会拒绝自动重复调用。不要删除journal或预算文件来“重新开始”。报错时先看安全错误代码和`budget-status`。
 
+结构失败的响应会保存在本地私有`pilot/diagnostics/`，便于修复后离线重验，不提交Git。需要重新请求时，仅可在查明原因后显式指定`--retry-failed-stage`和`--retry-reason`恢复一个同范围failed阶段，原失败回执另行留存；in_flight不能用此方式重发。此选项不用于连续盲试，也不重置预算。
+
 ## 人工查看和填写
 
-包生成成功后才会出现以下文件：
+当前包已实际生成：68条、17类齐、32条多诉求；20条池句来源真实性未核实、48条合成。包hash为`6cb5bbbdaa3944feba577efd47e9a1e0b43d8b96f82dc80d2eda337d334b4225`，尚未人工审阅通过。文件在`D:/shixi/ecommerce-customer-service/.cache/ch10-evidence/pilot/`：
 
 - `pilot/review.html`：只读审阅页。在PyCharm“文件 → 打开”选该完整路径，右键“在浏览器中打开”。逐条查看脱敏后的句子、独立预标标签、来源和边界说明。
 - `pilot/decisions.jsonl`：待填写，每行一个样本。初始`decision=null`、审核人空、时间空，绝不会默认通过。

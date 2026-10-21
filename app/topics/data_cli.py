@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+from uuid import uuid4
 
 from app.topics.snapshot import SnapshotPreview, export_pool, preview_pool, write_new_json
 
@@ -19,21 +20,29 @@ def _atomic_json(path: Path, value):
     os.replace(temporary, path)
 
 
-async def _checkpoint(name, intent, call, teacher, journal_dir, record_type):
+async def _checkpoint(name, intent, call, teacher, journal_dir, record_type, *, recovery=None):
     from app.topics.reviews import digest
     intent_hash = digest(intent)
     path = journal_dir / (name + '.json') if journal_dir is not None else None
     if path is not None and path.exists():
         saved = json.loads(path.read_text(encoding='utf-8'))
-        if saved.get('state') != 'complete' or saved.get('intent_hash') != intent_hash:
+        if saved.get('intent_hash') != intent_hash:
             raise ValueError('Paid stage is incomplete or its frozen scope changed; no automatic repeat')
-        expected_hash = saved.get('record_hash')
-        if digest({key: value for key, value in saved.items() if key != 'record_hash'}) != expected_hash:
-            raise ValueError('Paid-stage checkpoint was modified')
-        rows = tuple(record_type.model_validate_json(json.dumps(row, ensure_ascii=False)) for row in saved['data'])
-        return rows, saved['receipt']
+        if saved.get('state') == 'complete':
+            expected_hash = saved.get('record_hash')
+            if digest({key: value for key, value in saved.items() if key != 'record_hash'}) != expected_hash:
+                raise ValueError('Paid-stage checkpoint was modified')
+            rows = tuple(record_type.model_validate_json(json.dumps(row, ensure_ascii=False)) for row in saved['data'])
+            return rows, saved['receipt']
+        if (saved.get('state') != 'failed' or not saved.get('receipt') or recovery is None
+                or recovery[0] != name or type(recovery[1]) is not str or not recovery[1].strip()):
+            raise ValueError('Paid stage is incomplete; explicit same-scope failed-stage recovery is required')
+        write_new_json(path.with_name(f'{name}.recovery-{uuid4().hex}.json'),
+                       dict(prior=saved, reason=recovery[1]))
+        _atomic_json(path, dict(state='in_flight', intent_hash=intent_hash))
     if path is not None:
-        write_new_json(path, dict(state='in_flight', intent_hash=intent_hash))
+        if not path.exists():
+            write_new_json(path, dict(state='in_flight', intent_hash=intent_hash))
     teacher.last_receipt = None
     try:
         result = await call()
@@ -64,7 +73,7 @@ def _verify_snapshot(snapshot):
         raise ValueError('Frozen snapshot hash or local cleaning results changed')
 
 
-async def build_pilot(snapshot, teacher, *, count=68, journal_dir=None):
+async def build_pilot(snapshot, teacher, *, count=68, journal_dir=None, recovery=None):
     from app.topics.cleaning import clean_question
     from app.topics.prompts import PROMPT_VERSION, system_prompt
     from app.topics.reviews import digest, make_review_pack
@@ -101,7 +110,7 @@ async def build_pilot(snapshot, teacher, *, count=68, journal_dir=None):
         cleaned = [rows[0].cleaned for _, rows in batch]
         labelled, receipt = await _checkpoint(f'label-pool-{start:03}',
             dict(scope=scope, samples=[row.model_dump(mode='json') for row in cleaned]),
-            lambda cleaned=cleaned: teacher.label(cleaned), teacher, journal_dir, Prelabel)
+            lambda cleaned=cleaned: teacher.label(cleaned), teacher, journal_dir, Prelabel, recovery=recovery)
         receipts.append(receipt)
         for (key, rows), label in zip(batch, labelled, strict=True):
             samples.append(LabelledSample(id=label.id, text=label.cleaned_text, labels=label.labels,
@@ -119,7 +128,7 @@ async def build_pilot(snapshot, teacher, *, count=68, journal_dir=None):
         labels = requested[start:start+16]
         plan = GenerationPlan(count=len(labels), scenario_labels=labels, taxonomy_hash=taxonomy.digest)
         rows, receipt = await _checkpoint(f'generate-{start:03}', dict(scope=scope, plan=plan.model_dump(mode='json')),
-            lambda plan=plan: teacher.generate(plan), teacher, journal_dir, GeneratedQuestion)
+            lambda plan=plan: teacher.generate(plan), teacher, journal_dir, GeneratedQuestion, recovery=recovery)
         generated.extend(rows)
         receipts.append(receipt)
     seen = {sample.text for sample in samples}
@@ -133,7 +142,7 @@ async def build_pilot(snapshot, teacher, *, count=68, journal_dir=None):
         cleaned = [clean_question(row.text, sample_id=row.id) for row in batch]
         labelled, receipt = await _checkpoint(f'label-generated-{start:03}',
             dict(scope=scope, samples=[row.model_dump(mode='json') for row in cleaned]),
-            lambda cleaned=cleaned: teacher.label(cleaned), teacher, journal_dir, Prelabel)
+            lambda cleaned=cleaned: teacher.label(cleaned), teacher, journal_dir, Prelabel, recovery=recovery)
         receipts.append(receipt)
         for parent, label in zip(batch, labelled, strict=True):
             samples.append(LabelledSample(id=label.id, text=label.cleaned_text, labels=label.labels,
@@ -164,14 +173,20 @@ async def pilot_command(args):
     snapshot = PoolSnapshot.model_validate_json(args.snapshot.read_text(encoding='utf-8'))
     _verify_snapshot(snapshot)
     ledger = BudgetLedger(BUDGET_PATH, APPROVAL_ID)
+    retry_stage, retry_reason = args.retry_failed_stage, args.retry_reason
+    if (bool(retry_stage) != bool(retry_reason) or (retry_stage and
+            (not args.execute or not re.fullmatch(r'(label-pool|generate|label-generated)-[0-9]{3}', retry_stage)
+             or not retry_reason.strip() or len(retry_reason) > 512))):
+        raise ValueError('Recovery needs --execute, one exact failed stage and a nonblank diagnostic reason')
     if not args.execute:
         print(json.dumps(dict(mode='preview', snapshot_rows=len(snapshot.rows), target=68,
             quarantined=sum(bool(row.cleaned.quarantine_reasons) for row in snapshot.rows),
             budget=ledger.summary().model_dump()), ensure_ascii=False))
         return
     settings = load_settings(env_file=os.environ.get('CH10_ENV_FILE', '.env'))
-    async with configured_teacher(settings, ledger) as teacher:
-        pack = await build_pilot(snapshot, teacher, journal_dir=args.output/'journal')
+    async with configured_teacher(settings, ledger, evidence_dir=args.output/'diagnostics') as teacher:
+        pack = await build_pilot(snapshot, teacher, journal_dir=args.output/'journal',
+                                 recovery=(retry_stage, retry_reason) if retry_stage else None)
     outputs = {'pack.json': pack.model_dump(mode='json'), 'coverage.json': _coverage(pack),
                'budget.json': ledger.summary().model_dump()}
     for name, value in outputs.items():
@@ -248,6 +263,8 @@ def main():
     pilot.add_argument('--snapshot', type=Path, required=True)
     pilot.add_argument('--output', type=Path, required=True)
     pilot.add_argument('--execute', action='store_true')
+    pilot.add_argument('--retry-failed-stage', help='One diagnosed failed checkpoint; never retries in-flight calls')
+    pilot.add_argument('--retry-reason', help='Explicit diagnosis, preserved with the prior failed receipt')
     review = commands.add_parser('review-import', help='Validate explicit human decisions, then save a receipt')
     review.add_argument('--pack', type=Path, required=True)
     review.add_argument('--decisions', type=Path, required=True)
