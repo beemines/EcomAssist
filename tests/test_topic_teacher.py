@@ -182,6 +182,37 @@ async def test_cancellation_after_authorization_retains_reservation(tmp_path):
     assert ledger.summary().consecutive_failures == 1
 
 
+async def test_invalid_completion_can_be_diagnosed_locally_without_another_paid_request(tmp_path):
+    ledger = ledger_for(tmp_path)
+    content = json.dumps({'items': [dict(id='q', cleaned_text='被改写了', labels=['物流'], notes='')]})
+    async with TeacherClient(ledger, api_key=SecretStr('private-test-key'), evidence_dir=tmp_path/'responses',
+            transport=httpx.MockTransport(lambda request: response(content))) as client:
+        with pytest.raises(TeacherError):
+            await client.label([clean_question('物流?', sample_id='q')])
+        artifact = json.loads(__import__('pathlib').Path(client.last_receipt['diagnostic_file']).read_text(encoding='utf-8'))
+    assert artifact['content'] == content
+    assert artifact['finish_reason'] == 'stop'
+    assert 'private-test-key' not in json.dumps(artifact)
+    assert ledger.summary().attempts == 1
+
+
+@pytest.mark.parametrize('kind', ['verbatim', 'changed', 'ambiguous'])
+async def test_prelabel_text_alias_only_accepts_an_exact_unambiguous_copy(tmp_path, kind):
+    ledger = ledger_for(tmp_path)
+    item = dict(id='q', text='物流?' if kind != 'changed' else '运费多少?', labels=['物流'], notes='')
+    if kind == 'ambiguous':
+        item['cleaned_text'] = '物流?'
+    async with TeacherClient(ledger, api_key=SecretStr('test'), transport=httpx.MockTransport(
+            lambda request: response(json.dumps({'items': [item]})))) as client:
+        if kind == 'verbatim':
+            rows = await client.label([clean_question('物流?', sample_id='q')])
+            assert rows[0].cleaned_text == '物流?' and rows[0].labels == ('物流',)
+        else:
+            with pytest.raises(TeacherError):
+                await client.label([clean_question('物流?', sample_id='q')])
+    assert ledger.summary().attempts == 1
+
+
 async def test_total_deadline_prevents_a_new_retry_after_time_is_consumed(tmp_path, monkeypatch):
     import app.topics.teacher as module
     monkeypatch.setattr(module, 'TOTAL_TIMEOUT_SECONDS', 0.03)

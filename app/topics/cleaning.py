@@ -69,7 +69,11 @@ def clean_question(raw: str, *, sample_id: str) -> CleanQuestion:
         return match.group(1) + '[详细地址]'
     value = address.sub(redact_address, value)
 
-    if re.search(r'我叫|姓名|收件人|联系人|我是[赵钱孙李周吴郑王张刘陈杨黄]', value):
+    # A closed generic question about the field supplies no name value. Keep
+    # scanning the rest, so an actual name elsewhere still requires review.
+    name_scan = re.sub(r'(?:收件人|联系人)(?:的)?(?:姓名|名字)(?:填错了|写错了)'
+                       r'(?:怎么改|能修改吗)(?=[?？,，。;；]|$)', '', value)
+    if re.search(r'我叫|姓名|收件人|联系人|我是[赵钱孙李周吴郑王张刘陈杨黄]', name_scan):
         quarantine.append('name_review_required')
         mask(r'((?:我叫|姓名|收件人|联系人)\s*[:：]?\s*)[\u4e00-\u9fff]{2,4}(?=[，,。；; ]|$)',
              r'\1[姓名]', 'name_redacted')

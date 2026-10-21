@@ -4,6 +4,7 @@ import asyncio
 from collections import Counter
 import hashlib
 import json
+from pathlib import Path
 import re
 from typing import Sequence
 from uuid import uuid4
@@ -98,8 +99,33 @@ def _private_text_safe(value: str, identifier: str) -> bool:
             and checked.text == value)
 
 
+def parse_prelabels(value, samples: Sequence[CleanQuestion]) -> tuple[Prelabel, ...]:
+    """Normalize the provider's unambiguous text alias, preserving exact inputs."""
+    expected = {sample.sample_id: sample.text for sample in samples}
+    canonical = []
+    for row in _items(value, expected):
+        if set(row) == {'id', 'text', 'labels', 'notes'}:
+            row = {'cleaned_text': row['text']} | {key: item for key, item in row.items() if key != 'text'}
+        canonical.append(Prelabel.model_validate(row))
+    rows = tuple(canonical)
+    if any(row.cleaned_text != expected[row.id] for row in rows):
+        raise ValueError('Prelabel must not alter the question')
+    return rows
+
+
+def parse_generated(value, expected) -> tuple[GeneratedQuestion, ...]:
+    rows = tuple(GeneratedQuestion.model_validate(row) for row in _items(value, expected))
+    for row in rows:
+        cleaned = clean_question(row.text, sample_id=row.id)
+        if (row.family_id != expected[row.id]['family_id']
+                or list(row.requested_labels) != expected[row.id]['requested_labels']
+                or cleaned.quarantine_reasons or any('redacted' in edit for edit in cleaned.edits)):
+            raise ValueError('Generated item changed scenario or contains possible personal data')
+    return tuple(row.model_copy(update={'text': clean_question(row.text, sample_id=row.id).text}) for row in rows)
+
+
 class TeacherClient:
-    def __init__(self, ledger: BudgetLedger, *, api_key: SecretStr, transport=None):
+    def __init__(self, ledger: BudgetLedger, *, api_key: SecretStr, transport=None, evidence_dir: Path | None = None):
         if not isinstance(api_key, SecretStr) or not api_key.get_secret_value().strip():
             raise ValueError('A private API key is required')
         self.ledger, self._key = ledger, api_key
@@ -107,6 +133,7 @@ class TeacherClient:
             follow_redirects=False, trust_env=False, timeout=httpx.Timeout(60, connect=10, write=30, pool=5))
         self._lock = asyncio.Lock()
         self.last_receipt = None
+        self._evidence_dir = evidence_dir
 
     async def __aenter__(self):
         return self
@@ -183,6 +210,9 @@ class TeacherClient:
                     if status in (500, 502, 503, 504) and retry == 0 and asyncio.get_running_loop().time() < deadline:
                         continue
                     raise TeacherError('teacher_http_failure' if status != 200 else 'teacher_usage_unverifiable')
+                request_id = body.get('id')
+                if type(request_id) is str and re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', request_id):
+                    self.last_receipt['request_id'] = request_id
                 try:
                     if (type(body.get('choices')) is not list or len(body['choices']) != 1
                             or body['choices'][0]['finish_reason'] != 'stop'
@@ -191,10 +221,19 @@ class TeacherClient:
                     result = parse(_strict_json(body['choices'][0]['message']['content']))
                 except (ValueError, TypeError, KeyError) as exc:
                     self.ledger.record_outcome(attempt_id, success=False)
+                    if self._evidence_dir is not None:
+                        from app.topics.snapshot import write_new_json
+                        choice = body.get('choices', [])
+                        choice = choice[0] if type(choice) is list and choice and type(choice[0]) is dict else {}
+                        message = choice.get('message')
+                        message = message if type(message) is dict else {}
+                        diagnostic = dict(attempt_id=attempt_id, receipt=self.last_receipt.copy(),
+                            finish_reason=choice.get('finish_reason'), content=message.get('content'),
+                            error_type=type(exc).__name__, problem=str(exc))
+                        path = self._evidence_dir / f'{attempt_id}.json'
+                        write_new_json(path, diagnostic)
+                        self.last_receipt['diagnostic_file'] = str(path.resolve())
                     raise TeacherError('teacher_structured_output_invalid') from None
-                request_id = body.get('id')
-                if type(request_id) is str and re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}', request_id):
-                    self.last_receipt['request_id'] = request_id
                 self.ledger.record_outcome(attempt_id, success=True)
                 return result
 
@@ -205,12 +244,8 @@ class TeacherClient:
                 or any(sample.quarantine_reasons or not sample.text or len(sample.text) > 512
                        or not _private_text_safe(sample.text, sample.sample_id) for sample in samples)):
             raise ValueError('Only unique, locally cleaned, unquarantined samples may be labelled')
-        expected = {sample.sample_id: sample.text for sample in samples}
         def parse(value):
-            rows = tuple(Prelabel.model_validate(row) for row in _items(value, expected))
-            if any(row.cleaned_text != expected[row.id] for row in rows):
-                raise ValueError('Prelabel must not alter the question')
-            return rows
+            return parse_prelabels(value, samples)
         return await self._call('label', [dict(id=sample.sample_id, text=sample.text) for sample in samples], parse)
 
     async def generate(self, plan: GenerationPlan) -> tuple[GeneratedQuestion, ...]:
@@ -219,14 +254,7 @@ class TeacherClient:
                  for i, labels in enumerate(plan.scenario_labels)]
         expected = {item['id']: item for item in items}
         def parse(value):
-            rows = tuple(GeneratedQuestion.model_validate(row) for row in _items(value, expected))
-            for row in rows:
-                cleaned = clean_question(row.text, sample_id=row.id)
-                if (row.family_id != expected[row.id]['family_id']
-                        or list(row.requested_labels) != expected[row.id]['requested_labels']
-                        or cleaned.quarantine_reasons or any('redacted' in edit for edit in cleaned.edits)):
-                    raise ValueError('Generated item changed scenario or contains possible personal data')
-            return tuple(row.model_copy(update={'text': clean_question(row.text, sample_id=row.id).text}) for row in rows)
+            return parse_generated(value, expected)
         return await self._call('generate', items, parse)
 
     async def augment(self, samples: Sequence[LabelledSample]) -> tuple[LabelledSample, ...]:
@@ -255,9 +283,9 @@ class TeacherClient:
                                           for sample in samples], parse)
 
 
-def configured_teacher(settings, ledger: BudgetLedger) -> TeacherClient:
+def configured_teacher(settings, ledger: BudgetLedger, *, evidence_dir: Path | None = None) -> TeacherClient:
     """Only the approved standard provider profile may supply the private key."""
     if (str(settings.llm_base_url).rstrip('/') != ENDPOINT.rsplit('/chat/completions', 1)[0]
             or settings.llm_model != MODEL):
         raise ValueError('Teacher requires the approved standard GLM endpoint and model')
-    return TeacherClient(ledger, api_key=settings.llm_api_key)
+    return TeacherClient(ledger, api_key=settings.llm_api_key, evidence_dir=evidence_dir)

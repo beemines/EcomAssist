@@ -28,6 +28,21 @@ def test_ambiguous_name_and_unmarked_address_quarantined():
         assert clean_question(raw, sample_id='authored-3').quarantine_reasons
 
 
+@pytest.mark.parametrize('text', [
+    '订单里的收件人名字写错了怎么改?顺便问下蓝色缺货的什么时候到货',
+    '联系人姓名填错了能修改吗?',
+])
+def test_referring_to_a_name_field_without_a_name_is_not_personal_data(text):
+    result = clean_question(text, sample_id='reference-only')
+    assert not result.quarantine_reasons
+    assert result.text == text
+
+
+def test_name_field_reference_does_not_hide_an_actual_name_elsewhere():
+    result = clean_question('收件人名字写错了,我叫张三想改', sample_id='actual-name')
+    assert 'name_review_required' in result.quarantine_reasons
+
+
 def test_no_provenance_guessing_or_keyword_deletion():
     row = clean_question('验收运费怎么算，1000元订单能包邮吗？', sample_id='authored-4')
     assert '验收' in row.text and '1000元' in row.text

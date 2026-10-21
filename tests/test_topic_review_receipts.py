@@ -92,3 +92,31 @@ async def test_paid_stage_resume_reuses_completed_data_and_refuses_interrupted_o
     with pytest.raises(ValueError):
         await _checkpoint('incomplete', {'scope': 1}, controlled, teacher, tmp_path, LabelledSample)
     assert calls == 1
+
+
+async def test_only_explicit_same_scope_failed_stage_recovery_archives_prior_attempt(tmp_path):
+    from app.topics.data_cli import _checkpoint
+    teacher = SimpleNamespace(last_receipt=None)
+    calls = 0
+    async def failed():
+        teacher.last_receipt = {'attempt_id': 'failed-physical-attempt'}
+        raise RuntimeError('controlled failure')
+    with pytest.raises(RuntimeError):
+        await _checkpoint('example', {'scope': 1}, failed, teacher, tmp_path, LabelledSample)
+    async def completed():
+        nonlocal calls
+        calls += 1
+        teacher.last_receipt = {'attempt_id': 'new-physical-attempt'}
+        return (pack().samples[0],)
+    recovery = ('example', 'Explicit diagnosis: previous completion unavailable; capture one new completion')
+    with pytest.raises(ValueError):
+        await _checkpoint('example', {'scope': 2}, completed, teacher, tmp_path, LabelledSample, recovery=recovery)
+    rows, _ = await _checkpoint('example', {'scope': 1}, completed, teacher, tmp_path, LabelledSample, recovery=recovery)
+    assert rows == (pack().samples[0],) and calls == 1
+    archived = list(tmp_path.glob('example.recovery-*.json'))
+    assert len(archived) == 1
+    saved = json.loads(archived[0].read_text(encoding='utf-8'))
+    assert saved['prior']['receipt']['attempt_id'] == 'failed-physical-attempt'
+    assert saved['reason'] == recovery[1]
+    await _checkpoint('example', {'scope': 1}, completed, teacher, tmp_path, LabelledSample, recovery=recovery)
+    assert calls == 1
