@@ -90,4 +90,14 @@ $env:PYTHONIOENCODING = 'utf-8'
 & $MlPy -m pytest ml/topic_classifier/tests/test_doctor.py -q --basetemp='.cache/ch10-tests/manual-ml'
 ```
 
-这些命令不产生收费请求。训练、评测、serve、迁移、批量归类与主题页的操作将在实际实现和验证后补入，不把尚未实现的命令写成可用验收流程。
+这些命令不产生收费请求。训练、评测、serve、业务库实际迁移、批量归类与主题页的操作将在实际实现和验证后补入，不把尚未实现的命令写成可用验收流程。
+
+## 已实现的表结构预检（不执行迁移）
+
+以下命令只读，当前3307尚无topic_classifications表，输出stage=missing、preview=true、applied_count=0：
+
+```powershell
+& $AppPy -m app.topics.cli migrate --database configured
+```
+
+原DDL在`sql/ch10-ddl.sql`，四个nullable追溯字段在`sql/ch10-runtime.sql`；3308自有fixture已验证迁移、默认RESTRICT外键、question_id唯一性、旧行四列NULL及ORM往返。暂不对3307执行迁移或真实批量归类；原问题池保持原样。
