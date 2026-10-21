@@ -8,7 +8,7 @@
 
 **Tech Stack:** HFL chinese-roberta-wwm-ext；torch2.14.1+cu130、transformers5.20.2、accelerate1.15.0、numpy2.5.4、scikit-learn1.9.1、iterative-stratification0.1.9、safetensors0.8.0；现有FastAPI0.142.2、Pydantic2.13.5、HTTPX0.28.1、SQLAlchemy2.0.54、MySQL。
 
-**Spec:** [2026-10-21-topic-classifier-design.md](../specs/2026-10-21-topic-classifier-design.md)，用户已批准首版`bb89ce0`。本文待审，尚未执行任务。
+**Spec:** [2026-10-21-topic-classifier-design.md](../specs/2026-10-21-topic-classifier-design.md)，用户已批准首版`bb89ce0`。用户已批准本计划`ce10a63`，选择Native顺序执行及第十步隔离工作树；实际进度追记于dev-notes/ch10.md。
 
 ## Global Constraints
 
