@@ -93,7 +93,14 @@ async def _verify(connection, name: str, expected: dict, schema: str) -> None:
         extra = row.EXTRA.lower().replace("default_generated", "").strip()
         actual_columns.append((row.COLUMN_NAME, _type(row.COLUMN_TYPE), row.IS_NULLABLE, default, extra, row.COLUMN_COMMENT, row.CHARACTER_SET_NAME))
     if actual_columns != expected["columns"]:
-        raise RuntimeError(f"quality schema mismatch: {name} columns")
+        candidates = []
+        if name == 'low_confidence_questions':
+            from app.flywheel.migration import quality_extension_contracts
+            candidates = quality_extension_contracts(expected)
+        known = next((candidate for candidate in candidates if actual_columns == candidate['columns']), None)
+        if known is None:
+            raise RuntimeError(f"quality schema mismatch: {name} columns")
+        expected = known
     indexes = (await connection.execute(text("SELECT INDEX_NAME,COLUMN_NAME,SEQ_IN_INDEX,NON_UNIQUE,SUB_PART,INDEX_TYPE FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=:table"), parameters)).all()
     if {tuple(row) for row in indexes} != expected["indexes"]:
         raise RuntimeError(f"quality schema mismatch: {name} indexes")

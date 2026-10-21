@@ -93,8 +93,16 @@ def create_app(
     acceptance_call_cap: Any | None = None,
     acceptance_profile: str | None = None,
     tool_catalog_provider: Any | None = None,
+    observability_runtime: Any | None = None,
+    flywheel_repository: Any | None = None,
+    flywheel_runtime: Any | None = None,
+    confidence_rule: Any | None = None,
+    eval_pipeline_manager: Any | None = None,
+    context_recover_backlog: bool = True,
 ) -> FastAPI:
     settings = settings if settings is not None else load_settings()
+    if acceptance_call_cap is not None and settings.eval_schedule_enabled:
+        raise ValueError('Acceptance runs cannot enable the paid evaluation schedule')
     if acceptance_call_cap is not None and settings.rag_evaluation_enabled:
         raise ValueError('Acceptance cap requires evaluation jobs disabled')
     order_provider = order_provider if order_provider is not None else DemoOrderProvider()
@@ -106,6 +114,9 @@ def create_app(
     owns_model = model is None
     owns_checkpointer = chat_service is None and checkpointer is None
     owns_evaluation_manager = evaluation_manager is None
+    owns_observability = observability_runtime is None
+    owns_flywheel = flywheel_runtime is None
+    owns_eval_pipeline = eval_pipeline_manager is None
     if (context_budget_provider is None and chat_service is None
             and (owns_database or getattr(database, 'engine', None) is not None or context_repository is not None)):
         from app.workflow.context_budget import workflow_budget
@@ -126,7 +137,8 @@ def create_app(
         assessment = sufficiency_service if sufficiency_service is not None else SufficiencyService(
             model_with_output_budget(model, settings, settings.sufficiency_max_output_tokens),
             input_budget=settings.tool_input_token_budget, timeout=settings.sufficiency_timeout_seconds,
-            minimum_rerank_score=settings.rerank_min_score)
+            minimum_rerank_score=settings.rerank_min_score,
+            mode='content_ablation' if confidence_rule is not None else 'calibrated_score')
         if chat_service is not None:
             app.state.chat_service = chat_service
         elif checkpointer is not None:
@@ -151,14 +163,26 @@ def create_app(
                 audit_sink=BestEffortAuditSink(ToolAuditRepository(database))) if provider is not None else None
             app.state.chat_service = WorkflowChatService(model, repository,
                 registry_factory, ConversationLocks(), settings,
-                graph=build_workflow_graph(build_agent_graph(), checkpointer=checkpointer), checkpointer=checkpointer,
+                graph=build_workflow_graph(build_agent_graph(), checkpointer=checkpointer,
+                    callbacks=[observability_runtime.handler] if observability_runtime and observability_runtime.handler else None), checkpointer=checkpointer,
                 faq_repository=faq_repository, sufficiency_service=assessment, quality_repository=quality_repository,
                 order_provider=order_provider, workflow_retriever=retrieval,
                 context_coordinator=context_coordinator, context_logger=context_logger,
-                context_budget_provider=context_budget_provider, catalog_provider=provider, executor=executor)
+                context_budget_provider=context_budget_provider, catalog_provider=provider, executor=executor,
+                observability=observability_runtime, confidence_rule=confidence_rule)
         service = getattr(app.state, 'chat_service', None)
         app.state.history_reader = HistoryReader(checkpointer if checkpointer is not None else
             getattr(service, 'checkpointer', None), repository)
+        from app.flywheel.feedback import FeedbackService
+        from app.flywheel.repository import FlywheelRepository
+        pool = flywheel_repository
+        if pool is None and settings.flywheel_enabled and getattr(database, 'engine', None) is not None:
+            pool = FlywheelRepository(database)
+        app.state.feedback_service = (FeedbackService(checkpointer if checkpointer is not None else
+            getattr(service, 'checkpointer', None), repository, pool) if pool is not None else None)
+        from app.flywheel.publication import ReviewService
+        app.state.review_service = ReviewService(pool) if settings.flywheel_enabled and pool is not None else None
+        app.state.flywheel_repository = pool if settings.flywheel_enabled else None
         # 动作读取同一服务的当前注册表工厂，保留注入与测试的外部资源归属。
         def action_registry(context):
             """按原轮可信上下文复用聊天服务的既有业务工具。"""
@@ -179,17 +203,37 @@ def create_app(
     async def lifespan(app: FastAPI):
         nonlocal database, repository, model, faq_repository, sufficiency_service, quality_repository, checkpointer
         nonlocal context_coordinator, context_logger, context_repository
+        nonlocal observability_runtime, flywheel_runtime, confidence_rule, eval_pipeline_manager
         async with AsyncExitStack() as resources:
+            if owns_observability:
+                from app.observability.runtime import LangfuseRuntime
+                observability_runtime = LangfuseRuntime.from_settings(settings)
+                resources.push_async_callback(observability_runtime.close)
+            app.state.observability_runtime = observability_runtime
+            from app.observability.intent_usage import IntentUsageReader
+            from app.observability.pricing import standard_bigmodel_endpoint
+            app.state.intent_usage_reader = IntentUsageReader(observability_runtime.client,
+                estimate_prices=standard_bigmodel_endpoint(settings.llm_base_url))
             if owns_context_logger:
                 context_logger = ContextLogger(Path(__file__).resolve().parents[1] / 'log' / 'app.log')
                 resources.callback(context_logger.close)
-            if settings.rerank_min_score is None or not math.isfinite(settings.rerank_min_score):
+            if settings.evidence_confidence_rule_path is not None:
+                from app.quality.evidence_confidence import load_online_rule, evidence_budget_fingerprint
+                confidence_rule = load_online_rule(settings.evidence_confidence_rule_path,
+                    top_k=settings.rerank_top_k, rerank_model=settings.rerank_model,
+                    budget_fingerprint=evidence_budget_fingerprint(top_k=settings.rerank_top_k,
+                        token_budget=min(6000, (settings.model_context_window + 7)//8)))
+            app.state.confidence_rule=confidence_rule
+            if confidence_rule is None and (settings.rerank_min_score is None or not math.isfinite(settings.rerank_min_score)):
                 raise ValueError('online hybrid retrieval requires a calibrated finite threshold')
             if owns_database:
                 database = Database(settings.database_url)
                 resources.push_async_callback(database.dispose)
             if repository is None:
                 repository = ConversationRepository(database)
+            if settings.flywheel_enabled and getattr(database, 'engine', None) is not None:
+                from app.flywheel.migration import verify_flywheel
+                await verify_flywheel(database)
             if owns_model:
                 clients = {}
                 if acceptance_call_cap is not None:
@@ -227,7 +271,8 @@ def create_app(
             if sufficiency_service is None:
                 sufficiency_service = SufficiencyService(model_with_output_budget(model, settings, settings.sufficiency_max_output_tokens),
                     input_budget=settings.tool_input_token_budget,
-                    timeout=settings.sufficiency_timeout_seconds, minimum_rerank_score=settings.rerank_min_score)
+                    timeout=settings.sufficiency_timeout_seconds, minimum_rerank_score=settings.rerank_min_score,
+                    mode='content_ablation' if confidence_rule is not None else 'calibrated_score')
             if quality_repository is None:
                 quality_repository = QualityRepository(database)
             # 真实数据库即使注入仍核验；纯仓储注入不凭空创建连接池。
@@ -260,14 +305,46 @@ def create_app(
                     registry = app.state.chat_service.registry_factory(ToolContext('0', 0, '', None))
                     return context_budget_provider(registry)
                 manager = SummaryManager(context_repository,
-                    SummaryGenerator(model, settings, context_logger=context_logger),
-                    budget_provider=recovery_budget, event_logger=context_logger.event if context_logger else None)
+                    SummaryGenerator(model, settings, context_logger=context_logger,
+                        observability=observability_runtime),
+                    budget_provider=recovery_budget, event_logger=context_logger.event if context_logger else None,
+                    isolate_task_context=bool(observability_runtime.client))
                 context_coordinator = ContextCoordinator(context_repository, manager, settings, context_logger=context_logger)
                 resources.push_async_callback(manager.aclose)
             configure(app)
             if chat_service is None:
                 # 图任务必须先结束，后进先出的资源栈随后才关闭官方 saver。
                 resources.push_async_callback(app.state.chat_service.shutdown)
+            app.state.flywheel_runtime = flywheel_runtime
+            if settings.flywheel_enabled and (flywheel_runtime is not None or getattr(database, 'engine', None) is not None):
+                if owns_flywheel:
+                    from app.flywheel.runtime import FlywheelRuntime
+                    flywheel_runtime = await FlywheelRuntime.create(settings,
+                        database=None if owns_database else database,
+                        model=None if owns_model else model, observability=observability_runtime,
+                        acceptance_call_cap=acceptance_call_cap)
+                app.state.flywheel_runtime = flywheel_runtime
+                resources.push_async_callback(flywheel_runtime.close)
+                flywheel_runtime.start()
+            if settings.eval_pipeline_enabled:
+                if owns_eval_pipeline:
+                    from app.eval_pipeline.cli import rule_for_settings
+                    from app.eval_pipeline.manager import EvalPipelineManager
+                    from app.eval_pipeline.store import PipelineStore, EvalRunRepository
+                    if getattr(database,'engine',None) is None:
+                        raise ValueError('Enabled evaluation pipeline requires the configured database')
+                    if confidence_rule is None: confidence_rule=rule_for_settings(settings)
+                    eval_pipeline_manager=EvalPipelineManager(PipelineStore(
+                        Path(__file__).resolve().parents[1]/'runtime/eval-pipeline'),EvalRunRepository(database),
+                        settings,confidence_rule,acceptance_call_cap=acceptance_call_cap,
+                        observability=observability_runtime)
+                    resources.push_async_callback(eval_pipeline_manager.close)
+                    await eval_pipeline_manager.startup()
+                app.state.eval_pipeline_manager=eval_pipeline_manager
+                from app.eval_pipeline.schedule import EvaluationSchedule
+                schedule=EvaluationSchedule(eval_pipeline_manager,enabled=settings.eval_schedule_enabled)
+                resources.push_async_callback(schedule.close)
+                schedule.start()
             if owns_context:
                 from app.workflow.context_budget import fee_cap_diagnostic
                 startup_registry = app.state.chat_service.registry_factory(ToolContext('0', 0, '', None))
@@ -276,10 +353,27 @@ def create_app(
                     'fee_cap': fee_cap_diagnostic(settings, startup_budget, startup_registry),
                     'config': {key: getattr(settings, key) for key in ('model_context_window',
                         'max_user_input_tokens', 'max_agent_steps', 'tool_result_max_tokens', 'rerank_top_k', 'context_target_rounds')}})
-                await manager.startup()
+                if context_recover_backlog:
+                    await manager.startup()
+                else:
+                    await manager.startup(recover_existing=False)
             yield
 
     app = FastAPI(lifespan=lifespan)
+    app.state.eval_pipeline_manager=eval_pipeline_manager if settings.eval_pipeline_enabled else None
+    from app.api.eval_runs import router as eval_pipeline_router
+    app.include_router(eval_pipeline_router)
+    from app.api.observability import router as observability_router
+    app.include_router(observability_router)
+    from app.api.feedback import router as feedback_router
+    app.include_router(feedback_router)
+    from app.api.review_queue import router as review_router
+    app.include_router(review_router)
+    from app.observability.intent_usage import IntentUsageReader
+    from app.observability.pricing import standard_bigmodel_endpoint
+    app.state.intent_usage_reader = IntentUsageReader(
+        observability_runtime.client if observability_runtime else None,
+        estimate_prices=standard_bigmodel_endpoint(settings.llm_base_url))
     app.include_router(ticket_confirmation_router)
     app.state.rag_evaluation_settings = evaluation_settings
     app.state.evaluation_manager = evaluation_manager
@@ -303,6 +397,12 @@ def create_app(
     @app.get("/", response_class=FileResponse, include_in_schema=False)
     async def chat_page():
         return FileResponse(static_dir / "index.html", headers={"Cache-Control": "no-store"})
+
+    @app.get('/review',response_class=FileResponse,include_in_schema=False)
+    @app.get('/observability',response_class=FileResponse,include_in_schema=False)
+    @app.get('/review-queue',response_class=FileResponse,include_in_schema=False)
+    async def review_page():
+        return FileResponse(static_dir/'review-queue.html',headers={'Cache-Control':'no-store'})
 
     # 将业务异常转换为统一的错误码、提示和 HTTP 状态。
     @app.exception_handler(ServiceError)

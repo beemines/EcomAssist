@@ -14,22 +14,58 @@ def _batch_size(value: int) -> None:
 
 
 class HybridKnowledgeJobs:
+    async def vectorize_ids(self, ids, *, lease=None):
+        """Caller owns the shared knowledge lock; no unrelated pending rows are read."""
+        from app.repositories.knowledge import _ids
+        ids = list(ids)
+        _ids(ids)
+        pending, done = await self.repository.pending_by_ids(ids), await self.repository.get_done(ids)
+        if {row.id for row in [*pending, *done]} != set(ids):
+            raise ValueError('Selected publication knowledge is missing')
+        if pending:
+            await self._write(pending,lease=lease)
+            if lease is None:
+                await self.repository.mark_done([row.id for row in pending])
+            else:
+                async with lease.transaction() as session:
+                    await self.repository.mark_done_in_session(session,[row.id for row in pending])
+        await self.verify_ids(ids)
+        return len(pending)
+
+    async def verify_ids(self, ids):
+        """Verify exact committed IDs without comparing unrelated online index rows."""
+        records = await self.repository.get_done(ids)
+        if {row.id for row in records} != set(ids):
+            raise ValueError('Selected publication is not done')
+        actual = {row.id: row for row in await self.index.get_rows(ids)}
+        for record in records:
+            row = actual.get(record.id)
+            if row is None or row.text != embedding_text(record) or row.category != record.category:
+                raise ValueError('Selected publication readback mismatch')
+            validate_vector(row.embedding)
+
     # 独立核验不需要嵌入器；命令调用方在整个作业期间持有原 MySQL 命名锁。
     def __init__(self, repository: KnowledgeRepository, embedder: Embedder | None, index: HybridMilvusIndex):
         self.repository, self.embedder, self.index = repository, embedder, index
 
     # 仓储读取已结束短事务，随后嵌入三栏正文、按原主键覆盖并核对 ACK 和读回。
-    async def _write(self, records: list[ChunkRecord]) -> None:
+    async def _write(self, records: list[ChunkRecord], *, lease=None) -> None:
         if self.embedder is None:
             raise ValueError('embedding is required to write hybrid knowledge')
+        if lease is not None:
+            async with lease.transaction():pass
         texts = [embedding_text(record) for record in records]
         vectors = await self.embedder.embed(texts)
         if not isinstance(vectors, list) or len(vectors) != len(records):
             raise ValueError('embedding count differs from knowledge chunks')
+        if lease is not None:
+            async with lease.transaction():pass
         rows = [IndexedChunk(record.id, vector, text, record.category)
                 for record, vector, text in zip(records, vectors, texts)]
         ids = [row.id for row in rows]
         validate_acknowledged_ids(await self.index.upsert(rows), ids)
+        if lease is not None:
+            async with lease.transaction():pass
         await self.index.verify_rows(rows)
 
     # 重建只遍历 done，不改变任何 MySQL 状态；每批读回后最后核对全集与原文。

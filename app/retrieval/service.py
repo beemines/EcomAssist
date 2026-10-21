@@ -169,6 +169,23 @@ class RetrievalService:
     async def finalize_candidates(self, *, question: str, plan: QueryPlan, candidates: list[VectorHit],
                                   category: str | None, strategy: str,
                                   rerank_question: str | None = None, top_k: int = 10) -> RetrievalBundle:
+        from app.observability.tracing import operation
+        with operation('retrieval.rank', input={'question': question, 'strategy': strategy,
+                'rerank_question': rerank_question, 'category': category, 'top_k': top_k},
+                metadata={'observation_type': 'retriever'}) as observation:
+            bundle = await self._finalize_candidates(question=question, plan=plan, candidates=candidates,
+                category=category, strategy=strategy, rerank_question=rerank_question, top_k=top_k)
+            observation.update(output={
+                'candidate_score_kind': {'dense': 'cosine', 'bm25': 'bm25',
+                    'hybrid': 'rrf', 'hybrid_rerank': 'rrf'}[strategy],
+                'candidates': [{'id': str(hit.id), 'rank': rank, 'score': hit.score}
+                    for rank, hit in enumerate(bundle.candidates, 1)],
+                'evidence': faq_payload(bundle)})
+            return bundle
+
+    async def _finalize_candidates(self, *, question: str, plan: QueryPlan, candidates: list[VectorHit],
+                                  category: str | None, strategy: str,
+                                  rerank_question: str | None = None, top_k: int = 10) -> RetrievalBundle:
         """复用四策略的权威回填与至多一次重排，最终最多十条证据。"""
         _ensure_active()
         if type(top_k) is not int or not 1 <= top_k <= 10:

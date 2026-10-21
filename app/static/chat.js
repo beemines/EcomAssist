@@ -686,7 +686,7 @@ function renderAnswer(state) {
   state.text.replaceChildren(fragment);
 }
 
-// 仅完整成功回复可反馈，第一次选择后锁定；信号只留在本页面，不发送网络请求。
+// 仅完整成功回复可反馈；负反馈按原轮消息ID入池，保存失败可重试。
 function addFeedback(state) {
   if (state.feedback || !state.done || state.error || state.stopped) return;
   const feedback = document.createElement("div");
@@ -704,14 +704,32 @@ function addFeedback(state) {
     button.setAttribute("aria-label", title);
     button.setAttribute("aria-pressed", "false");
     // 两个按钮共用本轮选择值，重复点击不能改变已经采集的反馈。
-    button.addEventListener("click", () => {
-      if (state.feedbackChoice) return;
+    button.addEventListener("click", async () => {
+      if (state.feedbackChoice || state.feedbackPending) return;
+      state.feedbackPending = true;
+      choices.forEach((choice) => { choice.disabled = true; });
+      try {
+        if (value === "unhelpful") {
+          if (!validId(state.messageId) || !validId(state.conversationId)) throw new Error("原轮定位不可用");
+          label.textContent = "正在保存…";
+          const response = await fetch(`/api/conversations/${state.conversationId}/feedback`, {
+            method: "POST", headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({assistant_message_id: state.messageId}),
+          });
+          if (!response.ok) throw new Error("反馈未保存");
+          const receipt = await response.json();
+          if (!validId(receipt.id)) throw new Error("反馈未保存");
+        }
       state.feedbackChoice = value;
       button.classList.add("selected");
       button.setAttribute("aria-pressed", "true");
       choices.forEach((choice) => { choice.disabled = true; });
-      label.textContent = "已反馈";
+      label.textContent = value === "unhelpful" ? "已反馈 · 将用于改进" : "已反馈";
       feedback.dataset.choice = value;
+      } catch (_) {
+        label.textContent = "未保存，请再点一次重试";
+        choices.forEach((choice) => { choice.disabled = false; });
+      } finally { state.feedbackPending = false; }
     });
     choices.push(button);
   }
@@ -1217,8 +1235,9 @@ async function checkConnection() {
   try {
     const response = await fetch("/health", { signal: AbortSignal.timeout(5000) });
     if (!response.ok) throw new Error();
+    const health = await response.json();
     document.querySelector("#connection").classList.remove("offline");
-    document.querySelector("#connection-text").textContent = "服务已就绪";
+    document.querySelector("#connection-text").textContent = health.offline ? "离线预览 · 模拟模型" : "服务已就绪";
   } catch {
     document.querySelector("#connection").classList.add("offline");
     document.querySelector("#connection-text").textContent = "服务未连接";

@@ -176,6 +176,49 @@ class LowConfidenceQuestion(Base):
     created_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"), comment="入池时间")
 
 
+# 旧问题池映射保持ch04核心投影；ch09附加列由FlywheelRepository显式SQL管理，
+# 让未迁移的旧质量库仍可使用原仓储。物理全结构由迁移器严格核验。
+class ReviewQueue(Base):
+    __tablename__ = 'review_queue'
+    __table_args__ = (Index('idx_review_status', 'review_status'),
+        Index('uk_review_knowledge_chunk', 'knowledge_chunk_id', unique=True),
+        {'mysql_engine': 'InnoDB', 'mysql_charset': 'utf8mb4', 'comment': '飞轮待审队列'})
+    id: Mapped[int] = mapped_column(BIGINT(unsigned=True), primary_key=True, autoincrement=True,
+        comment='缺口主键,也是查重命中要返回的 matched_question_id')
+    normalized_question: Mapped[str] = mapped_column(VARCHAR(512), nullable=False, comment='标准化后的 FAQ 式问题')
+    ai_suggested_answer: Mapped[str | None] = mapped_column(TEXT, nullable=True, comment='模型生成的示例答案,备查')
+    occurrence_count: Mapped[int] = mapped_column(INTEGER(unsigned=True), nullable=False, server_default=text('1'),
+        comment='出现次数,查重命中累加,越高越该优先补')
+    review_status: Mapped[str] = mapped_column(ENUM('待审', '通过', '驳回'), nullable=False,
+        server_default=text("'待审'"), comment='人工审核状态')
+    approved_answer: Mapped[str | None] = mapped_column(TEXT, nullable=True,
+        comment='审核通过时补的核准答案,走 ch03 落库流程写回知识库')
+    knowledge_chunk_id: Mapped[int | None] = mapped_column(BIGINT(unsigned=True), nullable=True,
+        comment='本缺口唯一知识块ID,审核重放不重复创建')
+    publication: Mapped[dict | None] = mapped_column(JSON(none_as_null=True), nullable=True,
+        comment='版本化发布状态,索引核验后才ready')
+    created_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False,
+        server_default=text('CURRENT_TIMESTAMP'), comment='首次入队时间')
+    updated_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text('CURRENT_TIMESTAMP'),
+        server_onupdate=FetchedValue(), comment='更新时间')
+
+
+class EvalRun(Base):
+    __tablename__ = 'eval_runs'
+    __table_args__ = (Index('idx_created_at', 'created_at'), Index('uk_eval_run_key', 'run_key', unique=True),
+        {'mysql_engine': 'InnoDB', 'mysql_charset': 'utf8mb4', 'comment': '自动化评估流水线轮次结果'})
+    id: Mapped[int] = mapped_column(BIGINT(unsigned=True), primary_key=True, autoincrement=True, comment='评估轮次主键')
+    run_key: Mapped[str | None] = mapped_column(VARCHAR(64), nullable=True,
+        comment='新评估UUID;重复落表幂等,旧行兼容NULL')
+    triggered_by: Mapped[str] = mapped_column(ENUM('定时', '手动'), nullable=False,
+        server_default=text("'定时'"), comment='这轮怎么起的:定时任务,或某次改动后手动跑')
+    dataset_size: Mapped[int] = mapped_column(INTEGER(unsigned=True), nullable=False, comment='这轮跑的评估集条数')
+    metrics: Mapped[dict] = mapped_column(JSON(none_as_null=True), nullable=False,
+        comment='各指标分数,如 {"recall_at_k":0.82,"mrr":0.71,"faithfulness":0.90}')
+    created_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False,
+        server_default=text('CURRENT_TIMESTAMP'), comment='跑完落表时间')
+
+
 # 忠实度个案一题一行，累计复发次数并保留证据全集及最近处置时间。
 class FaithCase(Base):
     __tablename__ = "faith_cases"

@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/static/chat.css?v=20261018-tools">
   <script src="/static/conversations.js?v=20261017-context" defer></script>
   <script src="/static/ticket-confirmation.js?v=20261018-tools" defer></script>
-  <script src="/static/chat.js?v=20261018-tools" defer></script>
+  <script src="/static/chat.js?v=20261020-flywheel" defer></script>
 </head>
 <body>
   <!-- 复用同一组内联 SVG 图标，其他区域通过 use 引用，避免依赖外部图标请求。 -->
@@ -34,6 +34,8 @@
       <a class="brand" href="/" aria-label="MewHelp 首页"><span class="brand-mark"><svg><use href="#icon-bag"/></svg></span><span>MewHelp<small>每一个问题，都认真回应</small></span></a>
       <button class="new-chat" id="new-chat"><svg><use href="#icon-plus"/></svg>开启新对话</button>
       <a class="new-chat" href="/rag-eval">▦ RAG 评估</a>
+      <a class="new-chat" href="/review">飞轮待审队列</a>
+      <a class="new-chat" href="/observability">观测与成本</a>
       <p class="section-label">当前会话</p>
       <div class="conversation-card"><svg><use href="#icon-chat"/></svg><span id="conversation-title">新的客服对话</span><span class="conversation-dot"></span></div>
       <p class="section-label history-label">历史对话</p>

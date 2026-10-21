@@ -20,3 +20,9 @@ log/app.log
 # Acceptance logs, screenshots, call ledger and replay results are local evidence.
 runtime/context-evidence/
 runtime/tool-system-evidence/
+# 第九步本地密钥、追踪及安装/验收缓存不提交。
+runtime/langfuse/
+runtime/ch09-evidence/
+runtime/ch09-sources/
+runtime/uv-cache/
+runtime/eval-pipeline/
