@@ -86,10 +86,16 @@ async def augment_training(dataset,teacher,*,output,recovery=None):
         for start in range(0,len(parents),16):
             batch=parents[start:start+16]
             children,receipt=await _checkpoint(f'augment-{start:04}',dict(scope=scope,samples=[row.model_dump(mode='json') for row in batch]),
-                lambda batch=batch:teacher.augment(batch),teacher,journal,LabelledSample,recovery=recovery)
+                lambda batch=batch:teacher.augment(batch,isolate_invalid_items=True),teacher,journal,LabelledSample,recovery=recovery)
             by_id={parent.id+'-aug':parent for parent in batch}
-            if len(children)!=len(batch) or {row.id for row in children}!=set(by_id):
+            rejected=receipt.get('item_quarantine',[])
+            rejected_ids={row.get('sample_id') for row in rejected}
+            accepted_ids={row.id for row in children}
+            if (len(accepted_ids)!=len(children) or len(rejected_ids)!=len(rejected) or accepted_ids & rejected_ids
+                    or accepted_ids | rejected_ids!=set(by_id)
+                    or any(set(row)!={'sample_id','reason'} or row['reason']!='augmentation_item_invalid' for row in rejected)):
                 raise ValueError('Augmentation child membership mismatch')
+            quarantine.extend(rejected)
             for child in children:
                 validate_augmentation(by_id[child.id],child)
                 key=exact_text_key(child.text)

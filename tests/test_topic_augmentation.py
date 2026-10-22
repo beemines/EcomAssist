@@ -33,7 +33,7 @@ async def test_only_a_quarter_of_unique_train_groups_reach_teacher_and_resume_is
     assert len(selected)==3 and {row.id for row in selected}<={row.id for row in rows['train']}
     calls=[]
     teacher=SimpleNamespace(last_receipt=None)
-    async def controlled(batch):
+    async def controlled(batch,**options):
         calls.append([row.id for row in batch]);teacher.last_receipt={'attempt_id':'fixture'}
         return tuple(row.model_copy(update={'id':row.id+'-aug','text':'麻烦了,'+row.text}) for row in batch)
     teacher.augment=controlled
@@ -50,3 +50,14 @@ async def test_manifest_or_split_tampering_stops_before_teacher(tmp_path):
     root,rows=dataset(tmp_path)
     (root/'test.jsonl').write_text('tampered',encoding='utf-8')
     with pytest.raises(ValueError): select_train_parents(root)
+
+
+async def test_partial_augmentation_requires_accounting_for_every_missing_child(tmp_path):
+    root,_=dataset(tmp_path);teacher=SimpleNamespace(last_receipt=None)
+    async def controlled(batch,**options):
+        teacher.last_receipt={'attempt_id':'fixture','item_quarantine':[dict(sample_id=batch[-1].id+'-aug',reason='augmentation_item_invalid')]}
+        return tuple(row.model_copy(update={'id':row.id+'-aug','text':'麻烦了,'+row.text}) for row in batch[:-1])
+    teacher.augment=controlled
+    await augment_training(root,teacher,output=tmp_path/'aug')
+    status=json.loads((tmp_path/'aug/status.json').read_text(encoding='utf-8'))
+    assert status['selected']==3 and status['accepted']==2 and len(status['quarantine'])==1
