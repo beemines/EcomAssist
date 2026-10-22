@@ -18,6 +18,11 @@ DOMAINS=('家居布艺','厨房收纳','户外运动','办公文具','家用电�
     '灯具家具','母婴用品','图书玩具','清洁日化','园艺用品','旅行箱包','床上用品','美妆护理')
 STYLES=('简短口语追问','明确说不要某事只问另一事','带一个具体使用背景','询问操作步骤',
     '询问条件限制','说清希望解决的事情','询问时间或适用范围','用生活化说法表达')
+OTHER_SCENES=('泛指客服沟通语气的投诉','觉得客服用语太生硬的反馈','希望客服少说套话的建议',
+    '感谢客服耐心交流','向客服打招呼闲聊','表达没有得到认真倾听的感受','请求客服换一种沟通方式',
+    '希望找人工聊聊但尚未说问题','仅对客服整体态度表达不满','请求把话说得容易理解',
+    '反馈客服说话过于急躁','提醒客服不要反复打断','希望客服认真听完再回答','表示稍后再来咨询',
+    '只说有事想反馈但未描述具体事情','表达愿意继续沟通的意愿')
 
 
 def _atomic(path,value):
@@ -47,7 +52,7 @@ def _counts(samples):
     return grouped,positives,multi
 
 
-def _plan(count,positives,batch):
+def _plan(count,positives,batch,*,focused_other=False):
     taxonomy=default_taxonomy();names=taxonomy.ordered_names
     projected=positives.copy();labels=[];hints=[]
     for i in range(count):
@@ -57,9 +62,34 @@ def _plan(count,positives,batch):
             chosen.append(next(name for name in ordered[1:] if name!='其他'))
         labels.append(taxonomy.canonical_labels(chosen))
         projected.update(chosen)
-        hints.append(f'围绕{DOMAINS[(batch+i*3)%len(DOMAINS)]}，采用{STYLES[(batch//2+i)%len(STYLES)]}；'
-            f'本批场景序号{batch+1}-{i+1}，仅表达指定诉求，不额外增加诉求；创作与常见套话不同的完整问题')
+        if focused_other and chosen==['其他']:
+            hints.append(f'场景是{OTHER_SCENES[(batch+i*3)%len(OTHER_SCENES)]}；只表达一般沟通或情绪，'
+                f'不添加前16类任何具体业务诉求，不询问商品的功能用途养护；场景序号{batch+1}-{i+1}，采用不同自然口语')
+        else:
+            hints.append(f'围绕{DOMAINS[(batch+i*3)%len(DOMAINS)]}，采用{STYLES[(batch//2+i)%len(STYLES)]}；'
+                f'本批场景序号{batch+1}-{i+1}，仅表达指定诉求，不额外增加诉求；创作与常见套话不同的完整问题')
     return GenerationPlan(count=count,scenario_labels=labels,taxonomy_hash=taxonomy.digest,scenario_hints=hints)
+
+
+def _frozen_plan(journal,batch,count,positives,scope):
+    path=journal/f'plan-{batch:04}.json'
+    if path.exists():
+        saved=json.loads(path.read_text(encoding='utf-8'))
+        fields={key:value for key,value in saved.items() if key!='record_hash'}
+        if digest(fields)!=saved.get('record_hash'):raise ValueError('Frozen generation plan changed')
+        plan=GenerationPlan.model_validate_json(json.dumps(saved['plan'],ensure_ascii=False))
+        if digest(dict(scope=scope,plan=plan.model_dump(mode='json')))!=saved.get('intent_hash'):
+            raise ValueError('Frozen generation plan scope changed')
+        return plan
+    previous=journal/f'generate-{batch:04}.json'
+    plan=_plan(count,positives,batch,focused_other=not previous.exists())
+    intent_hash=digest(dict(scope=scope,plan=plan.model_dump(mode='json')))
+    if previous.exists() and json.loads(previous.read_text(encoding='utf-8')).get('intent_hash')!=intent_hash:
+        raise ValueError('Cannot reconstruct the exact legacy paid generation plan')
+    fields=dict(plan=plan.model_dump(mode='json'),intent_hash=intent_hash,
+        planner_version='legacy' if previous.exists() else 'ch10-planner-v2-focused-other')
+    with path.open('x',encoding='utf-8') as out:json.dump(fields|{'record_hash':digest(fields)},out,ensure_ascii=False,indent=2)
+    return plan
 
 
 async def expand_corpus(snapshot,review:ReviewReceipt,teacher,*,output:Path,target_groups=2040,
@@ -107,7 +137,7 @@ async def expand_corpus(snapshot,review:ReviewReceipt,teacher,*,output:Path,targ
                     and multi>=len(grouped.groups)*multi_fraction):
                 publish('complete');return output
             count=min(16,max(1,target_groups-len(grouped.groups)))
-            plan=_plan(count,positives,batch)
+            plan=_frozen_plan(journal,batch,count,positives,scope)
             intent=dict(scope=scope,plan=plan.model_dump(mode='json'))
             try:
                 generated,receipt=await _checkpoint(f'generate-{batch:04}',intent,

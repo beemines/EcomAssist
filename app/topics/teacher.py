@@ -150,7 +150,12 @@ def parse_mapped_prelabels(value,samples,id_map):
 
 
 def parse_generated(value, expected) -> tuple[GeneratedQuestion, ...]:
-    rows = tuple(GeneratedQuestion.model_validate(row) for row in _items(value, expected))
+    canonical=[]
+    for row in _items(value,expected):
+        if set(row)=={'id','family_id','text'}:
+            row=row|{'requested_labels':expected[row['id']]['requested_labels']}
+        canonical.append(GeneratedQuestion.model_validate(row))
+    rows=tuple(canonical)
     for row in rows:
         cleaned = clean_question(row.text, sample_id=row.id)
         if (row.family_id != expected[row.id]['family_id']
