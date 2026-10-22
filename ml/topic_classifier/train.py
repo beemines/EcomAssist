@@ -12,6 +12,7 @@ from uuid import uuid4
 
 import numpy as np
 import torch
+from pydantic import Field,model_validator
 from sklearn.metrics import f1_score
 from transformers import TrainingArguments
 
@@ -34,11 +35,20 @@ class TrainingReceipt(StrictRecord):
     dataset_hash:str
     config_hash:str
     augmentation_hash:str
-    best_epoch:float
-    best_macro_f1:float
+    best_epoch:float=Field(ge=1,le=8)
+    best_macro_f1:float=Field(ge=0,le=1)
     encoder_before:str
     encoder_after:str
+    weights_hash:str=Field(pattern=r'^[0-9a-f]{64}$')
+    history_hash:str=Field(pattern=r'^[0-9a-f]{64}$')
     receipt_hash:str
+
+    @model_validator(mode='after')
+    def identity(self):
+        fields=self.model_dump(mode='json');fields.pop('receipt_hash')
+        if self.receipt_hash!=digest(fields) or self.encoder_before==self.encoder_after:
+            raise ValueError('Training receipt identity or encoder training proof changed')
+        return self
 
 
 @dataclass(frozen=True)
@@ -147,6 +157,29 @@ def best_validation_epoch(history):
     return min(rows,key=lambda row:(-row['eval_macro_f1'],row['epoch']))
 
 
+def load_training_receipt(root:Path) -> TrainingReceipt:
+    root=Path(root).resolve()
+    receipt=TrainingReceipt.model_validate_json((root/'receipt.json').read_text(encoding='utf-8'))
+    if Path(receipt.best_checkpoint).resolve()!=root/'best' or Path(receipt.history_path).resolve()!=root/'history.json':
+        raise ValueError('Training artifact paths do not belong to this completed run')
+    if file_hash(root/'best/model.safetensors')!=receipt.weights_hash or file_hash(root/'history.json')!=receipt.history_hash:
+        raise ValueError('Full trained weights or training history changed')
+    identity=json.loads((root/'run.json').read_text(encoding='utf-8'))
+    if (digest(identity)!=receipt.config_hash or identity.get('dataset_hash')!=receipt.dataset_hash
+            or identity.get('augmentation_hash')!=receipt.augmentation_hash or identity.get('base')!=BASE_MODEL
+            or identity.get('revision')!=BASE_REVISION or identity.get('seed')!=SEED or identity.get('config')!=CONFIG
+            or identity.get('lock_hash')!=file_hash(Path(__file__).with_name('uv.lock'))):
+        raise ValueError('Completed training configuration or dataset identity changed')
+    history=json.loads((root/'history.json').read_text(encoding='utf-8'))
+    best=best_validation_epoch(history['epochs'])
+    if (history.get('config_hash')!=receipt.config_hash or history.get('dataset_hash')!=receipt.dataset_hash
+            or history.get('encoder_before')!=receipt.encoder_before or history.get('encoder_after')!=receipt.encoder_after
+            or history.get('parameters')!=history.get('trainable_parameters') or history.get('parameters',0)<100_000_000
+            or best['epoch']!=receipt.best_epoch or best['eval_macro_f1']!=receipt.best_macro_f1):
+        raise ValueError('Training curve/full-parameter proof does not match its receipt')
+    return receipt
+
+
 def _write(path,value):
     temporary=path.with_name('.'+path.name+'.'+uuid4().hex+'.tmp')
     try:
@@ -247,7 +280,8 @@ def train(dataset:Path,base_dir:Path,output:Path,*,seed:int=SEED,resume:bool=Fal
         _write(output/'history.json',history)
         fields=dict(best_checkpoint=str(best_dir),history_path=str(output/'history.json'),dataset_hash=data.manifest_hash,
             config_hash=config_hash,augmentation_hash=data.augmentation_hash,best_epoch=float(best['epoch']),
-            best_macro_f1=float(best['eval_macro_f1']),encoder_before=before,encoder_after=after)
+            best_macro_f1=float(best['eval_macro_f1']),encoder_before=before,encoder_after=after,
+            weights_hash=file_hash(best_dir/'model.safetensors'),history_hash=file_hash(output/'history.json'))
         receipt=TrainingReceipt(**fields,receipt_hash=digest(fields));_write(output/'receipt.json',receipt.model_dump())
         return receipt
     except BaseException as exc:

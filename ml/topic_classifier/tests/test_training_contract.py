@@ -106,3 +106,24 @@ def test_training_lease_reuses_stale_file_and_never_replaces_live_inode(tmp_path
         assert marker.stat().st_size==len(b'old stale crash file')
     assert marker.read_bytes()==b'old stale crash file'
     with training_lease(tmp_path):assert marker.exists()
+
+
+def test_training_receipt_binds_full_weight_file_including_classifier_head(tmp_path):
+    from ml.topic_classifier.train import TrainingReceipt,load_training_receipt,CONFIG
+    from ml.topic_classifier.doctor import BASE_MODEL,BASE_REVISION,file_hash
+    from app.topics.reviews import digest
+    best=tmp_path/'best';best.mkdir();weights=best/'model.safetensors';weights.write_bytes(b'unit fixture, not model weights')
+    identity=dict(dataset_hash='1'*64,augmentation_hash='2'*64,base=BASE_MODEL,revision=BASE_REVISION,seed=20261021,
+        config=CONFIG,lock_hash=file_hash(Path(__file__).parents[1]/'uv.lock'))
+    (tmp_path/'run.json').write_text(json.dumps(identity),encoding='utf-8');config_hash=digest(identity)
+    history=dict(config_hash=config_hash,dataset_hash='1'*64,parameters=102280721,trainable_parameters=102280721,
+        encoder_before='3'*64,encoder_after='4'*64,epochs=[dict(epoch=1.,step=10,eval_macro_f1=.5)])
+    history_path=tmp_path/'history.json';history_path.write_text(json.dumps(history),encoding='utf-8')
+    fields=dict(best_checkpoint=str(best.resolve()),history_path=str(history_path.resolve()),dataset_hash='1'*64,
+        config_hash=config_hash,augmentation_hash='2'*64,best_epoch=1.,best_macro_f1=.5,encoder_before='3'*64,encoder_after='4'*64,
+        weights_hash=file_hash(weights),history_hash=file_hash(history_path))
+    receipt=TrainingReceipt(**fields,receipt_hash=digest(fields))
+    (tmp_path/'receipt.json').write_text(receipt.model_dump_json(),encoding='utf-8')
+    assert load_training_receipt(tmp_path)==receipt
+    weights.write_bytes(b'changed classifier head fixture')
+    with pytest.raises(ValueError):load_training_receipt(tmp_path)
