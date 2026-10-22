@@ -196,15 +196,15 @@ async def test_invalid_completion_can_be_diagnosed_locally_without_another_paid_
     assert ledger.summary().attempts == 1
 
 
-@pytest.mark.parametrize('kind', ['verbatim', 'changed', 'ambiguous'])
+@pytest.mark.parametrize('kind', ['verbatim', 'redundant', 'changed', 'ambiguous'])
 async def test_prelabel_text_alias_only_accepts_an_exact_unambiguous_copy(tmp_path, kind):
     ledger = ledger_for(tmp_path)
     item = dict(id='q', text='物流?' if kind != 'changed' else '运费多少?', labels=['物流'], notes='')
-    if kind == 'ambiguous':
-        item['cleaned_text'] = '物流?'
+    if kind in ('ambiguous','redundant'):
+        item['cleaned_text'] = '运费多少?' if kind=='ambiguous' else '物流?'
     async with TeacherClient(ledger, api_key=SecretStr('test'), transport=httpx.MockTransport(
             lambda request: response(json.dumps({'items': [item]})))) as client:
-        if kind == 'verbatim':
+        if kind in ('verbatim','redundant'):
             rows = await client.label([clean_question('物流?', sample_id='q')])
             assert rows[0].cleaned_text == '物流?' and rows[0].labels == ('物流',)
         else:

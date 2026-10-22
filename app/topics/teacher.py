@@ -119,6 +119,10 @@ def parse_prelabels(value, samples: Sequence[CleanQuestion]) -> tuple[Prelabel, 
     expected = {sample.sample_id: sample.text for sample in samples}
     canonical = []
     for row in _items(value, expected):
+        if set(row)=={'id','text','cleaned_text','labels','notes'}:
+            if row['text']!=row['cleaned_text'] or row['text']!=expected[row['id']]:
+                raise ValueError('Redundant text aliases must both equal the exact input')
+            row={key:item for key,item in row.items() if key!='text'}
         if set(row) == {'id', 'text', 'labels', 'notes'}:
             row = {'cleaned_text': row['text']} | {key: item for key, item in row.items() if key != 'text'}
         canonical.append(Prelabel.model_validate(row))
