@@ -8,7 +8,7 @@ import re
 import numpy as np
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 
-from app.topics.grouping import GROUPING_VERSION, group_samples, text_key
+from app.topics.grouping import GROUPING_VERSION, group_samples, exact_text_key, validate_augmentation
 from app.topics.reviews import digest
 from app.topics.taxonomy import default_taxonomy
 from app.topics.types import StrictRecord, LabelledSample
@@ -102,17 +102,6 @@ def build_splits(samples, tokenizer, *, seed=SEED) -> SplitManifest:
     return SplitManifest(**fields,manifest_hash=digest(fields))
 
 
-def validate_augmentation(parent: LabelledSample, child: LabelledSample) -> None:
-    for key in ('labels','group_id','origin','source_question_ids','pilot'):
-        if getattr(parent,key)!=getattr(child,key): raise ValueError('Augmentation changed parent identity or labels')
-    if child.id!=parent.id+'-aug' or text_key(child.text)==text_key(parent.text):
-        raise ValueError('Augmentation needs a distinct child of this parent')
-    def protected(text):
-        return Counter(re.findall(r'\d+(?:\.\d+)?|[A-Za-z]+|不要|不想|不能|不退|不修|只想|只要|退|换|修|取消|投诉',text))
-    if protected(parent.text)!=protected(child.text):
-        raise ValueError('Augmentation changed protected values or requests')
-
-
 def load_dataset(root: Path, *, splits=SPLITS) -> SplitManifest:
     root = Path(root)
     manifest = SplitManifest.model_validate_json((root/'manifest.json').read_text(encoding='utf-8'))
@@ -134,13 +123,13 @@ def write_dataset(samples, manifest: SplitManifest, output: Path, *, augmentatio
     mapping = {row.id:row for row in grouped.samples}
     train = set(manifest.splits['train'])
     children = sorted(augmentations,key=lambda row:row.id)
-    seen = {text_key(row.text) for row in grouped.samples}
+    seen = {exact_text_key(row.text) for row in grouped.samples}
     for child in children:
         parent = mapping.get(child.id.removesuffix('-aug'))
         if parent is None or parent.id not in train: raise ValueError('Only train parents can be augmented')
         validate_augmentation(parent,child)
-        if text_key(child.text) in seen: raise ValueError('Duplicate augmentation across splits')
-        seen.add(text_key(child.text))
+        if exact_text_key(child.text) in seen: raise ValueError('Duplicate augmentation across splits')
+        seen.add(exact_text_key(child.text))
     if len({row.id for row in children})!=len(children): raise ValueError('Duplicate augmentation ID')
     output = Path(output)
     output.mkdir(parents=True,exist_ok=True)

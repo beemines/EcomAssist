@@ -6,7 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.topics.reviews import digest
-from app.topics.teacher import MODEL,_strict_json,parse_prelabels
+from app.topics.teacher import MODEL,_strict_json,parse_prelabels,parse_mapped_prelabels
 
 
 def revalidate_label_checkpoint(path:Path,samples,*,reason:str):
@@ -27,9 +27,10 @@ def revalidate_label_checkpoint(path:Path,samples,*,reason:str):
     if (source.get('finish_reason')!='stop' or source.get('attempt_id')!=attempt
             or not isinstance(source.get('receipt'),dict) or receipt.get('model')!=MODEL
             or any(source['receipt'].get(key)!=receipt.get(key) for key in
-                ('attempt_id','payload_hash','prompt_hash','model','request_id'))):
+                ('attempt_id','payload_hash','prompt_hash','model','request_id','id_map'))):
         raise ValueError('Diagnostic receipt or completion is not bound to this attempt')
-    rows=parse_prelabels(_strict_json(source['content']),samples)
+    value=_strict_json(source['content'])
+    rows=parse_mapped_prelabels(value,samples,receipt['id_map']) if 'id_map' in receipt else parse_prelabels(value,samples)
     archive=path.with_name(path.stem+'.offline-'+uuid4().hex+'.json')
     with archive.open('x',encoding='utf-8') as stream:
         json.dump(dict(original=saved,reason=reason,diagnostic_sha256=hashlib.sha256(content).hexdigest()),stream,ensure_ascii=False,indent=2)

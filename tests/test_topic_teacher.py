@@ -41,7 +41,7 @@ async def test_every_physical_request_reserved_and_literal_input_not_executed(tm
         assert payload['reasoning_effort'] == 'low' and payload['max_tokens'] == 8192
         assert payload['model'] == 'glm-5.3-flash' and 'tools' not in payload
         assert len(request.content) <= 65536
-        return response(json.dumps({'items': [dict(id='sample-1', cleaned_text=cleaned.text,
+        return response(json.dumps({'items': [dict(id='r00', cleaned_text=cleaned.text,
             labels=['库存补货'], notes='字面询问库存')]}))
     async with TeacherClient(ledger, api_key=SecretStr('test-key'), transport=httpx.MockTransport(handler)) as client:
         labelled = await client.label([cleaned])
@@ -57,7 +57,7 @@ async def test_bad_structured_output_still_settles_actual_usage_without_retry(tm
     def handler(request):
         nonlocal count
         count += 1
-        item = dict(id='q', cleaned_text='物流在哪里?', labels=['物流'], notes='')
+        item = dict(id='r00', cleaned_text='物流在哪里?', labels=['物流'], notes='')
         if kind == 'unknown_label':
             item['labels'] = ['未知']
         elif kind == 'extra_id':
@@ -104,7 +104,7 @@ async def test_transient_network_retry_is_a_second_reserved_attempt(tmp_path):
         if count == 1:
             raise httpx.ConnectError('controlled', request=request)
         assert count == 2
-        return response(json.dumps({'items': [dict(id='q', cleaned_text='物流?', labels=['物流'], notes='')]}))
+        return response(json.dumps({'items': [dict(id='r00', cleaned_text='物流?', labels=['物流'], notes='')]}))
     async with TeacherClient(ledger, api_key=SecretStr('test'), transport=httpx.MockTransport(handler)) as client:
         await client.label([clean_question('物流?', sample_id='q')])
     assert ledger.summary().attempts == 2 and ledger.summary().used_micro == 1_205_863 + 1360
@@ -184,7 +184,7 @@ async def test_cancellation_after_authorization_retains_reservation(tmp_path):
 
 async def test_invalid_completion_can_be_diagnosed_locally_without_another_paid_request(tmp_path):
     ledger = ledger_for(tmp_path)
-    content = json.dumps({'items': [dict(id='q', cleaned_text='被改写了', labels=['物流'], notes='')]})
+    content = json.dumps({'items': [dict(id='r00', cleaned_text='被改写了', labels=['物流'], notes='')]})
     async with TeacherClient(ledger, api_key=SecretStr('private-test-key'), evidence_dir=tmp_path/'responses',
             transport=httpx.MockTransport(lambda request: response(content))) as client:
         with pytest.raises(TeacherError):
@@ -199,7 +199,7 @@ async def test_invalid_completion_can_be_diagnosed_locally_without_another_paid_
 @pytest.mark.parametrize('kind', ['verbatim', 'redundant', 'changed', 'ambiguous'])
 async def test_prelabel_text_alias_only_accepts_an_exact_unambiguous_copy(tmp_path, kind):
     ledger = ledger_for(tmp_path)
-    item = dict(id='q', text='物流?' if kind != 'changed' else '运费多少?', labels=['物流'], notes='')
+    item = dict(id='r00', text='物流?' if kind != 'changed' else '运费多少?', labels=['物流'], notes='')
     if kind in ('ambiguous','redundant'):
         item['cleaned_text'] = '运费多少?' if kind=='ambiguous' else '物流?'
     async with TeacherClient(ledger, api_key=SecretStr('test'), transport=httpx.MockTransport(
