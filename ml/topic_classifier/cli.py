@@ -52,9 +52,18 @@ def main():
     augment.add_argument('--dataset',type=Path,required=True)
     augment.add_argument('--augmentations',type=Path,required=True)
     augment.add_argument('--base-dir',type=Path)
+    training=commands.add_parser('train',help='Full-parameter GPU training after frozen data/augmentation gates')
+    training.add_argument('--dataset',type=Path,required=True)
+    training.add_argument('--base-dir',type=Path,required=True)
+    training.add_argument('--output',type=Path,required=True)
+    training.add_argument('--resume',action='store_true',help='Only the same dataset/config and saved checkpoint')
     args=parser.parse_args()
     if args.command=='split': split_command(args)
     elif args.command=='freeze-augmentation': augmentation_command(args)
+    elif args.command=='train':
+        from ml.topic_classifier.train import train
+        receipt=train(args.dataset,args.base_dir,args.output,resume=args.resume)
+        print(receipt.model_dump_json(indent=2))
 
 
 if __name__=='__main__': main()
