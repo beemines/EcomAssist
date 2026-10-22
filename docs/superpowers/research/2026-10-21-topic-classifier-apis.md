@@ -65,3 +65,6 @@ Task3核对[Python3.13 sqlite3事务语义](https://docs.python.org/3.13/library
 Task9沿用已核对的SQLAlchemy2.0.54与ProcessingLease短事务/物理连接边界；另核对[MySQL命名锁官方说明](https://dev.mysql.com/doc/refman/8.4/en/locking-functions.html)中的连接所有权及释放语义，[SQLite UPSERT](https://sqlite.org/lang_upsert.html)中多列唯一冲突目标、excluded引用以及仅处理唯一约束的范围。MySQL locking-reads页面本次浏览返回不可用，不把该页面当已读取证据；实际FOR UPDATE与JOIN行为在3308独立schema真实测试。新增SQLite库仍显式BEGIN IMMEDIATE、FULL同步、显式关闭，错数据库身份/缺失/损坏回执拒绝当作空集合。
 
 Task10实现前核对[MySQL JSON查询函数](https://dev.mysql.com/doc/refman/8.4/en/json-search-functions.html)的JSON_CONTAINS与数组包含语义、[FastAPI Query参数约束](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/)，并沿用项目已锁FastAPI/Pydantic及现有ReviewRoute/guard_read。数据库DATETIME显示沿用既有后台的naive视为UTC口径，查询须显式时区后转换UTC半开范围；本章没有擅改原列或服务器时区，3308在范围端点实际验证。
+
+
+Task6预备核对锁定Transformers5.20.2本机training_args.py、trainer.py、trainer_callback.py与BertTokenizer源码：training_arguments支持restore_callback_states_from_checkpoint；Trainer以严格np.greater更新最佳指标，平分不替换早期checkpoint；BertTokenizer当前构造参数为vocab（可为词表dict）。Windows训练锁按[Python3.12 msvcrt.locking官方接口](https://docs.python.org/3.12/library/msvcrt.html#msvcrt.locking)核对LK_NBLCK/LK_UNLCK及允许锁住文件末尾以外的字节，采用固定文件句柄锁，不按PID删除锁文件。早停、动态float多标签、processing_class、保存safetensors在明确tiny随机CPU连通脚本实际跑过；不据此声称HFL已训练或有分类成绩。
