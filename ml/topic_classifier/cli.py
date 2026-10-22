@@ -25,6 +25,21 @@ def split_command(args):
     print(json.dumps(audit,ensure_ascii=False))
 
 
+def augmentation_command(args):
+    from transformers import AutoTokenizer
+    from app.topics.augmentation import load_augmentations
+    from app.topics.budget import EVIDENCE_ROOT
+    from app.topics.types import LabelledSample
+    from ml.topic_classifier.data import load_dataset,freeze_augmentations
+    manifest=load_dataset(args.dataset)
+    status,children=load_augmentations(args.augmentations)
+    if status['base_manifest_hash']!=manifest.manifest_hash: raise ValueError('Augmentation belongs to another dataset')
+    samples=[LabelledSample.model_validate_json(line) for line in (args.corpus/'samples.jsonl').read_text(encoding='utf-8').splitlines() if line.strip()]
+    tokenizer=AutoTokenizer.from_pretrained(args.base_dir or EVIDENCE_ROOT/'base',local_files_only=True,trust_remote_code=False)
+    result=freeze_augmentations(samples,manifest,children,tokenizer,args.dataset)
+    print(json.dumps(dict(manifest_hash=result['manifest_hash'],augmentation=result['augmentation']),ensure_ascii=False))
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     commands=parser.add_subparsers(dest='command',required=True)
@@ -32,8 +47,14 @@ def main():
     split.add_argument('--corpus',type=Path,required=True)
     split.add_argument('--output',type=Path,required=True)
     split.add_argument('--base-dir',type=Path)
+    augment=commands.add_parser('freeze-augmentation',help='Audit train-only children without changing held-out splits')
+    augment.add_argument('--corpus',type=Path,required=True)
+    augment.add_argument('--dataset',type=Path,required=True)
+    augment.add_argument('--augmentations',type=Path,required=True)
+    augment.add_argument('--base-dir',type=Path)
     args=parser.parse_args()
     if args.command=='split': split_command(args)
+    elif args.command=='freeze-augmentation': augmentation_command(args)
 
 
 if __name__=='__main__': main()

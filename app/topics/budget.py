@@ -2,6 +2,7 @@
 
 from contextlib import closing, contextmanager
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -18,6 +19,9 @@ EVIDENCE_ROOT = Path('D:/shixi/ecommerce-customer-service/.cache/ch10-evidence')
 BUDGET_PATH = EVIDENCE_ROOT / 'budget.sqlite3'
 LIMIT_MICRO = 10_000_000
 MAX_ATTEMPTS = 300
+ATTEMPT_EXTENSION_ID = 'ch10-topic-20261022-attempts-400'
+ATTEMPT_EXTENSION_TEXT = '允许400次，费用仍最多10元'
+EXTENDED_ATTEMPTS = 400
 RESERVATION_MICRO = 1_205_863
 
 
@@ -61,6 +65,8 @@ class BudgetSummary(StrictRecord):
     unknown_attempts: int
     consecutive_failures: int
     paused: bool
+    attempt_limit: int = MAX_ATTEMPTS
+    approval_revision: str | None = None
 
 
 def _now():
@@ -71,6 +77,28 @@ def _marker(path):
     return path.with_suffix('.approval.json')
 
 
+def _extension_identity(path,marker):
+    return dict(schema_version='1',ledger_id=marker['ledger_id'],base_approval_id=APPROVAL_ID,
+        revision_id=ATTEMPT_EXTENSION_ID,original_attempt_limit=str(MAX_ATTEMPTS),attempt_limit=str(EXTENDED_ATTEMPTS),
+        limit_micro=str(LIMIT_MICRO),base_marker_sha256=hashlib.sha256(_marker(path).read_bytes()).hexdigest(),
+        approval_text=ATTEMPT_EXTENSION_TEXT)
+
+
+def _attempt_limit(path,marker):
+    extension=path.with_suffix('.attempt-approval.json')
+    if extension.is_symlink(): raise BudgetError('Attempt authorization cannot be a symlink')
+    if not extension.exists(): return MAX_ATTEMPTS,None
+    if not extension.is_file() or extension.stat().st_size>4096:
+        raise BudgetError('Attempt authorization is unavailable or corrupt')
+    value=json.loads(extension.read_text(encoding='utf-8'))
+    if (type(value) is not dict or set(value)!=set(_extension_identity(path,marker))|{'approved_at'}
+            or {key:item for key,item in value.items() if key!='approved_at'}!=_extension_identity(path,marker)
+            or type(value.get('approved_at')) is not str
+            or datetime.fromisoformat(value['approved_at']).utcoffset() is None):
+        raise BudgetError('Attempt authorization identity mismatch')
+    return EXTENDED_ATTEMPTS,ATTEMPT_EXTENSION_ID
+
+
 def initialize_budget(path: Path, approval_id: str) -> None:
     """Only this explicit one-time operation may create files; never reset them."""
     path = path.absolute()
@@ -78,7 +106,8 @@ def initialize_budget(path: Path, approval_id: str) -> None:
         raise BudgetError('Unrecognized budget authorization')
     path.parent.mkdir(parents=True, exist_ok=True)
     marker = _marker(path)
-    if path.exists() or marker.exists() or path.is_symlink() or marker.is_symlink():
+    extension=path.with_suffix('.attempt-approval.json')
+    if path.exists() or marker.exists() or path.is_symlink() or marker.is_symlink() or extension.exists() or extension.is_symlink():
         raise BudgetError('Budget or authorization marker already exists; reset is forbidden')
     identity = dict(schema_version='1', ledger_id=uuid4().hex, approval_id=approval_id,
         limit_micro=str(LIMIT_MICRO), attempt_limit=str(MAX_ATTEMPTS), reservation_micro=str(RESERVATION_MICRO))
@@ -135,6 +164,9 @@ class BudgetLedger:
                     or any(metadata.get(key) != value for key, value in expected.items())
                     or metadata['paused'] not in ('0', '1') or not metadata['consecutive_failures'].isdigit()):
                 raise BudgetError('Budget metadata is missing or corrupt')
+            effective,revision=_attempt_limit(self.path,marker)
+            metadata['_effective_attempt_limit']=effective
+            metadata['_approval_revision']=revision
             yield connection, metadata
             connection.commit()
         except (sqlite3.Error, OSError, ValueError, AttributeError, TypeError) as exc:
@@ -148,12 +180,14 @@ class BudgetLedger:
     def _summary(self, connection, metadata):
         count, used, unknown = connection.execute('SELECT COUNT(*),COALESCE(SUM(COALESCE(charged_micro,reserved_micro)),0),'
             'COALESCE(SUM(charged_micro IS NULL),0) FROM attempts').fetchone()
-        if not 0 <= used <= LIMIT_MICRO or count > MAX_ATTEMPTS:
+        attempt_limit=metadata['_effective_attempt_limit']
+        if not 0 <= used <= LIMIT_MICRO or count > attempt_limit:
             raise BudgetError('Budget accounting exceeds authorization')
         return BudgetSummary(approval_id=self.approval_id, limit_micro=LIMIT_MICRO, used_micro=used,
             remaining_micro=LIMIT_MICRO-used, attempts=count, unknown_attempts=unknown,
             consecutive_failures=int(metadata['consecutive_failures']),
-            paused=metadata['paused'] == '1' or count >= MAX_ATTEMPTS or LIMIT_MICRO-used < RESERVATION_MICRO)
+            paused=metadata['paused'] == '1' or count >= attempt_limit or LIMIT_MICRO-used < RESERVATION_MICRO,
+            attempt_limit=attempt_limit,approval_revision=metadata['_approval_revision'])
 
     def summary(self) -> BudgetSummary:
         with self._connection() as (connection, metadata):
@@ -217,3 +251,24 @@ class BudgetLedger:
                 connection.execute("UPDATE metadata SET value='1' WHERE key='paused'")
             connection.execute('UPDATE attempts SET outcome=?,finished_at=? WHERE id=?',
                                (int(success), _now(), attempt_id))
+
+
+def amend_budget_attempt_limit(path:Path,*,revision_id:str,approval_text:str) -> BudgetSummary:
+    """Append the explicit human amendment; original marker and SQL rows stay intact."""
+    if revision_id!=ATTEMPT_EXTENSION_ID or approval_text!=ATTEMPT_EXTENSION_TEXT:
+        raise BudgetError('An exact recognized human authorization amendment is required')
+    ledger=BudgetLedger(path,APPROVAL_ID)
+    with ledger._connection() as (connection,metadata):
+        extension=ledger.path.with_suffix('.attempt-approval.json')
+        if not extension.exists():
+            marker=json.loads(_marker(ledger.path).read_text(encoding='utf-8'))
+            identity=_extension_identity(ledger.path,marker)|dict(approved_at=_now())
+            with extension.open('x',encoding='utf-8') as stream:
+                json.dump(identity,stream,ensure_ascii=False,sort_keys=True)
+                stream.flush()
+                import os
+                os.fsync(stream.fileno())
+            effective,revision=_attempt_limit(ledger.path,marker)
+            metadata['_effective_attempt_limit']=effective
+            metadata['_approval_revision']=revision
+        return ledger._summary(connection,metadata)

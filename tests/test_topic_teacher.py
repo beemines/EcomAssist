@@ -158,7 +158,7 @@ async def test_augmentation_preserves_family_truth_and_protected_tokens(tmp_path
     parent = LabelledSample(id='train-q', text='XL大了,不要退,只想换', labels=['退换货', '尺码'],
         origin='synthetic', group_id='family-q', source_question_ids=[], pilot=True)
     def handler(request):
-        return response(json.dumps({'items': [dict(id=parent.id,
+        return response(json.dumps({'items': [dict(id='a00',
             text='XL大了,请退货' if changed else 'XL不合适,不要退,只想换')]}))
     async with TeacherClient(ledger, api_key=SecretStr('test'), transport=httpx.MockTransport(handler)) as client:
         if changed:

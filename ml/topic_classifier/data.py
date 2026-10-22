@@ -3,7 +3,8 @@ from collections import Counter, defaultdict
 import hashlib
 import json
 from pathlib import Path
-import re
+import os
+from uuid import uuid4
 
 import numpy as np
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
@@ -152,3 +153,54 @@ def write_dataset(samples, manifest: SplitManifest, output: Path, *, augmentatio
             else:
                 with path.open('x',encoding='utf-8',newline='\n') as stream: stream.write(text)
     return manifest
+
+
+def freeze_augmentations(samples,manifest,children,tokenizer,output):
+    output=Path(output)
+    if load_dataset(output).manifest_hash!=manifest.manifest_hash: raise ValueError('Frozen dataset identity changed')
+    grouped=group_samples(samples)
+    included={identifier:name for name,ids in manifest.splits.items() for identifier in ids}
+    base=[row for row in grouped.samples if row.id in included]
+    parents={row.id:row for row in base}
+    seen={exact_text_key(row.text) for row in base}
+    accepted=[];excluded=[]
+    for child in sorted(children,key=lambda row:row.id):
+        parent=parents.get(child.id.removesuffix('-aug'))
+        if parent is None or included[parent.id]!='train': raise ValueError('Only frozen train parents may be augmented')
+        validate_augmentation(parent,child)
+        if len(tokenizer(child.text,truncation=False,add_special_tokens=True)['input_ids'])>128:
+            excluded.append(dict(sample_id=child.id,reason='overlength_augmentation'));continue
+        key=exact_text_key(child.text)
+        if key in seen:
+            excluded.append(dict(sample_id=child.id,reason='duplicate_augmentation'));continue
+        seen.add(key);accepted.append(child)
+    combined=group_samples(base+accepted)
+    forbidden=set()
+    for ids in combined.groups.values():
+        if len({included[i] for i in ids if i in included})>1:
+            forbidden.update(i for i in ids if i not in included)
+    for identifier in sorted(forbidden):
+        excluded.append(dict(sample_id=identifier,reason='cross_split_near_duplicate'))
+    accepted=[row for row in accepted if row.id not in forbidden]
+    if not accepted: raise ValueError('No valid train augmentation survived preflight')
+    write_dataset(samples,manifest,output,augmentations=accepted)
+    train=[parents[i] for i in manifest.splits['train']]+accepted
+    audit=dict(manifest_hash=manifest.manifest_hash,original_samples=len(samples),
+        retained=sum(len(ids) for ids in manifest.splits.values()),
+        sizes={name:len(ids) for name,ids in manifest.splits.items()},label_counts=manifest.label_counts,
+        origins=manifest.origins,excluded=manifest.excluded,
+        augmentation=dict(status='complete',requested=len(children),accepted=len(accepted),excluded=excluded,
+            train_after_augmentation=len(train),origins=dict(Counter(row.origin for row in accepted)),
+            label_counts=dict(Counter(label for row in train for label in row.labels))))
+    path=output/'data-audit.json'
+    if path.exists():
+        old=json.loads(path.read_text(encoding='utf-8'))
+        if old.get('manifest_hash')!=manifest.manifest_hash or (isinstance(old.get('augmentation'),dict) and old!=audit):
+            raise ValueError('Refuse to replace a different final data audit')
+    temporary=output/('.data-audit.'+uuid4().hex+'.tmp')
+    try:
+        with temporary.open('x',encoding='utf-8') as stream:
+            json.dump(audit,stream,ensure_ascii=False,indent=2);stream.flush();os.fsync(stream.fileno())
+        os.replace(temporary,path)
+    finally: temporary.unlink(missing_ok=True)
+    return audit

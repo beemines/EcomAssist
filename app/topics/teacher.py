@@ -80,6 +80,13 @@ class Prelabel(StrictRecord):
     labels: tuple[str, ...]
     notes: str = Field(max_length=1024)
 
+    @field_validator('notes',mode='before')
+    @classmethod
+    def absent_note(cls,value):
+        if type(value) is list and len(value)<=16 and all(type(item) is str for item in value):
+            return '\n'.join(value)
+        return '' if value is None else value
+
     @field_validator('labels', mode='before')
     @classmethod
     def checked_labels(cls, value):
@@ -180,7 +187,7 @@ class TeacherClient:
                     raise TeacherError('teacher_response_too_large')
             return response.status_code, bytes(body)
 
-    async def _call(self, stage, items, parse, *, id_map=None):
+    async def _call(self, stage, items, parse, *, id_map=None, family_map=None):
         if not 1 <= len(items) <= 16:
             raise ValueError('Teacher batch must contain 1..16 items')
         prompt = system_prompt(stage)
@@ -202,6 +209,8 @@ class TeacherClient:
                     prompt_version=PROMPT_VERSION, model=MODEL, request_id=None)
                 if id_map is not None:
                     self.last_receipt['id_map']=id_map.copy()
+                if family_map is not None:
+                    self.last_receipt['family_map']=family_map.copy()
                 try:
                     async with asyncio.timeout(max(0, deadline - asyncio.get_running_loop().time())):
                         status, raw = await self._http_response(payload)
@@ -283,24 +292,28 @@ class TeacherClient:
 
     async def generate(self, plan: GenerationPlan) -> tuple[GeneratedQuestion, ...]:
         nonce = uuid4().hex
-        items = [dict(id=f'syn-{nonce}-{i}', family_id=f'family-{nonce}-{i}', requested_labels=list(labels))
+        id_map={f'g{i:02d}':f'syn-{nonce}-{i}' for i in range(plan.count)}
+        family_map={f'f{i:02d}':f'family-{nonce}-{i}' for i in range(plan.count)}
+        items = [dict(id=f'g{i:02d}', family_id=f'f{i:02d}', requested_labels=list(labels))
                  for i, labels in enumerate(plan.scenario_labels)]
         for item,hint in zip(items,plan.scenario_hints):
             if not _private_text_safe(hint,item['id']): raise ValueError('Scene hint needs local privacy safety')
             item['scenario_hint']=hint
         expected = {item['id']: item for item in items}
         def parse(value):
-            return parse_generated(value, expected)
-        return await self._call('generate', items, parse)
+            rows=parse_generated(value,expected)
+            return tuple(row.model_copy(update={'id':id_map[row.id],'family_id':family_map[row.family_id]}) for row in rows)
+        return await self._call('generate',items,parse,id_map=id_map,family_map=family_map)
 
     async def augment(self, samples: Sequence[LabelledSample]) -> tuple[LabelledSample, ...]:
         samples = tuple(samples)
         if (not 1 <= len(samples) <= 16 or any(not isinstance(sample, LabelledSample) for sample in samples)
                 or any(not _private_text_safe(sample.text, sample.id) for sample in samples)):
             raise ValueError('Only safe training samples may reach augmentation')
-        expected = {sample.id: sample for sample in samples}
-        if len(expected) != len(samples):
+        if len({sample.id for sample in samples}) != len(samples):
             raise ValueError('Augmentation IDs must be unique')
+        expected={f'a{i:02d}':sample for i,sample in enumerate(samples)}
+        id_map={alias:sample.id for alias,sample in expected.items()}
         def protected(value):
             return Counter(re.findall(r'\d+(?:\.\d+)?|[A-Za-z]+|不要|不想|不能|不退|不修|只想|只要|退|换|修', value))
         def parse(value):
@@ -318,8 +331,8 @@ class TeacherClient:
                 validate_augmentation(parent,child)
                 result.append(child)
             return tuple(result)
-        return await self._call('augment', [dict(id=sample.id, text=sample.text, labels=list(sample.labels))
-                                          for sample in samples], parse)
+        return await self._call('augment',[dict(id=alias,text=sample.text,labels=list(sample.labels))
+                                          for alias,sample in expected.items()],parse,id_map=id_map)
 
 
 def configured_teacher(settings, ledger: BudgetLedger, *, evidence_dir: Path | None = None) -> TeacherClient:
