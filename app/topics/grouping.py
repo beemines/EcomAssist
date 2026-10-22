@@ -23,6 +23,17 @@ def exact_text_key(text):
     return re.sub(r'[^\w\u4e00-\u9fff]', '', unicodedata.normalize('NFKC',text).lower())
 
 
+def validate_augmentation(parent: LabelledSample, child: LabelledSample) -> None:
+    for key in ('labels','group_id','origin','source_question_ids','pilot'):
+        if getattr(parent,key)!=getattr(child,key): raise ValueError('Augmentation changed parent identity or labels')
+    if child.id!=parent.id+'-aug' or exact_text_key(child.text)==exact_text_key(parent.text):
+        raise ValueError('Augmentation needs a distinct child of this parent')
+    def protected(text):
+        return Counter(re.findall(r'\d+(?:\.\d+)?|[A-Za-z]+|不要|不想|不能|不退|不修|只想|只要|退|换|修|取消|投诉',text))
+    if protected(parent.text)!=protected(child.text):
+        raise ValueError('Augmentation changed protected values or requests')
+
+
 def reserved_probe(text):
     value = text_key(text)
     return '买大了想退' in value or SequenceMatcher(None,value,'买大了想退').ratio() >= .82

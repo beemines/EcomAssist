@@ -132,6 +132,16 @@ def parse_prelabels(value, samples: Sequence[CleanQuestion]) -> tuple[Prelabel, 
     return rows
 
 
+def parse_mapped_prelabels(value,samples,id_map):
+    mapping={sample.sample_id:sample for sample in samples}
+    if (type(id_map) is not dict or set(id_map)!={f'r{i:02d}' for i in range(len(samples))}
+            or len(set(id_map.values()))!=len(samples) or set(id_map.values())!=set(mapping)):
+        raise ValueError('Transport ID map does not match immutable inputs')
+    wire=tuple(mapping[identifier].model_copy(update={'sample_id':alias}) for alias,identifier in id_map.items())
+    rows=parse_prelabels(value,wire)
+    return tuple(row.model_copy(update={'id':id_map[row.id]}) for row in rows)
+
+
 def parse_generated(value, expected) -> tuple[GeneratedQuestion, ...]:
     rows = tuple(GeneratedQuestion.model_validate(row) for row in _items(value, expected))
     for row in rows:
@@ -170,7 +180,7 @@ class TeacherClient:
                     raise TeacherError('teacher_response_too_large')
             return response.status_code, bytes(body)
 
-    async def _call(self, stage, items, parse):
+    async def _call(self, stage, items, parse, *, id_map=None):
         if not 1 <= len(items) <= 16:
             raise ValueError('Teacher batch must contain 1..16 items')
         prompt = system_prompt(stage)
@@ -190,6 +200,8 @@ class TeacherClient:
                 self.last_receipt = dict(attempt_id=attempt_id, payload_hash=payload_hash,
                     prompt_hash=hashlib.sha256(prompt.encode('utf-8')).hexdigest(),
                     prompt_version=PROMPT_VERSION, model=MODEL, request_id=None)
+                if id_map is not None:
+                    self.last_receipt['id_map']=id_map.copy()
                 try:
                     async with asyncio.timeout(max(0, deadline - asyncio.get_running_loop().time())):
                         status, raw = await self._http_response(payload)
@@ -263,9 +275,11 @@ class TeacherClient:
                 or any(sample.quarantine_reasons or not sample.text or len(sample.text) > 512
                        or not _private_text_safe(sample.text, sample.sample_id) for sample in samples)):
             raise ValueError('Only unique, locally cleaned, unquarantined samples may be labelled')
+        id_map={f'r{i:02d}':sample.sample_id for i,sample in enumerate(samples)}
         def parse(value):
-            return parse_prelabels(value, samples)
-        return await self._call('label', [dict(id=sample.sample_id, text=sample.text) for sample in samples], parse)
+            return parse_mapped_prelabels(value,samples,id_map)
+        return await self._call('label',[dict(id=f'r{i:02d}',text=sample.text) for i,sample in enumerate(samples)],
+            parse,id_map=id_map)
 
     async def generate(self, plan: GenerationPlan) -> tuple[GeneratedQuestion, ...]:
         nonce = uuid4().hex
@@ -299,7 +313,10 @@ class TeacherClient:
                 if (cleaned.quarantine_reasons or any('redacted' in edit for edit in cleaned.edits)
                         or cleaned.text == parent.text or protected(cleaned.text) != protected(parent.text)):
                     raise ValueError('Augmentation changed protected meaning or personal-data safety')
-                result.append(LabelledSample(**(parent.model_dump() | {'id': parent.id + '-aug', 'text': cleaned.text})))
+                child=LabelledSample(**(parent.model_dump() | {'id': parent.id + '-aug', 'text': cleaned.text}))
+                from app.topics.grouping import validate_augmentation
+                validate_augmentation(parent,child)
+                result.append(child)
             return tuple(result)
         return await self._call('augment', [dict(id=sample.id, text=sample.text, labels=list(sample.labels))
                                           for sample in samples], parse)

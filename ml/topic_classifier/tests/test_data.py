@@ -91,3 +91,9 @@ def test_augmentation_preserves_parent_identity_requests_values_and_only_train(t
     augmented=held.model_copy(update={'id':held.id+'-aug','text':held.text+'呀'})
     with pytest.raises(ValueError,match='train'):
         write_dataset(rows,manifest,tmp_path,augmentations=[augmented])
+
+
+def test_synonym_augmentation_can_share_semantic_key_with_its_train_parent():
+    parent=sample('synonym',text='物流现在在哪里?',labels=['物流'])
+    child=parent.model_copy(update={'id':parent.id+'-aug','text':'物流现在在哪儿?'})
+    validate_augmentation(parent,child)
