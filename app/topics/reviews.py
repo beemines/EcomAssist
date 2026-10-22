@@ -2,9 +2,9 @@
 
 from datetime import datetime, timezone
 import hashlib
-from html import escape
 import json
 from pathlib import Path
+from string import Template
 from typing import Literal, Sequence
 
 from pydantic import Field, field_validator, model_validator
@@ -180,26 +180,21 @@ def load_decisions(path: Path) -> tuple[ReviewDecision, ...]:
     return tuple(rows)
 
 
-def render_review_html(pack: ReviewPack) -> str:
+def render_review_html(pack: ReviewPack, *, hosted=False, submitted: ReviewReceipt | None = None) -> str:
     verify_pack(pack)
-    rows = []
+    samples = []
     for index, sample in enumerate(pack.samples, 1):
         scenario = pack.scenario_labels.get(sample.id)
-        mismatch = scenario is not None and scenario != sample.labels
-        note = pack.annotation_notes.get(sample.id, '')
-        rows.append('<tr><td>' + str(index) + '<small>' + escape(sample.id) + '</small></td><td>'
-            + escape(sample.text) + '<small>来源：' + escape(sample.origin) + '</small></td><td>'
-            + escape('、'.join(sample.labels)) + ('<small class="warning">造数场景与独立预标不同，请重点复核</small>' if mismatch else '')
-            + '</td><td>' + escape(note) + '</td></tr>')
-    return ('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>第十步小批人工抽审</title>'
-        '<style>body{margin:32px auto;padding:0 24px;max-width:1300px;background:#f5f7f2;color:#254b43;'
-        'font:16px/1.65 "Microsoft YaHei",sans-serif}h1{font-size:26px}section{background:white;border:1px solid #dbe5da;'
-        'padding:22px;border-radius:18px;margin-bottom:22px}table{border-collapse:collapse;width:100%}td,th{padding:14px;'
-        'border-bottom:1px solid #e0e8df;text-align:left;vertical-align:top}small{display:block;font-size:12px;color:#798a80;'
-        'overflow-wrap:anywhere;max-width:250px}.warning{color:#a15b16}code{overflow-wrap:anywhere}</style>'
-        '<section><h1>第十步 · 小批人工抽审</h1><p>这是只读审阅页，共' + str(len(pack.samples))
-        + '条。请按字面诉求核对预标标签，在decisions.jsonl填写接受、修正或排除；空决定不会通过。</p>'
-        '<p>synthetic为模型造数；unverified为问题池中真实性未核实的原话。所有家族仅可进入训练侧。</p>'
-        '<p>包摘要：<code>' + escape(pack.pack_hash) + '</code></p></section><section><table><thead><tr>'
-        '<th>序号 / ID</th><th>脱敏后的问题</th><th>独立预标标签</th><th>模型边界说明</th></tr></thead><tbody>'
-        + ''.join(rows) + '</tbody></table></section></html>')
+        samples.append(dict(index=index, id=sample.id, text=sample.text, origin=sample.origin,
+            labels=list(sample.labels), mismatch=scenario is not None and scenario != sample.labels,
+            note=pack.annotation_notes.get(sample.id, '')))
+    bootstrap = dict(pack_hash=pack.pack_hash, purpose=pack.purpose, hosted=hosted, samples=samples,
+        taxonomy=[dict(name=topic.name, boundary=topic.boundary) for topic in default_taxonomy().topics],
+        submitted=submitted.model_dump(mode='json') if submitted else None)
+    # Even a local pack is untrusted text: keep JSON from closing its script element.
+    encoded = json.dumps(bootstrap, ensure_ascii=False).replace('&', '\\u0026').replace('<', '\\u003c')
+    encoded = encoded.replace('>', '\\u003e').replace('\u2028', '\\u2028').replace('\u2029', '\\u2029')
+    folder = Path(__file__).parent
+    return Template((folder / 'review_ui.html').read_text(encoding='utf-8')).substitute(
+        css=(folder / 'review_ui.css').read_text(encoding='utf-8'),
+        script=(folder / 'review_ui.js').read_text(encoding='utf-8'), bootstrap=encoded)

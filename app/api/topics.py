@@ -1,11 +1,14 @@
-"""Local read-only distribution endpoints; no POST can classify or train."""
+"""Local distribution reads and explicit training-data review; never classify or train."""
+import asyncio
 from datetime import datetime
 from typing import Literal
 from fastapi import APIRouter,Request,Query
+from fastapi.responses import JSONResponse
 from app.api.review_queue import ReviewRoute
 from app.core.errors import ServiceError
 from app.topics.statistics import TopicFilters
 from app.topics.taxonomy import default_taxonomy
+from app.topics.review_submission import ReviewSubmission, ReviewSubmissionConflict
 
 router=APIRouter(prefix='/api/topics',tags=['topics'],route_class=ReviewRoute)
 
@@ -35,3 +38,17 @@ async def questions(request:Request,label:str,source:Literal['retrieval_low_conf
     if label not in default_taxonomy().ordered_names:
         raise ServiceError('invalid_request','',422)
     return await _service(request).questions(label,_filters(source,since,until),offset=offset,limit=limit)
+
+
+@router.post('/pilot-review')
+async def submit_pilot(payload: ReviewSubmission, request: Request):
+    service = getattr(request.app.state, 'topic_review_service', None)
+    if service is None:
+        raise ServiceError('service_unavailable', '', 503)
+    try:
+        result = await asyncio.to_thread(service.save, payload)
+    except ReviewSubmissionConflict:
+        raise ServiceError('review_conflict', '', 409) from None
+    except ValueError:
+        raise ServiceError('invalid_request', '', 422) from None
+    return JSONResponse(result, headers={'Cache-Control': 'no-store'})
