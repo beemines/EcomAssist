@@ -246,6 +246,27 @@ async def expand_command(args):
     if result['status']!='complete': raise SystemExit(2)
 
 
+async def augment_command(args):
+    from app.config import load_settings
+    from app.topics.augmentation import select_train_parents,augment_training,load_augmentations
+    from app.topics.budget import APPROVAL_ID,BUDGET_PATH,BudgetLedger
+    from app.topics.teacher import configured_teacher
+    parents,manifest=select_train_parents(args.dataset)
+    ledger=BudgetLedger(BUDGET_PATH,APPROVAL_ID)
+    if not args.execute:
+        print(json.dumps(dict(mode='preview',base_manifest_hash=manifest['manifest_hash'],train_parents=len(parents),
+            maximum_children_per_parent=1,budget=ledger.summary().model_dump()),ensure_ascii=False));return
+    retry=args.retry_failed_stage;reason=args.retry_reason
+    if bool(retry)!=bool(reason) or retry and (not re.fullmatch(r'augment-[0-9]{4}',retry) or not reason.strip() or len(reason)>512):
+        raise ValueError('Recovery requires one diagnosed failed augmentation and explicit reason')
+    settings=load_settings(env_file=os.environ.get('CH10_ENV_FILE','.env'))
+    async with configured_teacher(settings,ledger,evidence_dir=args.output/'diagnostics') as teacher:
+        await augment_training(args.dataset,teacher,output=args.output,recovery=(retry,reason) if retry else None)
+    result,_=load_augmentations(args.output)
+    print(json.dumps(dict(status=result['status'],accepted=result['accepted'],selected=result['selected'],
+        budget=ledger.summary().model_dump()),ensure_ascii=False))
+
+
 def review_command(args):
     from app.topics.reviews import ReviewPack, apply_review, load_decisions
     pack = ReviewPack.model_validate_json(args.pack.read_text(encoding='utf-8'))
@@ -292,6 +313,11 @@ def main():
     budget_init = commands.add_parser('budget-init', help='Preview or initialize the single approved CNY10 ledger')
     budget_init.add_argument('--execute', action='store_true')
     commands.add_parser('budget-status', help='Read existing budget; never create or reset it')
+    budget_amend=commands.add_parser('budget-extend-attempts',help='Append recognized human 400-attempt approval; money cap unchanged')
+    budget_amend.add_argument('--authorization-id',required=True)
+    budget_amend.add_argument('--execute',action='store_true')
+    corpus_status_parser=commands.add_parser('corpus-status',help='Read verified corpus progress without starting a teacher')
+    corpus_status_parser.add_argument('--corpus',type=Path,required=True)
     pilot = commands.add_parser('pilot', help='Prepare the 68-item audit; preview is free')
     pilot.add_argument('--snapshot', type=Path, required=True)
     pilot.add_argument('--output', type=Path, required=True)
@@ -305,6 +331,12 @@ def main():
     expand.add_argument('--execute',action='store_true')
     expand.add_argument('--retry-failed-stage')
     expand.add_argument('--retry-reason')
+    augment=commands.add_parser('augment',help='Augment only frozen train groups; preview is free')
+    augment.add_argument('--dataset',type=Path,required=True)
+    augment.add_argument('--output',type=Path,required=True)
+    augment.add_argument('--execute',action='store_true')
+    augment.add_argument('--retry-failed-stage')
+    augment.add_argument('--retry-reason')
     review = commands.add_parser('review-import', help='Validate explicit human decisions, then save a receipt')
     review.add_argument('--pack', type=Path, required=True)
     review.add_argument('--decisions', type=Path, required=True)
@@ -329,11 +361,25 @@ def main():
                     path=str(BUDGET_PATH)), ensure_ascii=False))
                 return
             initialize_budget(BUDGET_PATH, APPROVAL_ID)
+        elif args.command=='budget-extend-attempts':
+            from app.topics.budget import amend_budget_attempt_limit,ATTEMPT_EXTENSION_TEXT
+            if not args.execute:
+                print(json.dumps(dict(mode='preview',proposed_attempt_limit=400,money_limit_micro=LIMIT_MICRO,
+                    current=BudgetLedger(BUDGET_PATH,APPROVAL_ID).summary().model_dump()),ensure_ascii=False));return
+            amend_budget_attempt_limit(BUDGET_PATH,revision_id=args.authorization_id,approval_text=ATTEMPT_EXTENSION_TEXT)
         print(BudgetLedger(BUDGET_PATH, APPROVAL_ID).summary().model_dump_json())
     elif args.command == 'pilot':
         asyncio.run(pilot_command(args))
     elif args.command == 'expand':
         asyncio.run(expand_command(args))
+    elif args.command == 'augment':
+        asyncio.run(augment_command(args))
+    elif args.command == 'corpus-status':
+        from app.topics.corpus import corpus_status
+        from app.topics.budget import APPROVAL_ID,BUDGET_PATH,BudgetLedger
+        value=corpus_status(args.corpus)
+        print(json.dumps({key:value[key] for key in ('status','raw_samples','independent_groups','positive_groups','multi_groups')}
+            |dict(quarantined=len(value['quarantine']),budget_current=BudgetLedger(BUDGET_PATH,APPROVAL_ID).summary().model_dump()),ensure_ascii=False))
     elif args.command == 'review-import':
         review_command(args)
     else:

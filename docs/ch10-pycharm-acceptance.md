@@ -30,7 +30,14 @@ $env:PYTHONIOENCODING = 'utf-8'
 & $AppPy -m app.topics.data_cli budget-status
 ```
 
-共享账本已初始化，勿再运行`budget-init --execute`，没有重置命令。`used_micro / 1000000`是保守预算占用，含未知请求预留，不等同于供应商实际扣费。硬上限10元、300次物理尝试，失败和重启不清零。
+共享账本已初始化，勿再运行`budget-init --execute`，没有重置命令。`used_micro / 1000000`是保守预算占用，含未知请求预留，不等同于供应商实际扣费。金额硬上限10元；物理次数原为300次，2026-10-22经用户明确批准已增至400次。失败、金额及未知预留均保留，重启不清零。
+
+已运行的扩量进程会持续写入检查点，勿同时开启第二个`expand --execute`。只看进度可在项目工作目录运行（免费，不调用模型）：
+
+```powershell
+& .venv/Scripts/python.exe -m app.topics.data_cli budget-status
+& .venv/Scripts/python.exe -m app.topics.data_cli corpus-status --corpus D:/shixi/ecommerce-customer-service/.cache/ch10-evidence/corpus
+```
 
 `$Evidence/pool/preview.json`和`snapshot.json`已保存29行有界只读快照，高水位31，原文去重21问。所有来源真实性均未核实；本地原话文件含隐私，不能提交Git。快照不会修改问题池，也不会自动发送模型。
 

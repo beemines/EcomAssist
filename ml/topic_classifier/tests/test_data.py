@@ -4,7 +4,7 @@ from collections import Counter
 import pytest
 from app.topics.types import LabelledSample
 from app.topics.taxonomy import default_taxonomy
-from ml.topic_classifier.data import build_splits, validate_augmentation, write_dataset, load_dataset
+from ml.topic_classifier.data import build_splits, validate_augmentation, write_dataset, load_dataset,freeze_augmentations
 from app.topics.grouping import group_samples
 
 
@@ -97,3 +97,23 @@ def test_synonym_augmentation_can_share_semantic_key_with_its_train_parent():
     parent=sample('synonym',text='物流现在在哪里?',labels=['物流'])
     child=parent.model_copy(update={'id':parent.id+'-aug','text':'物流现在在哪儿?'})
     validate_augmentation(parent,child)
+
+
+def test_freeze_augmentation_isolates_overlength_and_keeps_held_out_files_unchanged(tmp_path):
+    rows=corpus()
+    manifest=build_splits(rows,Tokenizer())
+    write_dataset(rows,manifest,tmp_path)
+    before={name:(tmp_path/(name+'.jsonl')).read_bytes() for name in ('validation','test')}
+    mapping={row.id:row for row in group_samples(rows).samples}
+    p,q=[mapping[i] for i in manifest.splits['train'][:2]]
+    good=p.model_copy(update={'id':p.id+'-aug','text':p.text+'呀'})
+    # A length-only fixture does not add protected ASCII or numeric content.
+    class LengthTokenizer(Tokenizer):
+        def __call__(self,text,**kwargs):
+            return {'input_ids':list(range(131 if len(text)>128 else len(text)+2))}
+    long=q.model_copy(update={'id':q.id+'-aug','text':q.text+'呀'*140})
+    audit=freeze_augmentations(rows,manifest,[good,long],LengthTokenizer(),tmp_path)
+    assert audit['augmentation']['accepted']==1
+    assert audit['augmentation']['excluded']==[{'sample_id':long.id,'reason':'overlength_augmentation'}]
+    assert all((tmp_path/(name+'.jsonl')).read_bytes()==content for name,content in before.items())
+    assert load_dataset(tmp_path).manifest_hash==manifest.manifest_hash
