@@ -42,11 +42,29 @@ async def questions(request:Request,label:str,source:Literal['retrieval_low_conf
 
 @router.post('/pilot-review')
 async def submit_pilot(payload: ReviewSubmission, request: Request):
-    service = getattr(request.app.state, 'topic_review_service', None)
+    return await _submit_review(payload,request,'topic_review_service','pilot')
+
+
+@router.post('/test-review')
+async def submit_test(payload: ReviewSubmission, request: Request):
+    return await _submit_review(payload,request,'topic_test_review_service','test')
+
+
+@router.post('/error-review')
+async def submit_errors(payload: ReviewSubmission, request: Request):
+    return await _submit_review(payload,request,'topic_error_review_service','errors')
+
+
+async def _submit_review(payload,request,attribute,purpose):
+    service = getattr(request.app.state, attribute, None)
     if service is None:
         raise ServiceError('service_unavailable', '', 503)
     try:
+        if (await asyncio.to_thread(service.pack)).purpose!=purpose:
+            raise ValueError('Wrong review-pack purpose')
         result = await asyncio.to_thread(service.save, payload)
+    except FileNotFoundError:
+        raise ServiceError('service_unavailable','',503) from None
     except ReviewSubmissionConflict:
         raise ServiceError('review_conflict', '', 409) from None
     except ValueError:

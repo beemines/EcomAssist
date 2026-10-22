@@ -2,6 +2,13 @@
   'use strict';
   const data = JSON.parse(document.getElementById('reviewData').textContent);
   const $ = id => document.getElementById(id);
+  const reviewKind = data.purpose === 'test' ? 'test-review' : data.purpose === 'errors' ? 'error-review' : 'pilot-review';
+  const reviewTitle = data.purpose === 'test' ? '测试集人工复核' : data.purpose === 'errors' ? '错例人工复核' : '样本人工审核';
+  $('reviewTitle').textContent = reviewTitle;
+  document.title = 'MewHelp · ' + reviewTitle;
+  $('hostedReviewLink').href = 'http://127.0.0.1:8007/topics/' + reviewKind;
+  if (data.purpose === 'test') $('purposeHint').textContent = '本批来自冻结留出测试集，预标标签仍需人工核对。复核结果形成独立 gold 子集报告，原模型和阈值保留。';
+  if (data.purpose === 'errors') $('purposeHint').textContent = '本批是固定模型与 silver 预标不一致的错例。请判断原句的真实标签；已在测试复核包中的问题家族不会重复出现。';
   const key = 'mewhelp-topic-review-v1:' + data.pack_hash;
   const validNames = data.taxonomy.map(t => t.name);
   let choices = {}, submitted = Boolean(data.submitted), saving = false, editing = null;
@@ -157,7 +164,7 @@
     if (!data.hosted) {exportDecisions();$('status').textContent='审核结果已导出。此文件页没有直接写回权限，请保留下载文件并告诉我已导出。';return;}
     saving=true;render();$('submit').textContent='正在保存…';
     try {
-      const response=await fetch('/api/topics/pilot-review',{method:'POST',headers:{'Content-Type':'application/json'},
+      const response=await fetch('/api/topics/' + reviewKind,{method:'POST',headers:{'Content-Type':'application/json'},
         credentials:'same-origin',body:JSON.stringify(submission())});
       if (!response.ok) throw new Error(response.status===409?'该批已有提交或正在保存，请刷新核对。':'保存未完成，草稿仍在。请稍后再试或导出备份。');
       const result=await response.json();
