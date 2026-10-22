@@ -111,8 +111,18 @@ async def expand_corpus(snapshot,review:ReviewReceipt,teacher,*,output:Path,targ
             intent=dict(scope=scope,plan=plan.model_dump(mode='json'))
             try:
                 generated,receipt=await _checkpoint(f'generate-{batch:04}',intent,
-                    lambda plan=plan:teacher.generate(plan),teacher,journal,GeneratedQuestion,recovery=recovery)
+                    lambda plan=plan:teacher.generate(plan,isolate_invalid_items=True),teacher,journal,GeneratedQuestion,recovery=recovery)
                 receipts.append(receipt)
+                generation_rejected=receipt.get('item_quarantine',[])+receipt.get('offline_revalidation',{}).get('quarantine',[])
+                generation_ids={row.id for row in generated}
+                rejected_generation_ids={row.get('sample_id') for row in generation_rejected}
+                if (len(generation_ids)!=len(generated) or len(rejected_generation_ids)!=len(generation_rejected)
+                        or len(generated)+len(generation_rejected)!=plan.count
+                        or generation_ids & rejected_generation_ids
+                        or any(set(row)!={'sample_id','reason'} or row['reason']!='generated_item_invalid' for row in generation_rejected)
+                        or 'id_map' in receipt and generation_ids | rejected_generation_ids!=set(receipt['id_map'].values())):
+                    raise ValueError('Generated rows and explicit quarantine must cover the original plan')
+                quarantine.extend(generation_rejected)
                 seen={exact_text_key(row.text) for row in samples};eligible=[]
                 for row in generated:
                     key=exact_text_key(row.text)
@@ -123,9 +133,22 @@ async def expand_corpus(snapshot,review:ReviewReceipt,teacher,*,output:Path,targ
                 cleaned=[clean_question(row.text,sample_id=row.id) for row in eligible]
                 labelled,receipt=await _checkpoint(f'label-{batch:04}',
                     dict(scope=scope,samples=[row.model_dump(mode='json') for row in cleaned]),
-                    lambda cleaned=cleaned:teacher.label(cleaned),teacher,journal,Prelabel,recovery=recovery)
+                    lambda cleaned=cleaned:teacher.label(cleaned,isolate_invalid_items=True),teacher,journal,Prelabel,recovery=recovery)
                 receipts.append(receipt)
-                for parent,label in zip(eligible,labelled,strict=True):
+                by_id={row.id:row for row in labelled}
+                exact_inputs={row.sample_id:row.text for row in cleaned}
+                rejected=receipt.get('offline_revalidation',{}).get('quarantine',[])+receipt.get('item_quarantine',[])
+                rejected_ids={row.get('sample_id') for row in rejected}
+                expected_ids={row.id for row in eligible}
+                if (len(by_id)!=len(labelled) or len(rejected_ids)!=len(rejected)
+                        or any(set(row)!={'sample_id','reason'} or row['reason'] not in ('prelabel_text_mismatch','prelabel_item_invalid') for row in rejected)
+                        or by_id.keys() & rejected_ids or by_id.keys() | rejected_ids != expected_ids
+                        or any(row.cleaned_text!=exact_inputs[row.id] for row in labelled)):
+                    raise ValueError('Prelabel identities/text and explicit quarantine must exactly cover eligible inputs')
+                quarantine.extend(rejected)
+                for parent in eligible:
+                    if parent.id in rejected_ids:continue
+                    label=by_id[parent.id]
                     if label.labels!=parent.requested_labels:
                         quarantine.append(dict(sample_id=label.id,reason='scenario_label_mismatch',
                             requested=list(parent.requested_labels),observed=list(label.labels)));continue

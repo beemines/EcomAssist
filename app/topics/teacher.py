@@ -160,6 +160,16 @@ def parse_generated(value, expected) -> tuple[GeneratedQuestion, ...]:
     return tuple(row.model_copy(update={'text': clean_question(row.text, sample_id=row.id).text}) for row in rows)
 
 
+def isolate_items(value,expected,parse_one,*,id_map,reason):
+    """Require a fully bound ID envelope, then reject invalid individual data."""
+    retained=[];quarantine=[]
+    for item in _items(value,expected):
+        try:retained.extend(parse_one(item))
+        except ValueError:quarantine.append(dict(sample_id=id_map[item['id']],reason=reason))
+    if not retained:raise ValueError('No valid items remain in the bound batch')
+    return tuple(retained),quarantine
+
+
 class TeacherClient:
     def __init__(self, ledger: BudgetLedger, *, api_key: SecretStr, transport=None, evidence_dir: Path | None = None):
         if not isinstance(api_key, SecretStr) or not api_key.get_secret_value().strip():
@@ -274,10 +284,17 @@ class TeacherClient:
                         write_new_json(path, diagnostic)
                         self.last_receipt['diagnostic_file'] = str(path.resolve())
                     raise TeacherError('teacher_structured_output_invalid') from None
+                if self.last_receipt.get('item_quarantine') and self._evidence_dir is not None:
+                    from app.topics.snapshot import write_new_json
+                    path=self._evidence_dir/f'{attempt_id}.json'
+                    write_new_json(path,dict(attempt_id=attempt_id,receipt=self.last_receipt.copy(),
+                        finish_reason=body['choices'][0]['finish_reason'],content=body['choices'][0]['message']['content'],
+                        error_type='ItemQuarantine',problem='Invalid items retained only as private diagnostic evidence'))
+                    self.last_receipt['diagnostic_file']=str(path.resolve())
                 self.ledger.record_outcome(attempt_id, success=True)
                 return result
 
-    async def label(self, samples: Sequence[CleanQuestion]) -> tuple[Prelabel, ...]:
+    async def label(self, samples: Sequence[CleanQuestion],*,isolate_invalid_items:bool=False) -> tuple[Prelabel, ...]:
         samples = tuple(samples)
         if (not 1 <= len(samples) <= 16 or any(not isinstance(sample, CleanQuestion) for sample in samples)
                 or len({sample.sample_id for sample in samples}) != len(samples)
@@ -286,11 +303,18 @@ class TeacherClient:
             raise ValueError('Only unique, locally cleaned, unquarantined samples may be labelled')
         id_map={f'r{i:02d}':sample.sample_id for i,sample in enumerate(samples)}
         def parse(value):
+            if isolate_invalid_items:
+                wire={alias:sample.model_copy(update={'sample_id':alias}) for alias,sample in zip(id_map,samples,strict=True)}
+                rows,quarantine=isolate_items(value,wire,
+                    lambda item:parse_prelabels({'items':[item]},[wire[item['id']]]),
+                    id_map=id_map,reason='prelabel_item_invalid')
+                self.last_receipt['item_quarantine']=quarantine
+                return tuple(row.model_copy(update={'id':id_map[row.id]}) for row in rows)
             return parse_mapped_prelabels(value,samples,id_map)
         return await self._call('label',[dict(id=f'r{i:02d}',text=sample.text) for i,sample in enumerate(samples)],
             parse,id_map=id_map)
 
-    async def generate(self, plan: GenerationPlan) -> tuple[GeneratedQuestion, ...]:
+    async def generate(self, plan: GenerationPlan,*,isolate_invalid_items:bool=False) -> tuple[GeneratedQuestion, ...]:
         nonce = uuid4().hex
         id_map={f'g{i:02d}':f'syn-{nonce}-{i}' for i in range(plan.count)}
         family_map={f'f{i:02d}':f'family-{nonce}-{i}' for i in range(plan.count)}
@@ -301,7 +325,12 @@ class TeacherClient:
             item['scenario_hint']=hint
         expected = {item['id']: item for item in items}
         def parse(value):
-            rows=parse_generated(value,expected)
+            if isolate_invalid_items:
+                rows,quarantine=isolate_items(value,expected,
+                    lambda item:parse_generated({'items':[item]},{item['id']:expected[item['id']]}),
+                    id_map=id_map,reason='generated_item_invalid')
+                self.last_receipt['item_quarantine']=quarantine
+            else:rows=parse_generated(value,expected)
             return tuple(row.model_copy(update={'id':id_map[row.id],'family_id':family_map[row.family_id]}) for row in rows)
         return await self._call('generate',items,parse,id_map=id_map,family_map=family_map)
 
