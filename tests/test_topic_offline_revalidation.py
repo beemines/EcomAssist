@@ -45,3 +45,37 @@ def test_ambiguous_or_unbound_diagnostic_cannot_be_promoted(tmp_path,kind):
     with pytest.raises(ValueError):
         revalidate_label_checkpoint(path,[clean_question('物流?',sample_id='x')],reason='Must stay failed')
     assert json.loads(path.read_text(encoding='utf-8'))==prior
+
+
+def test_explicit_partial_recovery_quarantines_changed_text_without_editing_it(tmp_path):
+    content=json.dumps(dict(items=[
+        dict(id='r00',text='物流?',labels=['物流'],notes=''),
+        dict(id='r01',text='退退货?',labels=['退换货'],notes='')]),ensure_ascii=False)
+    path,prior=failed(tmp_path,content=content)
+    for target in (path,tmp_path/'diagnostics/abc.json'):
+        value=json.loads(target.read_text(encoding='utf-8'))
+        value['receipt']['id_map']={'r00':'x','r01':'y'}
+        target.write_text(json.dumps(value),encoding='utf-8')
+    prior=json.loads(path.read_text(encoding='utf-8'))
+    rows=revalidate_label_checkpoint(path,[clean_question('物流?',sample_id='x'),clean_question('退货?',sample_id='y')],
+        reason='Explicitly quarantine a copied-text mismatch, retain independently valid siblings',quarantine_text_mismatch=True)
+    assert [row.id for row in rows]==['x']
+    saved=json.loads(path.read_text(encoding='utf-8'))
+    assert saved['receipt']==prior['receipt']
+    assert saved['offline_revalidation']['quarantine']==[dict(sample_id='y',reason='prelabel_text_mismatch')]
+    assert saved['record_hash']==digest({k:v for k,v in saved.items() if k!='record_hash'})
+
+
+@pytest.mark.parametrize('kind',['unknown_id','duplicate_id','extra_field','unknown_label','all_changed'])
+def test_partial_recovery_still_rejects_global_or_non_text_schema_failures(tmp_path,kind):
+    items=[dict(id='x',text='物流?',labels=['物流'],notes=''),dict(id='y',text='退退货?',labels=['退换货'],notes='')]
+    if kind=='unknown_id':items[1]['id']='z'
+    elif kind=='duplicate_id':items[1]['id']='x'
+    elif kind=='extra_field':items[1]['new_rule']='unsafe'
+    elif kind=='unknown_label':items[1]['labels']=['投诉']
+    else:items[0]['text']='物流物流?'
+    path,prior=failed(tmp_path,content=json.dumps(dict(items=items)))
+    with pytest.raises(ValueError):
+        revalidate_label_checkpoint(path,[clean_question('物流?',sample_id='x'),clean_question('退货?',sample_id='y')],
+            reason='Must not relax identity or schema',quarantine_text_mismatch=True)
+    assert json.loads(path.read_text(encoding='utf-8'))==prior

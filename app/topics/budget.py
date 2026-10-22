@@ -193,6 +193,33 @@ class BudgetLedger:
         with self._connection() as (connection, metadata):
             return self._summary(connection, metadata)
 
+    def resume_after_diagnosis(self,*,expected_failure_ids:tuple[str,...],reason:str,evidence_sha256:str) -> BudgetSummary:
+        """Explicit operator recovery of the circuit only; hard quotas never change."""
+        if (type(reason) is not str or not reason.strip() or len(reason)>512
+                or type(evidence_sha256) is not str or not re.fullmatch('[0-9a-f]{64}',evidence_sha256)
+                or type(expected_failure_ids) is not tuple or len(expected_failure_ids)!=3
+                or any(type(item) is not str or not re.fullmatch('[0-9a-f]{32}',item) for item in expected_failure_ids)):
+            raise BudgetError('A bounded diagnosis, evidence hash and exact three failure identities are required')
+        with self._connection() as (connection,metadata):
+            current=self._summary(connection,metadata)
+            latest=connection.execute('SELECT id,outcome FROM attempts ORDER BY created_at DESC,id DESC LIMIT 3').fetchall()
+            if (metadata['paused']!='1' or current.consecutive_failures<3
+                    or current.attempts>=current.attempt_limit or current.remaining_micro<RESERVATION_MICRO
+                    or connection.execute('SELECT COUNT(*) FROM attempts WHERE outcome IS NULL').fetchone()[0]
+                    or tuple(row['id'] for row in latest)!=expected_failure_ids
+                    or any(row['outcome']!=0 for row in latest)):
+                raise BudgetError('Only the diagnosed completed failure streak can be rearmed within existing hard quotas')
+            connection.execute('CREATE TABLE IF NOT EXISTS diagnostic_resumes('
+                'id TEXT PRIMARY KEY,failure_ids TEXT NOT NULL UNIQUE,reason TEXT NOT NULL,'
+                'evidence_sha256 TEXT NOT NULL,prior_failures INTEGER NOT NULL,'
+                'attempts INTEGER NOT NULL,used_micro INTEGER NOT NULL,created_at TEXT NOT NULL)')
+            connection.execute('INSERT INTO diagnostic_resumes VALUES(?,?,?,?,?,?,?,?)',
+                (uuid4().hex,json.dumps(expected_failure_ids),reason,evidence_sha256,
+                    current.consecutive_failures,current.attempts,current.used_micro,_now()))
+            connection.execute("UPDATE metadata SET value='0' WHERE key IN ('paused','consecutive_failures')")
+            metadata.update(paused='0',consecutive_failures='0')
+            return self._summary(connection,metadata)
+
     def reserve(self, stage: str, payload_hash: str) -> Reservation:
         if stage not in ('generate', 'label', 'augment', 'repair') or type(payload_hash) is not str or not re.fullmatch('[0-9a-f]{64}', payload_hash):
             raise BudgetError('Invalid request authorization metadata')

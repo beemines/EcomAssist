@@ -33,7 +33,10 @@ async def _checkpoint(name, intent, call, teacher, journal_dir, record_type, *, 
             if digest({key: value for key, value in saved.items() if key != 'record_hash'}) != expected_hash:
                 raise ValueError('Paid-stage checkpoint was modified')
             rows = tuple(record_type.model_validate_json(json.dumps(row, ensure_ascii=False)) for row in saved['data'])
-            return rows, saved['receipt']
+            receipt=saved['receipt']
+            if saved.get('offline_revalidation',{}).get('quarantine'):
+                receipt=receipt|{'offline_revalidation':saved['offline_revalidation']}
+            return rows, receipt
         if (saved.get('state') != 'failed' or not saved.get('receipt') or recovery is None
                 or recovery[0] != name or type(recovery[1]) is not str or not recovery[1].strip()):
             raise ValueError('Paid stage is incomplete; explicit same-scope failed-stage recovery is required')
