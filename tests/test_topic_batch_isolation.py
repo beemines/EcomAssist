@@ -7,6 +7,7 @@ import pytest
 from app.topics.cleaning import clean_question
 from app.topics.teacher import TeacherClient,TeacherError,GenerationPlan
 from app.topics.taxonomy import default_taxonomy
+from app.topics.types import LabelledSample
 from tests.test_topic_teacher import ledger_for,response
 
 
@@ -55,3 +56,17 @@ async def test_partial_mode_never_accepts_unbound_or_entirely_invalid_batch(tmp_
         with pytest.raises(TeacherError):
             await teacher.label([clean_question('物流?',sample_id='x'),clean_question('退货?',sample_id='y')],isolate_invalid_items=True)
     assert ledger.summary().attempts==1 and ledger.summary().consecutive_failures==1
+
+
+async def test_train_augmentation_quarantines_a_changed_request_without_repeating_siblings(tmp_path):
+    ledger=ledger_for(tmp_path)
+    parents=[LabelledSample(id=f'parent-{i}',text=f'只想修这台A{i+1}机器',labels=['保修维修'],origin='synthetic',
+        group_id=f'family-{i}',source_question_ids=[],pilot=False) for i in range(2)]
+    def handler(request):
+        return response(json.dumps(dict(items=[dict(id='a00',text='麻烦了,只想修这台A1机器'),
+            dict(id='a01',text='想退这台A2机器')]),ensure_ascii=False))
+    async with TeacherClient(ledger,api_key=SecretStr('fixture'),transport=httpx.MockTransport(handler)) as teacher:
+        children=await teacher.augment(parents,isolate_invalid_items=True)
+        assert [row.id for row in children]==['parent-0-aug']
+        assert teacher.last_receipt['item_quarantine']==[dict(sample_id='parent-1-aug',reason='augmentation_item_invalid')]
+    assert ledger.summary().attempts==1 and ledger.summary().consecutive_failures==0

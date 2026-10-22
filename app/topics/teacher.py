@@ -339,7 +339,7 @@ class TeacherClient:
             return tuple(row.model_copy(update={'id':id_map[row.id],'family_id':family_map[row.family_id]}) for row in rows)
         return await self._call('generate',items,parse,id_map=id_map,family_map=family_map)
 
-    async def augment(self, samples: Sequence[LabelledSample]) -> tuple[LabelledSample, ...]:
+    async def augment(self, samples: Sequence[LabelledSample],*,isolate_invalid_items:bool=False) -> tuple[LabelledSample, ...]:
         samples = tuple(samples)
         if (not 1 <= len(samples) <= 16 or any(not isinstance(sample, LabelledSample) for sample in samples)
                 or any(not _private_text_safe(sample.text, sample.id) for sample in samples)):
@@ -350,21 +350,25 @@ class TeacherClient:
         id_map={alias:sample.id for alias,sample in expected.items()}
         def protected(value):
             return Counter(re.findall(r'\d+(?:\.\d+)?|[A-Za-z]+|不要|不想|不能|不退|不修|只想|只要|退|换|修', value))
+        def parse_one(row):
+            if set(row) != {'id', 'text'} or type(row['text']) is not str:
+                raise ValueError('Invalid augmentation fields')
+            parent = expected[row['id']]
+            cleaned = clean_question(row['text'], sample_id=parent.id)
+            if (cleaned.quarantine_reasons or any('redacted' in edit for edit in cleaned.edits)
+                    or cleaned.text == parent.text or protected(cleaned.text) != protected(parent.text)):
+                raise ValueError('Augmentation changed protected meaning or personal-data safety')
+            child=LabelledSample(**(parent.model_dump() | {'id': parent.id + '-aug', 'text': cleaned.text}))
+            from app.topics.grouping import validate_augmentation
+            validate_augmentation(parent,child)
+            return (child,)
         def parse(value):
-            result = []
-            for row in _items(value, expected):
-                if set(row) != {'id', 'text'} or type(row['text']) is not str:
-                    raise ValueError('Invalid augmentation fields')
-                parent = expected[row['id']]
-                cleaned = clean_question(row['text'], sample_id=parent.id)
-                if (cleaned.quarantine_reasons or any('redacted' in edit for edit in cleaned.edits)
-                        or cleaned.text == parent.text or protected(cleaned.text) != protected(parent.text)):
-                    raise ValueError('Augmentation changed protected meaning or personal-data safety')
-                child=LabelledSample(**(parent.model_dump() | {'id': parent.id + '-aug', 'text': cleaned.text}))
-                from app.topics.grouping import validate_augmentation
-                validate_augmentation(parent,child)
-                result.append(child)
-            return tuple(result)
+            if isolate_invalid_items:
+                rows,quarantine=isolate_items(value,expected,parse_one,
+                    id_map={alias:parent.id+'-aug' for alias,parent in expected.items()},reason='augmentation_item_invalid')
+                self.last_receipt['item_quarantine']=quarantine
+                return rows
+            return tuple(child for row in _items(value,expected) for child in parse_one(row))
         return await self._call('augment',[dict(id=alias,text=sample.text,labels=list(sample.labels))
                                           for alias,sample in expected.items()],parse,id_map=id_map)
 
