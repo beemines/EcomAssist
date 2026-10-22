@@ -68,3 +68,6 @@ Task10实现前核对[MySQL JSON查询函数](https://dev.mysql.com/doc/refman/8
 
 
 Task6预备核对锁定Transformers5.20.2本机training_args.py、trainer.py、trainer_callback.py与BertTokenizer源码：training_arguments支持restore_callback_states_from_checkpoint；Trainer以严格np.greater更新最佳指标，平分不替换早期checkpoint；BertTokenizer当前构造参数为vocab（可为词表dict）。Windows训练锁按[Python3.12 msvcrt.locking官方接口](https://docs.python.org/3.12/library/msvcrt.html#msvcrt.locking)核对LK_NBLCK/LK_UNLCK及允许锁住文件末尾以外的字节，采用固定文件句柄锁，不按PID删除锁文件。早停、动态float多标签、processing_class、保存safetensors在明确tiny随机CPU连通脚本实际跑过；不据此声称HFL已训练或有分类成绩。
+
+
+Task7核对本机锁定scikit-learn1.9.1的metrics/_classification.py中multilabel_confusion_matrix、f1_score、accuracy_score与hamming_loss签名和多标签分支，使用固定17列输入、zero_division=0；逐类零分母另外显式说明。固定三行矩阵对照已通过，空预测仍在分母内。阈值比较采用等价logit边界，避免对极端logit直接exp溢出；这只是数学/接口核验，不是实际模型评测。
