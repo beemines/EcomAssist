@@ -71,3 +71,6 @@ Task6预备核对锁定Transformers5.20.2本机training_args.py、trainer.py、t
 
 
 Task7核对本机锁定scikit-learn1.9.1的metrics/_classification.py中multilabel_confusion_matrix、f1_score、accuracy_score与hamming_loss签名和多标签分支，使用固定17列输入、zero_division=0；逐类零分母另外显式说明。固定三行矩阵对照已通过，空预测仍在分母内。阈值比较采用等价logit边界，避免对极端logit直接exp溢出；这只是数学/接口核验，不是实际模型评测。
+
+
+Task7另核对锁定torch/autograd/grad_mode.py的inference_mode及NumPy2.5.4 _core/numeric.py的allclose(rtol,atol)，用于CPU float32导出比对。Transformers5.20.2 modeling_utils.py确认output_loading_info=True返回(model,loading_info.to_dict())；utils/loading_report.py的missing_keys/unexpected_keys/mismatched_keys/error_msgs必须全部为空。仅trust_remote_code=False与safetensors还不足以阻止缺分类头时随机初始化，所以显式核对加载报告；此处是推理加载闸，训练从底座新建17类头仍属正常全参训练。

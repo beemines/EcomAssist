@@ -37,12 +37,21 @@ async def _checkpoint(name, intent, call, teacher, journal_dir, record_type, *, 
             if saved.get('offline_revalidation',{}).get('quarantine'):
                 receipt=receipt|{'offline_revalidation':saved['offline_revalidation']}
             return rows, receipt
-        if (saved.get('state') != 'failed' or not saved.get('receipt') or recovery is None
+        if saved.get('state')=='not_sent':
+            if (set(saved)!={'state','intent_hash','error_class','receipt','record_hash'}
+                    or saved['receipt'] is not None or saved['error_class']!='BudgetError'
+                    or digest({key:value for key,value in saved.items() if key!='record_hash'})!=saved['record_hash']):
+                raise ValueError('Unsent-stage proof is invalid; no repeat')
+            write_new_json(path.with_name(f'{name}.unsent-{uuid4().hex}.json'),
+                dict(prior=saved,reason='Explicit new execution after a guard proved no HTTP was sent'))
+            _atomic_json(path,dict(state='in_flight',intent_hash=intent_hash))
+        elif (saved.get('state') != 'failed' or not saved.get('receipt') or recovery is None
                 or recovery[0] != name or type(recovery[1]) is not str or not recovery[1].strip()):
             raise ValueError('Paid stage is incomplete; explicit same-scope failed-stage recovery is required')
-        write_new_json(path.with_name(f'{name}.recovery-{uuid4().hex}.json'),
-                       dict(prior=saved, reason=recovery[1]))
-        _atomic_json(path, dict(state='in_flight', intent_hash=intent_hash))
+        else:
+            write_new_json(path.with_name(f'{name}.recovery-{uuid4().hex}.json'),
+                           dict(prior=saved, reason=recovery[1]))
+            _atomic_json(path, dict(state='in_flight', intent_hash=intent_hash))
     if path is not None:
         if not path.exists():
             write_new_json(path, dict(state='in_flight', intent_hash=intent_hash))
@@ -51,8 +60,12 @@ async def _checkpoint(name, intent, call, teacher, journal_dir, record_type, *, 
         result = await call()
     except BaseException as exc:
         if path is not None:
-            _atomic_json(path, dict(state='failed', intent_hash=intent_hash,
-                error_class=type(exc).__name__, receipt=teacher.last_receipt))
+            from app.topics.budget import BudgetError
+            unsent=isinstance(exc,BudgetError) and teacher.last_receipt is None
+            saved=dict(state='not_sent' if unsent else 'failed',intent_hash=intent_hash,
+                error_class=type(exc).__name__,receipt=teacher.last_receipt)
+            if unsent:saved['record_hash']=digest(saved)
+            _atomic_json(path,saved)
         raise
     saved = dict(state='complete', intent_hash=intent_hash, data=[row.model_dump(mode='json') for row in result],
                  receipt=teacher.last_receipt)

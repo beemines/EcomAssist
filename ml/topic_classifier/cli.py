@@ -1,6 +1,7 @@
 """Explicit offline ML commands, using local frozen model files only."""
 import argparse
 import json
+import os
 from pathlib import Path
 
 
@@ -57,13 +58,35 @@ def main():
     training.add_argument('--base-dir',type=Path,required=True)
     training.add_argument('--output',type=Path,required=True)
     training.add_argument('--resume',action='store_true',help='Only the same dataset/config and saved checkpoint')
+    evaluation=commands.add_parser('evaluate',help='Freeze validation thresholds, then evaluate held-out truth and prepare human review')
+    evaluation.add_argument('--dataset',type=Path,required=True)
+    evaluation.add_argument('--training',type=Path,required=True)
+    evaluation.add_argument('--output',type=Path,required=True)
+    evaluation.add_argument('--model-output',type=Path)
+    evaluation.add_argument('--review-root',type=Path)
     args=parser.parse_args()
+    # This CLI only consumes the already downloaded fixed model. Doctor owns downloads.
+    os.environ['HF_HUB_OFFLINE']='1'
+    os.environ['HF_HUB_DISABLE_TELEMETRY']='1'
     if args.command=='split': split_command(args)
     elif args.command=='freeze-augmentation': augmentation_command(args)
     elif args.command=='train':
         from ml.topic_classifier.train import train
         receipt=train(args.dataset,args.base_dir,args.output,resume=args.resume)
         print(receipt.model_dump_json(indent=2))
+    elif args.command=='evaluate':
+        from app.topics.review_submission import TopicReviewService
+        from ml.topic_classifier.data import load_dataset
+        from ml.topic_classifier.artifacts import evaluate_run
+        pilot=TopicReviewService(args.dataset.parent/'pilot').state()
+        scope=json.loads((args.dataset.parent/'corpus/run.json').read_text(encoding='utf-8'))
+        manifest=load_dataset(args.dataset,splits=('train','validation'))
+        if (pilot is None or pilot.receipt_hash!=scope.get('review_receipt_hash')
+                or {row.id for row in pilot.samples}&(set(manifest.splits['validation'])|set(manifest.splits['test']))):
+            raise ValueError('Actual frozen human pilot proof is required and its families cannot enter held-out splits')
+        result=evaluate_run(args.dataset,args.training,args.output,pilot_receipt_hash=pilot.receipt_hash,
+            model_output=args.model_output,review_root=args.review_root)
+        print(json.dumps(result,ensure_ascii=False))
 
 
 if __name__=='__main__': main()

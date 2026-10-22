@@ -1,6 +1,8 @@
 """Frozen human-review selections and reports; never invent human decisions."""
 from collections import Counter
 from datetime import datetime
+import gc
+from html import escape
 import json
 import os
 from pathlib import Path
@@ -11,10 +13,10 @@ import numpy as np
 from app.topics.grouping import reserved_probe
 from app.topics.reviews import make_review_pack,verify_pack,apply_review,digest
 from app.topics.taxonomy import default_taxonomy
-from app.topics.types import ClassifyItem
+from app.topics.types import ClassifyItem,LabelledSample
 from app.topics.manifest import ModelManifest,read_manifest,verify_manifest,ALLOWED_FILES,DECODER_VERSION
 from app.topics.cleaning import CLEANING_VERSION
-from ml.topic_classifier.evaluation import evaluate_multilabel,decode_logits
+from ml.topic_classifier.evaluation import evaluate_multilabel,decode_logits,select_thresholds,ThresholdSet
 from ml.topic_classifier.doctor import BASE_MODEL,BASE_REVISION,file_hash
 
 
@@ -122,9 +124,15 @@ class CPUClassifier:
             raise ValueError('Only the fixed HFL17-label architecture may run')
         self._torch=torch
         self.tokenizer=AutoTokenizer.from_pretrained(directory,local_files_only=True,trust_remote_code=False)
-        self.model=AutoModelForSequenceClassification.from_pretrained(directory,local_files_only=True,
-            trust_remote_code=False,use_safetensors=True,weights_only=True).cpu().float().eval()
+        model,loading=AutoModelForSequenceClassification.from_pretrained(directory,local_files_only=True,
+            trust_remote_code=False,use_safetensors=True,weights_only=True,output_loading_info=True)
+        if any(loading.get(key) for key in ('missing_keys','unexpected_keys','mismatched_keys','error_msgs','error_messages')):
+            del model
+            gc.collect()
+            raise ValueError('Trained weights are incomplete or incompatible; random initialization is forbidden')
+        self.model=model.cpu().float().eval()
     def predict(self,items):
+        if self.model is None:raise ValueError('Classifier has been closed')
         items=tuple(items)
         if not items or any(not isinstance(row,ClassifyItem) for row in items):
             raise ValueError('Inference accepts only nonempty ID/text items, never label-bearing rows')
@@ -136,23 +144,32 @@ class CPUClassifier:
         with self._torch.inference_mode():
             for start in range(0,len(items),16):
                 encoded=self.tokenizer([row.text for row in items[start:start+16]],padding=True,truncation=False,return_tensors='pt')
+                encoded={key:value.cpu() for key,value in encoded.items()}
                 values.append(self.model(**encoded).logits.float().cpu().numpy())
         result=np.concatenate(values,axis=0)
         if result.shape!=(len(items),17) or not np.isfinite(result).all():raise ValueError('Invalid classifier logits')
         return result
+    def close(self):
+        self.model=None;self.tokenizer=None
+        gc.collect()
 
 
 def _cpu_checks(training,candidate,items,thresholds):
     original=CPUClassifier(training.best_checkpoint,weights_hash=training.weights_hash)
-    copied=CPUClassifier(candidate,weights_hash=training.weights_hash)
-    before=original.predict(items);after=copied.predict(items)
-    roundtrip=dict(passed=bool(np.allclose(before,after,atol=1e-5,rtol=1e-4)),
-        atol=1e-5,rtol=1e-4,sample_count=len(items),max_abs_difference=float(np.abs(before-after).max()))
-    probe=ClassifyItem(id='reserved-probe',text='买大了想退')
-    prediction=decode_logits(copied.predict([probe]),thresholds.thresholds)[0]
-    labels=[label for label,present in zip(default_taxonomy().ordered_names,prediction,strict=True) if present]
-    return dict(roundtrip=roundtrip,probe=dict(text=probe.text,labels=labels,expected_labels=['退换货','尺码'],
-        passed=labels==['退换货','尺码'],status='classified' if labels else 'needs_review'))
+    copied=None
+    try:
+        copied=CPUClassifier(candidate,weights_hash=training.weights_hash)
+        before=original.predict(items);after=copied.predict(items)
+        roundtrip=dict(passed=bool(np.allclose(before,after,atol=1e-5,rtol=1e-4)),
+            atol=1e-5,rtol=1e-4,sample_count=len(items),max_abs_difference=float(np.abs(before-after).max()))
+        probe=ClassifyItem(id='reserved-probe',text='买大了想退')
+        prediction=decode_logits(copied.predict([probe]),thresholds.thresholds)[0]
+        labels=[label for label,present in zip(default_taxonomy().ordered_names,prediction,strict=True) if present]
+        return dict(roundtrip=roundtrip,probe=dict(text=probe.text,labels=labels,expected_labels=['退换货','尺码'],
+            passed=labels==['退换货','尺码'],status='classified' if labels else 'needs_review'))
+    finally:
+        original.close()
+        if copied is not None:copied.close()
 
 
 class ExportRejected(ValueError):
@@ -217,3 +234,116 @@ def export_bundle(training,thresholds,reports:Path,output:Path):
         raise ExportRejected('Independent multilabel probe failed; candidate not published',identity=identity,candidate=staging)
     if staging!=output:os.rename(staging,output)
     return verify_manifest(output)
+
+
+def _freeze_text(path,text):
+    if path.exists():
+        if path.read_text(encoding='utf-8')!=text:raise ValueError('Refuse to replace different frozen artifact')
+        return
+    with path.open('x',encoding='utf-8',newline='\n') as out:out.write(text)
+
+
+def _metrics_html(report,model_version,probe_passed):
+    cards=[]
+    for row in report.per_class:
+        tn,fp=row.confusion[0];fn,tp=row.confusion[1]
+        cards.append(f'<section><h2>{escape(row.label)}</h2><p>正例 {row.support} · '
+            f'P {row.precision:.3f} / R {row.recall:.3f} / F1 {row.f1:.3f}</p>'
+            '<table><tr><th></th><th>预测阴性</th><th>预测阳性</th></tr>'
+            f'<tr><th>真实阴性</th><td>TN {tn}</td><td>FP {fp}</td></tr>'
+            f'<tr><th>真实阳性</th><td>FN {fn}</td><td>TP {tp}</td></tr></table>'
+            f'<small>{escape("；".join(row.undefined_denominators))}</small></section>')
+    return '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+\
+        '<title>主题模型评测报告</title><style>body{margin:32px auto;padding:0 24px;max-width:1100px;background:#f5f7f3;color:#253f38;font:16px system-ui}code{overflow-wrap:anywhere}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}section{background:white;border:1px solid #d5e0d7;border-radius:16px;padding:20px}table{width:100%;border-collapse:collapse}th,td{padding:7px;border:1px solid #d5e0d7}small{color:#845947}</style>'+\
+        f'<h1>主题模型 · 冻结留出评测</h1><p>模型 <code>{escape(model_version)}</code></p>'+\
+        '<p>此为完整 silver 留出集（LLM 预标），不是人工 gold。人工修订另出报告，不能回调阈值。</p>'+\
+        f'<p>样本 {report.sample_count} · 固定17类 Macro-F1 {report.macro_f1:.3f} · Micro-F1 {report.micro_f1:.3f} · '+\
+        f'完全匹配 {report.exact_match:.3f} · Hamming {report.hamming_loss:.4f} · 待复核率 {report.needs_review_rate:.3f}</p>'+\
+        f'<p>独立多标签 probe：{"通过" if probe_passed else "未通过，候选禁止发布"}。真实来源子集和全部预测见同目录 JSON。</p><main>'+''.join(cards)+'</main></html>'
+
+
+def evaluate_run(dataset:Path,training:Path,output:Path,*,pilot_receipt_hash:str,model_output=None,review_root=None):
+    """Freeze validation choices before opening test truth; leave human reviews pending."""
+    from ml.topic_classifier.data import load_dataset
+    from ml.topic_classifier.train import load_training_receipt,training_lease
+    from app.topics.reviews import render_review_html
+    dataset=Path(dataset);output=Path(output);output.mkdir(parents=True,exist_ok=True)
+    model_output=Path(model_output or output.parent/'model').resolve()
+    review_root=Path(review_root or output.parent).resolve()
+    receipt=load_training_receipt(training)
+    manifest=load_dataset(dataset,splits=('train','validation'))
+    if (receipt.dataset_hash!=manifest.manifest_hash or not re.fullmatch('[0-9a-f]{64}',pilot_receipt_hash)
+            or file_hash(dataset/'train-augmentations.jsonl')!=receipt.augmentation_hash):
+        raise ValueError('Evaluation source does not match the completed training and frozen pilot')
+    scope=dict(training_receipt_hash=receipt.receipt_hash,dataset_hash=manifest.manifest_hash,
+        augmentation_hash=receipt.augmentation_hash,pilot_receipt_hash=pilot_receipt_hash,
+        model_output=str(model_output),review_root=str(review_root))
+    with training_lease(output):
+        freeze_json(output/'evaluation-run.json',scope)
+        complete=output/'complete.json'
+        if complete.exists():
+            saved=json.loads(complete.read_text(encoding='utf-8'))
+            fields={k:v for k,v in saved.items() if k!='completion_hash'}
+            if saved.get('scope_hash')!=digest(scope) or saved.get('completion_hash')!=digest(fields):
+                raise ValueError('Completed evaluation identity changed')
+            for name,sha in saved['artifact_hashes'].items():
+                if file_hash(output/name)!=sha:raise ValueError('Frozen evaluation artifact changed')
+            load_dataset(dataset,splits=('test',))
+            if saved['model_published'] and verify_manifest(model_output).model_version!=saved['model_version']:
+                raise ValueError('Completed model identity changed')
+            return saved
+        def read(name):
+            return tuple(LabelledSample.model_validate_json(line)
+                for line in (dataset/(name+'.jsonl')).read_text(encoding='utf-8').splitlines() if line.strip())
+        def inference_items(rows):return tuple(ClassifyItem(id=row.id,text=row.text) for row in rows)
+        classifier=CPUClassifier(receipt.best_checkpoint,weights_hash=receipt.weights_hash)
+        try:
+            validation=read('validation');threshold_file=output/'thresholds.json'
+            if threshold_file.exists():thresholds=ThresholdSet.model_validate_json(threshold_file.read_text(encoding='utf-8'))
+            else:
+                if (output/'predictions.jsonl').exists():raise ValueError('Test was already opened; never recalibrate thresholds')
+                values=classifier.predict(inference_items(validation))
+                truth=np.asarray([default_taxonomy().encode(row.labels) for row in validation])
+                thresholds=select_thresholds(values,truth,split='validation')
+                freeze_json(threshold_file,thresholds.model_dump(mode='json'))
+            context=dict(training_receipt_hash=receipt.receipt_hash,dataset_hash=manifest.manifest_hash,
+                threshold_hash=thresholds.threshold_hash,pilot_receipt_hash=pilot_receipt_hash,
+                validation_items=[row.model_dump(mode='json') for row in inference_items(validation[:2])])
+            freeze_json(output/'context.json',context)
+            published=True
+            try:identity=export_bundle(receipt,thresholds,output,model_output)
+            except ExportRejected as rejected:
+                identity=rejected.identity;published=False
+            # The first test-truth read is after threshold/context publication and candidate identity.
+            load_dataset(dataset,splits=('test',));test=read('test')
+            logits=classifier.predict(inference_items(test));predicted=decode_logits(logits,thresholds.thresholds)
+            taxonomy=default_taxonomy();truth=np.asarray([taxonomy.encode(row.labels) for row in test])
+            metrics=evaluate_multilabel(truth,predicted,taxonomy=taxonomy)
+            predictions={row.id:tuple(label for label,selected in zip(taxonomy.ordered_names,predicted[i],strict=True) if selected)
+                for i,row in enumerate(test)}
+            by_origin={}
+            for origin in ('real','demo','synthetic','unverified'):
+                indices=[i for i,row in enumerate(test) if row.origin==origin]
+                by_origin[origin]=dict(sample_count=len(indices),metrics=evaluate_multilabel(truth[indices],predicted[indices],taxonomy=taxonomy).model_dump(mode='json') if indices else None)
+            freeze_json(output/'silver.json',dict(model_version=identity.model_version,source='LLM_prelabelled_silver',
+                dataset_hash=manifest.manifest_hash,metrics=metrics.model_dump(mode='json'),by_origin=by_origin,human_status='pending'))
+            lines=''.join(json.dumps(dict(id=row.id,text=row.text,group_id=row.group_id,origin=row.origin,
+                silver_labels=list(row.labels),predicted_labels=list(predictions[row.id]),logits=logits[i].tolist()),
+                ensure_ascii=False,allow_nan=False,sort_keys=True)+'\n' for i,row in enumerate(test))
+            _freeze_text(output/'predictions.jsonl',lines)
+            gold,errors,selection=make_test_review_packs(test,predictions,dataset_hash=manifest.manifest_hash,model_version=identity.model_version)
+            for name,pack in (('test-review',gold),('error-review',errors)):
+                if pack is not None:
+                    root=review_root/name;root.mkdir(parents=True,exist_ok=True)
+                    freeze_json(root/'pack.json',pack.model_dump(mode='json'))
+                    _freeze_text(root/'review.html',render_review_html(pack))
+            freeze_json(output/'review-selection.json',selection)
+            probe=json.loads((output/'probe.json').read_text(encoding='utf-8'))
+            _freeze_text(output/'metrics.html',_metrics_html(metrics,identity.model_version,probe['passed']))
+            names=('thresholds.json','context.json','silver.json','predictions.jsonl','review-selection.json','cpu-roundtrip.json','probe.json','metrics.html')
+            result=dict(status='complete',scope_hash=digest(scope),dataset_size=len(test),model_version=identity.model_version,
+                model_published=published,probe_passed=probe['passed'],human_status='pending',gold_count=68,errors_count=selection['errors_count'],
+                artifact_hashes={name:file_hash(output/name) for name in names})
+            result['completion_hash']=digest(result);freeze_json(complete,result)
+            return result
+        finally:classifier.close()
