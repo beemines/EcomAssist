@@ -213,6 +213,39 @@ async def pilot_command(args):
                          budget=ledger.summary().model_dump(), status='awaiting_human_review'), ensure_ascii=False))
 
 
+async def expand_command(args):
+    from app.config import load_settings
+    from app.topics.budget import APPROVAL_ID,BUDGET_PATH,BudgetLedger
+    from app.topics.corpus import expand_corpus,corpus_status
+    from app.topics.review_submission import TopicReviewService
+    from app.topics.snapshot import PoolSnapshot
+    from app.topics.teacher import configured_teacher
+    service=TopicReviewService(args.pilot_receipt.parent)
+    if args.pilot_receipt.resolve()!=(service.root/'review-receipt.json').resolve():
+        raise ValueError('Select the original human receipt filename')
+    review=service.state()
+    if review is None: raise ValueError('Actual pilot human review is still missing')
+    snapshot=PoolSnapshot.model_validate_json(args.snapshot.read_text(encoding='utf-8'))
+    _verify_snapshot(snapshot)
+    if service.pack().snapshot_hash!=snapshot.snapshot_hash:
+        raise ValueError('Human review belongs to another pool snapshot')
+    ledger=BudgetLedger(BUDGET_PATH,APPROVAL_ID)
+    if not args.execute:
+        print(json.dumps(dict(mode='preview',human_review=review.receipt_hash,pilot_retained=len(review.samples),
+            target_groups=2040,minimum_per_class=100,budget=ledger.summary().model_dump()),ensure_ascii=False));return
+    retry=args.retry_failed_stage;reason=args.retry_reason
+    if bool(retry)!=bool(reason) or retry and (not re.fullmatch(r'(generate|label)-[0-9]{4}',retry) or not reason.strip() or len(reason)>512):
+        raise ValueError('Recovery requires one diagnosed failed stage and explicit reason')
+    settings=load_settings(env_file=os.environ.get('CH10_ENV_FILE','.env'))
+    args.output.mkdir(parents=True,exist_ok=True)
+    async with configured_teacher(settings,ledger,evidence_dir=args.output/'diagnostics') as teacher:
+        await expand_corpus(snapshot,review,teacher,output=args.output,recovery=(retry,reason) if retry else None,
+            progress=lambda value:print(json.dumps(value,ensure_ascii=False),flush=True))
+    result=corpus_status(args.output)
+    print(json.dumps(dict(status=result['status'],groups=result['independent_groups'],budget=result['budget']),ensure_ascii=False))
+    if result['status']!='complete': raise SystemExit(2)
+
+
 def review_command(args):
     from app.topics.reviews import ReviewPack, apply_review, load_decisions
     pack = ReviewPack.model_validate_json(args.pack.read_text(encoding='utf-8'))
@@ -265,6 +298,13 @@ def main():
     pilot.add_argument('--execute', action='store_true')
     pilot.add_argument('--retry-failed-stage', help='One diagnosed failed checkpoint; never retries in-flight calls')
     pilot.add_argument('--retry-reason', help='Explicit diagnosis, preserved with the prior failed receipt')
+    expand=commands.add_parser('expand',help='Expand only after the human pilot receipt; preview is free')
+    expand.add_argument('--pilot-receipt',type=Path,required=True)
+    expand.add_argument('--snapshot',type=Path,required=True)
+    expand.add_argument('--output',type=Path,required=True)
+    expand.add_argument('--execute',action='store_true')
+    expand.add_argument('--retry-failed-stage')
+    expand.add_argument('--retry-reason')
     review = commands.add_parser('review-import', help='Validate explicit human decisions, then save a receipt')
     review.add_argument('--pack', type=Path, required=True)
     review.add_argument('--decisions', type=Path, required=True)
@@ -292,6 +332,8 @@ def main():
         print(BudgetLedger(BUDGET_PATH, APPROVAL_ID).summary().model_dump_json())
     elif args.command == 'pilot':
         asyncio.run(pilot_command(args))
+    elif args.command == 'expand':
+        asyncio.run(expand_command(args))
     elif args.command == 'review-import':
         review_command(args)
     else:

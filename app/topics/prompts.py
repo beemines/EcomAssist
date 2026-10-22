@@ -5,7 +5,7 @@ import json
 from app.topics.taxonomy import default_taxonomy
 
 
-PROMPT_VERSION = 'ch10-teacher-v1'
+PROMPT_VERSION = 'ch10-teacher-v2'
 
 
 def system_prompt(stage: str) -> str:
@@ -20,6 +20,7 @@ def system_prompt(stage: str) -> str:
     if stage == 'generate':
         rules += ('为每项独立编写一条短口语电商问题，严格表达requested_labels指定诉求，使用不同情境和句式，'
                   '不要只替换名词，不要让独立问题互为同义改写。原样返回id、family_id、requested_labels，新增text字段，不能另加字段。'
+                  '输入若有scenario_hint，仅用作场景和句式多样性的参考，不返回该字段；单句尽量20至45字。'
                   'requested_labels只是造数场景要求，后续会独立预标，不作为真实标签。')
     elif stage == 'label':
         rules += ('对每项text独立预标，返回id、cleaned_text（原样复制text）、labels、notes四个字段；'
