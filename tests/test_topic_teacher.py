@@ -21,6 +21,17 @@ def ledger_for(tmp_path):
     return BudgetLedger(path, 'ch10-topic-20261021')
 
 
+def test_generation_may_omit_known_scenario_echo_but_not_change_supplied_context():
+    from app.topics.teacher import parse_generated
+    expected={'g00':dict(family_id='f00',requested_labels=['物流'])}
+    output={'items':[dict(id='g00',family_id='f00',text='物流在哪里?')]}
+    rows=parse_generated(output,expected)
+    # This is requested scene metadata, not independently prelabelled supervision.
+    assert rows[0].requested_labels==('物流',)
+    for changed in [dict(requested_labels=['发票']),dict(family_id='f01'),dict(other='extra')]:
+        with pytest.raises(ValueError):parse_generated({'items':[output['items'][0]|changed]},expected)
+
+
 def response(content, *, usage=True):
     body = dict(id='teacher-test-response', choices=[dict(finish_reason='stop', message=dict(content=content))])
     if usage:
