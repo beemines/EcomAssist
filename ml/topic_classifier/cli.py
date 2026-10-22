@@ -1,0 +1,39 @@
+"""Explicit offline ML commands, using local frozen model files only."""
+import argparse
+import json
+from pathlib import Path
+
+
+def split_command(args):
+    from transformers import AutoTokenizer
+    from app.topics.budget import EVIDENCE_ROOT
+    from app.topics.corpus import corpus_status
+    from app.topics.types import LabelledSample
+    from ml.topic_classifier.data import build_splits,write_dataset
+    status=corpus_status(args.corpus)
+    if status['status']!='complete': raise ValueError('Corpus is incomplete; do not freeze a smaller dataset silently')
+    samples=[LabelledSample.model_validate_json(line) for line in (args.corpus/'samples.jsonl').read_text(encoding='utf-8').splitlines() if line.strip()]
+    tokenizer=AutoTokenizer.from_pretrained(args.base_dir or EVIDENCE_ROOT/'base',local_files_only=True,trust_remote_code=False)
+    manifest=build_splits(samples,tokenizer)
+    write_dataset(samples,manifest,args.output)
+    audit=dict(manifest_hash=manifest.manifest_hash,original_samples=len(samples),
+        retained=sum(len(ids) for ids in manifest.splits.values()),
+        sizes={name:len(ids) for name,ids in manifest.splits.items()},label_counts=manifest.label_counts,
+        origins=manifest.origins,excluded=manifest.excluded,augmentation='pending')
+    with (args.output/'data-audit.json').open('x',encoding='utf-8') as stream:
+        json.dump(audit,stream,ensure_ascii=False,indent=2)
+    print(json.dumps(audit,ensure_ascii=False))
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    commands=parser.add_subparsers(dest='command',required=True)
+    split=commands.add_parser('split',help='Freeze grouped 80/10/10 split after corpus preflight')
+    split.add_argument('--corpus',type=Path,required=True)
+    split.add_argument('--output',type=Path,required=True)
+    split.add_argument('--base-dir',type=Path)
+    args=parser.parse_args()
+    if args.command=='split': split_command(args)
+
+
+if __name__=='__main__': main()

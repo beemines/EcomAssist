@@ -32,6 +32,20 @@ class GenerationPlan(StrictRecord):
     count: int = Field(ge=1, le=16)
     scenario_labels: tuple[tuple[str, ...], ...]
     taxonomy_hash: str
+    scenario_hints: tuple[str, ...] = ()
+
+    @field_validator('scenario_hints', mode='before')
+    @classmethod
+    def hints(cls,value):
+        if (type(value) not in (list,tuple) or any(type(hint) is not str or len(hint)>256 for hint in value)):
+            raise ValueError('Scene hints must be bounded strings')
+        result=[]
+        for hint in value:
+            checked=clean_question(hint,sample_id='scene-hint')
+            if checked.quarantine_reasons or any('redacted' in edit for edit in checked.edits):
+                raise ValueError('Scene hints cannot contain possible personal data')
+            result.append(checked.text)
+        return tuple(result)
 
     @field_validator('scenario_labels', mode='before')
     @classmethod
@@ -42,7 +56,8 @@ class GenerationPlan(StrictRecord):
 
     @model_validator(mode='after')
     def count_and_version(self):
-        if len(self.scenario_labels) != self.count or self.taxonomy_hash != default_taxonomy().digest:
+        if (len(self.scenario_labels) != self.count or self.taxonomy_hash != default_taxonomy().digest
+                or self.scenario_hints and len(self.scenario_hints)!=self.count):
             raise ValueError('Scenario count or taxonomy identity mismatch')
         return self
 
@@ -252,6 +267,9 @@ class TeacherClient:
         nonce = uuid4().hex
         items = [dict(id=f'syn-{nonce}-{i}', family_id=f'family-{nonce}-{i}', requested_labels=list(labels))
                  for i, labels in enumerate(plan.scenario_labels)]
+        for item,hint in zip(items,plan.scenario_hints):
+            if not _private_text_safe(hint,item['id']): raise ValueError('Scene hint needs local privacy safety')
+            item['scenario_hint']=hint
         expected = {item['id']: item for item in items}
         def parse(value):
             return parse_generated(value, expected)
