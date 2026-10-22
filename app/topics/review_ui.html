@@ -4,7 +4,7 @@
 <title>MewHelp · 样本人工审核</title><style>$css</style></head>
 <body>
 <main>
-  <header><span class="eyebrow">MEWHELP / 第十步</span><h1>样本人工审核</h1>
+  <header><span class="eyebrow">MEWHELP / 第十步</span><h1 id="reviewTitle">样本人工审核</h1>
     <p>逐条核对问题和标签。有错的改标签，不采用的排除，看完后一次提交。</p>
     <div class="steps"><span>① 核对每条样本</span><span>② 修改或排除</span><span>③ 确认并保存</span></div>
   </header>
@@ -17,13 +17,13 @@
   </section>
   <section class="guidance">
     <p><b>只标句子明确说出的诉求。</b>修归「保修维修」、退归「退换货」；运费管钱，物流管货；「其他」不能和业务标签同时选。</p>
-    <p class="muted">合成题由模型生成；问题池句子的真实性尚未核实。本批所有问题家族只用于训练侧。</p>
+    <p class="muted" id="purposeHint">合成题由模型生成；问题池句子的真实性尚未核实。本批所有问题家族只用于训练侧。</p>
     <details><summary>展开 17 类边界说明</summary><dl id="taxonomy"></dl></details>
     <details><summary>查看本批标识</summary><code id="packHash"></code></details>
   </section>
   <p id="status" role="status" aria-live="polite"></p>
   <p id="fileNotice" class="notice" hidden>当前是本地文件预览，可导出审核结果。要直接保存，请打开
-    <a href="http://127.0.0.1:8007/topics/pilot-review">本机审核页 ↗</a>，在那一页完成审核。</p>
+    <a id="hostedReviewLink" href="http://127.0.0.1:8007/topics/pilot-review">本机审核页 ↗</a>，在那一页完成审核。</p>
   <div class="toolbar"><label>显示 <select id="filter"><option value="all">全部样本</option><option value="pending">待核对</option><option value="correct">已修正</option><option value="exclude">已排除</option></select></label>
     <label class="search">查找问题 <input id="search" type="search" placeholder="输入关键词或序号"></label>
     <span id="draftHint" class="muted">修改会暂存在当前浏览器</span><a href="#confirmation">去提交区 ↓</a></div>

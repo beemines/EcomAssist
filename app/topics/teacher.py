@@ -165,13 +165,13 @@ def parse_generated(value, expected) -> tuple[GeneratedQuestion, ...]:
     return tuple(row.model_copy(update={'text': clean_question(row.text, sample_id=row.id).text}) for row in rows)
 
 
-def isolate_items(value,expected,parse_one,*,id_map,reason):
+def isolate_items(value,expected,parse_one,*,id_map,reason,allow_empty=False):
     """Require a fully bound ID envelope, then reject invalid individual data."""
     retained=[];quarantine=[]
     for item in _items(value,expected):
         try:retained.extend(parse_one(item))
         except ValueError:quarantine.append(dict(sample_id=id_map[item['id']],reason=reason))
-    if not retained:raise ValueError('No valid items remain in the bound batch')
+    if not retained and not allow_empty:raise ValueError('No valid items remain in the bound batch')
     return tuple(retained),quarantine
 
 
@@ -351,9 +351,12 @@ class TeacherClient:
         def protected(value):
             return Counter(re.findall(r'\d+(?:\.\d+)?|[A-Za-z]+|不要|不想|不能|不退|不修|只想|只要|退|换|修', value))
         def parse_one(row):
+            parent = expected[row['id']]
+            if set(row)=={'id','text','labels'} and row['labels']==list(parent.labels):
+                # Some responses echo the supplied labels. Never take new truth from the echo.
+                row={key:value for key,value in row.items() if key!='labels'}
             if set(row) != {'id', 'text'} or type(row['text']) is not str:
                 raise ValueError('Invalid augmentation fields')
-            parent = expected[row['id']]
             cleaned = clean_question(row['text'], sample_id=parent.id)
             if (cleaned.quarantine_reasons or any('redacted' in edit for edit in cleaned.edits)
                     or cleaned.text == parent.text or protected(cleaned.text) != protected(parent.text)):
@@ -365,7 +368,7 @@ class TeacherClient:
         def parse(value):
             if isolate_invalid_items:
                 rows,quarantine=isolate_items(value,expected,parse_one,
-                    id_map={alias:parent.id+'-aug' for alias,parent in expected.items()},reason='augmentation_item_invalid')
+                    id_map={alias:parent.id+'-aug' for alias,parent in expected.items()},reason='augmentation_item_invalid',allow_empty=True)
                 self.last_receipt['item_quarantine']=quarantine
                 return rows
             return tuple(child for row in _items(value,expected) for child in parse_one(row))

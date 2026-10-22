@@ -245,3 +245,35 @@ def test_configured_teacher_rejects_unapproved_key_provider_or_model(tmp_path, p
     with pytest.raises(ValueError):
         configured_teacher(SimpleNamespace(**profile, llm_api_key=SecretStr('private')), ledger)
     assert ledger.summary().attempts == 0
+
+
+@pytest.mark.parametrize('echo', ['exact', 'conflict', 'extra'])
+async def test_augmentation_accepts_only_an_exact_redundant_label_echo(tmp_path, echo):
+    ledger = ledger_for(tmp_path)
+    parent = LabelledSample(id='q', text='这个XL大了想换', labels=['退换货','尺码'],
+        origin='synthetic', group_id='g', source_question_ids=[], pilot=False)
+    item = dict(id='a00', text='这个XL偏大了希望换',
+        labels=list(parent.labels) if echo!='conflict' else ['物流'])
+    if echo=='extra': item['notes']='unrequested'
+    async with TeacherClient(ledger, api_key=SecretStr('test'), transport=httpx.MockTransport(
+            lambda request: response(json.dumps({'items':[item]})))) as client:
+        if echo=='exact':
+            rows=await client.augment([parent])
+            assert rows[0].labels==parent.labels and rows[0].group_id==parent.group_id
+        else:
+            with pytest.raises(TeacherError): await client.augment([parent])
+
+
+@pytest.mark.parametrize('foreign', [False,True])
+async def test_optional_augmentation_can_quarantine_a_whole_validly_bound_batch(tmp_path,foreign):
+    ledger=ledger_for(tmp_path)
+    parent=LabelledSample(id='q',text='物流在哪里',labels=['物流'],origin='synthetic',
+        group_id='g',source_question_ids=[],pilot=False)
+    item=dict(id='foreign' if foreign else 'a00',text=parent.text)
+    async with TeacherClient(ledger,api_key=SecretStr('test'),transport=httpx.MockTransport(
+            lambda request: response(json.dumps({'items':[item]})))) as client:
+        if foreign:
+            with pytest.raises(TeacherError):await client.augment([parent],isolate_invalid_items=True)
+        else:
+            assert await client.augment([parent],isolate_invalid_items=True)==()
+            assert client.last_receipt['item_quarantine']==[dict(sample_id='q-aug',reason='augmentation_item_invalid')]
