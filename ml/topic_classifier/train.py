@@ -265,6 +265,9 @@ def train(dataset:Path,base_dir:Path,output:Path,*,seed:int=SEED,resume:bool=Fal
         best=best_validation_epoch(trainer.state.log_history)
         if trainer.state.best_global_step!=best['step'] or abs(trainer.state.best_metric-best['eval_macro_f1'])>1e-12:
             raise ValueError('Trainer selected a different checkpoint from validation macro-F1 with earlier ties')
+        best_source=Path(trainer.state.best_model_checkpoint or '').resolve()
+        if best_source.parent!=output or not (best_source/'model.safetensors').is_file():
+            raise ValueError('The validation-selected checkpoint is missing; never export different latest weights')
         after=encoder_hash(model)
         if after==before:raise ValueError('Encoder weights did not change; full fine-tuning was not demonstrated')
         best_dir=output/'best'
@@ -273,6 +276,7 @@ def train(dataset:Path,base_dir:Path,output:Path,*,seed:int=SEED,resume:bool=Fal
         if not (best_dir/'model.safetensors').is_file():raise ValueError('Best weights were not exported as safetensors')
         history=dict(config_hash=config_hash,dataset_hash=data.manifest_hash,epochs=trainer.state.log_history,
             best_epoch=best['epoch'],best_step=best['step'],best_macro_f1=best['eval_macro_f1'],
+            best_source=str(best_source),best_source_weights_hash=file_hash(best_source/'model.safetensors'),
             parameters=parameters,trainable_parameters=assert_full_trainable(model),encoder_before=before,encoder_after=after,
             duration_seconds=time.monotonic()-started,finished_at=datetime.now(timezone.utc).isoformat(),
             peak_allocated_bytes=torch.cuda.max_memory_allocated(),peak_reserved_bytes=torch.cuda.max_memory_reserved(),
