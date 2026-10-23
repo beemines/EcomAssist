@@ -84,7 +84,8 @@ def group_samples(samples) -> GroupedSamples:
             if find(i)==find(j): continue
             if key == other:
                 join(i,j)
-            elif (len(key)>=10 and len(other)>=10 and shared>=max(1,(min(len(key),len(other))-2)*.35)
+            elif (shared>=max(1,(min(len(key),len(other))-2)*.35)
+                    and Counter(re.findall(r'不|别|勿|取消',key))==Counter(re.findall(r'不|别|勿|取消',other))
                     and min(len(key),len(other))/max(len(key),len(other))>=.90):
                 match = SequenceMatcher(None,key,other,autojunk=False)
                 if match.quick_ratio()>=.90 and match.ratio()>=.90: join(i,j)

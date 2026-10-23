@@ -19,6 +19,8 @@
 
 8条固定诊断全过，真实HTTP服务中“买大了想退”返回“退换货、尺码”，“不退货,只问尺码”只返回“尺码”。这些诊断不是整体质量分数。完整17类P/R/F1及2×2矩阵、102条代审决定和理由见[只读报告](D:/shixi/ecommerce-customer-service/.cache/ch10-evidence/coverage-v5/reports/ai-review-report.html)。独立标准库整数计数核对结果在同目录ai-independent-audit.json；原silver/预测/阈值hash无变，修订不回流本轮训练。
 
+最终审查还发现本轮训练/验证有1对积分短句近重复，历史验证不能称完全独立。原样保留数据、权重、阈值和分数，追加限制；不会移动题目或自动第6次训练。四项后端修复及裁定见[审查处置](superpowers/reports/2026-10-23-ch10-backend-review.md)。
+
 - [主题分布](http://127.0.0.1:8007/topics)：当前实际问题池29条，20条有效分类、9条未有效分类；问题池来源真实性未核实，不能称29名真实客户。
 - [68条测试代审结果](http://127.0.0.1:8010/topics/test-review)：57保留、10改标、1排除。无需再提交。
 - [34条错例代审结果](http://127.0.0.1:8010/topics/error-review)：24保留、10改标、0排除。无需再提交。
@@ -347,4 +349,3 @@ app.topics.demo:create_app --factory --host 127.0.0.1 --port 8007
 环境变量填`CH10_ENV_FILE=D:/shixi/ecommerce-customer-service/.env`、`PYTHONUTF8=1`、`PYTHONIOENCODING=utf-8`。启动前确认8007没有其他进程；当前演示仍在运行时，不要再启动第二份。`CH10_TOPIC_PROFILE`在实际模型包就绪后再填三字段JSON路径，不放API Key，不用空壳manifest伪装模型。
 
 这个入口不恢复飞轮消费、摘要历史或收费评估，不启动分类Worker；审核页只读，完整第九步审核与评估仍在原[8006后台](http://127.0.0.1:8006/review)。主题页刷新仅发送GET。点击已有归并缺口链接可到`/review?review_id=...`查看，未归并的原话不造链接。
-

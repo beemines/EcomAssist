@@ -65,6 +65,12 @@ def clean_question(raw: str, *, sample_id: str) -> CleanQuestion:
             return match.group(0)
         if re.search(r'不要|不想|只想|退货|换货|维修|运费', detail):
             quarantine.append('ambiguous_address_clause')
+        # Only a closed numeric address ending gives us a reliable boundary.
+        # Anything after it may be a request/size/amount; never silently teach
+        # the address-only remainder of a mixed, unpunctuated sentence.
+        ending=re.search(r'\d+(?:号|栋|楼|单元|室)(?:\d+(?:号|栋|楼|单元|室))*$',detail)
+        if ending is None:
+            quarantine.append('ambiguous_address_clause')
         edits.append('address_redacted')
         return match.group(1) + '[详细地址]'
     value = address.sub(redact_address, value)
@@ -73,9 +79,14 @@ def clean_question(raw: str, *, sample_id: str) -> CleanQuestion:
     # scanning the rest, so an actual name elsewhere still requires review.
     name_scan = re.sub(r'(?:收件人|联系人)(?:的)?(?:姓名|名字)(?:填错了|写错了)'
                        r'(?:怎么改|能修改吗)(?=[?？,，。;；]|$)', '', value)
-    if re.search(r'我叫|姓名|收件人|联系人|我是[赵钱孙李周吴郑王张刘陈杨黄]', name_scan):
+    # Closed role descriptions contain no name value. Self-introductions with
+    # other Chinese text are uncertain identities, regardless of surname.
+    name_scan=re.sub(r'我是(?:会员|老客户|新客户|买家|卖家|客服|学生)(?=[?？,，。;； ]|$)','',name_scan)
+    if re.search(r'我叫|我姓|姓名|收件人|联系人|我是\s*[\u4e00-\u9fff]{2,}', name_scan):
         quarantine.append('name_review_required')
-        mask(r'((?:我叫|姓名|收件人|联系人)\s*[:：]?\s*)[\u4e00-\u9fff]{2,4}(?=[，,。；; ]|$)',
+        mask(r'我姓[\u4e00-\u9fff]{1,2}(?:名?叫)[\u4e00-\u9fff]{1,4}(?=[，,。；; ]|$)',
+             '[姓名]', 'name_redacted')
+        mask(r'((?:我叫|我是|姓名|收件人|联系人)\s*[:：]?\s*)[\u4e00-\u9fff]{2,4}(?=[，,。；; ]|$)',
              r'\1[姓名]', 'name_redacted')
     if re.search(r'[\u4e00-\u9fff]{2,30}(?:路|街|巷)\s*\d+\s*号', value):
         quarantine.append('unlabelled_address_review_required')
