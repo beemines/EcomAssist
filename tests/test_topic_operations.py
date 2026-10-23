@@ -9,6 +9,11 @@ def test_operational_parser_defaults_to_preview_and_requires_database_and_profil
     assert arguments.execute is False
     with pytest.raises(SystemExit):parser().parse_args(['run-once','--profile','p.json','--preview-file','f.json'])
 
+def test_retry_requires_explicit_reclassification_scope_flag():
+    from app.topics.cli import parser
+    args=parser().parse_args(['retry','--database','test','--profile','p.json','--preview-file','r.json','--reclassify'])
+    assert args.reclassify is True and args.execute is False
+
 def test_saved_operation_scope_cannot_silently_become_reclassification(tmp_path):
     from app.topics.operations import read_scope
     frozen=preview();path=tmp_path/'preview.json';path.write_text(frozen.model_dump_json(),encoding='utf-8')

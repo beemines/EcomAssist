@@ -33,3 +33,22 @@ def test_new_iteration_review_root_is_explicit_and_does_not_replace_first_round(
     assert demo.select_review_root(None)==tmp_path.resolve()
     assert demo.select_review_root(str(tmp_path/'remediation-v2'))==(tmp_path/'remediation-v2').resolve()
     with pytest.raises(ValueError):demo.select_review_root(str(tmp_path/'arbitrary'))
+
+
+async def test_review_only_factory_never_constructs_chat_or_database_resources(tmp_path,monkeypatch):
+    from app.topics import demo
+    from tests.test_topic_review_submission import prepared
+    base=tmp_path/'evidence';base.mkdir();original,_=prepared(base)
+    root=base/'remediation-v2';local=root/'test-review';local.mkdir(parents=True)
+    pack=make_review_pack(original.samples,snapshot_hash='1'*64,teacher_receipts=(),purpose='test')
+    (local/'pack.json').write_text(pack.model_dump_json(),encoding='utf-8')
+    monkeypatch.setattr(demo,'EVIDENCE_ROOT',base)
+    monkeypatch.setenv('CH10_REVIEW_ROOT',str(root))
+    monkeypatch.setattr(demo,'load_settings',lambda **kwargs:pytest.fail('review-only factory loaded secrets'))
+    application=demo.create_review_app()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(application),base_url='http://127.0.0.1:8008') as client:
+        html=await client.get('/topics/test-review');assert html.status_code==200
+        assert 'http://127.0.0.1:8008' in html.text and '第二轮' in html.text
+        assert (await client.get('/health')).json()['database_connections']==0
+        assert (await client.post('/api/chat',json={})).status_code==404
+        assert (await client.post('/api/topics/test-review',json=payload(pack),headers={'Origin':'https://foreign.invalid'})).status_code==403

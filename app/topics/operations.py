@@ -35,7 +35,7 @@ async def operate(args,database):
             return dict(mode='preview',preview=preview.model_dump(mode='json'))
     else:
         preview=read_scope(args.preview_file,identity,database_identity=schema.database_identity,
-            reclassify=args.command=='reclassify')
+            reclassify=args.command=='reclassify' or args.command=='retry' and getattr(args,'reclassify',False))
     if not args.execute:return dict(mode='preview',command=args.command,preview_hash=preview.preview_hash,items=len(preview.items))
     path=profile.runtime_root/'receipts.sqlite3'
     if not path.exists() and not path.with_suffix('.identity.json').exists():

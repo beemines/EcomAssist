@@ -387,7 +387,7 @@ def evaluate_run(dataset:Path,training:Path,output:Path,*,pilot_receipt_hash:str
                 if pack is not None:
                     root=review_root/name;root.mkdir(parents=True,exist_ok=True)
                     freeze_json(root/'pack.json',pack.model_dump(mode='json'))
-                    _freeze_text(root/'review.html',render_review_html(pack))
+                    _freeze_text(root/'review.html',render_review_html(pack,review_port=8008 if review_root.name=='remediation-v2' else 8007))
             freeze_json(output/'review-selection.json',selection)
             probe=json.loads((output/'probe.json').read_text(encoding='utf-8'))
             _freeze_text(output/'metrics.html',_metrics_html(metrics,identity.model_version,probe['passed']))
