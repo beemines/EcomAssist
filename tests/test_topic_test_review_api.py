@@ -9,6 +9,24 @@ from app.topics.review_submission import TopicReviewService
 from tests.test_topic_review_submission import prepared,payload
 
 
+async def test_coverage_iteration_8010_review_root_has_no_secret_database_or_old_receipt_access(tmp_path,monkeypatch):
+    from app.topics import demo
+    base=tmp_path/'evidence';base.mkdir();original,_=prepared(base)
+    root=base/'coverage-v5';local=root/'train-review';local.mkdir(parents=True)
+    pack=make_review_pack(original.samples,snapshot_hash='1'*64,teacher_receipts=(),purpose='pilot')
+    (local/'pack.json').write_text(pack.model_dump_json(),encoding='utf-8')
+    monkeypatch.setattr(demo,'EVIDENCE_ROOT',base);monkeypatch.setenv('CH10_REVIEW_ROOT',str(root))
+    monkeypatch.setattr(demo,'load_settings',lambda **kw:pytest.fail('review factory loaded secrets'))
+    application=demo.create_review_app()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(application),base_url='http://127.0.0.1:8010') as client:
+        html=await client.get('/topics/pilot-review')
+        assert html.status_code==200 and 'http://127.0.0.1:8010' in html.text and '组合覆盖修复' in html.text
+        assert (await client.get('/health')).json()['database_connections']==0
+        assert (await client.post('/api/chat',json={})).status_code==404
+        assert (await client.post('/api/topics/pilot-review',json=payload(pack),headers={'Origin':'https://foreign.invalid'})).status_code==403
+        assert not (local/'review-receipt.json').exists()
+
+
 @pytest.mark.parametrize('purpose,endpoint,attribute',[('test','test-review','topic_test_review_service'),('errors','error-review','topic_error_review_service')])
 async def test_each_review_endpoint_saves_only_its_bound_pack(tmp_path,purpose,endpoint,attribute):
     (tmp_path/'pilot').mkdir()

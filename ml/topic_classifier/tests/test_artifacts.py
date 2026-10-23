@@ -2,7 +2,7 @@
 from collections import Counter
 from datetime import datetime,timezone
 import pytest
-from app.topics.reviews import ReviewDecision,apply_review
+from app.topics.reviews import ReviewDecision,apply_review,digest
 from app.topics.taxonomy import default_taxonomy
 from ml.topic_classifier.tests.test_data import corpus
 from ml.topic_classifier.artifacts import make_test_review_packs,human_subset_report
@@ -59,3 +59,15 @@ def test_review_selection_cannot_accept_training_rows_or_bad_prediction_membersh
     with pytest.raises(ValueError):make_test_review_packs(samples[:-1],prediction,dataset_hash='1'*64,model_version='2'*64)
     samples[0]=samples[0].model_copy(update={'pilot':True})
     with pytest.raises(ValueError):make_test_review_packs(samples,prediction,dataset_hash='1'*64,model_version='2'*64)
+
+
+def test_new_68_review_includes_four_of_each_explicit_scene_before_general_class_coverage():
+    samples=rows();predictions={r.id:r.labels for r in samples}
+    ordered=sorted(samples,key=lambda r:digest({'scene-fixture':r.id}))
+    required={'A':[r.id for r in ordered[:12]],'B':[r.id for r in ordered[12:24]]}
+    gold,_,selection=make_test_review_packs(samples,predictions,dataset_hash='1'*64,model_version='2'*64,required_scenes=required)
+    ids={r.id for r in gold.samples}
+    assert len(gold.samples)==68 and all(len(ids&set(required[k]))>=4 for k in ('A','B'))
+    assert selection['gold_scene_coverage']['A']>=4 and selection['gold_scene_coverage']['B']>=4
+    with pytest.raises(ValueError):make_test_review_packs(samples,predictions,dataset_hash='1'*64,model_version='2'*64,
+        required_scenes={'A':['unknown']*12,'B':required['B']})

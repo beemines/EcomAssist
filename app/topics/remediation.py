@@ -122,11 +122,14 @@ def load_short(root):
 
 
 async def collect_short(teacher,*,output,blocked,scope,partition,target,minima,multi_fraction=.3,max_batches=29,recovery=None,
-                        planner=None,row_guard=None,profile=None):
+                        planner=None,row_guard=None,profile=None,seeds=()):
     from app.topics.data_cli import _checkpoint
     if profile is not None and (type(profile) is not dict or not callable(planner) or not callable(row_guard)):
         raise ValueError('A custom profile must bind both its planner and data guard')
     if profile is None and (planner is not None or row_guard is not None):raise ValueError('Unbound custom planning is forbidden')
+    seeds=tuple(LabelledSample.model_validate(row.model_dump()) for row in seeds)
+    if seeds and profile is None:raise ValueError('Cache seeds require a bound data profile')
+    if len({row.id for row in seeds})!=len(seeds):raise ValueError('Duplicate cache seed identities')
     max_chars=profile.get('max_chars',16) if profile else 16
     generation_profile=profile.get('generation_profile','short') if profile else 'short'
     if max_chars not in (16,45) or generation_profile not in ('short','mixed'):raise ValueError('Invalid bounded data profile')
@@ -137,6 +140,7 @@ async def collect_short(teacher,*,output,blocked,scope,partition,target,minima,m
         blocked_hash=digest([row.model_dump(mode='json') for row in blocked]))
     if generation_profile=='mixed':scope['prompt_hashes']['generate']=digest(system_prompt('generate'))
     if profile is not None:scope['custom_profile']=profile
+    if seeds:scope['seed_samples_hash']=digest([row.model_dump(mode='json') for row in seeds])
     if (output/'status.json').exists():
         prior=json.loads((output/'status.json').read_text(encoding='utf-8'))
         if prior.get('scope_hash')!=digest(scope):raise ValueError('Remediation partition scope changed')
@@ -151,7 +155,7 @@ async def collect_short(teacher,*,output,blocked,scope,partition,target,minima,m
         else:
             with run.open('x',encoding='utf-8') as stream:json.dump(scope,stream,ensure_ascii=False,sort_keys=True)
         journal=output/'journal';journal.mkdir(exist_ok=True)
-        raw=[];quarantine=[]
+        raw=list(seeds);quarantine=[]
         def publish(status):
             rows,excluded=filter_short(raw,blocked,max_chars=max_chars)
             if row_guard is not None:
