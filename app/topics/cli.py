@@ -52,7 +52,9 @@ def parser():
                 command.add_argument('--output',type=Path)
                 command.add_argument('--reclassify',action='store_true')
             else:command.add_argument('--poll-seconds',type=int,choices=range(60,301),default=60)
-        else:command.add_argument('--preview-file',type=Path,required=True)
+        else:
+            command.add_argument('--preview-file',type=Path,required=True)
+            if name=='retry':command.add_argument('--reclassify',action='store_true')
     return result
 
 

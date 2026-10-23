@@ -20,6 +20,33 @@ def select_review_root(value):
     return selected
 
 
+def create_review_app():
+    """An isolated human-review surface: no settings, model, DB or background jobs."""
+    from fastapi import FastAPI,APIRouter
+    from app.api.topics import router as topic_routes
+    from app.api.review_queue import ReviewRoute
+    root=select_review_root(os.environ.get('CH10_REVIEW_ROOT'))
+    app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None)
+    app.state.chat_action_allowed_origins=[]
+    app.state.background_tasks_enabled=False
+    app.state.topic_test_review_service=TopicReviewService(root/'test-review')
+    app.state.topic_error_review_service=TopicReviewService(root/'error-review')
+    app.include_router(topic_routes)
+    pages=APIRouter(route_class=ReviewRoute)
+    @pages.get('/health')
+    async def health():return dict(kind='local-topic-human-review',database_connections=0,paid_background=False)
+    def register(path,attribute,purpose):
+        async def page(request:Request):
+            service=getattr(app.state,attribute)
+            if (await asyncio.to_thread(service.pack)).purpose!=purpose:raise ValueError('Wrong pack purpose')
+            return HTMLResponse(await asyncio.to_thread(service.render),headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'})
+        pages.add_api_route(path,page,response_class=HTMLResponse,name=attribute)
+    register('/topics/test-review','topic_test_review_service','test')
+    register('/topics/error-review','topic_error_review_service','errors')
+    app.include_router(pages)
+    return app
+
+
 def create_app():
     path=os.environ.get('CH10_ENV_FILE')
     if not path:
