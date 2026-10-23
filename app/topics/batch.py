@@ -1,5 +1,6 @@
 """Bounded side-channel rounds: no teacher or real-time chat dependencies."""
 import time
+import asyncio
 
 from app.flywheel.leases import processing_lease
 from app.topics.client import TopicClientError
@@ -8,6 +9,11 @@ from app.topics.repository import make_receipt,verify_preview
 from app.topics.reviews import digest
 from app.topics.snapshot import write_new_json
 from app.topics.types import ClassifyItem,Prediction
+
+
+async def _wait_stop(stop,seconds):
+    try:await asyncio.wait_for(stop.wait(),timeout=seconds)
+    except TimeoutError:pass
 
 
 def validate_predictions(preview,predictions):
@@ -24,6 +30,32 @@ def validate_predictions(preview,predictions):
 class BatchRunner:
     def __init__(self,repository,client,receipts,*,clock=time.time):
         self.repository,self.client,self.receipts,self.clock=repository,client,receipts,clock
+
+    async def watch(self,*,stop,identity,from_id=1,to_id=None,limit=100,interval=60):
+        if type(interval) is not int or not 60<=interval<=300 or type(limit) is not int or not 20<=limit<=100:
+            raise ValueError('Watch requires20..100 items and polling60..300 seconds')
+        while not stop.is_set():
+            if self.receipts.round_failures()==3:return dict(status='paused',failed_rounds=3)
+            preview=verify_preview(await self.repository.preview_pending(from_id=from_id,to_id=to_id,
+                limit=limit,identity=identity,reclassify=False))
+            if preview.identity!=identity or preview.database_identity!=self.receipts.database_identity:
+                raise ValueError('Watch selection identity changed')
+            eligible=sum(self.receipts.eligible(FailureKey(question_id=item.id,input_hash=item.input_hash,
+                model_version=identity.model_version),now=self.clock()) for item in preview.items)
+            delay=interval
+            if eligible>=20:
+                try:result=await self.run_once(preview)
+                except Exception:
+                    self.receipts.record_round(success=False,now=self.clock())
+                    # An unexpected guard/DB failure needs diagnosis, not an implicit loop.
+                    return dict(status='failed',reason='round_guard_failed')
+                failed=any(value in ('temporary_failure','permanent_failure') for value in result.problems.values())
+                if failed or result.written:
+                    failures=self.receipts.record_round(success=not failed,now=self.clock())
+                    if failures==3:return dict(status='paused',failed_rounds=3)
+                    delay=max(interval,min(240,60*2**max(0,failures-1))) if failed else interval
+            await _wait_stop(stop,delay)
+        return dict(status='stopped')
 
     async def run_once(self,preview,*,reclassify=False):
         preview=verify_preview(preview)
