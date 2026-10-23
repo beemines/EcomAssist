@@ -277,3 +277,19 @@ async def test_optional_augmentation_can_quarantine_a_whole_validly_bound_batch(
         else:
             assert await client.augment([parent],isolate_invalid_items=True)==()
             assert client.last_receipt['item_quarantine']==[dict(sample_id='q-aug',reason='augmentation_item_invalid')]
+
+
+async def test_short_generation_has_a_separate_prompt_without_weakening_prelabels(tmp_path):
+    ledger=ledger_for(tmp_path)
+    def handler(request):
+        body=json.loads(request.content);prompt=body['messages'][0]['content']
+        assert '4至16' in prompt and '20至45' not in prompt
+        assert body['max_tokens']==8192
+        items=json.loads(body['messages'][1]['content'])['items']
+        return response(json.dumps(dict(items=[{k:v for k,v in row.items() if k!='scenario_hint'}|dict(text='到哪了') for row in items])))
+    plan=GenerationPlan(count=1,scenario_labels=[['物流']],taxonomy_hash=default_taxonomy().digest)
+    async with TeacherClient(ledger,api_key=SecretStr('fixture'),transport=httpx.MockTransport(handler)) as teacher:
+        rows=await teacher.generate(plan,short=True)
+        assert rows[0].requested_labels==('物流',)
+        assert teacher.last_receipt['prompt_version']=='ch10-short-generation-v1'
+    assert ledger.summary().attempts==1

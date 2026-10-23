@@ -64,3 +64,21 @@ def test_wrong_or_tampered_extension_fails_closed(tmp_path,kind):
         'count':('attempt_limit','401'),'revision':('revision_id','unapproved')}[kind]
     value[key]=changed;extension.write_text(json.dumps(value),encoding='utf-8')
     with pytest.raises(BudgetError):ledger.reserve('label','a'*64)
+
+
+def test_second_human_amendment_binds_first_without_mutating_any_history(tmp_path):
+    from app.topics.budget import amend_remediation_limit,REMEDIATION_APPROVAL_ID,REMEDIATION_APPROVAL_TEXT
+    path,ledger=prepared(tmp_path)
+    with pytest.raises(BudgetError):amend_remediation_limit(path,revision_id=REMEDIATION_APPROVAL_ID,approval_text=REMEDIATION_APPROVAL_TEXT)
+    amend_budget_attempt_limit(path,revision_id=ATTEMPT_EXTENSION_ID,approval_text=TEXT)
+    attempt=ledger.reserve('label','a'*64);ledger.mark_unknown(attempt.attempt_id,'fixture_unknown')
+    first=path.with_suffix('.attempt-approval.json').read_bytes();original=path.with_suffix('.approval.json').read_bytes()
+    before=path.read_bytes()
+    after=amend_remediation_limit(path,revision_id=REMEDIATION_APPROVAL_ID,approval_text=REMEDIATION_APPROVAL_TEXT)
+    assert after.attempt_limit==450 and after.attempts==1 and after.used_micro==1205863 and after.unknown_attempts==1
+    assert after.limit_micro==10000000 and path.read_bytes()==before
+    assert path.with_suffix('.attempt-approval.json').read_bytes()==first and path.with_suffix('.approval.json').read_bytes()==original
+    assert amend_remediation_limit(path,revision_id=REMEDIATION_APPROVAL_ID,approval_text=REMEDIATION_APPROVAL_TEXT)==after
+    first_value=json.loads(first);first_value['approved_at']='2026-10-23T00:00:00+00:00'
+    path.with_suffix('.attempt-approval.json').write_text(json.dumps(first_value),encoding='utf-8')
+    with pytest.raises(BudgetError):ledger.reserve('generate','b'*64)

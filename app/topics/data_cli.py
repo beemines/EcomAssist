@@ -283,6 +283,27 @@ async def augment_command(args):
         budget=ledger.summary().model_dump()),ensure_ascii=False))
 
 
+async def remediate_command(args):
+    from app.config import load_settings
+    from app.topics.remediation import original_source,prepare_remediation
+    from app.topics.budget import BudgetLedger,BUDGET_PATH,APPROVAL_ID,REMEDIATION_APPROVAL_ID
+    from app.topics.teacher import configured_teacher
+    ledger=BudgetLedger(BUDGET_PATH,APPROVAL_ID)
+    if ledger.summary().approval_revision!=REMEDIATION_APPROVAL_ID:raise ValueError('Explicit450/10CNY remediation approval required')
+    manifest,_,_=original_source(args.source)
+    if not args.execute:
+        print(json.dumps(dict(mode='preview',source_manifest=manifest['manifest_hash'],new_train_target=128,new_test_target=187,
+            external_data='new_synthetic_questions_and_taxonomy_only',budget=ledger.summary().model_dump()),ensure_ascii=False));return
+    if bool(args.retry_failed_stage)!=bool(args.retry_reason) or args.retry_failed_stage and (
+            not re.fullmatch(r'(train|test)-(generate|label)-[0-9]{4}',args.retry_failed_stage) or not args.retry_reason.strip()
+            or len(args.retry_reason)>512):raise ValueError('One diagnosed stage and bounded reason are required')
+    recovery=(args.retry_failed_stage,args.retry_reason) if args.retry_failed_stage else None
+    settings=load_settings(env_file=os.environ.get('CH10_ENV_FILE','.env'))
+    async with configured_teacher(settings,ledger,evidence_dir=args.output/'teacher-diagnostics') as teacher:
+        result=await prepare_remediation(args.source,teacher,output=args.output,recovery=recovery)
+    print(json.dumps(result|dict(budget=ledger.summary().model_dump()),ensure_ascii=False))
+
+
 def review_command(args):
     from app.topics.reviews import ReviewPack, apply_review, load_decisions
     pack = ReviewPack.model_validate_json(args.pack.read_text(encoding='utf-8'))
@@ -353,6 +374,12 @@ def main():
     augment.add_argument('--execute',action='store_true')
     augment.add_argument('--retry-failed-stage')
     augment.add_argument('--retry-reason')
+    remediate=commands.add_parser('remediate',help='Approved synthetic-only short-input iteration; preview by default')
+    remediate.add_argument('--source',type=Path,required=True)
+    remediate.add_argument('--output',type=Path,required=True)
+    remediate.add_argument('--execute',action='store_true')
+    remediate.add_argument('--retry-failed-stage')
+    remediate.add_argument('--retry-reason')
     review = commands.add_parser('review-import', help='Validate explicit human decisions, then save a receipt')
     review.add_argument('--pack', type=Path, required=True)
     review.add_argument('--decisions', type=Path, required=True)
@@ -390,6 +417,8 @@ def main():
         asyncio.run(expand_command(args))
     elif args.command == 'augment':
         asyncio.run(augment_command(args))
+    elif args.command == 'remediate':
+        asyncio.run(remediate_command(args))
     elif args.command == 'corpus-status':
         from app.topics.corpus import corpus_status
         from app.topics.budget import APPROVAL_ID,BUDGET_PATH,BudgetLedger

@@ -14,7 +14,7 @@ from pydantic import Field, SecretStr, field_validator, model_validator
 
 from app.topics.budget import BudgetLedger, Usage
 from app.topics.cleaning import CleanQuestion, clean_question
-from app.topics.prompts import PROMPT_VERSION, system_prompt
+from app.topics.prompts import PROMPT_VERSION,SHORT_PROMPT_VERSION, system_prompt
 from app.topics.taxonomy import default_taxonomy
 from app.topics.types import LabelledSample, StrictRecord
 
@@ -202,10 +202,13 @@ class TeacherClient:
                     raise TeacherError('teacher_response_too_large')
             return response.status_code, bytes(body)
 
-    async def _call(self, stage, items, parse, *, id_map=None, family_map=None):
+    async def _call(self, stage, items, parse, *, id_map=None, family_map=None,prompt_stage=None):
         if not 1 <= len(items) <= 16:
             raise ValueError('Teacher batch must contain 1..16 items')
-        prompt = system_prompt(stage)
+        if prompt_stage is not None and (stage!='generate' or prompt_stage!='generate_short'):
+            raise ValueError('Unrecognized teacher prompt profile')
+        prompt = system_prompt(prompt_stage or stage)
+        prompt_version=SHORT_PROMPT_VERSION if prompt_stage else PROMPT_VERSION
         payload = json.dumps(dict(model=MODEL, thinking={'type': 'enabled'}, reasoning_effort='low',
             max_tokens=8192, stream=False, response_format={'type': 'json_object'},
             messages=[dict(role='system', content=prompt),
@@ -221,7 +224,7 @@ class TeacherClient:
                 attempt_id = reservation.attempt_id
                 self.last_receipt = dict(attempt_id=attempt_id, payload_hash=payload_hash,
                     prompt_hash=hashlib.sha256(prompt.encode('utf-8')).hexdigest(),
-                    prompt_version=PROMPT_VERSION, model=MODEL, request_id=None)
+                    prompt_version=prompt_version, model=MODEL, request_id=None)
                 if id_map is not None:
                     self.last_receipt['id_map']=id_map.copy()
                 if family_map is not None:
@@ -319,7 +322,8 @@ class TeacherClient:
         return await self._call('label',[dict(id=f'r{i:02d}',text=sample.text) for i,sample in enumerate(samples)],
             parse,id_map=id_map)
 
-    async def generate(self, plan: GenerationPlan,*,isolate_invalid_items:bool=False) -> tuple[GeneratedQuestion, ...]:
+    async def generate(self, plan: GenerationPlan,*,isolate_invalid_items:bool=False,short:bool=False) -> tuple[GeneratedQuestion, ...]:
+        if type(short) is not bool:raise ValueError('Generation profile must be explicit')
         nonce = uuid4().hex
         id_map={f'g{i:02d}':f'syn-{nonce}-{i}' for i in range(plan.count)}
         family_map={f'f{i:02d}':f'family-{nonce}-{i}' for i in range(plan.count)}
@@ -337,7 +341,8 @@ class TeacherClient:
                 self.last_receipt['item_quarantine']=quarantine
             else:rows=parse_generated(value,expected)
             return tuple(row.model_copy(update={'id':id_map[row.id],'family_id':family_map[row.family_id]}) for row in rows)
-        return await self._call('generate',items,parse,id_map=id_map,family_map=family_map)
+        options=dict(prompt_stage='generate_short') if short else {}
+        return await self._call('generate',items,parse,id_map=id_map,family_map=family_map,**options)
 
     async def augment(self, samples: Sequence[LabelledSample],*,isolate_invalid_items:bool=False) -> tuple[LabelledSample, ...]:
         samples = tuple(samples)
