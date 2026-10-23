@@ -93,6 +93,11 @@ class ReceiptStore:
                 connection.execute('CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT,'
                     'question_id TEXT NOT NULL,input_hash TEXT NOT NULL,model_version TEXT NOT NULL,'
                     'action TEXT NOT NULL,created_at REAL NOT NULL)')
+                connection.execute('CREATE TABLE worker_state(slot INTEGER PRIMARY KEY CHECK(slot=1),'
+                    'failures INTEGER NOT NULL CHECK(failures BETWEEN 0 AND 3))')
+                connection.execute('INSERT INTO worker_state VALUES(1,0)')
+                connection.execute('CREATE TABLE round_events(id INTEGER PRIMARY KEY AUTOINCREMENT,'
+                    'action TEXT NOT NULL,failures INTEGER NOT NULL,created_at REAL NOT NULL)')
                 connection.commit()
         except (OSError, sqlite3.Error):
             raise ReceiptError('Receipt initialization failed; identity marker preserved') from None
@@ -181,3 +186,32 @@ class ReceiptStore:
 
     def record_success(self, key: FailureKey, *, now: float):
         self._clear(key, 'classified', now)
+
+    @staticmethod
+    def _round(connection):
+        rows=connection.execute('SELECT slot,failures FROM worker_state').fetchall()
+        if len(rows)!=1 or rows[0][0]!=1 or type(rows[0][1]) is not int or not 0<=rows[0][1]<=3:
+            raise ReceiptError('Worker round state is invalid')
+        return rows[0][1]
+
+    def round_failures(self):
+        with self._open() as connection:return self._round(connection)
+
+    def record_round(self,*,success:bool,now:float):
+        if type(success) is not bool:raise ValueError('Round outcome must be explicit')
+        moment=_clock(now)
+        with self._open(write=True) as connection:
+            prior=self._round(connection)
+            if prior==3:raise ValueError('Worker paused after three failed rounds; explicit retry required')
+            failures=0 if success else prior+1
+            connection.execute('UPDATE worker_state SET failures=? WHERE slot=1',(failures,))
+            connection.execute('INSERT INTO round_events(action,failures,created_at) VALUES(?,?,?)',
+                ('success' if success else 'failure',failures,moment))
+            return failures
+
+    def retry_rounds(self,*,now:float):
+        moment=_clock(now)
+        with self._open(write=True) as connection:
+            self._round(connection)
+            connection.execute('UPDATE worker_state SET failures=0 WHERE slot=1')
+            connection.execute('INSERT INTO round_events(action,failures,created_at) VALUES(?,?,?)',('explicit_retry',0,moment))

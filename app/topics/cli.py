@@ -3,6 +3,8 @@
 import argparse
 import asyncio
 import os
+import json
+from pathlib import Path
 
 from app.config import load_settings
 from app.db.session import Database
@@ -19,22 +21,42 @@ async def run(args):
         if args.command == 'verify':
             await verify_topics(database)
             print('{"verified":true,"read_only":true}')
-        else:
+        elif args.command=='migrate':
             result = await migrate_topics(database, preview=not args.execute)
             print(result.model_dump_json())
+        else:
+            from app.topics.operations import operate
+            print(json.dumps(await operate(args,database),ensure_ascii=False))
     finally:
         await database.dispose()
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    commands = parser.add_subparsers(dest='command', required=True)
+def parser():
+    result = argparse.ArgumentParser(description=__doc__)
+    commands = result.add_subparsers(dest='command', required=True)
     migrate = commands.add_parser('migrate', help='Preview by default; explicit --execute changes the schema')
     migrate.add_argument('--database', choices=['configured', 'test'], required=True)
     migrate.add_argument('--execute', action='store_true')
     verify = commands.add_parser('verify', help='Verify the exact known schema without writes')
     verify.add_argument('--database', choices=['configured', 'test'], required=True)
-    asyncio.run(run(parser.parse_args()))
+    for name in ('preview','run-once','watch','retry','reclassify'):
+        command=commands.add_parser(name)
+        command.add_argument('--database',choices=['configured','test'],required=True)
+        command.add_argument('--profile',type=Path,required=True)
+        command.add_argument('--execute',action='store_true')
+        if name in ('preview','watch'):
+            command.add_argument('--from-id',type=int,default=1)
+            command.add_argument('--to-id',type=int)
+            command.add_argument('--limit',type=int,choices=range(1,101),default=100)
+            if name=='preview':
+                command.add_argument('--output',type=Path)
+                command.add_argument('--reclassify',action='store_true')
+            else:command.add_argument('--poll-seconds',type=int,choices=range(60,301),default=60)
+        else:command.add_argument('--preview-file',type=Path,required=True)
+    return result
+
+
+def main():asyncio.run(run(parser().parse_args()))
 
 
 if __name__ == '__main__':
