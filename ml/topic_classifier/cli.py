@@ -62,6 +62,7 @@ def main():
     training.add_argument('--base-dir',type=Path,required=True)
     training.add_argument('--output',type=Path,required=True)
     training.add_argument('--resume',action='store_true',help='Only the same dataset/config and saved checkpoint')
+    training.add_argument('--short-sampling-control',action='store_true',help='Approved local control: 30 percent short training draws, unchanged epoch length')
     evaluation=commands.add_parser('evaluate',help='Freeze validation thresholds, then evaluate held-out truth and prepare human review')
     evaluation.add_argument('--dataset',type=Path,required=True)
     evaluation.add_argument('--training',type=Path,required=True)
@@ -95,7 +96,7 @@ def main():
     elif args.command=='freeze-augmentation': augmentation_command(args)
     elif args.command=='train':
         from ml.topic_classifier.train import train
-        receipt=train(args.dataset,args.base_dir,args.output,resume=args.resume)
+        receipt=train(args.dataset,args.base_dir,args.output,resume=args.resume,short_sampling=args.short_sampling_control)
         print(receipt.model_dump_json(indent=2))
     elif args.command=='evaluate':
         from app.topics.review_submission import TopicReviewService
