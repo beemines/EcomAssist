@@ -82,3 +82,49 @@ def test_second_human_amendment_binds_first_without_mutating_any_history(tmp_pat
     first_value=json.loads(first);first_value['approved_at']='2026-10-23T00:00:00+00:00'
     path.with_suffix('.attempt-approval.json').write_text(json.dumps(first_value),encoding='utf-8')
     with pytest.raises(BudgetError):ledger.reserve('generate','b'*64)
+
+
+def with_450(path):
+    from app.topics.budget import amend_remediation_limit,REMEDIATION_APPROVAL_ID,REMEDIATION_APPROVAL_TEXT
+    amend_budget_attempt_limit(path,revision_id=ATTEMPT_EXTENSION_ID,approval_text=TEXT)
+    return amend_remediation_limit(path,revision_id=REMEDIATION_APPROVAL_ID,approval_text=REMEDIATION_APPROVAL_TEXT)
+
+
+def test_500_amendment_preserves_all_history_and_enforces_the_new_physical_ceiling(tmp_path):
+    from app.topics.budget import amend_negation_limit,NEGATION_APPROVAL_ID,NEGATION_APPROVAL_TEXT
+    path,ledger=prepared(tmp_path)
+    with pytest.raises(BudgetError):amend_negation_limit(path,revision_id=NEGATION_APPROVAL_ID,approval_text=NEGATION_APPROVAL_TEXT)
+    with_450(path)
+    attempt=ledger.reserve('label','a'*64);ledger.mark_unknown(attempt.attempt_id,'fixture_unknown')
+    before=path.read_bytes()
+    markers={suffix:path.with_suffix(suffix).read_bytes() for suffix in ('.approval.json','.attempt-approval.json','.remediation-approval.json')}
+    after=amend_negation_limit(path,revision_id=NEGATION_APPROVAL_ID,approval_text=NEGATION_APPROVAL_TEXT)
+    assert after.attempt_limit==500 and after.limit_micro==10_000_000
+    assert (after.attempts,after.unknown_attempts,after.used_micro)==(1,1,1205863)
+    assert path.read_bytes()==before
+    assert all(path.with_suffix(suffix).read_bytes()==content for suffix,content in markers.items())
+    assert amend_negation_limit(path,revision_id=NEGATION_APPROVAL_ID,approval_text=NEGATION_APPROVAL_TEXT)==after
+    with closing(sqlite3.connect(path)) as connection:
+        connection.executemany("INSERT INTO attempts(id,stage,payload_hash,reserved_micro,charged_micro,state,created_at) "
+            "VALUES(?,'label',?,1205863,1,'settled','fixture')",[(f'fixture-{i}','b'*64) for i in range(498)])
+        connection.commit()
+    ledger.reserve('generate','c'*64)
+    assert ledger.summary().attempts==500
+    with pytest.raises(BudgetError):ledger.reserve('generate','d'*64)
+
+
+@pytest.mark.parametrize('change',['wrong_text','money','deleted_prior','prior_bytes'])
+def test_500_approval_never_accepts_changed_money_or_broken_authorization_chain(tmp_path,change):
+    from app.topics.budget import amend_negation_limit,NEGATION_APPROVAL_ID,NEGATION_APPROVAL_TEXT
+    path,ledger=prepared(tmp_path);with_450(path)
+    if change=='wrong_text':
+        with pytest.raises(BudgetError):amend_negation_limit(path,revision_id=NEGATION_APPROVAL_ID,approval_text='继续')
+        return
+    amend_negation_limit(path,revision_id=NEGATION_APPROVAL_ID,approval_text=NEGATION_APPROVAL_TEXT)
+    if change=='money':
+        target=path.with_suffix('.negation-approval.json');value=json.loads(target.read_text(encoding='utf-8'))
+        value['limit_micro']='20000000';target.write_text(json.dumps(value),encoding='utf-8')
+    elif change=='deleted_prior':path.with_suffix('.remediation-approval.json').unlink()
+    else:
+        target=path.with_suffix('.remediation-approval.json');target.write_bytes(target.read_bytes()+b' ')
+    with pytest.raises(BudgetError):ledger.reserve('label','e'*64)

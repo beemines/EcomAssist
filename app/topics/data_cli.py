@@ -304,6 +304,32 @@ async def remediate_command(args):
     print(json.dumps(result|dict(budget=ledger.summary().model_dump()),ensure_ascii=False))
 
 
+async def negation_command(args):
+    from app.config import load_settings
+    from app.topics.negation import source_context,prepare_partition
+    from app.topics.budget import BudgetLedger,BUDGET_PATH,APPROVAL_ID,NEGATION_APPROVAL_ID,EVIDENCE_ROOT
+    from app.topics.teacher import configured_teacher
+    ledger=BudgetLedger(BUDGET_PATH,APPROVAL_ID)
+    if ledger.summary().approval_revision!=NEGATION_APPROVAL_ID:raise ValueError('Explicit500/10CNY authorization required')
+    scope,_=source_context(args.source)
+    if not args.execute:
+        print(json.dumps(dict(mode='preview',partition=args.partition,source_manifest=scope['source_manifest_hash'],
+            target=187 if args.partition=='test' else 64,external_data='new_synthetic_questions_and_taxonomy_only',
+            budget=ledger.summary().model_dump()),ensure_ascii=False));return
+    if args.output.resolve()!=(EVIDENCE_ROOT/'negation-v4').resolve():raise ValueError('Use the independent negation-v4 output')
+    if bool(args.retry_failed_stage)!=bool(args.retry_reason) or args.retry_failed_stage and (
+            not re.fullmatch(r'(train|validation|test)-(generate|label)-[0-9]{4}',args.retry_failed_stage)
+            or not args.retry_reason.strip() or len(args.retry_reason)>512):raise ValueError('One diagnosed stage and bounded reason required')
+    settings=load_settings(env_file=os.environ.get('CH10_ENV_FILE','.env'))
+    recovery=(args.retry_failed_stage,args.retry_reason) if args.retry_failed_stage else None
+    async with configured_teacher(settings,ledger,evidence_dir=args.output/'teacher-diagnostics') as teacher:
+        if args.partition=='test':
+            from app.topics.negation_test_scenes import prepare_test
+            result=await prepare_test(args.source,teacher,output=args.output,recovery=recovery)
+        else:result=await prepare_partition(args.source,teacher,output=args.output,partition=args.partition,recovery=recovery)
+    print(json.dumps(result|dict(budget=ledger.summary().model_dump()),ensure_ascii=False))
+
+
 def review_command(args):
     from app.topics.reviews import ReviewPack, apply_review, load_decisions
     pack = ReviewPack.model_validate_json(args.pack.read_text(encoding='utf-8'))
@@ -380,6 +406,13 @@ def main():
     remediate.add_argument('--execute',action='store_true')
     remediate.add_argument('--retry-failed-stage')
     remediate.add_argument('--retry-reason')
+    negation=commands.add_parser('prepare-negation',help='Approved synthetic negation data, with an actual human training review gate')
+    negation.add_argument('--source',type=Path,required=True)
+    negation.add_argument('--output',type=Path,required=True)
+    negation.add_argument('--partition',choices=['train','validation','test'],default='train')
+    negation.add_argument('--execute',action='store_true')
+    negation.add_argument('--retry-failed-stage')
+    negation.add_argument('--retry-reason')
     review = commands.add_parser('review-import', help='Validate explicit human decisions, then save a receipt')
     review.add_argument('--pack', type=Path, required=True)
     review.add_argument('--decisions', type=Path, required=True)
@@ -419,6 +452,8 @@ def main():
         asyncio.run(augment_command(args))
     elif args.command == 'remediate':
         asyncio.run(remediate_command(args))
+    elif args.command == 'prepare-negation':
+        asyncio.run(negation_command(args))
     elif args.command == 'corpus-status':
         from app.topics.corpus import corpus_status
         from app.topics.budget import APPROVAL_ID,BUDGET_PATH,BudgetLedger

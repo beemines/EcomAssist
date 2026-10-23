@@ -91,3 +91,30 @@ def test_cpu_loader_never_falls_back_to_a_random_missing_classifier_head(tmp_pat
     monkeypatch.setattr(transformers.AutoTokenizer,'from_pretrained',lambda *a,**k:object())
     monkeypatch.setattr(transformers.AutoModelForSequenceClassification,'from_pretrained',load)
     with pytest.raises(ValueError):CPUClassifier(tmp_path,weights_hash=hashlib.sha256(weights.read_bytes()).hexdigest())
+
+
+@pytest.mark.parametrize('negation_wrong',[False,True])
+def test_export_checks_positive_and_negated_requests_before_accepting_a_candidate(monkeypatch,negation_wrong):
+    import ml.topic_classifier.artifacts as module
+    expected={'买大了':['尺码'],'尺码买大了':['尺码'],'买大了想退':['退换货','尺码'],
+        '尺码大了想退':['退换货','尺码'],'买小了想退':['退换货','尺码'],'太大了想换':['退换货','尺码'],
+        '尺寸不合适想退':['退换货','尺码'],'不退货,只问尺码':['尺码']}
+    class ControlledCPULogits:
+        def __init__(self,*args,**kwargs):pass
+        def predict(self,items):
+            logits=np.full((len(items),17),-10.)
+            for i,row in enumerate(items):
+                labels=expected.get(row.text,['物流'])
+                if negation_wrong and row.text=='不退货,只问尺码':labels=['退换货','尺码']
+                for label in labels:logits[i,{'退换货':0,'物流':1,'尺码':2}[label]]=10.
+            return logits
+        def close(self):pass
+    from app.topics.types import ClassifyItem
+    training=SimpleNamespace(best_checkpoint='unused-fixture',weights_hash='1'*64)
+    monkeypatch.setattr(module,'CPUClassifier',ControlledCPULogits)
+    checks=module._cpu_checks(training,'unused-fixture',[ClassifyItem(id='v',text='物流在哪里')],
+        SimpleNamespace(thresholds=[.5]*17))
+    assert checks['roundtrip']['passed']
+    assert checks['probe']['passed'] is (not negation_wrong)
+    assert {row['text']:row['expected_labels'] for row in checks['probe']['cases']}==expected
+    assert checks['probe']['labels']==['退换货','尺码']

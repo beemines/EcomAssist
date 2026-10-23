@@ -67,17 +67,18 @@ async def prepare_remediation(source,teacher,*,output,recovery=None):
     return dict(status='complete',train_groups=train_status['independent_groups'],test_groups=test_status['independent_groups'])
 
 
-def filter_short(candidates,blocked):
+def filter_short(candidates,blocked,*,max_chars=16):
+    if type(max_chars) is not int or max_chars not in (16,45):raise ValueError('Only bounded short or mixed-test lengths are supported')
     candidates=tuple(candidates);blocked=tuple(blocked)
     if len({row.id for row in candidates+blocked})!=len(candidates)+len(blocked):
         raise ValueError('New synthetic IDs overlap previously frozen samples')
-    invalid={row.id for row in candidates if not 4<=len(row.text)<=16}
+    invalid={row.id for row in candidates if not 4<=len(row.text)<=max_chars}
     eligible=[row for row in candidates if row.id not in invalid]
     grouped=group_samples(blocked+tuple(eligible))
     old={row.id for row in blocked};new={row.id for row in eligible}
     # Include discarded duplicate/conflicting IDs, not just the dedup winner.
     crossing={i for ids in grouped.component_ids.values() if set(ids)&old for i in ids if i in new}
-    excluded=[dict(sample_id=i,reason='short_length_outside4_16') for i in sorted(invalid)]
+    excluded=[dict(sample_id=i,reason=f'short_length_outside4_{max_chars}') for i in sorted(invalid)]
     excluded+=list(row for row in grouped.excluded if row['sample_id'] in new)
     excluded+=[dict(sample_id=i,reason='previous_family_overlap') for i in sorted(crossing)]
     return tuple(row for row in grouped.samples if row.id in new-crossing),tuple(excluded)
@@ -120,13 +121,22 @@ def load_short(root):
     return value,tuple(LabelledSample.model_validate_json(line) for line in content.splitlines() if line.strip())
 
 
-async def collect_short(teacher,*,output,blocked,scope,partition,target,minima,multi_fraction=.3,max_batches=29,recovery=None):
+async def collect_short(teacher,*,output,blocked,scope,partition,target,minima,multi_fraction=.3,max_batches=29,recovery=None,
+                        planner=None,row_guard=None,profile=None):
     from app.topics.data_cli import _checkpoint
+    if profile is not None and (type(profile) is not dict or not callable(planner) or not callable(row_guard)):
+        raise ValueError('A custom profile must bind both its planner and data guard')
+    if profile is None and (planner is not None or row_guard is not None):raise ValueError('Unbound custom planning is forbidden')
+    max_chars=profile.get('max_chars',16) if profile else 16
+    generation_profile=profile.get('generation_profile','short') if profile else 'short'
+    if max_chars not in (16,45) or generation_profile not in ('short','mixed'):raise ValueError('Invalid bounded data profile')
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
     scope=dict(source=scope,partition=partition,target=target,minima=minima,multi_fraction=multi_fraction,
         taxonomy_hash=default_taxonomy().digest,grouping_version=GROUPING_VERSION,short_prompt_version=SHORT_PROMPT_VERSION,
         prompt_hashes={stage:digest(system_prompt(stage)) for stage in ('generate_short','label')},
         blocked_hash=digest([row.model_dump(mode='json') for row in blocked]))
+    if generation_profile=='mixed':scope['prompt_hashes']['generate']=digest(system_prompt('generate'))
+    if profile is not None:scope['custom_profile']=profile
     if (output/'status.json').exists():
         prior=json.loads((output/'status.json').read_text(encoding='utf-8'))
         if prior.get('scope_hash')!=digest(scope):raise ValueError('Remediation partition scope changed')
@@ -143,7 +153,11 @@ async def collect_short(teacher,*,output,blocked,scope,partition,target,minima,m
         journal=output/'journal';journal.mkdir(exist_ok=True)
         raw=[];quarantine=[]
         def publish(status):
-            rows,excluded=filter_short(raw,blocked);groups,counts,multi=_counts(rows)
+            rows,excluded=filter_short(raw,blocked,max_chars=max_chars)
+            if row_guard is not None:
+                excluded=list(excluded)+[dict(sample_id=row.id,reason=reason) for row in rows if (reason:=row_guard(row))]
+                rows=tuple(row for row in rows if not row_guard(row))
+            groups,counts,multi=_counts(rows)
             content=''.join(row.model_dump_json()+'\n' for row in rows)
             result=dict(status=status,scope_hash=digest(scope),independent_groups=groups,rows=len(rows),
                 label_groups={label:counts[label] for label in default_taxonomy().ordered_names},multi_groups=multi,
@@ -162,19 +176,19 @@ async def collect_short(teacher,*,output,blocked,scope,partition,target,minima,m
                 if bound.get('record_hash')!=digest({k:v for k,v in bound.items() if k!='record_hash'}):raise ValueError('Short plan modified')
                 plan=GenerationPlan.model_validate_json(json.dumps(bound['plan'],ensure_ascii=False))
             else:
-                plan=short_plan(min(16,max(1,target-groups)),counts,batch,partition=partition)
+                plan=(planner or short_plan)(min(16,max(1,target-groups)),counts,batch,partition=partition)
                 fields=dict(scope_hash=digest(scope),plan=plan.model_dump(mode='json'))
                 with plan_path.open('x',encoding='utf-8') as stream:json.dump(fields|dict(record_hash=digest(fields)),stream,ensure_ascii=False)
             if json.loads(plan_path.read_text(encoding='utf-8'))['scope_hash']!=digest(scope):raise ValueError('Short plan scope modified')
             try:
                 generated,receipt=await _checkpoint(f'{partition}-generate-{batch:04}',dict(scope=scope,plan=plan.model_dump(mode='json')),
-                    lambda:teacher.generate(plan,short=True,isolate_invalid_items=True),teacher,journal,GeneratedQuestion,recovery=recovery)
+                    lambda:teacher.generate(plan,short=generation_profile!='mixed' or batch%2==0,isolate_invalid_items=True),teacher,journal,GeneratedQuestion,recovery=recovery)
                 rejected=receipt.get('item_quarantine',[])
                 if len(generated)+len(rejected)!=plan.count:raise ValueError('Incomplete generation item accounting')
                 quarantine.extend(rejected)
                 eligible=[]
                 for parent in generated:
-                    if not 4<=len(parent.text)<=16:quarantine.append(dict(sample_id=parent.id,reason='short_length_outside4_16'))
+                    if not 4<=len(parent.text)<=max_chars:quarantine.append(dict(sample_id=parent.id,reason=f'short_length_outside4_{max_chars}'))
                     else:eligible.append(parent)
                 if eligible:
                     cleaned=tuple(clean_question(row.text,sample_id=row.id) for row in eligible)

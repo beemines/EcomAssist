@@ -213,11 +213,20 @@ def _cpu_checks(training,candidate,items,thresholds):
         before=original.predict(items);after=copied.predict(items)
         roundtrip=dict(passed=bool(np.allclose(before,after,atol=1e-5,rtol=1e-4)),
             atol=1e-5,rtol=1e-4,sample_count=len(items),max_abs_difference=float(np.abs(before-after).max()))
-        probe=ClassifyItem(id='reserved-probe',text='买大了想退')
-        prediction=decode_logits(copied.predict([probe]),thresholds.thresholds)[0]
-        labels=[label for label,present in zip(default_taxonomy().ordered_names,prediction,strict=True) if present]
-        return dict(roundtrip=roundtrip,probe=dict(text=probe.text,labels=labels,expected_labels=['退换货','尺码'],
-            passed=labels==['退换货','尺码'],status='classified' if labels else 'needs_review'))
+        # Release diagnostics are separate from train/validation/test and never alter predictions.
+        expected=(('买大了',('尺码',)),('尺码买大了',('尺码',)),('买大了想退',('退换货','尺码')),
+            ('尺码大了想退',('退换货','尺码')),('买小了想退',('退换货','尺码')),('太大了想换',('退换货','尺码')),
+            ('尺寸不合适想退',('退换货','尺码')),('不退货,只问尺码',('尺码',)))
+        probes=tuple(ClassifyItem(id=f'reserved-probe-{i}',text=text) for i,(text,_) in enumerate(expected))
+        decoded=decode_logits(copied.predict(probes),thresholds.thresholds)
+        cases=[]
+        for (text,want),prediction in zip(expected,decoded,strict=True):
+            labels=[label for label,present in zip(default_taxonomy().ordered_names,prediction,strict=True) if present]
+            cases.append(dict(text=text,labels=labels,expected_labels=list(want),passed=labels==list(want),
+                status='classified' if labels else 'needs_review'))
+        primary=next(row for row in cases if row['text']=='买大了想退')
+        return dict(roundtrip=roundtrip,probe=primary|dict(passed=all(row['passed'] for row in cases),
+            primary_passed=primary['passed'],cases=cases))
     finally:
         original.close()
         if copied is not None:copied.close()
@@ -282,7 +291,7 @@ def export_bundle(training,thresholds,reports:Path,output:Path):
     if not checks['roundtrip']['passed']:
         raise ExportRejected('CPU export roundtrip failed; candidate not published',identity=identity,candidate=staging)
     if not checks['probe']['passed']:
-        raise ExportRejected('Independent multilabel probe failed; candidate not published',identity=identity,candidate=staging)
+        raise ExportRejected('Independent multilabel/negation probes failed; candidate not published',identity=identity,candidate=staging)
     if staging!=output:os.rename(staging,output)
     return verify_manifest(output)
 
@@ -387,7 +396,7 @@ def evaluate_run(dataset:Path,training:Path,output:Path,*,pilot_receipt_hash:str
                 if pack is not None:
                     root=review_root/name;root.mkdir(parents=True,exist_ok=True)
                     freeze_json(root/'pack.json',pack.model_dump(mode='json'))
-                    _freeze_text(root/'review.html',render_review_html(pack,review_port=8008 if review_root.name=='remediation-v2' else 8007))
+                    _freeze_text(root/'review.html',render_review_html(pack,review_port={'remediation-v2':8008,'negation-v4':8009}.get(review_root.name,8007)))
             freeze_json(output/'review-selection.json',selection)
             probe=json.loads((output/'probe.json').read_text(encoding='utf-8'))
             _freeze_text(output/'metrics.html',_metrics_html(metrics,identity.model_version,probe['passed']))
