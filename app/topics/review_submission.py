@@ -136,4 +136,4 @@ class TopicReviewService:
     def render(self) -> str:
         from app.topics.reviews import render_review_html
         return render_review_html(self.pack(), hosted=True, submitted=self.state(),
-            review_port={'remediation-v2':8008,'negation-v4':8009}.get(self.root.parent.name,8007))
+            review_port={'remediation-v2':8008,'negation-v4':8009,'coverage-v5':8010}.get(self.root.parent.name,8007))

@@ -26,7 +26,7 @@ def _predictions(rows,predictions):
     return {row.id:default_taxonomy().canonical_labels(predictions[row.id],allow_empty=True) for row in rows}
 
 
-def make_test_review_packs(rows,predictions,*,dataset_hash,model_version):
+def make_test_review_packs(rows,predictions,*,dataset_hash,model_version,required_scenes=None):
     rows=tuple(rows)
     if (len({row.id for row in rows})!=len(rows) or len({row.group_id for row in rows})<68
             or any(row.pilot or reserved_probe(row.text) for row in rows)
@@ -35,6 +35,19 @@ def make_test_review_packs(rows,predictions,*,dataset_hash,model_version):
     predictions=_predictions(rows,predictions)
     rank=lambda row:digest(dict(seed=20261021,sample_id=row.id))
     candidates=sorted(rows,key=rank);gold=[];used_groups=set()
+    if required_scenes is not None:
+        ids={r.id for r in rows}
+        if (type(required_scenes) is not dict or set(required_scenes)!={'A','B'} or
+                any(type(v) not in (list,tuple) or len(set(v))!=len(v) or not set(v)<=ids for v in required_scenes.values())
+                or set(required_scenes['A'])&set(required_scenes['B'])):
+            raise ValueError('Invalid explicit held-out scene memberships')
+        for scene in ('A','B'):
+            selected=0
+            for row in candidates:
+                if row.id in required_scenes[scene] and row.group_id not in used_groups:
+                    gold.append(row);used_groups.add(row.group_id);selected+=1
+                    if selected==4:break
+            if selected!=4:raise ValueError('Four independent examples per required scene are needed')
     for label in default_taxonomy().ordered_names:
         missing=max(0,2-sum(label in row.labels for row in gold))
         for row in candidates:
@@ -68,6 +81,9 @@ def make_test_review_packs(rows,predictions,*,dataset_hash,model_version):
         gold_count=68,errors_count=len(errors),human_status='pending',
         gold_label_coverage={label:counts[label] for label in default_taxonomy().ordered_names},
         coverage_shortfalls=[label for label in default_taxonomy().ordered_names if counts[label]<2])
+    if required_scenes is not None:
+        fields['gold_scene_coverage']={scene:len(gold_ids&set(required_scenes[scene])) for scene in ('A','B')}
+        fields['required_scenes_hash']=digest(required_scenes)
     return gold_pack,error_pack,fields|dict(selection_hash=digest(fields))
 
 
@@ -338,6 +354,14 @@ def evaluate_run(dataset:Path,training:Path,output:Path,*,pilot_receipt_hash:str
     scope=dict(training_receipt_hash=receipt.receipt_hash,dataset_hash=manifest.manifest_hash,
         augmentation_hash=receipt.augmentation_hash,pilot_receipt_hash=pilot_receipt_hash,
         model_output=str(model_output),review_root=str(review_root))
+    coverage_contract=None
+    if dataset.parent.name=='coverage-v5' or (dataset/'coverage.json').exists():
+        from ml.topic_classifier.coverage_repair import read_contract
+        coverage_contract,coverage_hash=read_contract(dataset)
+        training_scope=json.loads((Path(training)/'run.json').read_text(encoding='utf-8'))
+        if coverage_contract['manifest_hash']!=manifest.manifest_hash or training_scope.get('coverage_contract_hash')!=coverage_hash:
+            raise ValueError('Evaluation coverage contract differs from actual training')
+        scope['coverage_contract_hash']=coverage_hash
     with training_lease(output):
         freeze_json(output/'evaluation-run.json',scope)
         complete=output/'complete.json'
@@ -391,12 +415,23 @@ def evaluate_run(dataset:Path,training:Path,output:Path,*,pilot_receipt_hash:str
                 silver_labels=list(row.labels),predicted_labels=list(predictions[row.id]),logits=logits[i].tolist()),
                 ensure_ascii=False,allow_nan=False,sort_keys=True)+'\n' for i,row in enumerate(test))
             _freeze_text(output/'predictions.jsonl',lines)
-            gold,errors,selection=make_test_review_packs(test,predictions,dataset_hash=manifest.manifest_hash,model_version=identity.model_version)
+            required_scenes=None
+            if coverage_contract is not None:
+                from app.topics.coverage_repair import scene_of,audit_scene_coverage
+                path=dataset/'test-scenes.json'
+                if path.is_symlink() or file_hash(path)!=coverage_contract['test_scene_hash']:
+                    raise ValueError('Frozen held-out scene membership changed')
+                required_scenes=json.loads(path.read_text(encoding='utf-8'))
+                if required_scenes!={s:sorted(r.id for r in test if scene_of(r)==s) for s in ('A','B')}:
+                    raise ValueError('Held-out scene identity differs from actual frozen rows')
+                audit_scene_coverage(test,partition='test')
+            gold,errors,selection=make_test_review_packs(test,predictions,dataset_hash=manifest.manifest_hash,
+                model_version=identity.model_version,required_scenes=required_scenes)
             for name,pack in (('test-review',gold),('error-review',errors)):
                 if pack is not None:
                     root=review_root/name;root.mkdir(parents=True,exist_ok=True)
                     freeze_json(root/'pack.json',pack.model_dump(mode='json'))
-                    _freeze_text(root/'review.html',render_review_html(pack,review_port={'remediation-v2':8008,'negation-v4':8009}.get(review_root.name,8007)))
+                    _freeze_text(root/'review.html',render_review_html(pack,review_port={'remediation-v2':8008,'negation-v4':8009,'coverage-v5':8010}.get(review_root.name,8007)))
             freeze_json(output/'review-selection.json',selection)
             probe=json.loads((output/'probe.json').read_text(encoding='utf-8'))
             _freeze_text(output/'metrics.html',_metrics_html(metrics,identity.model_version,probe['passed']))

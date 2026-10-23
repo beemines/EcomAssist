@@ -26,6 +26,8 @@ REMEDIATION_APPROVAL_ID='ch10-topic-20261023-attempts-450'
 REMEDIATION_APPROVAL_TEXT='批准第二轮修复，累计450次、仍最多10元'
 NEGATION_APPROVAL_ID='ch10-topic-20261023-attempts-500'
 NEGATION_APPROVAL_TEXT='批准该范围，累计500次仍最多10元'
+COVERAGE_APPROVAL_ID='ch10-topic-20261023-attempts-560'
+COVERAGE_APPROVAL_TEXT='批准该修复，累计560次、仍10元、一次重训'
 RESERVATION_MICRO = 1_205_863
 
 
@@ -92,9 +94,10 @@ def _attempt_limit(path,marker):
     extension=path.with_suffix('.attempt-approval.json')
     remediation=path.with_suffix('.remediation-approval.json')
     negation=path.with_suffix('.negation-approval.json')
+    coverage=path.with_suffix('.coverage-approval.json')
     if extension.is_symlink(): raise BudgetError('Attempt authorization cannot be a symlink')
     if not extension.exists():
-        if remediation.exists() or remediation.is_symlink() or negation.exists() or negation.is_symlink():raise BudgetError('Missing prior authorization')
+        if any(p.exists() or p.is_symlink() for p in (remediation,negation,coverage)):raise BudgetError('Missing prior authorization')
         return MAX_ATTEMPTS,None
     if not extension.is_file() or extension.stat().st_size>4096:
         raise BudgetError('Attempt authorization is unavailable or corrupt')
@@ -106,7 +109,7 @@ def _attempt_limit(path,marker):
         raise BudgetError('Attempt authorization identity mismatch')
     if remediation.is_symlink():raise BudgetError('Remediation authorization cannot be a symlink')
     if not remediation.exists():
-        if negation.exists() or negation.is_symlink():raise BudgetError('Missing prior remediation authorization')
+        if any(p.exists() or p.is_symlink() for p in (negation,coverage)):raise BudgetError('Missing prior remediation authorization')
         return EXTENDED_ATTEMPTS,ATTEMPT_EXTENSION_ID
     if not remediation.is_file() or remediation.stat().st_size>4096:raise BudgetError('Invalid remediation authorization')
     value=json.loads(remediation.read_text(encoding='utf-8'))
@@ -116,14 +119,24 @@ def _attempt_limit(path,marker):
             or type(value.get('approved_at')) is not str or datetime.fromisoformat(value['approved_at']).utcoffset() is None):
         raise BudgetError('Remediation authorization identity mismatch')
     if negation.is_symlink():raise BudgetError('Negation authorization cannot be a symlink')
-    if not negation.exists():return 450,REMEDIATION_APPROVAL_ID
+    if not negation.exists():
+        if coverage.exists() or coverage.is_symlink():raise BudgetError('Missing prior negation authorization')
+        return 450,REMEDIATION_APPROVAL_ID
     if not negation.is_file() or negation.stat().st_size>4096:raise BudgetError('Invalid negation authorization')
     value=json.loads(negation.read_text(encoding='utf-8'));expected=_negation_identity(path,marker)
     if (type(value) is not dict or set(value)!=set(expected)|{'approved_at'}
             or {k:v for k,v in value.items() if k!='approved_at'}!=expected
             or type(value.get('approved_at')) is not str or datetime.fromisoformat(value['approved_at']).utcoffset() is None):
         raise BudgetError('Negation authorization identity mismatch')
-    return 500,NEGATION_APPROVAL_ID
+    if coverage.is_symlink():raise BudgetError('Coverage authorization cannot be a symlink')
+    if not coverage.exists():return 500,NEGATION_APPROVAL_ID
+    if not coverage.is_file() or coverage.stat().st_size>4096:raise BudgetError('Invalid coverage authorization')
+    value=json.loads(coverage.read_text(encoding='utf-8'));expected=_coverage_identity(path,marker)
+    if (type(value) is not dict or set(value)!=set(expected)|{'approved_at'}
+            or {k:v for k,v in value.items() if k!='approved_at'}!=expected
+            or type(value.get('approved_at')) is not str or datetime.fromisoformat(value['approved_at']).utcoffset() is None):
+        raise BudgetError('Coverage authorization identity mismatch')
+    return 560,COVERAGE_APPROVAL_ID
 
 
 def _remediation_identity(path,marker):
@@ -144,6 +157,15 @@ def _negation_identity(path,marker):
         approval_text=NEGATION_APPROVAL_TEXT)
 
 
+def _coverage_identity(path,marker):
+    return dict(schema_version='1',ledger_id=marker['ledger_id'],base_approval_id=APPROVAL_ID,
+        revision_id=COVERAGE_APPROVAL_ID,previous_revision_id=NEGATION_APPROVAL_ID,
+        previous_marker_sha256=hashlib.sha256(path.with_suffix('.negation-approval.json').read_bytes()).hexdigest(),
+        base_marker_sha256=hashlib.sha256(_marker(path).read_bytes()).hexdigest(),
+        original_attempt_limit='300',previous_attempt_limit='500',attempt_limit='560',limit_micro=str(LIMIT_MICRO),
+        approval_text=COVERAGE_APPROVAL_TEXT)
+
+
 def initialize_budget(path: Path, approval_id: str) -> None:
     """Only this explicit one-time operation may create files; never reset them."""
     path = path.absolute()
@@ -154,8 +176,10 @@ def initialize_budget(path: Path, approval_id: str) -> None:
     extension=path.with_suffix('.attempt-approval.json')
     remediation=path.with_suffix('.remediation-approval.json')
     negation=path.with_suffix('.negation-approval.json')
+    coverage=path.with_suffix('.coverage-approval.json')
     if (path.exists() or marker.exists() or path.is_symlink() or marker.is_symlink() or extension.exists()
-            or extension.is_symlink() or remediation.exists() or remediation.is_symlink() or negation.exists() or negation.is_symlink()):
+            or extension.is_symlink() or remediation.exists() or remediation.is_symlink() or negation.exists() or negation.is_symlink()
+            or coverage.exists() or coverage.is_symlink()):
         raise BudgetError('Budget or authorization marker already exists; reset is forbidden')
     identity = dict(schema_version='1', ledger_id=uuid4().hex, approval_id=approval_id,
         limit_micro=str(LIMIT_MICRO), attempt_limit=str(MAX_ATTEMPTS), reservation_micro=str(RESERVATION_MICRO))
@@ -381,6 +405,26 @@ def amend_negation_limit(path:Path,*,revision_id:str,approval_text:str)->BudgetS
         if not target.exists():
             with target.open('x',encoding='utf-8') as stream:
                 json.dump(_negation_identity(ledger.path,marker)|dict(approved_at=_now()),stream,ensure_ascii=False,sort_keys=True)
+                stream.flush()
+                import os
+                os.fsync(stream.fileno())
+        limit,revision=_attempt_limit(ledger.path,marker)
+        metadata['_effective_attempt_limit']=limit;metadata['_approval_revision']=revision
+        return ledger._summary(connection,metadata)
+
+
+def amend_coverage_limit(path:Path,*,revision_id:str,approval_text:str)->BudgetSummary:
+    """Append the approved560 revision; never rewrite prior money, attempts or markers."""
+    if revision_id!=COVERAGE_APPROVAL_ID or approval_text!=COVERAGE_APPROVAL_TEXT:
+        raise BudgetError('An exact recognized coverage authorization is required')
+    ledger=BudgetLedger(path,APPROVAL_ID)
+    with ledger._connection() as (connection,metadata):
+        if metadata['_effective_attempt_limit'] not in (500,560):raise BudgetError('The prior500 authorization is required')
+        target=ledger.path.with_suffix('.coverage-approval.json')
+        marker=json.loads(_marker(ledger.path).read_text(encoding='utf-8'))
+        if not target.exists():
+            with target.open('x',encoding='utf-8') as stream:
+                json.dump(_coverage_identity(ledger.path,marker)|dict(approved_at=_now()),stream,ensure_ascii=False,sort_keys=True)
                 stream.flush()
                 import os
                 os.fsync(stream.fileno())

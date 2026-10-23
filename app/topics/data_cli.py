@@ -330,6 +330,26 @@ async def negation_command(args):
     print(json.dumps(result|dict(budget=ledger.summary().model_dump()),ensure_ascii=False))
 
 
+async def coverage_command(args):
+    from app.topics.budget import BudgetLedger,BUDGET_PATH,APPROVAL_ID,COVERAGE_APPROVAL_ID
+    from app.topics.coverage_preparation import inspect_source,prepare_coverage
+    from app.topics.teacher import configured_teacher
+    ledger=BudgetLedger(BUDGET_PATH,APPROVAL_ID)
+    if ledger.summary().approval_revision!=COVERAGE_APPROVAL_ID:raise ValueError('Explicit560/10CNY authorization required')
+    if not args.execute:
+        print(json.dumps(inspect_source(args.source)|dict(mode='preview',partition=args.partition,
+            budget=ledger.summary().model_dump()),ensure_ascii=False));return
+    if bool(args.retry_failed_stage)!=bool(args.retry_reason) or args.retry_failed_stage and (
+            not re.fullmatch(r'(train|validation|test)-(a|b|general-short|general-mixed)-(generate|label)-[0-9]{4}',args.retry_failed_stage)
+            or not args.retry_reason.strip() or len(args.retry_reason)>512):raise ValueError('One diagnosed stage and bounded reason required')
+    from app.config import load_settings
+    settings=load_settings(env_file=os.environ.get('CH10_ENV_FILE','.env'))
+    recovery=(args.retry_failed_stage,args.retry_reason) if args.retry_failed_stage else None
+    async with configured_teacher(settings,ledger,evidence_dir=args.output/'teacher-diagnostics') as teacher:
+        result=await prepare_coverage(args.source,teacher,output=args.output,partition=args.partition,recovery=recovery)
+    print(json.dumps(result|dict(budget=ledger.summary().model_dump()),ensure_ascii=False))
+
+
 def review_command(args):
     from app.topics.reviews import ReviewPack, apply_review, load_decisions
     pack = ReviewPack.model_validate_json(args.pack.read_text(encoding='utf-8'))
@@ -413,6 +433,13 @@ def main():
     negation.add_argument('--execute',action='store_true')
     negation.add_argument('--retry-failed-stage')
     negation.add_argument('--retry-reason')
+    coverage=commands.add_parser('prepare-coverage',help='Cache-first scene-bound preparation after explicit560 approval')
+    coverage.add_argument('--source',type=Path,required=True)
+    coverage.add_argument('--output',type=Path,required=True)
+    coverage.add_argument('--partition',choices=['train','validation','test'],default='train')
+    coverage.add_argument('--execute',action='store_true')
+    coverage.add_argument('--retry-failed-stage')
+    coverage.add_argument('--retry-reason')
     review = commands.add_parser('review-import', help='Validate explicit human decisions, then save a receipt')
     review.add_argument('--pack', type=Path, required=True)
     review.add_argument('--decisions', type=Path, required=True)
@@ -454,6 +481,8 @@ def main():
         asyncio.run(remediate_command(args))
     elif args.command == 'prepare-negation':
         asyncio.run(negation_command(args))
+    elif args.command == 'prepare-coverage':
+        asyncio.run(coverage_command(args))
     elif args.command == 'corpus-status':
         from app.topics.corpus import corpus_status
         from app.topics.budget import APPROVAL_ID,BUDGET_PATH,BudgetLedger

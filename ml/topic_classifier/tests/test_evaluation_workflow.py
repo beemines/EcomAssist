@@ -11,7 +11,8 @@ from ml.topic_classifier.tests.test_export import fixtures
 from ml.topic_classifier.artifacts import evaluate_run
 
 
-def test_evaluation_freezes_choices_before_test_then_creates_pending_review_only(tmp_path,monkeypatch):
+@pytest.mark.parametrize('root_name,port',[('negation-v4',8009),('coverage-v5',8010)])
+def test_evaluation_freezes_choices_before_test_then_creates_pending_review_only(tmp_path,monkeypatch,root_name,port):
     import ml.topic_classifier.artifacts as module
     rows=corpus();tokenizer=Tokenizer();manifest=build_splits(rows,tokenizer)
     dataset=tmp_path/'dataset';write_dataset(rows,manifest,dataset)
@@ -39,7 +40,7 @@ def test_evaluation_freezes_choices_before_test_then_creates_pending_review_only
             assert (reports/'context.json').exists()
         return original(self,*args,**kwargs)
     monkeypatch.setattr(Path,'open',guard)
-    review_root=tmp_path/'negation-v4'
+    review_root=tmp_path/root_name
     result=evaluate_run(dataset,Path(training.best_checkpoint).parent,reports,pilot_receipt_hash='a'*64,
         model_output=tmp_path/'model',review_root=review_root)
     assert result['status']=='complete' and result['human_status']=='pending'
@@ -47,7 +48,7 @@ def test_evaluation_freezes_choices_before_test_then_creates_pending_review_only
     assert (reports/'silver.json').exists() and (reports/'metrics.html').exists()
     gold=review_root/'test-review/pack.json';pack=json.loads(gold.read_text(encoding='utf-8'))
     assert len(pack['samples'])==68 and pack['purpose']=='test'
-    assert 'http://127.0.0.1:8009' in gold.with_name('review.html').read_text(encoding='utf-8')
+    assert f'http://127.0.0.1:{port}' in gold.with_name('review.html').read_text(encoding='utf-8')
     assert not gold.with_name('review-receipt.json').exists()
     before=(reports/'thresholds.json').read_bytes()
     assert evaluate_run(dataset,Path(training.best_checkpoint).parent,reports,pilot_receipt_hash='a'*64,

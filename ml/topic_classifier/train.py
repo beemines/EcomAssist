@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import os
+import re
 from pathlib import Path
 import time
 from uuid import uuid4
@@ -57,6 +58,7 @@ class TrainingData:
     validation:tuple
     manifest_hash:str
     augmentation_hash:str
+    coverage_contract_hash:str|None=None
 
 
 def training_arguments(output:Path,micro_batch:int) -> TrainingArguments:
@@ -106,7 +108,11 @@ def read_training_data(root:Path) -> TrainingData:
         if child.id in set.union(*memberships) or exact_text_key(child.text) in seen:
             raise ValueError('Augmentation duplicates original or held-out content')
         seen.add(exact_text_key(child.text))
-    return TrainingData(train+children,validation,manifest.manifest_hash,augmentation_hash)
+    coverage_hash=None
+    if root.parent.name=='coverage-v5' or (root/'coverage.json').exists():
+        from ml.topic_classifier.coverage_repair import validate_training_contract
+        coverage_hash=validate_training_contract(root,manifest.manifest_hash,train,validation)
+    return TrainingData(train+children,validation,manifest.manifest_hash,augmentation_hash,coverage_hash)
 
 
 class EncodedSamples(torch.utils.data.Dataset):
@@ -175,6 +181,8 @@ def load_training_receipt(root:Path) -> TrainingReceipt:
         if (sampling!=identity['sampling'] or sampling.get('profile')!='short30-v1'
                 or sampling.get('sampling_hash')!=digest({k:v for k,v in sampling.items() if k!='sampling_hash'})):
             raise ValueError('Training sampling evidence changed')
+    if 'coverage_contract_hash' in identity and not re.fullmatch('[0-9a-f]{64}',identity['coverage_contract_hash']):
+        raise ValueError('Training coverage evidence changed')
     history=json.loads((root/'history.json').read_text(encoding='utf-8'))
     best=best_validation_epoch(history['epochs'])
     if (history.get('config_hash')!=receipt.config_hash or history.get('dataset_hash')!=receipt.dataset_hash
@@ -234,6 +242,7 @@ def train(dataset:Path,base_dir:Path,output:Path,*,seed:int=SEED,resume:bool=Fal
         revision=BASE_REVISION,base_files=base['files'],seed=seed,config=CONFIG,
         micro_batch=probe['micro_batch'],lock_hash=file_hash(Path(__file__).with_name('uv.lock')),
         taxonomy_hash=default_taxonomy().digest,trainer_code_hash=file_hash(Path(__file__)))
+    if data.coverage_contract_hash is not None:identity['coverage_contract_hash']=data.coverage_contract_hash
     if short_sampling:
         from ml.topic_classifier.sampling import sampling_record,ShortSamplingTrainer
         identity['sampling']=sampling_record(data.train)

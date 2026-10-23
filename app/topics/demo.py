@@ -16,7 +16,7 @@ ROOT=Path(__file__).resolve().parents[2]
 
 def select_review_root(value):
     base=EVIDENCE_ROOT.resolve();selected=Path(value).resolve() if value else base
-    if selected not in (base,base/'remediation-v2',base/'negation-v4'):raise ValueError('Unknown review evidence root')
+    if selected not in (base,base/'remediation-v2',base/'negation-v4',base/'coverage-v5'):raise ValueError('Unknown review evidence root')
     return selected
 
 
@@ -31,7 +31,7 @@ def create_review_app():
     app.state.background_tasks_enabled=False
     app.state.topic_test_review_service=TopicReviewService(root/'test-review')
     app.state.topic_error_review_service=TopicReviewService(root/'error-review')
-    if root.name=='negation-v4':app.state.topic_review_service=TopicReviewService(root/'train-review')
+    if root.name in ('negation-v4','coverage-v5'):app.state.topic_review_service=TopicReviewService(root/'train-review')
     app.include_router(topic_routes)
     pages=APIRouter(route_class=ReviewRoute)
     @pages.get('/health')
@@ -48,7 +48,7 @@ def create_review_app():
         pages.add_api_route(path,page,response_class=HTMLResponse,name=attribute)
     register('/topics/test-review','topic_test_review_service','test')
     register('/topics/error-review','topic_error_review_service','errors')
-    if root.name=='negation-v4':register('/topics/pilot-review','topic_review_service','pilot')
+    if root.name in ('negation-v4','coverage-v5'):register('/topics/pilot-review','topic_review_service','pilot')
     app.include_router(pages)
     return app
 

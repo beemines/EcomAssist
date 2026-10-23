@@ -61,6 +61,10 @@ def main():
     negation.add_argument('--source',type=Path,required=True)
     negation.add_argument('--iteration-root',type=Path,required=True)
     negation.add_argument('--base-dir',type=Path,required=True)
+    coverage=commands.add_parser('freeze-coverage',help='Require actual64 human review and A/B coverage before training')
+    coverage.add_argument('--source',type=Path,required=True)
+    coverage.add_argument('--iteration-root',type=Path,required=True)
+    coverage.add_argument('--base-dir',type=Path,required=True)
     training=commands.add_parser('train',help='Full-parameter GPU training after frozen data/augmentation gates')
     training.add_argument('--dataset',type=Path,required=True)
     training.add_argument('--base-dir',type=Path,required=True)
@@ -86,7 +90,10 @@ def main():
     # This CLI only consumes the already downloaded fixed model. Doctor owns downloads.
     os.environ['HF_HUB_OFFLINE']='1'
     os.environ['HF_HUB_DISABLE_TELEMETRY']='1'
-    if args.command=='freeze-negation':
+    if args.command=='freeze-coverage':
+        from ml.topic_classifier.coverage_repair import freeze_coverage
+        print(json.dumps(freeze_coverage(args.source,args.iteration_root,args.base_dir),ensure_ascii=False))
+    elif args.command=='freeze-negation':
         from ml.topic_classifier.negation import freeze_negation
         print(json.dumps(freeze_negation(args.source,args.iteration_root,args.base_dir),ensure_ascii=False))
     elif args.command=='freeze-remediation':
