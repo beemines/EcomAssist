@@ -117,3 +117,23 @@ def test_freeze_augmentation_isolates_overlength_and_keeps_held_out_files_unchan
     assert audit['augmentation']['excluded']==[{'sample_id':long.id,'reason':'overlength_augmentation'}]
     assert all((tmp_path/(name+'.jsonl')).read_bytes()==content for name,content in before.items())
     assert load_dataset(tmp_path).manifest_hash==manifest.manifest_hash
+
+
+def test_augmentation_cannot_reintroduce_an_excluded_diagnostic_probe(tmp_path):
+    parent=sample('probe-parent',text='尺码太大了我要退',labels=['退换货','尺码'],pilot=True)
+    rows=corpus()+[parent]
+    manifest=build_splits(rows,Tokenizer());write_dataset(rows,manifest,tmp_path)
+    mapping={r.id:r for r in group_samples(rows).samples}
+    parent=mapping[parent.id]
+    other=next(mapping[i] for i in manifest.splits['train'] if i!=parent.id)
+    good=other.model_copy(update={'id':other.id+'-aug','text':other.text+'呀'})
+    probe=parent.model_copy(update={'id':parent.id+'-aug','text':'买大了想退'})
+    before={name:(tmp_path/(name+'.jsonl')).read_bytes() for name in ('train','validation','test')}
+    with pytest.raises(ValueError,match='probe'):
+        write_dataset(rows,manifest,tmp_path/'direct-writer',augmentations=[probe])
+    result=freeze_augmentations(rows,manifest,[good,probe],Tokenizer(),tmp_path)
+    assert result['augmentation']['accepted']==1
+    assert {'sample_id':probe.id,'reason':'reserved_probe_family'} in result['augmentation']['excluded']
+    children=[LabelledSample.model_validate_json(line) for line in (tmp_path/'train-augmentations.jsonl').read_text(encoding='utf-8').splitlines()]
+    assert [r.id for r in children]==[good.id]
+    assert all((tmp_path/(name+'.jsonl')).read_bytes()==data for name,data in before.items())

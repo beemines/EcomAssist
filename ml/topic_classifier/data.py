@@ -129,6 +129,8 @@ def write_dataset(samples, manifest: SplitManifest, output: Path, *, augmentatio
         parent = mapping.get(child.id.removesuffix('-aug'))
         if parent is None or parent.id not in train: raise ValueError('Only train parents can be augmented')
         validate_augmentation(parent,child)
+        from app.topics.grouping import reserved_probe
+        if reserved_probe(child.text):raise ValueError('A reserved probe cannot enter train augmentation')
         if exact_text_key(child.text) in seen: raise ValueError('Duplicate augmentation across splits')
         seen.add(exact_text_key(child.text))
     if len({row.id for row in children})!=len(children): raise ValueError('Duplicate augmentation ID')
@@ -175,12 +177,17 @@ def freeze_augmentations(samples,manifest,children,tokenizer,output):
             excluded.append(dict(sample_id=child.id,reason='duplicate_augmentation'));continue
         seen.add(key);accepted.append(child)
     combined=group_samples(base+accepted)
-    forbidden=set()
-    for ids in combined.groups.values():
+    accepted_ids={row.id for row in accepted}
+    forbidden={row['sample_id'] for row in combined.excluded if row['sample_id'] in accepted_ids}
+    excluded.extend(row for row in combined.excluded if row['sample_id'] in forbidden)
+    cross_split=set()
+    # component_ids includes quarantined families as well as retained samples.
+    for ids in combined.component_ids.values():
         if len({included[i] for i in ids if i in included})>1:
-            forbidden.update(i for i in ids if i not in included)
-    for identifier in sorted(forbidden):
+            cross_split.update(i for i in ids if i in accepted_ids)
+    for identifier in sorted(cross_split-forbidden):
         excluded.append(dict(sample_id=identifier,reason='cross_split_near_duplicate'))
+    forbidden.update(cross_split)
     accepted=[row for row in accepted if row.id not in forbidden]
     if not accepted: raise ValueError('No valid train augmentation survived preflight')
     write_dataset(samples,manifest,output,augmentations=accepted)
