@@ -11,8 +11,9 @@ from ml.topic_classifier.tests.test_export import fixtures
 from ml.topic_classifier.artifacts import evaluate_run
 
 
-@pytest.mark.parametrize('root_name,port',[('negation-v4',8009),('coverage-v5',8010)])
-def test_evaluation_freezes_choices_before_test_then_creates_pending_review_only(tmp_path,monkeypatch,root_name,port):
+@pytest.mark.parametrize('root_name,port,review_kind',[
+    ('negation-v4',8009,'human'),('coverage-v5',8010,'human'),('coverage-v5',8010,'delegated_ai')])
+def test_evaluation_freezes_choices_before_test_then_creates_pending_review_only(tmp_path,monkeypatch,root_name,port,review_kind):
     import ml.topic_classifier.artifacts as module
     rows=corpus();tokenizer=Tokenizer();manifest=build_splits(rows,tokenizer)
     dataset=tmp_path/'dataset';write_dataset(rows,manifest,dataset)
@@ -60,17 +61,33 @@ def test_evaluation_freezes_choices_before_test_then_creates_pending_review_only
     from datetime import datetime,timezone
     with pytest.raises(ValueError,match='human review'):
         finalize_run(reports,tmp_path/'model',review_root=review_root)
+    from app.topics.review_submission import TopicReviewService
+    authority=dict(schema_version=1,kind='user_authorized_ai',human_status='not_performed',
+        user_instruction='fixture: delegate review',recorded_at=datetime.now(timezone.utc).isoformat(),
+        reviewer='Codex AI（用户授权代审，非人工）',model_version=result['model_version'],dataset_hash=manifest.manifest_hash,
+        test_pack_hash=json.loads((review_root/'test-review/pack.json').read_text(encoding='utf-8'))['pack_hash'],
+        error_pack_hash=json.loads((review_root/'error-review/pack.json').read_text(encoding='utf-8'))['pack_hash'])
     for name in ('test-review','error-review'):
         local=review_root/name
         if not (local/'pack.json').exists():continue
         pack=ReviewPack.model_validate_json((local/'pack.json').read_text(encoding='utf-8'))
         decisions=[ReviewDecision(sample_id=row.id,pack_hash=pack.pack_hash,decision='accept',final_labels=row.labels,
-            reviewer='unit-fixture-only',reviewed_at=datetime.now(timezone.utc).isoformat()) for row in pack.samples]
-        human=apply_review(pack,decisions)
-        (local/'review-receipt.json').write_text(human.model_dump_json(),encoding='utf-8')
-    released=finalize_run(reports,tmp_path/'model',review_root=review_root)
-    assert released['human_status']=='reviewed'
+            reviewer=authority['reviewer'] if review_kind=='delegated_ai' else 'unit-fixture-only',
+            reviewed_at=authority['recorded_at'],notes='Fixture explicitly reviewed') for row in pack.samples]
+        if review_kind=='human':
+            human=apply_review(pack,decisions)
+            (local/'review-receipt.json').write_text(human.model_dump_json(),encoding='utf-8')
+        else:TopicReviewService(local).save_delegated(decisions,authority=authority)
+    if review_kind=='delegated_ai':
+        with pytest.raises(ValueError,match='human review'):finalize_run(reports,tmp_path/'model',review_root=review_root)
+        released=finalize_run(reports,tmp_path/'model',review_root=review_root,review_kind=review_kind)
+        assert released['human_status']=='not_performed' and released['review_status']=='ai_delegated'
+        assert not (reports/'human-complete.json').exists()
+        assert json.loads((reports/'ai-test.json').read_text(encoding='utf-8'))['source']=='ai_delegated_test_subset'
+    else:
+        released=finalize_run(reports,tmp_path/'model',review_root=review_root)
+        assert released['human_status']=='reviewed'
     assert verify_release(tmp_path/'model').model_version==result['model_version']
-    assert finalize_run(reports,tmp_path/'model',review_root=review_root)==released
+    assert finalize_run(reports,tmp_path/'model',review_root=review_root,review_kind=review_kind)==released
     assert (reports/'thresholds.json').read_bytes()==before
     assert json.loads((reports/'silver.json').read_text(encoding='utf-8'))['human_status']=='pending'

@@ -101,6 +101,9 @@ def verify_manifest(path:Path) -> ModelIdentity:
 REQUIRED_EVIDENCE=frozenset(('evaluation-complete.json','silver.json','predictions.jsonl','review-selection.json',
     'probe.json','cpu-roundtrip.json','gold-pack.json','gold-receipt.json','gold-report.json'))
 OPTIONAL_EVIDENCE=frozenset(('error-pack.json','error-receipt.json','error-report.json'))
+BASE_EVIDENCE=REQUIRED_EVIDENCE-{'gold-pack.json','gold-receipt.json','gold-report.json'}
+AI_REQUIRED_EVIDENCE=BASE_EVIDENCE|{'ai-test-pack.json','ai-test-review.json','ai-test-report.json'}
+AI_OPTIONAL_EVIDENCE=frozenset(('ai-error-pack.json','ai-error-review.json','ai-error-report.json'))
 
 class ReleaseManifest(StrictRecord):
     schema_version:Literal[1]
@@ -120,6 +123,26 @@ class ReleaseManifest(StrictRecord):
         return self
 
 
+class DelegatedReleaseManifest(StrictRecord):
+    """Version2 explicitly records the weaker, user-delegated AI review route."""
+    schema_version:Literal[2]
+    model_version:str=Field(pattern=r'^[0-9a-f]{64}$')
+    human_status:Literal['not_performed']
+    review_status:Literal['ai_delegated']
+    files:dict[str,FileDigest]
+    release_hash:str=Field(pattern=r'^[0-9a-f]{64}$')
+
+    @model_validator(mode='after')
+    def bound(self):
+        names=set(self.files)
+        if (not AI_REQUIRED_EVIDENCE<=names or names-AI_REQUIRED_EVIDENCE not in (set(),set(AI_OPTIONAL_EVIDENCE))
+                or any(record.bytes>16*1024*1024 for record in self.files.values())):
+            raise ValueError('Delegated release requires exact, separately named AI evidence')
+        fields=self.model_dump(mode='json');fields.pop('release_hash')
+        if digest(fields)!=self.release_hash:raise ValueError('Delegated release identity changed')
+        return self
+
+
 def verify_release(path:Path)->ModelIdentity:
     """Verify evidence without importing ML libraries or changing core identity."""
     from app.topics.reviews import ReviewPack,ReviewReceipt,apply_review,verify_pack
@@ -129,7 +152,9 @@ def verify_release(path:Path)->ModelIdentity:
         release_path=root/'release.json';evidence=root/'evidence'
         if release_path.is_symlink() or evidence.is_symlink() or release_path.stat().st_size>65536:
             raise ValueError('Invalid release paths')
-        release=ReleaseManifest.model_validate_json(release_path.read_text(encoding='utf-8'))
+        payload=json.loads(release_path.read_text(encoding='utf-8'))
+        delegated=payload.get('schema_version')==2
+        release=(DelegatedReleaseManifest if delegated else ReleaseManifest).model_validate(payload)
         if release.model_version!=identity.model_version:raise ValueError('Release belongs to another model')
         for name,record in release.files.items():
             local=evidence/name
@@ -143,6 +168,9 @@ def verify_release(path:Path)->ModelIdentity:
                 or completion.get('probe_passed') is not True or selection.get('model_version')!=identity.model_version
                 or read('probe.json').get('passed') is not True or read('cpu-roundtrip.json').get('passed') is not True):
             raise ValueError('Model did not pass actual export checks')
+        if delegated:
+            _verify_delegated_evidence(evidence,release,selection,identity)
+            return identity
         if bool(selection['errors_count'])!=bool(OPTIONAL_EVIDENCE<=set(release.files)):
             raise ValueError('Error review evidence is incomplete')
         for prefix,key in (('gold','gold_pack_hash'),('error','error_pack_hash')):
@@ -161,3 +189,30 @@ def verify_release(path:Path)->ModelIdentity:
         return identity
     except (OSError,KeyError,TypeError,json.JSONDecodeError) as exc:
         raise ValueError('Release evidence is unavailable or invalid') from exc
+
+
+def _verify_delegated_evidence(evidence,release,selection,identity):
+    from app.topics.review_submission import verify_delegated_review
+    from app.topics.reviews import ReviewPack
+    if bool(selection['errors_count'])!=bool(AI_OPTIONAL_EVIDENCE<=set(release.files)):
+        raise ValueError('Delegated error review evidence is incomplete')
+    authorities=set()
+    for prefix,key in (('test','gold_pack_hash'),('error','error_pack_hash')):
+        if prefix=='error' and not selection['errors_count']:continue
+        pack=ReviewPack.model_validate_json((evidence/f'ai-{prefix}-pack.json').read_text(encoding='utf-8'))
+        record=verify_delegated_review(json.loads((evidence/f'ai-{prefix}-review.json').read_text(encoding='utf-8')),pack)
+        authority=record['authority'];authorities.add(record['authority_hash'])
+        report=json.loads((evidence/f'ai-{prefix}-report.json').read_text(encoding='utf-8'))
+        if (pack.pack_hash!=selection[key] or authority['model_version']!=identity.model_version
+                or authority['dataset_hash']!=selection['dataset_hash']
+                or authority['test_pack_hash']!=selection['gold_pack_hash']
+                or authority['error_pack_hash']!=selection['error_pack_hash']
+                or not record['receipt']['samples']
+                or report.get('receipt_hash')!=record['receipt']['receipt_hash']
+                or report.get('record_hash')!=record['record_hash']
+                or report.get('model_version')!=identity.model_version
+                or report.get('dataset_hash')!=selection['dataset_hash']
+                or report.get('source')!=f'ai_delegated_{prefix}_subset'
+                or report.get('human_status')!='not_performed'):
+            raise ValueError('Delegated AI review evidence is inconsistent')
+    if len(authorities)!=1:raise ValueError('Delegated reviews must share the same explicit authorization')

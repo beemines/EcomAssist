@@ -3,8 +3,10 @@
   const data = JSON.parse(document.getElementById('reviewData').textContent);
   const $ = id => document.getElementById(id);
   const reviewKind = data.purpose === 'test' ? 'test-review' : data.purpose === 'errors' ? 'error-review' : 'pilot-review';
+  const aiDelegated = data.review_kind === 'delegated_ai';
   const reviewTitle = (data.round_label ? data.round_label + ' · ' : '') +
-    (data.purpose === 'test' ? '测试集人工复核' : data.purpose === 'errors' ? '错例人工复核' : '样本人工审核');
+    (aiDelegated ? (data.purpose === 'test' ? '测试题 AI 代审结果' : '错例 AI 代审结果') :
+      data.purpose === 'test' ? '测试集人工复核' : data.purpose === 'errors' ? '错例人工复核' : '样本人工审核');
   $('reviewTitle').textContent = reviewTitle;
   document.title = 'MewHelp · ' + reviewTitle;
   $('hostedReviewLink').href = data.hosted_origin + '/topics/' + reviewKind;
@@ -12,6 +14,10 @@
   if (data.purpose === 'errors') $('purposeHint').textContent = '本批是固定模型与 silver 预标不一致的错例。请判断原句的真实标签；已在测试复核包中的问题家族不会重复出现。';
   if (data.round_label === '否定语义修复' && data.purpose === 'pilot') $('purposeHint').textContent = '本批为新合成训练对照，请核对真正肯定的诉求，否定或取消的操作不计标签。实际保存后才可重训，旧76条复核不用重做。';
   if (data.round_label === '组合覆盖修复' && data.purpose === 'pilot') $('purposeHint').textContent = '本批逐条核对两类：大小不合适且实际要退换；取消退换、实际仅问大小适配。取消退但仍要换的，依然要标退换货。此前审核不重做，实际保存和覆盖检查通过后才训练。';
+  if (aiDelegated) {
+    $('purposeHint').textContent = '依用户授权由 Codex AI 逐条代审，尚未经过独立人工复核。修正标签只用于追加参考评测，未回流本轮训练或改变阈值；原银标报告保留。';
+    document.querySelector('.attestation').hidden = true;
+  }
   const key = 'mewhelp-topic-review-v1:' + data.pack_hash;
   const validNames = data.taxonomy.map(t => t.name);
   let choices = {}, submitted = Boolean(data.submitted), saving = false, editing = null;
@@ -33,7 +39,7 @@
   if (submitted) {
     data.submitted.decisions.forEach(c => { choices[c.sample_id] = {sample_id:c.sample_id, decision:c.decision, final_labels:c.final_labels, notes:c.notes}; });
     $('reviewer').value = data.submitted.decisions[0]?.reviewer || '';
-    $('attested').checked = true;
+    $('attested').checked = !aiDelegated;
   } else {
     try {
       const draft = JSON.parse(localStorage.getItem(key) || 'null');
@@ -66,8 +72,8 @@
     $('reviewer').disabled = submitted || saving;
     $('attested').disabled = submitted || saving;
     if (submitted) {
-      $('submit').textContent = '已提交保存';
-      $('submitHint').textContent = '本批审核已完成。结果已写入本机，刷新仍可查看；不会自动开始训练。';
+      $('submit').textContent = aiDelegated ? 'AI 代审已保存' : '已提交保存';
+      $('submitHint').textContent = aiDelegated ? '这份结果为用户授权的 AI 代审，不是人工审核回执。可在每条问题下查看改标和理由。' : '本批审核已完成。结果已写入本机，刷新仍可查看；不会自动开始训练。';
       $('draftHint').textContent = '已保存到本机';
     } else if (c.pending) $('submitHint').textContent = `还有 ${c.pending} 条待核对。逐条点通过，或看完全部后勾选确认，再点「已核对的其余样本通过」。`;
     else $('submitHint').textContent = '全部已处理。填写一次昵称，勾选逐条核对确认，再提交保存。';
@@ -180,6 +186,6 @@
   $('packHash').textContent=data.pack_hash;
   $('fileNotice').hidden=data.hosted;
   if (!data.hosted) $('submit').textContent='确认并导出结果';
-  if (submitted) $('status').textContent=`审核已保存：保留 ${data.submitted.samples.length} 条，排除 ${data.submitted.excluded_ids.length} 条。回执：${data.submitted.receipt_hash}`;
+  if (submitted) $('status').textContent=`${aiDelegated?'用户授权的 AI 代审已保存（非人工）':'审核已保存'}：保留 ${data.submitted.samples.length} 条，排除 ${data.submitted.excluded_ids.length} 条。回执：${data.submitted.receipt_hash}`;
   render();
 })();

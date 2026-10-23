@@ -124,11 +124,12 @@ def freeze_json(path,value):
         out.write(text);out.flush();os.fsync(out.fileno())
 
 
-def finalize_run(reports,model,*,review_root):
-    """Add actual human subset evidence; never rerun training or calibration."""
+def finalize_run(reports,model,*,review_root,review_kind='human'):
+    """Bind explicit review provenance; never rerun training or calibration."""
     from app.topics.review_submission import TopicReviewService
     from app.topics.manifest import ReleaseManifest,FileDigest,verify_release
     reports=Path(reports);model=Path(model);review_root=Path(review_root)
+    if review_kind not in ('human','delegated_ai'):raise ValueError('Unknown review provenance')
     complete=json.loads((reports/'complete.json').read_text(encoding='utf-8'))
     if complete.get('completion_hash')!=digest({k:v for k,v in complete.items() if k!='completion_hash'}):
         raise ValueError('Completed evaluation was modified')
@@ -141,6 +142,8 @@ def finalize_run(reports,model,*,review_root):
         if row['id'] in predictions:raise ValueError('Duplicate frozen prediction')
         predictions[row['id']]=tuple(row['predicted_labels'])
     if digest(predictions)!=selection['predictions_hash']:raise ValueError('Frozen predictions changed')
+    if review_kind=='delegated_ai':
+        return _finalize_delegated(reports,model,review_root,complete,selection,predictions)
     outputs={};human_reports={}
     for prefix,folder in (('gold','test-review'),('error','error-review')):
         if prefix=='error' and not selection['errors_count']:continue
@@ -172,6 +175,52 @@ def finalize_run(reports,model,*,review_root):
         verify_release(model)
         finalized['release_hash']=release.release_hash
     freeze_json(reports/'human-complete.json',finalized)
+    return finalized
+
+
+def _finalize_delegated(reports,model,review_root,complete,selection,predictions):
+    from app.topics.review_submission import TopicReviewService
+    from app.topics.reviews import ReviewReceipt
+    from app.topics.manifest import DelegatedReleaseManifest,FileDigest,verify_release
+    outputs={};results={};authority_hashes=set()
+    for prefix,folder in (('test','test-review'),('error','error-review')):
+        if prefix=='error' and not selection['errors_count']:continue
+        service=TopicReviewService(review_root/folder);pack=service.pack();record=service.delegated_state()
+        if record is None:raise ValueError('Explicit delegated AI review is pending')
+        authority=record['authority'];authority_hashes.add(record['authority_hash'])
+        if (authority['model_version']!=complete['model_version'] or authority['dataset_hash']!=selection['dataset_hash']
+                or authority['test_pack_hash']!=selection['gold_pack_hash']
+                or authority['error_pack_hash']!=selection['error_pack_hash']):
+            raise ValueError('Delegation belongs to a different frozen evaluation')
+        receipt=ReviewReceipt.model_validate(record['receipt'])
+        result=human_subset_report(pack,receipt,predictions,selection)
+        if not receipt.samples:raise ValueError('Delegated review retained no evaluable examples')
+        result.update(source=f'ai_delegated_{prefix}_subset',human_status='not_performed',
+            review_status='ai_delegated',authority_hash=record['authority_hash'],record_hash=record['record_hash'])
+        outputs[f'ai-{prefix}-pack.json']=pack.model_dump(mode='json')
+        outputs[f'ai-{prefix}-review.json']=record
+        outputs[f'ai-{prefix}-report.json']=result;results[prefix]=result
+    if len(authority_hashes)!=1:raise ValueError('Delegated reviews have different authorizations')
+    for prefix,result in results.items():freeze_json(reports/f'ai-{prefix}.json',result)
+    finalized=dict(model_version=complete['model_version'],dataset_hash=selection['dataset_hash'],
+        human_status='not_performed',review_status='ai_delegated',authority_hash=next(iter(authority_hashes)),
+        test_receipt_hash=results['test']['receipt_hash'],error_receipt_hash=results.get('error',{}).get('receipt_hash'),
+        model_published=complete['model_published'])
+    if complete['model_published']:
+        if verify_manifest(model).model_version!=complete['model_version']:raise ValueError('Model identity changed')
+        evidence=model/'evidence';evidence.mkdir(exist_ok=True)
+        copies={'evaluation-complete.json':'complete.json','silver.json':'silver.json','predictions.jsonl':'predictions.jsonl',
+            'review-selection.json':'review-selection.json','probe.json':'probe.json','cpu-roundtrip.json':'cpu-roundtrip.json'}
+        for name,source in copies.items():_freeze_text(evidence/name,(reports/source).read_text(encoding='utf-8'))
+        for name,value in outputs.items():freeze_json(evidence/name,value)
+        files={name:FileDigest(sha256=file_hash(evidence/name),bytes=(evidence/name).stat().st_size)
+            for name in set(copies)|set(outputs)}
+        fields=dict(schema_version=2,model_version=complete['model_version'],human_status='not_performed',
+            review_status='ai_delegated',files={name:item.model_dump(mode='json') for name,item in files.items()})
+        release=DelegatedReleaseManifest(**fields,release_hash=digest(fields))
+        freeze_json(model/'release.json',release.model_dump(mode='json'));verify_release(model)
+        finalized['release_hash']=release.release_hash
+    freeze_json(reports/'ai-complete.json',finalized)
     return finalized
 
 
