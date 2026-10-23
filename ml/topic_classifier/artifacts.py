@@ -108,6 +108,57 @@ def freeze_json(path,value):
         out.write(text);out.flush();os.fsync(out.fileno())
 
 
+def finalize_run(reports,model,*,review_root):
+    """Add actual human subset evidence; never rerun training or calibration."""
+    from app.topics.review_submission import TopicReviewService
+    from app.topics.manifest import ReleaseManifest,FileDigest,verify_release
+    reports=Path(reports);model=Path(model);review_root=Path(review_root)
+    complete=json.loads((reports/'complete.json').read_text(encoding='utf-8'))
+    if complete.get('completion_hash')!=digest({k:v for k,v in complete.items() if k!='completion_hash'}):
+        raise ValueError('Completed evaluation was modified')
+    for name,sha in complete['artifact_hashes'].items():
+        if file_hash(reports/name)!=sha:raise ValueError('Frozen evaluation artifact changed')
+    selection=json.loads((reports/'review-selection.json').read_text(encoding='utf-8'))
+    predictions={}
+    for line in (reports/'predictions.jsonl').read_text(encoding='utf-8').splitlines():
+        row=json.loads(line)
+        if row['id'] in predictions:raise ValueError('Duplicate frozen prediction')
+        predictions[row['id']]=tuple(row['predicted_labels'])
+    if digest(predictions)!=selection['predictions_hash']:raise ValueError('Frozen predictions changed')
+    outputs={};human_reports={}
+    for prefix,folder in (('gold','test-review'),('error','error-review')):
+        if prefix=='error' and not selection['errors_count']:continue
+        service=TopicReviewService(review_root/folder)
+        receipt=service.state()
+        if receipt is None:raise ValueError(f'Actual human review is pending: {folder}')
+        pack=service.pack();result=human_subset_report(pack,receipt,predictions,selection)
+        if not receipt.samples:raise ValueError('Actual human review retained no evaluable examples')
+        outputs[prefix+'-pack.json']=pack.model_dump(mode='json')
+        outputs[prefix+'-receipt.json']=receipt.model_dump(mode='json')
+        outputs[prefix+'-report.json']=result;human_reports[prefix]=result
+    for prefix,result in human_reports.items():freeze_json(reports/f'{prefix}.json',result)
+    finalized=dict(model_version=complete['model_version'],dataset_hash=selection['dataset_hash'],human_status='reviewed',
+        gold_receipt_hash=human_reports['gold']['receipt_hash'],
+        error_receipt_hash=human_reports.get('error',{}).get('receipt_hash'),model_published=complete['model_published'])
+    if complete['model_published']:
+        if verify_manifest(model).model_version!=complete['model_version']:raise ValueError('Model identity changed')
+        evidence=model/'evidence';evidence.mkdir(exist_ok=True)
+        copy_names={'evaluation-complete.json':'complete.json','silver.json':'silver.json','predictions.jsonl':'predictions.jsonl',
+            'review-selection.json':'review-selection.json','probe.json':'probe.json','cpu-roundtrip.json':'cpu-roundtrip.json'}
+        for name,source in copy_names.items():_freeze_text(evidence/name,(reports/source).read_text(encoding='utf-8'))
+        for name,value in outputs.items():freeze_json(evidence/name,value)
+        names=set(copy_names)|set(outputs)
+        files={name:FileDigest(sha256=file_hash(evidence/name),bytes=(evidence/name).stat().st_size) for name in names}
+        fields=dict(schema_version=1,model_version=complete['model_version'],human_status='reviewed',
+            files={name:record.model_dump(mode='json') for name,record in files.items()})
+        release=ReleaseManifest(**fields,release_hash=digest(fields))
+        freeze_json(model/'release.json',release.model_dump(mode='json'))
+        verify_release(model)
+        finalized['release_hash']=release.release_hash
+    freeze_json(reports/'human-complete.json',finalized)
+    return finalized
+
+
 class CPUClassifier:
     """Load known safetensors locally; inference receives IDs/text without truth."""
     def __init__(self,directory,*,weights_hash):
