@@ -1,12 +1,13 @@
 """Versioned, synthetic-only short-input preparation using the original shared ledger."""
 from collections import Counter
 import json
+import math
 import os
 import re
 from pathlib import Path
 from app.topics.cleaning import clean_question
 from app.topics.corpus import _atomic,corpus_status
-from app.topics.grouping import group_samples,GROUPING_VERSION
+from app.topics.grouping import group_samples,GROUPING_VERSION,exact_text_key
 from app.topics.prompts import system_prompt,SHORT_PROMPT_VERSION
 from app.topics.reviews import digest
 from app.topics.taxonomy import default_taxonomy
@@ -118,7 +119,11 @@ def load_short(root):
     if (value.get('status')!='complete' or value.get('status_hash')!=digest({k:v for k,v in value.items() if k!='status_hash'})
             or value.get('samples_hash')!=digest(content)):
         raise ValueError('Short-input partition is incomplete or modified')
-    return value,tuple(LabelledSample.model_validate_json(line) for line in content.splitlines() if line.strip())
+    rows=tuple(LabelledSample.model_validate_json(line) for line in content.splitlines() if line.strip())
+    if 'candidate_samples_hash' in value:
+        from app.topics.coverage_selection import candidate_rows
+        candidate_rows(root,value,rows)
+    return value,rows
 
 
 async def collect_short(teacher,*,output,blocked,scope,partition,target,minima,multi_fraction=.3,max_batches=29,recovery=None,
@@ -133,6 +138,12 @@ async def collect_short(teacher,*,output,blocked,scope,partition,target,minima,m
     max_chars=profile.get('max_chars',16) if profile else 16
     generation_profile=profile.get('generation_profile','short') if profile else 'short'
     if max_chars not in (16,45) or generation_profile not in ('short','mixed'):raise ValueError('Invalid bounded data profile')
+    exact=bool(profile and profile.get('exact_groups'))
+    batch_floor=profile.get('batch_floor',1) if profile else 1
+    no_gain_limit=profile.get('no_gain_limit',0) if profile else 0
+    if (type(batch_floor) is not int or not 1<=batch_floor<=16 or type(no_gain_limit) is not int
+            or not 0<=no_gain_limit<=5 or (batch_floor!=1 or no_gain_limit) and not exact):
+        raise ValueError('Bounded collection controls require an exact, explicit profile')
     output=Path(output);output.mkdir(parents=True,exist_ok=True)
     scope=dict(source=scope,partition=partition,target=target,minima=minima,multi_fraction=multi_fraction,
         taxonomy_hash=default_taxonomy().digest,grouping_version=GROUPING_VERSION,short_prompt_version=SHORT_PROMPT_VERSION,
@@ -155,17 +166,26 @@ async def collect_short(teacher,*,output,blocked,scope,partition,target,minima,m
         else:
             with run.open('x',encoding='utf-8') as stream:json.dump(scope,stream,ensure_ascii=False,sort_keys=True)
         journal=output/'journal';journal.mkdir(exist_ok=True)
-        raw=list(seeds);quarantine=[]
+        raw=list(seeds);quarantine=[];idle_batches=0
         def publish(status):
             rows,excluded=filter_short(raw,blocked,max_chars=max_chars)
             if row_guard is not None:
                 excluded=list(excluded)+[dict(sample_id=row.id,reason=reason) for row in rows if (reason:=row_guard(row))]
                 rows=tuple(row for row in rows if not row_guard(row))
+            candidates=None
+            if exact:
+                from app.topics.coverage_selection import select_exact
+                rows,candidates=select_exact(rows,target=target,minima=minima,multi_fraction=multi_fraction,
+                    pinned_ids=[r.id for r in seeds] if profile.get('pin_seeds') else ())
             groups,counts,multi=_counts(rows)
             content=''.join(row.model_dump_json()+'\n' for row in rows)
             result=dict(status=status,scope_hash=digest(scope),independent_groups=groups,rows=len(rows),
                 label_groups={label:counts[label] for label in default_taxonomy().ordered_names},multi_groups=multi,
                 quarantine=quarantine+list(excluded),samples_hash=digest(content))
+            if candidates is not None:
+                candidate_content=''.join(row.model_dump_json()+'\n' for row in candidates)
+                _atomic(output/'qualified-candidates.jsonl',candidate_content)
+                result.update(candidate_samples_hash=digest(candidate_content),no_gain_batches=idle_batches)
             _atomic(output/'samples.jsonl',content)
             _atomic(output/'status.json',json.dumps(result|dict(status_hash=digest(result)),ensure_ascii=False,indent=2))
             return rows,groups,counts,multi
@@ -174,13 +194,14 @@ async def collect_short(teacher,*,output,blocked,scope,partition,target,minima,m
         for batch in range(max_batches):
             rows,groups,counts,multi=publish('preparing')
             if enough(groups,counts,multi):publish('complete');return output
+            before=(groups,sum(min(counts[label],n) for label,n in minima.items()),min(multi,math.ceil(target*multi_fraction)))
             plan_path=journal/f'plan-{batch:04}.json'
             if plan_path.exists():
                 bound=json.loads(plan_path.read_text(encoding='utf-8'))
                 if bound.get('record_hash')!=digest({k:v for k,v in bound.items() if k!='record_hash'}):raise ValueError('Short plan modified')
                 plan=GenerationPlan.model_validate_json(json.dumps(bound['plan'],ensure_ascii=False))
             else:
-                plan=(planner or short_plan)(min(16,max(1,target-groups)),counts,batch,partition=partition)
+                plan=(planner or short_plan)(min(16,max(batch_floor,target-groups)),counts,batch,partition=partition)
                 fields=dict(scope_hash=digest(scope),plan=plan.model_dump(mode='json'))
                 with plan_path.open('x',encoding='utf-8') as stream:json.dump(fields|dict(record_hash=digest(fields)),stream,ensure_ascii=False)
             if json.loads(plan_path.read_text(encoding='utf-8'))['scope_hash']!=digest(scope):raise ValueError('Short plan scope modified')
@@ -209,11 +230,17 @@ async def collect_short(teacher,*,output,blocked,scope,partition,target,minima,m
                         if row.cleaned_text!=parent.text:raise ValueError('Prelabel changed exact input')
                         if row.labels!=parent.requested_labels:
                             quarantine.append(dict(sample_id=identifier,reason='scenario_label_mismatch'));continue
+                        if exact and profile.get('pin_seeds') and any(exact_text_key(row.cleaned_text)==exact_text_key(seed.text) for seed in seeds):
+                            quarantine.append(dict(sample_id=identifier,reason='duplicate_pinned_seed'));continue
                         raw.append(LabelledSample(id=identifier,text=row.cleaned_text,labels=row.labels,origin='synthetic',
                             group_id=parent.family_id,source_question_ids=[],pilot=False))
             except BudgetError:publish('budget_paused');return output
             except BaseException:publish('stage_failed');raise
             rows,groups,counts,multi=publish('preparing')
+            if no_gain_limit:
+                after=(groups,sum(min(counts[label],n) for label,n in minima.items()),min(multi,math.ceil(target*multi_fraction)))
+                idle_batches=idle_batches+1 if after==before else 0
+                if idle_batches>=no_gain_limit:publish('diagnosis_required');return output
             print(json.dumps(dict(partition=partition,batch=batch,groups=groups,multi=multi,min_class=min(counts.values(),default=0))),flush=True)
         publish('complete' if enough(groups,counts,multi) else 'incomplete')
         return output
