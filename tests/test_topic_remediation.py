@@ -46,3 +46,25 @@ async def test_short_collection_resumes_paid_stages_without_repeat_or_old_text_t
     assert calls==['generate','label']
     await collect_short(teacher,output=tmp_path,blocked=[],scope=scope,partition='train',target=1,minima=minima,multi_fraction=0)
     assert calls==['generate','label']
+
+
+@pytest.mark.parametrize('text,expected',[
+    ('大了一码,给我退了吧',True),('尺码偏大,退款多久到账',True),
+    ('裤子码小了,想换个号',False),('不退了,帮我换个大一码的',False),('尺码拍小了,能换大一码吗',False)])
+def test_reserved_probe_semantic_paraphrases_are_data_exclusions_only(text,expected):
+    from app.topics.remediation import probe_semantic_family
+    assert probe_semantic_family(sample('q',text,('退换货','尺码')))==expected
+
+
+def test_short_filter_protects_blocked_ids_even_when_dedup_would_keep_a_new_lexical_id():
+    from app.topics.remediation import filter_short
+    retained,excluded=filter_short([sample('a-new','这个包裹什么时候到')],[sample('z-old','这个包裹什么时候到')])
+    assert not retained
+    assert any(row['sample_id']=='a-new' for row in excluded)
+
+
+def test_conflicting_blocked_rows_cannot_hide_their_family_from_new_candidates():
+    from app.topics.remediation import filter_short
+    blocked=[sample('old1','包裹在哪',group='shared'),sample('old2','包裹在哪',('退换货',))]
+    retained,_=filter_short([sample('new','哪天能够送到',group='shared')],blocked)
+    assert not retained

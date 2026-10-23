@@ -25,3 +25,11 @@ async def test_each_review_endpoint_saves_only_its_bound_pack(tmp_path,purpose,e
         assert not (tmp_path/'pilot/review-receipt.json').exists()
         bad=await client.post('/api/topics/'+endpoint,json=payload(pack),headers={'Origin':'https://foreign.invalid'})
         assert bad.status_code==403
+
+
+def test_new_iteration_review_root_is_explicit_and_does_not_replace_first_round(tmp_path,monkeypatch):
+    from app.topics import demo
+    monkeypatch.setattr(demo,'EVIDENCE_ROOT',tmp_path)
+    assert demo.select_review_root(None)==tmp_path.resolve()
+    assert demo.select_review_root(str(tmp_path/'remediation-v2'))==(tmp_path/'remediation-v2').resolve()
+    with pytest.raises(ValueError):demo.select_review_root(str(tmp_path/'arbitrary'))
