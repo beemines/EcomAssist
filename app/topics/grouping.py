@@ -1,6 +1,6 @@
 """Conservative text/family grouping shared by corpus preparation and split audit."""
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass,field
 from difflib import SequenceMatcher
 import re
 import unicodedata
@@ -44,6 +44,7 @@ class GroupedSamples:
     samples: tuple[LabelledSample, ...]
     groups: dict[str, tuple[str, ...]]
     excluded: tuple[dict, ...]
+    component_ids:dict[str,tuple[str,...]]=field(default_factory=dict)
 
 
 def group_samples(samples) -> GroupedSamples:
@@ -113,4 +114,5 @@ def group_samples(samples) -> GroupedSamples:
         item = replacements.get(i,row).model_copy(update={'group_id':group})
         output.append(item);groups[group].append(item.id)
     return GroupedSamples(tuple(output),{group:tuple(ids) for group,ids in sorted(groups.items())},
-        tuple(sorted(excluded,key=lambda x:x['sample_id'])))
+        tuple(sorted(excluded,key=lambda x:x['sample_id'])),
+        {identities[root]:tuple(ids) for root,ids in components.items()})

@@ -2,6 +2,7 @@
 from collections import Counter
 import json
 import os
+import re
 from pathlib import Path
 from app.topics.cleaning import clean_question
 from app.topics.corpus import _atomic,corpus_status
@@ -12,6 +13,14 @@ from app.topics.taxonomy import default_taxonomy
 from app.topics.teacher import GenerationPlan,GeneratedQuestion,Prelabel
 from app.topics.types import LabelledSample
 from app.topics.budget import BudgetError
+
+
+def probe_semantic_family(row):
+    """Conservatively exclude oversized-and-return paraphrases from data, never infer labels."""
+    if not {'退换货','尺码'}<=set(row.labels):return False
+    value=re.sub(r'[\W_]+','',row.text)
+    positive_return=re.sub(r'不要退|不想退|不退了?','',value)
+    return '退' in positive_return and bool(re.search(r'大了|偏大|太大|过大|宽了|肥了',value))
 
 
 def original_source(dataset):
@@ -66,7 +75,8 @@ def filter_short(candidates,blocked):
     eligible=[row for row in candidates if row.id not in invalid]
     grouped=group_samples(blocked+tuple(eligible))
     old={row.id for row in blocked};new={row.id for row in eligible}
-    crossing={i for ids in grouped.groups.values() if set(ids)&old for i in ids if i in new}
+    # Include discarded duplicate/conflicting IDs, not just the dedup winner.
+    crossing={i for ids in grouped.component_ids.values() if set(ids)&old for i in ids if i in new}
     excluded=[dict(sample_id=i,reason='short_length_outside4_16') for i in sorted(invalid)]
     excluded+=list(row for row in grouped.excluded if row['sample_id'] in new)
     excluded+=[dict(sample_id=i,reason='previous_family_overlap') for i in sorted(crossing)]

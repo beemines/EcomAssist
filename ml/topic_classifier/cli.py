@@ -53,6 +53,10 @@ def main():
     augment.add_argument('--dataset',type=Path,required=True)
     augment.add_argument('--augmentations',type=Path,required=True)
     augment.add_argument('--base-dir',type=Path)
+    iteration=commands.add_parser('freeze-remediation',help='Freeze approved pinned second-iteration data without reshuffling old validation')
+    iteration.add_argument('--source',type=Path,required=True)
+    iteration.add_argument('--iteration-root',type=Path,required=True)
+    iteration.add_argument('--base-dir',type=Path,required=True)
     training=commands.add_parser('train',help='Full-parameter GPU training after frozen data/augmentation gates')
     training.add_argument('--dataset',type=Path,required=True)
     training.add_argument('--base-dir',type=Path,required=True)
@@ -64,6 +68,7 @@ def main():
     evaluation.add_argument('--output',type=Path,required=True)
     evaluation.add_argument('--model-output',type=Path)
     evaluation.add_argument('--review-root',type=Path)
+    evaluation.add_argument('--pilot-root',type=Path,help='Explicit unchanged original pilot for a new independently frozen iteration')
     finalize=commands.add_parser('finalize',help='Bind actual human review receipts to unchanged model/evaluation evidence')
     finalize.add_argument('--reports',type=Path,required=True)
     finalize.add_argument('--bundle',type=Path,required=True)
@@ -76,7 +81,10 @@ def main():
     # This CLI only consumes the already downloaded fixed model. Doctor owns downloads.
     os.environ['HF_HUB_OFFLINE']='1'
     os.environ['HF_HUB_DISABLE_TELEMETRY']='1'
-    if args.command=='finalize':
+    if args.command=='freeze-remediation':
+        from ml.topic_classifier.remediation import freeze_iteration
+        print(json.dumps(freeze_iteration(args.source,args.iteration_root,args.base_dir),ensure_ascii=False))
+    elif args.command=='finalize':
         from ml.topic_classifier.artifacts import finalize_run
         print(json.dumps(finalize_run(args.reports,args.bundle,review_root=args.review_root),ensure_ascii=False))
     elif args.command=='serve':
@@ -93,7 +101,7 @@ def main():
         from app.topics.review_submission import TopicReviewService
         from ml.topic_classifier.data import load_dataset
         from ml.topic_classifier.artifacts import evaluate_run
-        pilot=TopicReviewService(args.dataset.parent/'pilot').state()
+        pilot=TopicReviewService(args.pilot_root or args.dataset.parent/'pilot').state()
         scope=json.loads((args.dataset.parent/'corpus/run.json').read_text(encoding='utf-8'))
         manifest=load_dataset(args.dataset,splits=('train','validation'))
         if (pilot is None or pilot.receipt_hash!=scope.get('review_receipt_hash')

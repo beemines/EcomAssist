@@ -14,6 +14,12 @@ from app.api.review_queue import guard_read
 ROOT=Path(__file__).resolve().parents[2]
 
 
+def select_review_root(value):
+    base=EVIDENCE_ROOT.resolve();selected=Path(value).resolve() if value else base
+    if selected not in (base,base/'remediation-v2'):raise ValueError('Unknown review evidence root')
+    return selected
+
+
 def create_app():
     path=os.environ.get('CH10_ENV_FILE')
     if not path:
@@ -26,8 +32,9 @@ def create_app():
     from app.main import create_app as application
     app = application(settings,topic_profile=profile,background_tasks_enabled=False,context_recover_backlog=False)
     app.state.topic_review_service = TopicReviewService(EVIDENCE_ROOT / 'pilot')
-    app.state.topic_test_review_service = TopicReviewService(EVIDENCE_ROOT / 'test-review')
-    app.state.topic_error_review_service = TopicReviewService(EVIDENCE_ROOT / 'error-review')
+    review_root=select_review_root(os.environ.get('CH10_REVIEW_ROOT'))
+    app.state.topic_test_review_service = TopicReviewService(review_root / 'test-review')
+    app.state.topic_error_review_service = TopicReviewService(review_root / 'error-review')
 
     @app.get('/topics/pilot-review', response_class=HTMLResponse)
     async def pilot_review(request: Request):
