@@ -82,6 +82,8 @@ def main():
     finalize.add_argument('--reports',type=Path,required=True)
     finalize.add_argument('--bundle',type=Path,required=True)
     finalize.add_argument('--review-root',type=Path,required=True)
+    finalize.add_argument('--review-kind',choices=['human','delegated_ai'],default='human',
+        help='Delegated AI requires separately saved explicit authorization; never counts as human gold')
     serve=commands.add_parser('serve',help='Serve one reviewed local CPU model, no downloads/database access')
     serve.add_argument('--bundle',type=Path,required=True)
     serve.add_argument('--host',choices=['127.0.0.1'],default='127.0.0.1')
@@ -101,7 +103,7 @@ def main():
         print(json.dumps(freeze_iteration(args.source,args.iteration_root,args.base_dir),ensure_ascii=False))
     elif args.command=='finalize':
         from ml.topic_classifier.artifacts import finalize_run
-        print(json.dumps(finalize_run(args.reports,args.bundle,review_root=args.review_root),ensure_ascii=False))
+        print(json.dumps(finalize_run(args.reports,args.bundle,review_root=args.review_root,review_kind=args.review_kind),ensure_ascii=False))
     elif args.command=='serve':
         import uvicorn
         from ml.topic_classifier.service import create_app

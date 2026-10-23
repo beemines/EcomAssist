@@ -5,20 +5,77 @@
 独立训练解释器：该目录下`ml/topic_classifier/.venv/Scripts/python.exe`（Python3.12.13）。
 证据、权重和共享预算：`D:/shixi/ecommerce-customer-service/.cache/ch10-evidence`。
 
-## 最新批准：关键组合覆盖修复
+## 当前可验收状态（2026-10-23）
 
-最新追加批准为“批准600次、仍10元、训练次数不增加”，不是另开账本。真实600 marker已追加，原SQL/旧5份审批SHA不变；当前仍560次、保守占用约2.878538元、1历史未知，尚未新增收费调用。恢复代码改为16条候选批次、精确保留名额、连续2批无进展即停，先过完整回归再继续补题。新断点使用recovery-01后缀，原中断记录不覆盖。
+第5次真实HFL全参训练、CPU旁路服务和20条问题池归类已完成。**整体质量尚不足，当前用于功能演示。** 没有第6次训练、合并或推送。
 
-本轮8010的64条训练人审已实际提交：全部accept、改标0、排除0，回执`0fdf4212…594969`，不用再做。新增验证已保留A16/B14，还缺B2；187条独立测试尚待补齐。之前批准的第5次训练尚未执行，只在来源、分区、覆盖检查通过后启动。
+用户本轮明确说“你全部确认就行了”，因此68条测试和34条错例由Codex逐条代审，来源标为“用户授权的AI代审，非人工”，不是用户人审gold。训练用64条实际人工回执仍原样保留，不用重做。
 
-用户已批准“批准该修复，累计560次、仍10元、一次重训”。原500次及约2.775101元保守占用保留，物理上限追加到560，金额仍最多10元。本轮优先恢复合格缓存，新增64条训练对照（32条隐含大小适配并要求退换、32条取消退换而仅问大小适配），另补32条验证与187条独立测试。只允许一次新全参训练；64条真实网页人审保存、数据冻结与覆盖检查通过后才训练。
+| 范围 | 数量 | Macro-F1 | Micro-F1 | 完全匹配 |
+| --- | --- | --- | --- | --- |
+| 完整独立合成银标 | 187 | 0.7672 | 0.7606 | 69/187 |
+| AI代审测试（排除1条歧义题） | 67 | 0.7451 | 0.7426 | 28/67 |
+| 主动筛选的额外错例，不能代表总体 | 34 | 0.5463 | 0.6429 | 5/34 |
 
-新一轮[64条训练对照审核页](http://127.0.0.1:8010/topics/pilot-review)已实际生成并启动：A/B各32组，64条均为4–16字独立短句，浏览器显示64条待核对。8007、8008、8009的历史包和回执不变，已完成的审核不用重做。新数据/权重均在`D:/shixi/ecommerce-customer-service/.cache/ch10-evidence/coverage-v5`，不会覆盖旧轮次。测试复核包在实际训练评测后生成，仍为68条及至多34条额外错例。
+8条固定诊断全过，真实HTTP服务中“买大了想退”返回“退换货、尺码”，“不退货,只问尺码”只返回“尺码”。这些诊断不是整体质量分数。完整17类P/R/F1及2×2矩阵、102条代审决定和理由见[只读报告](D:/shixi/ecommerce-customer-service/.cache/ch10-evidence/coverage-v5/reports/ai-review-report.html)。独立标准库整数计数核对结果在同目录ai-independent-audit.json；原silver/预测/阈值hash无变，修订不回流本轮训练。
 
-审核操作沿用之前方式：逐条核对，错标点“修改标签”；全部看完后填写一次署名、勾选声明，点“已核对的其余样本通过”，再点“确认提交并保存”。页面显示“审核已保存”才表示落盘。不用逐条发聊天消息。“不退但要换”仍有退换货诉求；明确取消全部退换、只问合适大小的句子只标尺码。
+- [主题分布](http://127.0.0.1:8007/topics)：当前实际问题池29条，20条有效分类、9条未有效分类；问题池来源真实性未核实，不能称29名真实客户。
+- [68条测试代审结果](http://127.0.0.1:8010/topics/test-review)：57保留、10改标、1排除。无需再提交。
+- [34条错例代审结果](http://127.0.0.1:8010/topics/error-review)：24保留、10改标、0排除。无需再提交。
+- [64条训练人工审核](http://127.0.0.1:8010/topics/pilot-review)：真实人工回执0fdf4212…594969，不变。
 
-以下为第4次训练的历史状态，保留失败证据；新增一次训练尚未执行，不能提前宣称已修好。
+在主题页点左侧“退换货”等类目看原话；选择“用户反馈没解决”后点“查询”，显示3条池流水、1条有效分类。全部来源SQL与API逐项一致：退换货5、商品信息5、优惠活动2、保修维修1、其他7，其余12类0。默认页长20；实际API用每页2条验证“其他”7条的4页不重复、不漏项。多标签按每个命中分别计数，比例可能超过100%。
 
+最新累计上限600次、10元；已用572次，保守占用2.911919元，包含1条历史未知预留。数据已齐，不消耗剩余28次。实际训练1887原句+143原增强=2030，验证295，独立测试187；训练7轮早停，按验证选epoch5。模型版本`ef4652e363bbb8fabcdf4d5d8a4f4ab946bd0f760c1f160934afceda998e9d29`。原107项历史证据保留。
+
+## PyCharm：只重启现成服务，不再训练或生成数据
+
+当前8007、8010、8103均由本章受管进程运行，可直接访问。需要自行管理时先核对并停止本章对应进程，避免端口冲突；不要直接结束全部Python进程。以下配置的工作目录统一为本文件开头的第十步worktree。
+
+1. 在“运行 → 编辑配置 → + → Python”添加配置，使用“模块名称”，不要把模块路径填进“脚本路径”。
+2. **主题模型8103**：解释器选独立训练环境；模块`ml.topic_classifier.cli`；参数如下。此命令只加载已有模型，不训练、不下载、不访问数据库或教师。
+
+```text
+serve --bundle D:/shixi/ecommerce-customer-service/.cache/ch10-evidence/coverage-v5/model --host 127.0.0.1 --port 8103
+```
+
+3. **本章应用8007**：解释器选业务环境；模块`uvicorn`；参数如下。
+
+```text
+app.topics.demo:create_app --factory --host 127.0.0.1 --port 8007
+```
+
+环境变量（不填API Key）统一添加：
+
+```text
+CH10_ENV_FILE=D:/shixi/ecommerce-customer-service/.env
+CH10_TOPIC_PROFILE=D:/shixi/ecommerce-customer-service/.cache/ch10-evidence/coverage-v5/topic-profile.json
+CH10_REVIEW_ROOT=D:/shixi/ecommerce-customer-service/.cache/ch10-evidence/coverage-v5
+PYTHONUTF8=1
+PYTHONIOENCODING=utf-8
+```
+
+4. **审核结果8010**：业务解释器；模块`uvicorn`；参数`app.topics.demo:create_review_app --factory --host 127.0.0.1 --port 8010`；同上环境变量。该入口不连接业务库、没有收费后台。
+5. 先启动8103，再启动8007；8010只用于查看审核结果。8007演示不恢复历史飞轮、摘要或收费评估，也不启动分类watch，聊天主链路不调用主题分类器。第九步完整后台仍在8006。
+6. 点击本章服务的PyCharm红色停止按钮即可停止自己启动的进程；不要停8006或其他章节服务。
+
+在PyCharm终端复验已冻结的20条（以下全部本地，重放不会再新增分类）：
+
+```powershell
+$AppPy = '.venv/Scripts/python.exe'
+$MlPy = 'ml/topic_classifier/.venv/Scripts/python.exe'
+$Evidence = 'D:/shixi/ecommerce-customer-service/.cache/ch10-evidence/coverage-v5'
+$env:CH10_ENV_FILE = 'D:/shixi/ecommerce-customer-service/.env'
+$env:PYTHONUTF8 = '1'
+& $AppPy -m app.topics.cli verify --database configured
+& $AppPy -m app.topics.cli run-once --database configured --profile "$Evidence/topic-profile.json" --preview-file "$Evidence/real-batch-preview.json"
+# 上一条是dry-run；确认20条既定范围后，以下重放应written=[]、skipped=20
+& $AppPy -m app.topics.cli run-once --database configured --profile "$Evidence/topic-profile.json" --preview-file "$Evidence/real-batch-preview.json" --execute
+```
+
+3307表结构已实际迁移并verify，不需要重建；禁止为演示删表、清池或重分类旧结果。实际幂等重放前后，原池完整hash、15条工单、58条工具审计及预算文件hash均不变。需要新批次时另行明确范围；本次不自动扩到其余9条。
+
+## 以下为历史过程记录（不代表当前运行状态）
 ## 第4次训练与人审记录（已完成、未发布）
 
 2026-10-23记录：基线、第二轮、一次本地采样对照及否定语义修复，共4次真实GPU全参训练均已完成。本轮187条新合成独立测试Macro-F1=0.9787、Micro-F1=0.9794、完全匹配177/187，CPU重加载最大差0；但“买大了想退”仍漏尺码，否定句仍误报退换货，固定8条诊断只过5条，保持未发布。8103和真实批量入库尚未验收，不用规则或调测试阈值冒充修好，原各轮数据/权重/报告均保留。
@@ -290,3 +347,4 @@ app.topics.demo:create_app --factory --host 127.0.0.1 --port 8007
 环境变量填`CH10_ENV_FILE=D:/shixi/ecommerce-customer-service/.env`、`PYTHONUTF8=1`、`PYTHONIOENCODING=utf-8`。启动前确认8007没有其他进程；当前演示仍在运行时，不要再启动第二份。`CH10_TOPIC_PROFILE`在实际模型包就绪后再填三字段JSON路径，不放API Key，不用空壳manifest伪装模型。
 
 这个入口不恢复飞轮消费、摘要历史或收费评估，不启动分类Worker；审核页只读，完整第九步审核与评估仍在原[8006后台](http://127.0.0.1:8006/review)。主题页刷新仅发送GET。点击已有归并缺口链接可到`/review?review_id=...`查看，未归并的原话不造链接。
+

@@ -1,14 +1,71 @@
 """Local human review submissions; no teacher, training worker or business writes."""
 from datetime import datetime, timezone
+import json
 import os
 from pathlib import Path
 from uuid import uuid4
+from typing import Literal
 
 from pydantic import Field, field_validator
 
 from app.topics.reviews import ReviewPack, ReviewDecision, ReviewReceipt, apply_review, digest, verify_pack
 from app.topics.taxonomy import default_taxonomy
 from app.topics.types import StrictRecord
+
+
+class DelegatedAuthority(StrictRecord):
+    """Trusted local operator record, never accepted through the human HTTP form."""
+    schema_version: Literal[1]
+    kind: Literal['user_authorized_ai']
+    human_status: Literal['not_performed']
+    user_instruction: str = Field(min_length=1, max_length=2048)
+    recorded_at: str
+    reviewer: Literal['Codex AI（用户授权代审，非人工）']
+    model_version: str = Field(pattern=r'^[0-9a-f]{64}$')
+    dataset_hash: str = Field(pattern=r'^[0-9a-f]{64}$')
+    test_pack_hash: str = Field(pattern=r'^[0-9a-f]{64}$')
+    error_pack_hash: str | None = Field(pattern=r'^[0-9a-f]{64}$')
+
+    @field_validator('recorded_at')
+    @classmethod
+    def aware(cls, value):
+        if datetime.fromisoformat(value).utcoffset() is None:
+            raise ValueError('Delegation record needs a timezone')
+        return value
+
+
+class DelegatedReview(StrictRecord):
+    schema_version: Literal[1]
+    human_status: Literal['not_performed']
+    review_status: Literal['ai_delegated']
+    authority: DelegatedAuthority
+    authority_hash: str = Field(pattern=r'^[0-9a-f]{64}$')
+    receipt: ReviewReceipt
+    record_hash: str = Field(pattern=r'^[0-9a-f]{64}$')
+
+
+def verify_delegated_review(value, pack):
+    record = DelegatedReview.model_validate(value)
+    authority = record.authority
+    expected_pack = authority.test_pack_hash if pack.purpose=='test' else authority.error_pack_hash
+    if (pack.purpose not in ('test','errors') or expected_pack!=pack.pack_hash
+            or authority.dataset_hash!=pack.snapshot_hash
+            or digest(authority.model_dump(mode='json'))!=record.authority_hash
+            or any(row.reviewer!=authority.reviewer or not row.notes.strip() for row in record.receipt.decisions)):
+        raise ValueError('Delegated AI review scope or provenance is invalid')
+    fields=record.model_dump(mode='json');fields.pop('record_hash')
+    if digest(fields)!=record.record_hash:
+        raise ValueError('Delegated review integrity check failed')
+    receipt=record.receipt
+    fields=receipt.model_dump(mode='json');fields.pop('receipt_hash')
+    if digest(fields)!=receipt.receipt_hash or datetime.fromisoformat(receipt.created_at).utcoffset() is None:
+        raise ValueError('Delegated receipt changed')
+    actual=receipt.model_dump(mode='json');expected=apply_review(pack,receipt.decisions).model_dump(mode='json')
+    for item in (actual,expected):
+        item.pop('created_at');item.pop('receipt_hash')
+    if actual!=expected:
+        raise ValueError('Delegated receipt differs from the frozen pack')
+    return record.model_dump(mode='json')
 
 
 class ReviewChoice(StrictRecord):
@@ -85,6 +142,34 @@ class TopicReviewService:
             raise ValueError('Review receipt does not match its frozen pack')
         return receipt
 
+    def delegated_state(self):
+        path=self.root/'ai-review.json'
+        if not path.exists():return None
+        return verify_delegated_review(json.loads(path.read_text(encoding='utf-8')),self.pack())
+
+    def save_delegated(self, decisions, *, authority):
+        """Explicit AI delegation only; does not attest or save any human decision."""
+        authority=DelegatedAuthority.model_validate(authority)
+        receipt=apply_review(self.pack(),decisions)
+        fields=dict(schema_version=1,human_status='not_performed',review_status='ai_delegated',
+            authority=authority.model_dump(mode='json'),authority_hash=digest(authority.model_dump(mode='json')),
+            receipt=receipt.model_dump(mode='json'))
+        candidate=verify_delegated_review(fields|dict(record_hash=digest(fields)),self.pack())
+        lock=self.root/'.review-submit.lock'
+        try:descriptor=os.open(lock,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
+        except FileExistsError:raise ReviewSubmissionConflict('Another submission owns the local review lock') from None
+        try:
+            os.close(descriptor)
+            existing=self.delegated_state()
+            if existing is not None:
+                identity=lambda record:(record['authority_hash'],record['receipt']['decisions'])
+                if identity(existing)!=identity(candidate):
+                    raise ReviewSubmissionConflict('Delegated decisions cannot be silently replaced')
+                return existing
+            self._atomic('ai-review.json',json.dumps(candidate,ensure_ascii=False,indent=2)+'\n')
+            return candidate
+        finally:lock.unlink(missing_ok=True)
+
     def _atomic(self, name: str, text: str):
         temporary = self.root / ('.' + name + '.' + uuid4().hex + '.tmp')
         try:
@@ -135,5 +220,7 @@ class TopicReviewService:
 
     def render(self) -> str:
         from app.topics.reviews import render_review_html
-        return render_review_html(self.pack(), hosted=True, submitted=self.state(),
+        human=self.state()
+        return render_review_html(self.pack(), hosted=True, submitted=human,
+            delegated=self.delegated_state() if human is None else None,
             review_port={'remediation-v2':8008,'negation-v4':8009,'coverage-v5':8010}.get(self.root.parent.name,8007))
