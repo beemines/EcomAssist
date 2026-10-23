@@ -52,3 +52,24 @@ async def test_review_only_factory_never_constructs_chat_or_database_resources(t
         assert (await client.get('/health')).json()['database_connections']==0
         assert (await client.post('/api/chat',json={})).status_code==404
         assert (await client.post('/api/topics/test-review',json=payload(pack),headers={'Origin':'https://foreign.invalid'})).status_code==403
+
+
+async def test_negation_training_review_uses_its_own_pilot_and_preserves_previous_receipts(tmp_path,monkeypatch):
+    from app.topics import demo
+    base=tmp_path/'evidence';base.mkdir();original,old_service=prepared(base)
+    from app.topics.review_submission import ReviewSubmission
+    old_service.save(ReviewSubmission(**payload(original)))
+    old_bytes=(base/'review-receipt.json').read_bytes()
+    root=base/'negation-v4';local=root/'train-review';local.mkdir(parents=True)
+    pack=make_review_pack(original.samples,snapshot_hash='2'*64,teacher_receipts=(),purpose='pilot')
+    (local/'pack.json').write_text(pack.model_dump_json(),encoding='utf-8')
+    monkeypatch.setattr(demo,'EVIDENCE_ROOT',base);monkeypatch.setenv('CH10_REVIEW_ROOT',str(root))
+    monkeypatch.setattr(demo,'load_settings',lambda **k:pytest.fail('training review loaded secrets'))
+    app=demo.create_review_app()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app),base_url='http://127.0.0.1:8009') as client:
+        page=await client.get('/topics/pilot-review')
+        assert page.status_code==200 and 'http://127.0.0.1:8009' in page.text and '否定语义修复' in page.text
+        assert (await client.get('/topics/test-review')).status_code==404
+        assert (await client.post('/api/topics/pilot-review',json=payload(pack))).status_code==200
+        assert (local/'review-receipt.json').exists() and (base/'review-receipt.json').read_bytes()==old_bytes
+        assert (await client.post('/api/topics/pilot-review',json=payload(pack),headers={'Origin':'https://foreign.invalid'})).status_code==403

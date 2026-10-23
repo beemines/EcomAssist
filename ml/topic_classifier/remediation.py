@@ -10,15 +10,15 @@ from app.topics.remediation import load_short,original_source,probe_semantic_fam
 from ml.topic_classifier.data import load_dataset,SplitManifest,SEED,_content,_sha,write_dataset,freeze_augmentations
 
 
-def pinned_manifest(source,new_train,new_test,tokenizer,*,audit_excluded=()):
+def pinned_manifest(source,new_train,new_test,tokenizer,*,audit_excluded=(),new_validation=()):
     source=Path(source);original=load_dataset(source)
     old={name:tuple(LabelledSample.model_validate_json(line) for line in (source/(name+'.jsonl')).read_text(encoding='utf-8').splitlines())
         for name in ('train','validation','test')}
-    new_train=tuple(new_train);new_test=tuple(new_test)
-    all_rows=old['train']+old['validation']+old['test']+new_train+new_test
+    new_train=tuple(new_train);new_test=tuple(new_test);new_validation=tuple(new_validation)
+    all_rows=old['train']+old['validation']+old['test']+new_train+new_test+new_validation
     if len({row.id for row in all_rows})!=len(all_rows):raise ValueError('New IDs overlap original partitions')
-    assigned={row.id:name for name,rows in (('train',old['train']+new_train),('validation',old['validation']),('test',new_test)) for row in rows}
-    old_ids={row.id for rows in old.values() for row in rows};new_ids={row.id for row in new_train+new_test}
+    assigned={row.id:name for name,rows in (('train',old['train']+new_train),('validation',old['validation']+new_validation),('test',new_test)) for row in rows}
+    old_ids={row.id for rows in old.values() for row in rows};new_ids={row.id for row in new_train+new_test+new_validation}
     exposed={row.id for row in old['test']}
     grouped=group_samples(all_rows)
     if grouped.excluded:raise ValueError('Duplicate/conflicting/probe family cannot be silently dropped during freeze')
@@ -51,7 +51,7 @@ def pinned_manifest(source,new_train,new_test,tokenizer,*,audit_excluded=()):
         excluded=[dict(sample_id=i,reason='first_iteration_exposed_test_baseline') for i in sorted(exposed)]+list(audit_excluded),
         file_hashes={name:_sha(_content(values)) for name,values in rows.items()})
     manifest=SplitManifest(**fields,manifest_hash=digest(fields))
-    if manifest.file_hashes['validation']!=original.file_hashes['validation']:raise ValueError('Validation bytes changed')
+    if not new_validation and manifest.file_hashes['validation']!=original.file_hashes['validation']:raise ValueError('Validation bytes changed')
     return manifest,included
 
 

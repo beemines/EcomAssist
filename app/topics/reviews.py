@@ -182,7 +182,7 @@ def load_decisions(path: Path) -> tuple[ReviewDecision, ...]:
 
 def render_review_html(pack: ReviewPack, *, hosted=False, submitted: ReviewReceipt | None = None,review_port=8007) -> str:
     verify_pack(pack)
-    if type(review_port) is not int or review_port not in (8007,8008):raise ValueError('Unknown local review surface')
+    if type(review_port) is not int or review_port not in (8007,8008,8009):raise ValueError('Unknown local review surface')
     samples = []
     for index, sample in enumerate(pack.samples, 1):
         scenario = pack.scenario_labels.get(sample.id)
@@ -190,7 +190,7 @@ def render_review_html(pack: ReviewPack, *, hosted=False, submitted: ReviewRecei
             labels=list(sample.labels), mismatch=scenario is not None and scenario != sample.labels,
             note=pack.annotation_notes.get(sample.id, '')))
     bootstrap = dict(pack_hash=pack.pack_hash, purpose=pack.purpose, hosted=hosted, samples=samples,
-        hosted_origin=f'http://127.0.0.1:{review_port}',round_label='第二轮' if review_port==8008 else '',
+        hosted_origin=f'http://127.0.0.1:{review_port}',round_label={8008:'第二轮',8009:'否定语义修复'}.get(review_port,''),
         taxonomy=[dict(name=topic.name, boundary=topic.boundary) for topic in default_taxonomy().topics],
         submitted=submitted.model_dump(mode='json') if submitted else None)
     # Even a local pack is untrusted text: keep JSON from closing its script element.

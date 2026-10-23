@@ -15,7 +15,7 @@ def mappings():
 # 验证业务映射保持原约束，并纳入质量表及显式提交的退款表。
 def test_mapping_matches_all_supplied_columns_and_constraints():
     Conversation, FAQ, Message, Ticket = mappings()
-    from app.db.models import ConversationSummary, RefundRequest, ReviewQueue, EvalRun
+    from app.db.models import ConversationSummary, RefundRequest, ReviewQueue, EvalRun, TopicClassification
     expected = {
         Conversation: ['id', 'user_id', 'status', 'summary', 'summary_upto_msg_id', 'layer1_from_msg_id', 'created_at', 'updated_at'],
         ConversationSummary: ['id', 'conversation_id', 'seq', 'from_msg_id', 'upto_msg_id', 'content', 'created_at'],
@@ -28,8 +28,9 @@ def test_mapping_matches_all_supplied_columns_and_constraints():
         ReviewQueue: ['id', 'normalized_question', 'ai_suggested_answer', 'occurrence_count',
             'review_status', 'approved_answer', 'knowledge_chunk_id', 'publication', 'created_at', 'updated_at'],
         EvalRun: ['id', 'run_key', 'triggered_by', 'dataset_size', 'metrics', 'created_at'],
+        TopicClassification: ['id', 'question_id', 'labels', 'classified_at', 'model_version', 'taxonomy_version', 'input_hash', 'batch_id'],
     }
-    assert set(Conversation.metadata.tables) == {"conversations", "conversation_summaries", "messages", "faq", "tickets", "knowledge_chunks", "qa_extraction_staging", "low_confidence_questions", "faith_cases", 'refund_requests', 'tool_audit_logs', 'review_queue', 'eval_runs'}
+    assert set(Conversation.metadata.tables) == {"conversations", "conversation_summaries", "messages", "faq", "tickets", "knowledge_chunks", "qa_extraction_staging", "low_confidence_questions", "faith_cases", 'refund_requests', 'tool_audit_logs', 'review_queue', 'eval_runs', 'topic_classifications'}
     from app.db.models import ToolAuditLog
     assert not ToolAuditLog.__table__.foreign_keys
     for model, columns in expected.items():

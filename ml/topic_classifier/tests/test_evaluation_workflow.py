@@ -26,7 +26,9 @@ def test_evaluation_freezes_choices_before_test_then_creates_pending_review_only
             assert all(isinstance(row,ClassifyItem) and not hasattr(row,'labels') for row in items)
             result=np.full((len(items),17),-10.);result[:,0]=10.
             for i,row in enumerate(items):
-                if row.id=='reserved-probe':result[i,2]=10.
+                if row.id.startswith('reserved-probe-'):
+                    result[i,:]=-10.;result[i,2]=10.
+                    if row.text in ('买大了想退','尺码大了想退','买小了想退','太大了想换','尺寸不合适想退'):result[i,0]=10.
             return result
         def close(self):pass
     monkeypatch.setattr(module,'CPUClassifier',FakeCPUClassifierForOrderingOnly)
@@ -37,35 +39,37 @@ def test_evaluation_freezes_choices_before_test_then_creates_pending_review_only
             assert (reports/'context.json').exists()
         return original(self,*args,**kwargs)
     monkeypatch.setattr(Path,'open',guard)
+    review_root=tmp_path/'negation-v4'
     result=evaluate_run(dataset,Path(training.best_checkpoint).parent,reports,pilot_receipt_hash='a'*64,
-        model_output=tmp_path/'model',review_root=tmp_path/'review-packs')
+        model_output=tmp_path/'model',review_root=review_root)
     assert result['status']=='complete' and result['human_status']=='pending'
     assert result['dataset_size']==len(manifest.splits['test'])
     assert (reports/'silver.json').exists() and (reports/'metrics.html').exists()
-    gold=tmp_path/'review-packs/test-review/pack.json';pack=json.loads(gold.read_text(encoding='utf-8'))
+    gold=review_root/'test-review/pack.json';pack=json.loads(gold.read_text(encoding='utf-8'))
     assert len(pack['samples'])==68 and pack['purpose']=='test'
+    assert 'http://127.0.0.1:8009' in gold.with_name('review.html').read_text(encoding='utf-8')
     assert not gold.with_name('review-receipt.json').exists()
     before=(reports/'thresholds.json').read_bytes()
     assert evaluate_run(dataset,Path(training.best_checkpoint).parent,reports,pilot_receipt_hash='a'*64,
-        model_output=tmp_path/'model',review_root=tmp_path/'review-packs')==result
+        model_output=tmp_path/'model',review_root=review_root)==result
     assert (reports/'thresholds.json').read_bytes()==before
     from ml.topic_classifier.artifacts import finalize_run
     from app.topics.manifest import verify_release
     from app.topics.reviews import ReviewPack,ReviewDecision,apply_review
     from datetime import datetime,timezone
     with pytest.raises(ValueError,match='human review'):
-        finalize_run(reports,tmp_path/'model',review_root=tmp_path/'review-packs')
+        finalize_run(reports,tmp_path/'model',review_root=review_root)
     for name in ('test-review','error-review'):
-        local=tmp_path/'review-packs'/name
+        local=review_root/name
         if not (local/'pack.json').exists():continue
         pack=ReviewPack.model_validate_json((local/'pack.json').read_text(encoding='utf-8'))
         decisions=[ReviewDecision(sample_id=row.id,pack_hash=pack.pack_hash,decision='accept',final_labels=row.labels,
             reviewer='unit-fixture-only',reviewed_at=datetime.now(timezone.utc).isoformat()) for row in pack.samples]
         human=apply_review(pack,decisions)
         (local/'review-receipt.json').write_text(human.model_dump_json(),encoding='utf-8')
-    released=finalize_run(reports,tmp_path/'model',review_root=tmp_path/'review-packs')
+    released=finalize_run(reports,tmp_path/'model',review_root=review_root)
     assert released['human_status']=='reviewed'
     assert verify_release(tmp_path/'model').model_version==result['model_version']
-    assert finalize_run(reports,tmp_path/'model',review_root=tmp_path/'review-packs')==released
+    assert finalize_run(reports,tmp_path/'model',review_root=review_root)==released
     assert (reports/'thresholds.json').read_bytes()==before
     assert json.loads((reports/'silver.json').read_text(encoding='utf-8'))['human_status']=='pending'

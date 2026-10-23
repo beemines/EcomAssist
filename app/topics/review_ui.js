@@ -10,6 +10,7 @@
   $('hostedReviewLink').href = data.hosted_origin + '/topics/' + reviewKind;
   if (data.purpose === 'test') $('purposeHint').textContent = '本批来自冻结留出测试集，预标标签仍需人工核对。复核结果形成独立 gold 子集报告，原模型和阈值保留。';
   if (data.purpose === 'errors') $('purposeHint').textContent = '本批是固定模型与 silver 预标不一致的错例。请判断原句的真实标签；已在测试复核包中的问题家族不会重复出现。';
+  if (data.round_label === '否定语义修复' && data.purpose === 'pilot') $('purposeHint').textContent = '本批为新合成训练对照，请核对真正肯定的诉求，否定或取消的操作不计标签。实际保存后才可重训，旧76条复核不用重做。';
   const key = 'mewhelp-topic-review-v1:' + data.pack_hash;
   const validNames = data.taxonomy.map(t => t.name);
   let choices = {}, submitted = Boolean(data.submitted), saving = false, editing = null;
