@@ -64,11 +64,26 @@ def main():
     evaluation.add_argument('--output',type=Path,required=True)
     evaluation.add_argument('--model-output',type=Path)
     evaluation.add_argument('--review-root',type=Path)
+    finalize=commands.add_parser('finalize',help='Bind actual human review receipts to unchanged model/evaluation evidence')
+    finalize.add_argument('--reports',type=Path,required=True)
+    finalize.add_argument('--bundle',type=Path,required=True)
+    finalize.add_argument('--review-root',type=Path,required=True)
+    serve=commands.add_parser('serve',help='Serve one reviewed local CPU model, no downloads/database access')
+    serve.add_argument('--bundle',type=Path,required=True)
+    serve.add_argument('--host',choices=['127.0.0.1'],default='127.0.0.1')
+    serve.add_argument('--port',type=int,choices=[8103],default=8103)
     args=parser.parse_args()
     # This CLI only consumes the already downloaded fixed model. Doctor owns downloads.
     os.environ['HF_HUB_OFFLINE']='1'
     os.environ['HF_HUB_DISABLE_TELEMETRY']='1'
-    if args.command=='split': split_command(args)
+    if args.command=='finalize':
+        from ml.topic_classifier.artifacts import finalize_run
+        print(json.dumps(finalize_run(args.reports,args.bundle,review_root=args.review_root),ensure_ascii=False))
+    elif args.command=='serve':
+        import uvicorn
+        from ml.topic_classifier.service import create_app
+        uvicorn.run(create_app(args.bundle),host=args.host,port=args.port,workers=1,access_log=False)
+    elif args.command=='split': split_command(args)
     elif args.command=='freeze-augmentation': augmentation_command(args)
     elif args.command=='train':
         from ml.topic_classifier.train import train

@@ -5,7 +5,28 @@
 独立训练解释器：该目录下`ml/topic_classifier/.venv/Scripts/python.exe`（Python3.12.13）。
 证据、权重和共享预算：`D:/shixi/ecommerce-customer-service/.cache/ch10-evidence`。
 
-第十步尚未完成训练、留出评测及实际分类验收。下文只记录已实现命令；小批人工抽审未完成前不能扩量训练。测试fixture、随机分类头和规则例子都不代表模型效果。
+2026-10-23当前状态：首次68条小批人审、2040组数据冻结、实际GPU全参训练和首次留出评测已经完成。208条合成留出题macro-F1为0.9629174，但独立验收句“买大了想退”漏了尺码，候选未发布；8103和真实批量入库尚未验收。测试fixture、随机分类头和规则例子都不代表模型效果。
+
+## 现在要做的网页复核
+
+1. 打开[测试集人工复核](http://127.0.0.1:8007/topics/test-review)，这是新的68条，不是已经提交过的首批训练抽审。
+2. 看每句的“预标标签”；正确点“通过”，有错点“修改标签”勾选全部正确标签，不采用点“排除”。旁边“固定模型预测”供对照，不能把模型输出当作标准答案。
+3. 到页面底部填一次昵称，勾选逐条核对声明，再点“确认提交并保存”。如果已经逐条看过且剩余都对，可先点“已核对的其余样本通过”，再提交。
+4. 同样完成[6条额外错例复核](http://127.0.0.1:8007/topics/error-review)。这6条与上述68条不重复；68条中也可能有预测错误。
+5. 两页显示提交成功后告诉助手。结果只保存本机，不能自动改模型、阈值或训练集。助手据实际回执生成gold与错例报告，不能代替人审。
+
+首次真实报告在`D:/shixi/ecommerce-customer-service/.cache/ch10-evidence/reports/metrics.html`，含17类F1和混淆矩阵；`silver.json`明确全测试来自合成题，gold未提交前保持pending。`probe.json`保留漏标签失败，`cpu-roundtrip.json`记录导出前后一致。不要删除或覆盖这轮文件。
+
+后端已经实现如下本地命令，只有完成对应门槛才执行：
+
+```powershell
+# 两包真实人审提交后：只追加独立人工报告，候选失败时不会生成可发布模型
+& $MlPy -m ml.topic_classifier.cli finalize --reports "$Evidence/reports" --bundle "$Evidence/model" --review-root "$Evidence"
+# 只有模型通过CPU/probe且具备完整人审发布清单后才能启动；当前候选会被拒载
+& $MlPy -m ml.topic_classifier.cli serve --bundle "$Evidence/model" --host 127.0.0.1 --port 8103
+```
+
+上述变量的逐行定义见下文“先看预算和快照”。当前不要重跑expand/augment/train；首次产物已冻结，修复提案另行审批并使用新版本目录。下文保留首次实施操作以便追溯，旧的“尚未训练”描述属于当时基线。
 
 ## 在PyCharm打开正确工作树
 
@@ -32,7 +53,7 @@ $env:PYTHONIOENCODING = 'utf-8'
 
 共享账本已初始化，勿再运行`budget-init --execute`，没有重置命令。`used_micro / 1000000`是保守预算占用，含未知请求预留，不等同于供应商实际扣费。金额硬上限10元；物理次数原为300次，2026-10-22经用户明确批准已增至400次。失败、金额及未知预留均保留，重启不清零。
 
-已运行的扩量进程会持续写入检查点，勿同时开启第二个`expand --execute`。只看进度可在项目工作目录运行（免费，不调用模型）：
+首次扩量与增强已完成，无需再次执行；累计392/400次，保守占用约2.507389元。只读查看可在项目工作目录运行（免费，不调用模型）：
 
 ```powershell
 & .venv/Scripts/python.exe -m app.topics.data_cli budget-status
@@ -41,7 +62,7 @@ $env:PYTHONIOENCODING = 'utf-8'
 
 `$Evidence/pool/preview.json`和`snapshot.json`已保存29行有界只读快照，高水位31，原文去重21问。所有来源真实性均未核实；本地原话文件含隐私，不能提交Git。快照不会修改问题池，也不会自动发送模型。
 
-## 生成小批抽审包
+## 首次小批抽审包的历史操作（已完成，不重跑）
 
 先免费预览：
 

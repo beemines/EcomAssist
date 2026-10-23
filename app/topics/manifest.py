@@ -96,3 +96,68 @@ def verify_manifest(path:Path) -> ModelIdentity:
     value=read_manifest(path)
     return ModelIdentity(model_version=value.model_version,taxonomy_version=value.core.taxonomy_version,
         taxonomy_hash=value.core.taxonomy_hash,cleaning_version=value.core.cleaning_version,max_tokens=128)
+
+
+REQUIRED_EVIDENCE=frozenset(('evaluation-complete.json','silver.json','predictions.jsonl','review-selection.json',
+    'probe.json','cpu-roundtrip.json','gold-pack.json','gold-receipt.json','gold-report.json'))
+OPTIONAL_EVIDENCE=frozenset(('error-pack.json','error-receipt.json','error-report.json'))
+
+class ReleaseManifest(StrictRecord):
+    schema_version:Literal[1]
+    model_version:str=Field(pattern=r'^[0-9a-f]{64}$')
+    human_status:Literal['reviewed']
+    files:dict[str,FileDigest]
+    release_hash:str=Field(pattern=r'^[0-9a-f]{64}$')
+
+    @model_validator(mode='after')
+    def bound(self):
+        names=set(self.files)
+        if (not REQUIRED_EVIDENCE<=names or names-REQUIRED_EVIDENCE not in (set(),set(OPTIONAL_EVIDENCE))
+                or any(record.bytes>16*1024*1024 for record in self.files.values())):
+            raise ValueError('Release requires the exact review/evaluation evidence file set')
+        fields=self.model_dump(mode='json');fields.pop('release_hash')
+        if digest(fields)!=self.release_hash:raise ValueError('Outer release identity changed')
+        return self
+
+
+def verify_release(path:Path)->ModelIdentity:
+    """Verify evidence without importing ML libraries or changing core identity."""
+    from app.topics.reviews import ReviewPack,ReviewReceipt,apply_review,verify_pack
+    root=Path(path)
+    identity=verify_manifest(root)
+    try:
+        release_path=root/'release.json';evidence=root/'evidence'
+        if release_path.is_symlink() or evidence.is_symlink() or release_path.stat().st_size>65536:
+            raise ValueError('Invalid release paths')
+        release=ReleaseManifest.model_validate_json(release_path.read_text(encoding='utf-8'))
+        if release.model_version!=identity.model_version:raise ValueError('Release belongs to another model')
+        for name,record in release.files.items():
+            local=evidence/name
+            if local.is_symlink() or not local.is_file() or local.stat().st_size!=record.bytes or _sha(local)!=record.sha256:
+                raise ValueError('Release evidence missing or changed')
+        read=lambda name:json.loads((evidence/name).read_text(encoding='utf-8'))
+        completion=read('evaluation-complete.json');selection=read('review-selection.json')
+        for value,key in ((completion,'completion_hash'),(selection,'selection_hash')):
+            if value.get(key)!=digest({k:v for k,v in value.items() if k!=key}):raise ValueError('Evaluation evidence identity changed')
+        if (completion.get('model_version')!=identity.model_version or not completion.get('model_published')
+                or completion.get('probe_passed') is not True or selection.get('model_version')!=identity.model_version
+                or read('probe.json').get('passed') is not True or read('cpu-roundtrip.json').get('passed') is not True):
+            raise ValueError('Model did not pass actual export checks')
+        if bool(selection['errors_count'])!=bool(OPTIONAL_EVIDENCE<=set(release.files)):
+            raise ValueError('Error review evidence is incomplete')
+        for prefix,key in (('gold','gold_pack_hash'),('error','error_pack_hash')):
+            if prefix=='error' and not selection['errors_count']:continue
+            pack=ReviewPack.model_validate_json((evidence/f'{prefix}-pack.json').read_text(encoding='utf-8'))
+            receipt=ReviewReceipt.model_validate_json((evidence/f'{prefix}-receipt.json').read_text(encoding='utf-8'))
+            verify_pack(pack)
+            if pack.pack_hash!=selection[key]:raise ValueError('Reviewed a different frozen selection')
+            fields=receipt.model_dump(mode='json');fields.pop('receipt_hash')
+            if receipt.receipt_hash!=digest(fields):raise ValueError('Review receipt changed')
+            expected=apply_review(pack,receipt.decisions).model_dump(mode='json');actual=receipt.model_dump(mode='json')
+            for value in (expected,actual):value.pop('created_at');value.pop('receipt_hash')
+            report=read(f'{prefix}-report.json')
+            if (actual!=expected or not receipt.samples or report.get('receipt_hash')!=receipt.receipt_hash
+                    or report.get('model_version')!=identity.model_version):raise ValueError('Human review is incomplete or inconsistent')
+        return identity
+    except (OSError,KeyError,TypeError,json.JSONDecodeError) as exc:
+        raise ValueError('Release evidence is unavailable or invalid') from exc

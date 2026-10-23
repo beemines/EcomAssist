@@ -49,3 +49,23 @@ def test_evaluation_freezes_choices_before_test_then_creates_pending_review_only
     assert evaluate_run(dataset,Path(training.best_checkpoint).parent,reports,pilot_receipt_hash='a'*64,
         model_output=tmp_path/'model',review_root=tmp_path/'review-packs')==result
     assert (reports/'thresholds.json').read_bytes()==before
+    from ml.topic_classifier.artifacts import finalize_run
+    from app.topics.manifest import verify_release
+    from app.topics.reviews import ReviewPack,ReviewDecision,apply_review
+    from datetime import datetime,timezone
+    with pytest.raises(ValueError,match='human review'):
+        finalize_run(reports,tmp_path/'model',review_root=tmp_path/'review-packs')
+    for name in ('test-review','error-review'):
+        local=tmp_path/'review-packs'/name
+        if not (local/'pack.json').exists():continue
+        pack=ReviewPack.model_validate_json((local/'pack.json').read_text(encoding='utf-8'))
+        decisions=[ReviewDecision(sample_id=row.id,pack_hash=pack.pack_hash,decision='accept',final_labels=row.labels,
+            reviewer='unit-fixture-only',reviewed_at=datetime.now(timezone.utc).isoformat()) for row in pack.samples]
+        human=apply_review(pack,decisions)
+        (local/'review-receipt.json').write_text(human.model_dump_json(),encoding='utf-8')
+    released=finalize_run(reports,tmp_path/'model',review_root=tmp_path/'review-packs')
+    assert released['human_status']=='reviewed'
+    assert verify_release(tmp_path/'model').model_version==result['model_version']
+    assert finalize_run(reports,tmp_path/'model',review_root=tmp_path/'review-packs')==released
+    assert (reports/'thresholds.json').read_bytes()==before
+    assert json.loads((reports/'silver.json').read_text(encoding='utf-8'))['human_status']=='pending'

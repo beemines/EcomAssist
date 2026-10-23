@@ -151,8 +151,8 @@ class TopicStatisticsService:
             return self.identity_provider()  # Trusted application/test injection, never a query parameter.
         if self.profile is None or not self.profile.manifest_path.is_file():
             return None
-        from app.topics.manifest import verify_manifest
-        return verify_manifest(self.profile.manifest_path)
+        from app.topics.manifest import verify_release
+        return verify_release(self.profile.manifest_path.parent)
 
     async def summary(self,filters: TopicFilters) -> TopicSummary:
         filters=TopicFilters.model_validate(filters.model_dump())
