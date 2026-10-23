@@ -170,6 +170,11 @@ def load_training_receipt(root:Path) -> TrainingReceipt:
             or identity.get('revision')!=BASE_REVISION or identity.get('seed')!=SEED or identity.get('config')!=CONFIG
             or identity.get('lock_hash')!=file_hash(Path(__file__).with_name('uv.lock'))):
         raise ValueError('Completed training configuration or dataset identity changed')
+    if 'sampling' in identity:
+        sampling=json.loads((root/'sampling.json').read_text(encoding='utf-8'))
+        if (sampling!=identity['sampling'] or sampling.get('profile')!='short30-v1'
+                or sampling.get('sampling_hash')!=digest({k:v for k,v in sampling.items() if k!='sampling_hash'})):
+            raise ValueError('Training sampling evidence changed')
     history=json.loads((root/'history.json').read_text(encoding='utf-8'))
     best=best_validation_epoch(history['epochs'])
     if (history.get('config_hash')!=receipt.config_hash or history.get('dataset_hash')!=receipt.dataset_hash
@@ -213,9 +218,10 @@ def training_lease(output:Path):
             else:fcntl.flock(stream.fileno(),fcntl.LOCK_UN)
 
 
-def train(dataset:Path,base_dir:Path,output:Path,*,seed:int=SEED,resume:bool=False) -> TrainingReceipt:
+def train(dataset:Path,base_dir:Path,output:Path,*,seed:int=SEED,resume:bool=False,short_sampling:bool=False) -> TrainingReceipt:
     from transformers import AutoConfig,AutoTokenizer,AutoModelForSequenceClassification,Trainer,EarlyStoppingCallback,set_seed
     if seed!=SEED:raise ValueError('Do not search random seeds against held-out results')
+    if type(short_sampling) is not bool:raise ValueError('The local control must be explicitly enabled')
     data=read_training_data(dataset);base=verify_base(base_dir)
     if not torch.cuda.is_available():raise RuntimeError('The approved full-parameter training requires measured local CUDA')
     doctor=json.loads((base_dir.parent/'doctor.json').read_text(encoding='utf-8'))
@@ -228,6 +234,10 @@ def train(dataset:Path,base_dir:Path,output:Path,*,seed:int=SEED,resume:bool=Fal
         revision=BASE_REVISION,base_files=base['files'],seed=seed,config=CONFIG,
         micro_batch=probe['micro_batch'],lock_hash=file_hash(Path(__file__).with_name('uv.lock')),
         taxonomy_hash=default_taxonomy().digest,trainer_code_hash=file_hash(Path(__file__)))
+    if short_sampling:
+        from ml.topic_classifier.sampling import sampling_record,ShortSamplingTrainer
+        identity['sampling']=sampling_record(data.train)
+        identity['sampling_code_hash']=file_hash(Path(__file__).with_name('sampling.py'))
     config_hash=digest(identity);output=Path(output).resolve();output.mkdir(parents=True,exist_ok=True)
     lease=training_lease(output);lease.__enter__()
     started=time.monotonic()
@@ -240,6 +250,11 @@ def train(dataset:Path,base_dir:Path,output:Path,*,seed:int=SEED,resume:bool=Fal
         else:
             if resume or any(output.glob('checkpoint-*')):raise ValueError('No bound training run exists for these checkpoints')
             _write(state_path,identity)
+        if short_sampling:
+            sampling_path=output/'sampling.json'
+            if sampling_path.exists() and json.loads(sampling_path.read_text(encoding='utf-8'))!=identity['sampling']:
+                raise ValueError('Frozen control sampling changed')
+            if not sampling_path.exists():_write(sampling_path,identity['sampling'])
         set_seed(seed)
         tokenizer=AutoTokenizer.from_pretrained(base_dir,local_files_only=True,trust_remote_code=False)
         config=AutoConfig.from_pretrained(base_dir,local_files_only=True,trust_remote_code=False)
@@ -254,7 +269,8 @@ def train(dataset:Path,base_dir:Path,output:Path,*,seed:int=SEED,resume:bool=Fal
             labels=torch.stack([row['labels'] for row in features])
             batch=tokenizer.pad([{k:v for k,v in row.items() if k!='labels'} for row in features],padding=True,return_tensors='pt')
             return dict(batch,labels=labels)
-        trainer=Trainer(model=model,args=training_arguments(output,probe['micro_batch']),processing_class=tokenizer,
+        trainer_class=ShortSamplingTrainer if short_sampling else Trainer
+        trainer=trainer_class(model=model,args=training_arguments(output,probe['micro_batch']),processing_class=tokenizer,
             train_dataset=EncodedSamples(data.train,tokenizer),eval_dataset=EncodedSamples(data.validation,tokenizer),
             data_collator=collate,compute_metrics=compute_metrics,
             callbacks=[EarlyStoppingCallback(early_stopping_patience=CONFIG['patience'],early_stopping_threshold=CONFIG['minimum_improvement'])])
