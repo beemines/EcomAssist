@@ -22,6 +22,8 @@ MAX_ATTEMPTS = 300
 ATTEMPT_EXTENSION_ID = 'ch10-topic-20261022-attempts-400'
 ATTEMPT_EXTENSION_TEXT = '允许400次，费用仍最多10元'
 EXTENDED_ATTEMPTS = 400
+REMEDIATION_APPROVAL_ID='ch10-topic-20261023-attempts-450'
+REMEDIATION_APPROVAL_TEXT='批准第二轮修复，累计450次、仍最多10元'
 RESERVATION_MICRO = 1_205_863
 
 
@@ -86,8 +88,11 @@ def _extension_identity(path,marker):
 
 def _attempt_limit(path,marker):
     extension=path.with_suffix('.attempt-approval.json')
+    remediation=path.with_suffix('.remediation-approval.json')
     if extension.is_symlink(): raise BudgetError('Attempt authorization cannot be a symlink')
-    if not extension.exists(): return MAX_ATTEMPTS,None
+    if not extension.exists():
+        if remediation.exists() or remediation.is_symlink():raise BudgetError('Missing prior authorization')
+        return MAX_ATTEMPTS,None
     if not extension.is_file() or extension.stat().st_size>4096:
         raise BudgetError('Attempt authorization is unavailable or corrupt')
     value=json.loads(extension.read_text(encoding='utf-8'))
@@ -96,7 +101,25 @@ def _attempt_limit(path,marker):
             or type(value.get('approved_at')) is not str
             or datetime.fromisoformat(value['approved_at']).utcoffset() is None):
         raise BudgetError('Attempt authorization identity mismatch')
-    return EXTENDED_ATTEMPTS,ATTEMPT_EXTENSION_ID
+    if remediation.is_symlink():raise BudgetError('Remediation authorization cannot be a symlink')
+    if not remediation.exists():return EXTENDED_ATTEMPTS,ATTEMPT_EXTENSION_ID
+    if not remediation.is_file() or remediation.stat().st_size>4096:raise BudgetError('Invalid remediation authorization')
+    value=json.loads(remediation.read_text(encoding='utf-8'))
+    expected=_remediation_identity(path,marker)
+    if (type(value) is not dict or set(value)!=set(expected)|{'approved_at'}
+            or {k:v for k,v in value.items() if k!='approved_at'}!=expected
+            or type(value.get('approved_at')) is not str or datetime.fromisoformat(value['approved_at']).utcoffset() is None):
+        raise BudgetError('Remediation authorization identity mismatch')
+    return 450,REMEDIATION_APPROVAL_ID
+
+
+def _remediation_identity(path,marker):
+    return dict(schema_version='1',ledger_id=marker['ledger_id'],base_approval_id=APPROVAL_ID,
+        revision_id=REMEDIATION_APPROVAL_ID,previous_revision_id=ATTEMPT_EXTENSION_ID,
+        previous_marker_sha256=hashlib.sha256(path.with_suffix('.attempt-approval.json').read_bytes()).hexdigest(),
+        base_marker_sha256=hashlib.sha256(_marker(path).read_bytes()).hexdigest(),
+        original_attempt_limit='300',previous_attempt_limit='400',attempt_limit='450',limit_micro=str(LIMIT_MICRO),
+        approval_text=REMEDIATION_APPROVAL_TEXT)
 
 
 def initialize_budget(path: Path, approval_id: str) -> None:
@@ -107,7 +130,9 @@ def initialize_budget(path: Path, approval_id: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     marker = _marker(path)
     extension=path.with_suffix('.attempt-approval.json')
-    if path.exists() or marker.exists() or path.is_symlink() or marker.is_symlink() or extension.exists() or extension.is_symlink():
+    remediation=path.with_suffix('.remediation-approval.json')
+    if (path.exists() or marker.exists() or path.is_symlink() or marker.is_symlink() or extension.exists()
+            or extension.is_symlink() or remediation.exists() or remediation.is_symlink()):
         raise BudgetError('Budget or authorization marker already exists; reset is forbidden')
     identity = dict(schema_version='1', ledger_id=uuid4().hex, approval_id=approval_id,
         limit_micro=str(LIMIT_MICRO), attempt_limit=str(MAX_ATTEMPTS), reservation_micro=str(RESERVATION_MICRO))
@@ -298,4 +323,24 @@ def amend_budget_attempt_limit(path:Path,*,revision_id:str,approval_text:str) ->
             effective,revision=_attempt_limit(ledger.path,marker)
             metadata['_effective_attempt_limit']=effective
             metadata['_approval_revision']=revision
+        return ledger._summary(connection,metadata)
+
+
+def amend_remediation_limit(path:Path,*,revision_id:str,approval_text:str)->BudgetSummary:
+    """Second explicit additive approval; never rewrites the original400 amendment."""
+    if revision_id!=REMEDIATION_APPROVAL_ID or approval_text!=REMEDIATION_APPROVAL_TEXT:
+        raise BudgetError('An exact recognized remediation authorization is required')
+    ledger=BudgetLedger(path,APPROVAL_ID)
+    with ledger._connection() as (connection,metadata):
+        if metadata['_effective_attempt_limit'] not in (400,450):raise BudgetError('The prior400 authorization is required')
+        target=ledger.path.with_suffix('.remediation-approval.json')
+        marker=json.loads(_marker(ledger.path).read_text(encoding='utf-8'))
+        if not target.exists():
+            with target.open('x',encoding='utf-8') as stream:
+                json.dump(_remediation_identity(ledger.path,marker)|dict(approved_at=_now()),stream,ensure_ascii=False,sort_keys=True)
+                stream.flush()
+                import os
+                os.fsync(stream.fileno())
+        limit,revision=_attempt_limit(ledger.path,marker)
+        metadata['_effective_attempt_limit']=limit;metadata['_approval_revision']=revision
         return ledger._summary(connection,metadata)
