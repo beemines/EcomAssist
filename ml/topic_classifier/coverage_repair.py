@@ -65,6 +65,9 @@ def freeze_coverage(source,iteration,base_dir):
         raise ValueError('Actual human review belongs to another coverage corpus')
     human_train=tuple(r.model_copy(update={'pilot':True}) for r in receipt.samples)
     audit_scene_coverage(human_train,partition='train')
+    from app.topics.coverage_recovery import validate_recovery_sources
+    from app.topics.coverage_selection import candidate_rows
+    validate_recovery_sources(iteration)
     val_status,validation=load_short(iteration/'validation-corpus');test_status,test=load_short(iteration/'test-corpus')
     audit_scene_coverage(validation,partition='validation');audit_scene_coverage(test,partition='test')
     base,scope=source_context(source)
@@ -83,7 +86,7 @@ def freeze_coverage(source,iteration,base_dir):
             run=json.loads((path/'run.json').read_text(encoding='utf-8'))
             if actual['status_hash']!=item['status_hash'] or actual['scope_hash']!=digest(run) or run['source']!=expected:
                 raise ValueError('Coverage scene part identity changed')
-            raw_parts[item['stage']]=rows;part_records.append(item)
+            raw_parts[item['stage']]=candidate_rows(path,actual,rows);part_records.append(item)
     blocked={r.id:r for r in old_rows(base)}
     train,excluded=filter_short(human_train,tuple(blocked.values()))
     if excluded:raise ValueError('Reviewed coverage training overlaps a protected old family')
