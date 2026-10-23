@@ -28,6 +28,49 @@
 
 上述变量的逐行定义见下文“先看预算和快照”。当前不要重跑expand/augment/train；首次产物已冻结，修复提案另行审批并使用新版本目录。下文保留首次实施操作以便追溯，旧的“尚未训练”描述属于当时基线。
 
+## 模型发布通过之后的旁路命令（当前先不执行）
+
+在PyCharm里新建本地`$Evidence/topic-profile.json`，只放下面三项；路径改成最终实际发布目录，不放Key。此文件不提交Git：
+
+```json
+{
+  "service_url": "http://127.0.0.1:8103",
+  "manifest_path": "D:/shixi/ecommerce-customer-service/.cache/ch10-evidence/model/manifest.json",
+  "runtime_root": "D:/shixi/ecommerce-customer-service/.cache/ch10-evidence/runtime"
+}
+```
+
+先确认8103实际服务health返回正确模型版本，再依次执行。下面是已实现的接口，当前候选失败时会拒绝；不表示已完成真实入库验收。
+
+```powershell
+$Profile = "$Evidence/topic-profile.json"
+# 第一次只预览建表；确认目标是本项目3307业务库再执行新增表及四列，不改原问题池
+& $AppPy -m app.topics.cli migrate --database configured
+& $AppPy -m app.topics.cli migrate --database configured --execute
+& $AppPy -m app.topics.cli verify --database configured
+# 冻结最多100条的ID/高水位/脱敏文本/原文hash/模型版本，供执行前复核
+& $AppPy -m app.topics.cli preview --database configured --profile $Profile --from-id 1 --limit 100 --output "$Evidence/batch-preview.json"
+# 无execute只检查范围；加execute才调用本机分类器并写topic_classifications
+& $AppPy -m app.topics.cli run-once --database configured --profile $Profile --preview-file "$Evidence/batch-preview.json"
+& $AppPy -m app.topics.cli run-once --database configured --profile $Profile --preview-file "$Evidence/batch-preview.json" --execute
+```
+
+同一preview重放不会重复插行；原话hash、模型版本或数据库身份变化会拒绝。未过阈值、不合法和长句保留明确失败回执，不塞进“其他”。只有已发布模型会成为主题页当前统计版本。
+
+需要长期攒够20条才起批时，下面命令默认仍是dry-run；明确加`--execute`才常驻，Ctrl+C结束。每批最多100条，连续3个故障回合持久暂停；业务低置信度不按网络故障自动重试。
+
+```powershell
+& $AppPy -m app.topics.cli watch --database configured --profile $Profile --from-id 1 --limit 100
+# 确认范围后才执行：在上一行末尾加 --execute
+# 对已核对的失败范围显式解除暂停，不扩大范围、不重新归类已有旧模型结果
+& $AppPy -m app.topics.cli retry --database configured --profile $Profile --preview-file "$Evidence/batch-preview.json" --execute
+# 需要更新旧版本结果时，另建有明确范围的preview，再显式执行reclassify
+& $AppPy -m app.topics.cli preview --database configured --profile $Profile --from-id 1 --to-id 31 --limit 100 --reclassify --output "$Evidence/reclassify-preview.json"
+& $AppPy -m app.topics.cli reclassify --database configured --profile $Profile --preview-file "$Evidence/reclassify-preview.json" --execute
+```
+
+8007加载最终统计版本时，在原PyCharm演示运行配置环境变量增加`CH10_TOPIC_PROFILE=D:/shixi/ecommerce-customer-service/.cache/ch10-evidence/topic-profile.json`，仅重启本章8007。打开[主题分布](http://127.0.0.1:8007/topics)，点击类目看分页原话，已有归并缺口可跳转审核页。页面GET不会启动分类、训练或教师调用。
+
 ## 在PyCharm打开正确工作树
 
 1. 菜单“文件 → 打开”，选择上述`topic-classifier`目录。不要在旧第八/九步工作树运行本章命令。
