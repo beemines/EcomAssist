@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MewHelp · 分类器验收</title><link rel="stylesheet" href="/static/review-queue.css?v=20261024"><link rel="stylesheet" href="/static/topic-acceptance.css?v=20261024b"><script src="/static/topic-acceptance.js?v=20261024b" defer></script></head>
-<body><main>
-<header class="page-head"><div><p class="eyebrow">MEWHELP / 模型与数据</p><h1>分类器验收</h1><p>从语料到主题分布，把每一步的证据放在一起。</p></div><button id="refresh" class="approve" type="button">刷新只读状态</button></header>
-<nav class="admin-nav" aria-label="后台管理"><strong>后台管理</strong><a href="/admin">后台首页</a><a href="/review">飞轮待审</a><a href="/topics">主题分布</a><a href="/observability">观测与成本</a><a class="active" aria-current="page" href="/topics/acceptance">分类器验收</a><a href="/">聊天页 →</a></nav>
+<title>MewHelp · 分类器验收</title><link rel="stylesheet" href="/static/review-queue.css?v=20261024"><link rel="stylesheet" href="/static/topic-acceptance.css?v=20261024b"><script src="/static/topic-acceptance.js?v=20261024-compact" defer></script><link rel="stylesheet" href="/static/workspace.css?v=20261024-compact"><script src="/static/workspace.js?v=20261024-compact" defer></script></head>
+<body class="ui-admin ui-acceptance"><main>
+<header class="page-head"><div><h1>分类器验收</h1></div><button id="refresh" class="approve" type="button">刷新</button></header>
+<nav class="admin-nav" aria-label="后台管理"><a href="/admin">后台首页</a><a href="/review">飞轮待审</a><a href="/topics">主题分布</a><a href="/observability">观测成本</a><a href="/rag-eval">RAG 评估</a><a href="/topics/acceptance" class="active" aria-current="page">模型验收</a></nav>
 <p id="load-error" class="notice error-box" role="alert" hidden></p>
 <div id="report" hidden>
-<div class="report-meta"><span id="evidence-time"></span><span id="identity"></span></div>
+<details class="compact-meta"><summary>报告信息</summary><div class="fold-content"><div class="report-meta"><span id="evidence-time"></span><span id="identity"></span></div></div></details>
 <p id="live-state" class="explanation" role="status" aria-live="polite">正在读取当前配置与主题统计…</p>
 <div class="section-tabs" role="tablist" aria-label="验收内容">
 <button type="button" role="tab" id="tab-overview" aria-controls="overview" aria-selected="true" data-tab="overview">总览</button>
@@ -16,29 +16,28 @@
 </div>
 <section id="overview" role="tabpanel" aria-labelledby="tab-overview">
 <div id="overview-kpis" class="kpis"></div>
-<div class="toolbar split"><h2>九项证据核对</h2><span class="muted">已知问题与证据齐备分开看，不合并成“全部通过”</span></div>
-<div id="gates" class="gate-grid"></div>
-<section class="panel"><h2>可以怎样验收？</h2><ol class="steps"><li>先看“数据产物”，核对分区、增强、全参训练和模型包。</li><li>到“评测详情”切换银标与 AI 代审范围，查看每类分数、阈值和混淆矩阵。</li><li>到“错例复核”看漏标、多标和逐条代审结果。</li><li>打开主题分布，点击类目看原话、切换来源；批次重放证据应是新增 0、跳过 20。</li></ol><p class="muted">本页刷新只读状态，不会重新训练、生成语料或批量写库。实时模型状态可单独打开 <a href="http://127.0.0.1:8103/health" target="_blank" rel="noopener">8103 /health ↗</a> 核对。</p></section>
+<details class="compact-fold"><summary>流程记录 · 9 项</summary><div id="gates" class="gate-grid"></div></details>
+
 </section>
 <section id="evaluation" role="tabpanel" aria-labelledby="tab-evaluation" hidden>
 <div class="toolbar split"><div><h2>同一模型，不同评测范围</h2><p id="cohort-description" class="muted"></p></div><label>查看范围<select id="cohort" aria-label="查看范围"><option value="silver">完整银标 · 187 条</option><option value="ai_test">AI 代审测试 · 67 条有效</option><option value="ai_errors">AI 代审选定错例 · 34 条</option></select></label></div>
 <div id="metric-kpis" class="kpis"></div>
-<div class="two-columns"><article id="micro-card"></article><article id="macro-card"></article></div>
-<section class="panel"><div class="toolbar split"><h2>17 类精确率、召回率与 F1</h2><span class="muted">support = TP + FN；未套用参考图的质量红线</span></div><div class="scroll"><table><thead><tr><th scope="col">类目</th><th scope="col">精确率 P</th><th scope="col">召回率 R</th><th scope="col">F1</th><th scope="col">正例 support</th></tr></thead><tbody id="class-metrics"></tbody></table></div></section>
-<section class="panel"><h2>混淆矩阵 · 每类一张</h2><p class="muted">行是真值阴 / 阳，列是预测阴 / 阳。TN：正确未标；FP：多标；FN：漏标；TP：正确命中。一个问题可能贡献多个标签错误。</p><p id="matrix-summary" class="explanation"></p><div id="matrices" class="matrix-grid"></div></section>
-<section class="panel"><h2>在用阈值 · 仅由验证集选择</h2><p class="muted">逐类扫描 0.10–0.90、步长 0.05；同分先靠近 0.5，再选较高值。下面是已冻结的选择结果，不重新校准。已知验证近重复的限制仍适用。</p><div class="scroll"><table><thead><tr><th scope="col">类目</th><th scope="col">在用阈值</th><th scope="col">验证 F1</th><th scope="col">验证正 / 反例</th></tr></thead><tbody id="thresholds"></tbody></table></div></section>
-<section class="panel"><h2>多标签如何产生？</h2><p class="probe-question">买大了想退</p><p id="example-result"></p><p class="muted">以下为已保存的真实 HTTP 推理结果，17 类各过自己的阈值。业务标签命中时不附加“其他”；全部未过线时进入待复核，不用最高分凑标签。</p><div id="probabilities" class="probability-list"></div></section>
+<details class="compact-fold"><summary>Micro 与 Macro 说明</summary><div class="fold-content"><div class="two-columns"><article id="micro-card"></article><article id="macro-card"></article></div></div></details>
+<section class="panel"><div class="toolbar split"><h2>17 类精确率、召回率与 F1</h2><span class="muted">support 为该类正例数</span></div><div class="scroll"><table><thead><tr><th scope="col">类目</th><th scope="col">精确率 P</th><th scope="col">召回率 R</th><th scope="col">F1</th><th scope="col">正例 support</th></tr></thead><tbody id="class-metrics"></tbody></table></div></section>
+<details class="panel compact-fold"><summary>混淆矩阵 · 17 类</summary><div class="fold-content"><p class="muted">行是真值阴 / 阳，列是预测阴 / 阳。TN：正确未标；FP：多标；FN：漏标；TP：正确命中。一个问题可能贡献多个标签错误。</p><p id="matrix-summary" class="explanation"></p><div id="matrices" class="matrix-grid"></div></div></details>
+<details class="panel compact-fold"><summary>验证阈值</summary><div class="fold-content"><p class="muted">逐类扫描 0.10–0.90、步长 0.05；同分先靠近 0.5，再选较高值。下面是已冻结的选择结果，不重新校准。已知验证近重复的限制仍适用。</p><div class="scroll"><table><thead><tr><th scope="col">类目</th><th scope="col">在用阈值</th><th scope="col">验证 F1</th><th scope="col">验证正 / 反例</th></tr></thead><tbody id="thresholds"></tbody></table></div></div></details>
+<details class="panel compact-fold"><summary>多标签示例</summary><div class="fold-content"><p class="probe-question">买大了想退</p><p id="example-result"></p><p class="muted">以下为已保存的真实 HTTP 推理结果，17 类各过自己的阈值。业务标签命中时不附加“其他”；全部未过线时进入待复核，不用最高分凑标签。</p><div id="probabilities" class="probability-list"></div></div></details>
 </section>
 <section id="data" role="tabpanel" aria-labelledby="tab-data" hidden>
 <section class="panel"><h2>语料血缘</h2><p class="muted">原池只提供少量种子，之后由多轮合成、预标及审核补足。下列数量对应当前冻结版本，不代表真实客户数量。</p><div id="lineage" class="lineage-grid"></div><div id="origins" class="explanation"></div></section>
-<section class="panel"><div class="toolbar split"><h2>全参数训练</h2><span class="badge">HFL RoBERTa-wwm-ext</span></div><div id="training-kpis" class="kpis"></div><p id="training-note" class="muted"></p><div id="epoch-chart"></div><div class="scroll"><table><thead><tr><th scope="col">轮次 epoch</th><th scope="col">验证 Macro-F1</th><th scope="col">验证 Micro-F1</th><th scope="col">选模</th></tr></thead><tbody id="epochs"></tbody></table></div></section>
-<section class="panel"><h2>导出与部署</h2><div id="deployment" class="explanation"></div><p class="muted">本项目使用已批准的 Transformers CPU 服务，端口 8103。未采用 ONNX，不展示不存在的导出产物或一致性分数。</p></section>
-<section class="panel"><div class="toolbar split"><h2>冻结产物清单</h2><a class="button" href="/static/topic-acceptance-data.json" download="ch10-acceptance-summary.json">下载汇总 JSON</a></div><p class="muted">显示私有证据目录内的相对位置、大小、时间与 SHA-256。此下载只含汇总，不含训练语料、客户原话或模型权重。</p><div class="scroll"><table><thead><tr><th scope="col">产物</th><th scope="col">大小</th><th scope="col">最后修改（上海）</th><th scope="col">SHA-256</th></tr></thead><tbody id="artifacts"></tbody></table></div></section>
+<section class="panel"><div class="toolbar split"><h2>全参数训练</h2><span class="badge">HFL RoBERTa-wwm-ext</span></div><div id="training-kpis" class="kpis"></div><p id="training-note" class="muted"></p><div id="epoch-chart"></div><details class="compact-fold"><summary>逐轮分数</summary><div class="fold-content"><div class="scroll"><table><thead><tr><th scope="col">轮次 epoch</th><th scope="col">验证 Macro-F1</th><th scope="col">验证 Micro-F1</th><th scope="col">选模</th></tr></thead><tbody id="epochs"></tbody></table></div></div></details></section>
+<details class="panel compact-fold"><summary>部署信息</summary><div class="fold-content"><div id="deployment" class="explanation"></div><p class="muted">本项目使用已批准的 Transformers CPU 服务，端口 8103。未采用 ONNX，不展示不存在的导出产物或一致性分数。</p></div></details>
+<details class="panel compact-fold"><summary>产物清单</summary><div class="fold-content"><div class="toolbar split"><a class="button" href="/static/topic-acceptance-data.json" download="ch10-acceptance-summary.json">下载汇总 JSON</a></div><p class="muted">显示私有证据目录内的相对位置、大小、时间与 SHA-256。此下载只含汇总，不含训练语料、客户原话或模型权重。</p><div class="scroll"><table><thead><tr><th scope="col">产物</th><th scope="col">大小</th><th scope="col">最后修改（上海）</th><th scope="col">SHA-256</th></tr></thead><tbody id="artifacts"></tbody></table></div></div></details>
 </section>
 <section id="errors" role="tabpanel" aria-labelledby="tab-errors" hidden>
-<section class="panel"><h2>逐条复核已有结果</h2><p class="muted">原预标、固定模型预测和 AI 改标理由都保留。本轮修订只追加评测，不回流训练、不改变阈值。原训练用 64 条人工审核不需要重做。</p><div id="review-counts" class="two-columns"></div><div class="toolbar"><a class="button approve" href="/topics/error-review" target="_blank" rel="noopener">打开 34 条错例代审结果 ↗</a><a class="button" href="/topics/test-review" target="_blank" rel="noopener">打开 68 条测试代审结果 ↗</a></div><p class="explanation">这两包已按用户授权完成 AI 逐条代审，尚未经过独立人工复核。这里不替你勾选人工声明，也不要求重新提交。</p></section>
+<section class="panel"><h2>逐条复核已有结果</h2><p class="muted">查看原预标、模型预测与逐条修订。</p><div id="review-counts" class="two-columns"></div><div class="toolbar"><a class="button approve" href="/topics/error-review" target="_blank" rel="noopener">打开 34 条错例代审结果 ↗</a><a class="button" href="/topics/test-review" target="_blank" rel="noopener">打开 68 条测试代审结果 ↗</a></div><p class="muted">AI 代审结果，非独立人工复核。</p></section>
 <section class="panel"><h2>完整银标：错误集中在哪些类？</h2><p class="muted">这里按全部 187 条银标计算；多标与漏标的次数可以大于答错的问题数。点击逐条结果时，预标错误仍可能经代审修正。</p><div id="error-bars"></div></section>
-<section class="panel"><h2>已知缺口与下一轮材料</h2><ul class="steps"><li>训练原句三诉求仅 4 条，验证集为 0；新测试三诉求 41 条仅 2 条完全匹配。</li><li>单诉求也存在误判，补三诉求不能保证解决全部问题。</li><li>保留 1 对历史训练 / 验证近重复的披露，代码修复不追认旧验证已独立。</li><li>新训练应先修数据覆盖、边界与分组，再按原预算另行决定；本页不会启动第 6 次训练。</li></ul></section>
+<details class="panel compact-fold"><summary>改进记录</summary><div class="fold-content"><ul class="steps"><li>训练原句三诉求仅 4 条，验证集为 0；新测试三诉求 41 条仅 2 条完全匹配。</li><li>单诉求也存在误判，补三诉求不能保证解决全部问题。</li><li>保留 1 对历史训练 / 验证近重复的披露，代码修复不追认旧验证已独立。</li><li>新训练应先修数据覆盖、边界与分组，再按原预算另行决定；本页不会启动第 6 次训练。</li></ul></div></details>
 </section>
-<footer class="report-footer"><span>旁路分类 · 不进入实时聊天主链路</span><span id="budget"></span></footer>
+<details class="compact-meta"><summary>运行记录</summary><div class="fold-content"><footer class="report-footer"><span>旁路分类 · 不进入实时聊天主链路</span><span id="budget"></span></footer></div></details>
 </div></main></body></html>

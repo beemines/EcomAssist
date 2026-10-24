@@ -4,9 +4,8 @@
 <title>MewHelp · 样本人工审核</title><style>$css</style></head>
 <body>
 <main>
-  <header><span class="eyebrow">MEWHELP / 第十步</span><h1 id="reviewTitle">样本人工审核</h1>
-    <p>逐条核对问题和标签。有错的改标签，不采用的排除，看完后一次提交。</p>
-    <div class="steps"><span>① 核对每条样本</span><span>② 修改或排除</span><span>③ 确认并保存</span></div>
+  <header><h1 id="reviewTitle">样本人工审核</h1>
+    <p>核对问题与标签，完成后保存。</p>
   </header>
   <section class="overview" aria-label="审核进度">
     <div><strong id="total">—</strong><span>本批样本</span></div>
@@ -15,12 +14,12 @@
     <div><strong id="excluded">—</strong><span>已排除</span></div>
     <progress id="progress" max="100" value="0" aria-label="已完成审核比例"></progress>
   </section>
-  <section class="guidance">
+  <details class="guidance"><summary>标注规则与批次信息</summary>
     <p><b>只标句子明确说出的诉求。</b>修归「保修维修」、退归「退换货」；运费管钱，物流管货；「其他」不能和业务标签同时选。</p>
     <p class="muted" id="purposeHint">合成题由模型生成；问题池句子的真实性尚未核实。本批所有问题家族只用于训练侧。</p>
     <details><summary>展开 17 类边界说明</summary><dl id="taxonomy"></dl></details>
     <details><summary>查看本批标识</summary><code id="packHash"></code></details>
-  </section>
+  </details>
   <p id="status" role="status" aria-live="polite"></p>
   <p id="fileNotice" class="notice" hidden>当前是本地文件预览，可导出审核结果。要直接保存，请打开
     <a id="hostedReviewLink" href="http://127.0.0.1:8007/topics/pilot-review">本机审核页 ↗</a>，在那一页完成审核。</p>
@@ -36,7 +35,6 @@
       <button id="submit" disabled>确认提交并保存</button><button id="export" class="text-button" disabled>导出备份</button></div>
     <p id="submitHint" class="muted">可以逐条点「通过」；也可以看完全部样本，勾选上方确认后，将未修改的其余样本一次通过。</p>
   </section>
-  <footer>审核结果只保存在本机，不调用大模型，不自动开始训练。</footer>
 </main>
 <dialog id="editor" aria-labelledby="editTitle"><form id="editForm">
   <h2 id="editTitle">修改标签</h2><p id="editText"></p>

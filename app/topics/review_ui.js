@@ -72,8 +72,10 @@
     $('reviewer').disabled = submitted || saving;
     $('attested').disabled = submitted || saving;
     if (submitted) {
+      document.body.classList.add('review-complete');
+      document.body.dataset.reviewSource = aiDelegated ? 'ai' : 'human';
       $('submit').textContent = aiDelegated ? 'AI 代审已保存' : '已提交保存';
-      $('submitHint').textContent = aiDelegated ? '这份结果为用户授权的 AI 代审，不是人工审核回执。可在每条问题下查看改标和理由。' : '本批审核已完成。结果已写入本机，刷新仍可查看；不会自动开始训练。';
+      $('submitHint').textContent = aiDelegated ? 'AI 代审结果已保存。' : '审核已保存，可导出备份。';
       $('draftHint').textContent = '已保存到本机';
     } else if (c.pending) $('submitHint').textContent = `还有 ${c.pending} 条待核对。逐条点通过，或看完全部后勾选确认，再点「已核对的其余样本通过」。`;
     else $('submitHint').textContent = '全部已处理。填写一次昵称，勾选逐条核对确认，再提交保存。';
@@ -106,10 +108,12 @@
       (decision==='correct'?choice.final_labels:s.labels).forEach(t=>labels.append(node('span',t,'chip')));
       card.append(labels);
       if (s.mismatch) card.append(node('p','造数场景与独立预标不同，请重点复核。','warning'));
-      if (s.note) card.append(node('p',s.note,'notes'));
-      if (choice?.notes) card.append(node('p','审核备注：'+choice.notes,'notes'));
       const bottom=node('div',undefined,'sample-bottom');
-      const details=node('details'); details.append(node('summary','样本 ID'),node('code',s.id));
+      const details=node('details');
+      details.append(node('summary',s.note || choice?.notes ? '预测与备注' : '样本 ID'));
+      if (s.note) details.append(node('p',s.note,'notes'));
+      if (choice?.notes) details.append(node('p','审核备注：'+choice.notes,'notes'));
+      details.append(node('code',s.id));
       const actions=node('div',undefined,'sample-actions');
       actions.append(button('通过','secondary',()=>decide(s,'accept',[...s.labels])),
         button('修改标签','secondary',()=>openEditor(s)),
@@ -186,6 +190,6 @@
   $('packHash').textContent=data.pack_hash;
   $('fileNotice').hidden=data.hosted;
   if (!data.hosted) $('submit').textContent='确认并导出结果';
-  if (submitted) $('status').textContent=`${aiDelegated?'用户授权的 AI 代审已保存（非人工）':'审核已保存'}：保留 ${data.submitted.samples.length} 条，排除 ${data.submitted.excluded_ids.length} 条。回执：${data.submitted.receipt_hash}`;
+  if (submitted) $('status').textContent=`${aiDelegated?'AI 代审已保存（非人工）':'审核已保存'} · 保留 ${data.submitted.samples.length} 条 · 排除 ${data.submitted.excluded_ids.length} 条`;
   render();
 })();

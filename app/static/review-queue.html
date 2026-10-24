@@ -2,33 +2,33 @@
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MewHelp · 飞轮待审</title>
 <link rel="stylesheet" href="/static/review-queue.css?v=20261021-topics">
-<script src="/static/review-queue.js?v=20261021-topics" defer></script></head>
-<body><main>
-<header class="page-head"><div><h1 id="page-title">飞轮待审队列</h1><p id="page-description">答不上的问题 · 标准化查重 → 人工审核 → 写回知识库</p></div><a class="button" href="/">聊天页 →</a></header>
-<nav class="admin-nav" aria-label="后台管理"><strong>后台管理</strong><a href="/admin">后台首页</a><a href="/rag-eval">RAG 评估</a><a href="/review" id="review-link">飞轮待审</a><a href="/topics">主题分布</a><a href="/observability" id="observability-link">观测与成本</a><a href="/topics/acceptance">分类器验收</a><a href="http://127.0.0.1:3000" target="_blank" rel="noopener">Langfuse ↗</a></nav>
-<p id="demo-notice" class="explanation" hidden>本演示不恢复后台任务，审核页仅供查看。完整飞轮和收费评估请使用 <a href="http://127.0.0.1:8006/review">第九步后台 ↗</a>。</p>
+<script src="/static/review-queue.js?v=20261024-compact" defer></script><link rel="stylesheet" href="/static/workspace.css?v=20261024-compact"><script src="/static/workspace.js?v=20261024-compact" defer></script></head>
+<body class="ui-admin ui-review"><main>
+<header class="page-head"><div><h1 id="page-title">飞轮待审队列</h1><p id="page-description">审核问题，补充知识库</p></div><a class="button" href="/">聊天页 →</a></header>
+<nav class="admin-nav" aria-label="后台管理"><a href="/admin">后台首页</a><a href="/review" id="review-link">飞轮待审</a><a href="/topics">主题分布</a><a href="/observability" id="observability-link">观测成本</a><a href="/rag-eval">RAG 评估</a><a href="/topics/acceptance">模型验收</a></nav>
+<p id="demo-notice" class="explanation" hidden>只读预览 · <a href="http://127.0.0.1:8006/review">打开完整后台 ↗</a></p>
 <p id="notice" class="notice" role="status" aria-live="polite"></p>
 <section id="queue" aria-labelledby="queue-heading">
 <div class="toolbar split"><h2 id="queue-heading">待审缺口 <span id="queue-count" class="muted"></span></h2><div class="toolbar filters"><button data-status="待审" aria-pressed="true">待审</button><button data-status="通过" aria-pressed="false">通过</button><button data-status="驳回" aria-pressed="false">驳回</button><button data-status="全部" aria-pressed="false">全部</button><button id="refresh-queue">刷新</button></div></div>
-<p class="guidance">审核前先过三道闸：<b>① 垃圾过滤</b> 乱输入、测试胡打、不当言论 → 驳回；<b>② 时效</b> 已结束活动等过期内容 → 驳回；<b>③ 频次</b> 按出现次数优先补高频缺口。核对原话和召回证据后，修改并核准答案；已驳回问题再次命中只累加次数。</p>
+<details class="compact-fold"><summary>审核说明</summary><div class="fold-content"><p class="guidance">审核前先过三道闸：<b>① 垃圾过滤</b> 乱输入、测试胡打、不当言论 → 驳回；<b>② 时效</b> 已结束活动等过期内容 → 驳回；<b>③ 频次</b> 按出现次数优先补高频缺口。核对原话和召回证据后，修改并核准答案；已驳回问题再次命中只累加次数。</p></div></details>
 <div id="queue-list"></div><div class="toolbar"><button id="queue-prev">上一页</button><span id="queue-page" class="muted"></span><button id="queue-next">下一页</button></div>
 </section>
-<div id="observability-panels" hidden>
-<section id="usage" class="panel" aria-labelledby="usage-heading"><div class="toolbar split"><h2 id="usage-heading">意图成本账 <span class="source">本地 Langfuse</span></h2><button id="refresh-usage">重算意图成本账</button></div>
-<p class="muted">按最终意图归属整次请求的模型消耗，包括指代消解和意图识别。只累加模型 generation，避免父节点重复记账。</p>
+<div id="observability-panels" hidden><div class="workspace-tabs" role="tablist" aria-label="观测内容" data-workspace-tabs><button type="button" role="tab" data-panel="usage" aria-controls="usage">费用</button><button type="button" role="tab" data-panel="eval" aria-controls="eval">评估趋势</button><button type="button" role="tab" data-panel="calibration" aria-controls="calibration">置信度</button></div>
+<section id="usage" class="panel workspace-panel" aria-labelledby="usage-heading"><div class="toolbar split"><h2 id="usage-heading">意图成本账 <span class="source">本地 Langfuse</span></h2><button id="refresh-usage">刷新统计</button></div>
+<details class="compact-meta"><summary>统计口径</summary><div class="fold-content"><p class="muted">按最终意图归属整次请求的模型消耗，包括指代消解和意图识别。只累加模型 generation，避免父节点重复记账。</p></div></details>
 <div class="toolbar"><label>数据来源<select id="usage-source"><option value="actual">新标准真实请求</option><option value="all">全部（含历史未标注）</option></select></label><label>从（上海时间）<input type="datetime-local" id="usage-from"></label><label>至<input type="datetime-local" id="usage-to"></label><button id="query-usage">查询</button></div>
-<p id="usage-state" class="muted" role="status"></p><div id="usage-kpis" class="kpis"></div><div id="cost-summary" class="explanation"></div><div id="usage-chart"></div>
-<div class="scroll"><table><caption>各用途与意图明细</caption><thead><tr><th>用途 / 意图</th><th>请求 / 模型调用</th><th>实际 Token</th><th>单均 Token</th><th>占比</th><th>估算 Token / 未知调用</th><th>人民币刊例估算</th><th>Langfuse USD</th></tr></thead><tbody id="usage-rows"></tbody></table></div>
-<p id="usage-interpretation" class="explanation"></p></section>
-<section id="eval" class="panel" aria-labelledby="eval-heading"><div class="toolbar split"><h2 id="eval-heading">评估趋势 <span class="source">eval_runs</span></h2><button id="refresh-eval">刷新</button></div>
-<p class="muted">复用 ch04 评估集与完整证据组指标。只比较同配置的完整结果；N/A 表示没有有效样本。失败与排除数量单独显示。</p>
+<p id="usage-state" class="muted" role="status"></p><div id="usage-kpis" class="kpis"></div><details class="compact-meta"><summary>费用说明</summary><div class="fold-content"><div id="cost-summary" class="explanation"></div></div></details><div id="usage-chart"></div>
+<details class="compact-fold"><summary>查看费用明细</summary><div class="fold-content"><div class="scroll"><table><caption>各用途与意图明细</caption><thead><tr><th>用途 / 意图</th><th>请求 / 模型调用</th><th>实际 Token</th><th>单均 Token</th><th>占比</th><th>估算 Token / 未知调用</th><th>人民币刊例估算</th><th>Langfuse USD</th></tr></thead><tbody id="usage-rows"></tbody></table></div></div></details>
+<details class="compact-meta"><summary>统计解读</summary><div class="fold-content"><p id="usage-interpretation" class="explanation"></p></div></details></section>
+<section id="eval" class="panel workspace-panel" aria-labelledby="eval-heading"><div class="toolbar split"><h2 id="eval-heading">评估趋势 </h2><button id="refresh-eval">刷新</button></div>
+<details class="compact-meta"><summary>指标口径</summary><div class="fold-content"><p class="muted">复用 ch04 评估集与完整证据组指标。只比较同配置的完整结果；N/A 表示没有有效样本。失败与排除数量单独显示。</p></div></details>
 <div class="toolbar"><label>评估范围 <select id="eval-scope"><option value="smoke_20">留出 20 题</option><option value="full_300">冻结 300 题</option></select></label><button id="run-eval">运行所选评估（收费）</button><span class="muted">每次显式启动；定时默认关闭。</span></div>
 <div id="eval-progress" class="explanation" hidden role="status"></div><div id="eval-kpis" class="kpis"></div><div id="eval-interpretation" class="explanation"></div><div id="eval-chart"></div>
 <div class="scroll"><table><caption>最近各轮结果（新至旧）</caption><thead><tr><th>轮次 / 状态</th><th>时间 / 触发</th><th>题数 / 错误</th><th>Recall@5</th><th>Recall@10</th><th>MRR@10</th><th>Faithfulness</th><th>库外拒答率</th><th>逐题报告</th></tr></thead><tbody id="eval-list"></tbody></table></div>
 <div class="toolbar"><button id="eval-prev">上一页</button><span id="eval-page" class="muted"></span><button id="eval-next">下一页</button></div></section>
-<section id="calibration" class="panel" aria-labelledby="calibration-heading"><div class="toolbar split"><h2 id="calibration-heading">置信度阈值校准 <span class="source">ch04 冻结检索数据</span></h2><div><button id="refresh-calibration">刷新</button> <button id="recompute-calibration">重算校准报告</button></div></div>
+<section id="calibration" class="panel workspace-panel" aria-labelledby="calibration-heading"><div class="toolbar split"><h2 id="calibration-heading">置信度阈值校准 </h2><div><button id="refresh-calibration">刷新</button> <button id="recompute-calibration">重算校准报告</button></div></div>
 <p class="muted">重算使用已保存的真实检索结果，不重新调用模型、嵌入或重排。校准集选规则，留出集只验证，分开显示。</p><p id="calibration-state" class="explanation" role="status"></p><div id="calibration-kpis" class="kpis"></div>
-<div id="calibration-distributions" class="scroll"></div><h3>阈值扫描 <small class="muted">校准集通过率与误放率</small></h3><div id="calibration-chart"></div><div id="calibration-explanation" class="explanation"></div><div id="calibration-rule" class="two-columns"></div>
+<details class="compact-fold"><summary>置信度分布</summary><div class="fold-content"><div id="calibration-distributions" class="scroll"></div></div></details><h3>阈值扫描 <small class="muted">校准集通过率与误放率</small></h3><div id="calibration-chart"></div><details class="compact-fold"><summary>校准方法与来源</summary><div class="fold-content"><div id="calibration-explanation" class="explanation"></div><div id="calibration-rule" class="two-columns"></div></div></details>
 </section></div>
 </main>
 <dialog id="review-dialog"><div class="dialog-head"><h2 id="review-dialog-title">通过并写回知识库</h2><button id="close-review" aria-label="关闭">×</button></div>

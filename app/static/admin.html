@@ -1,15 +1,15 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MewHelp · 后台首页</title><link rel="stylesheet" href="/static/review-queue.css?v=20261024"><link rel="stylesheet" href="/static/topic-acceptance.css?v=20261024b"><script src="/static/topic-acceptance.js?v=20261024b" defer></script></head>
-<body data-view="admin"><main>
-<header class="page-head"><div><p class="eyebrow">MEWHELP / 工作台</p><h1>让每一次反馈都能被看见</h1><p>审核知识、观察回答、整理主题，在同一个入口继续工作。</p></div><a class="button" href="/">返回聊天 →</a></header>
-<nav class="admin-nav" aria-label="后台管理"><strong>后台管理</strong><a class="active" aria-current="page" href="/admin">后台首页</a><a href="/review">飞轮待审</a><a href="/topics">主题分布</a><a href="/observability">观测与成本</a><a href="/topics/acceptance">分类器验收</a></nav>
-<p class="explanation">这里提供工作入口，只查询本地主题统计。其他模块是否就绪请进入对应页面核对；不会因打开首页启动训练、付费评估或后台批次。</p>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MewHelp · 后台首页</title><link rel="stylesheet" href="/static/review-queue.css?v=20261024"><link rel="stylesheet" href="/static/topic-acceptance.css?v=20261024b"><script src="/static/topic-acceptance.js?v=20261024-compact" defer></script><link rel="stylesheet" href="/static/workspace.css?v=20261024-compact"><script src="/static/workspace.js?v=20261024-compact" defer></script></head>
+<body data-view="admin" class="ui-admin ui-home"><main>
+<header class="page-head"><div><h1>后台管理</h1></div><a class="button" href="/">返回聊天 →</a></header>
+<nav class="admin-nav" aria-label="后台管理"><a href="/admin" class="active" aria-current="page">后台首页</a><a href="/review">飞轮待审</a><a href="/topics">主题分布</a><a href="/observability">观测成本</a><a href="/rag-eval">RAG 评估</a><a href="/topics/acceptance">模型验收</a></nav>
+
 <div class="portal-grid">
-<article class="portal-card"><span class="portal-label">01 / 知识改进</span><h2>飞轮待审</h2><p>查看标准化问题、用户原话与召回证据，审核后补进知识库。</p><div class="portal-state muted">状态在待审页读取</div><a class="button" href="/review">进入飞轮待审 →</a></article>
-<article class="portal-card"><span class="portal-label">02 / 检索质量</span><h2>RAG 评估</h2><p>查看已保存的检索与生成评估，逐题核对证据和回答。</p><div class="portal-state muted">打开页面不会自动发起评估</div><a class="button" href="/rag-eval">进入 RAG 评估 →</a></article>
-<article class="portal-card"><span class="portal-label">03 / 链路与花销</span><h2>观测与成本</h2><p>查看意图 Token 消耗、评估趋势和置信度校准依据。</p><div class="portal-state muted">成本与状态在观测页读取</div><a class="button" href="/observability">进入观测与成本 →</a></article>
-<article class="portal-card"><span class="portal-label">04 / 补知识的方向</span><h2>主题分布</h2><p>看看低置信度问题集中在哪些主题，点击类目追溯原话与飞轮缺口。</p><div id="portal-topics" class="portal-state" role="status">正在读取当前统计…</div><a class="button" href="/topics">进入主题分布 →</a></article>
-<article class="portal-card"><span class="portal-label">05 / 模型验收</span><h2>分类器验收</h2><p>集中查看语料血缘、全参训练、17 类指标、阈值、混淆矩阵和错例复核。</p><div class="portal-state">功能证据已保存</div><a class="button approve" href="/topics/acceptance">进入分类器验收 →</a></article>
-<article class="portal-card"><span class="portal-label">06 / 原始链路</span><h2>Langfuse</h2><p>展开一条请求的节点、提示词、检索与模型消耗，定位具体环节。</p><div class="portal-state muted">本机独立观测平台 · 未在首页探测在线状态</div><a class="button" href="http://127.0.0.1:3000" target="_blank" rel="noopener">打开 Langfuse ↗</a></article>
-</div><p class="muted">第十步演示实例的收费后台任务保持关闭。需要完整飞轮操作时使用已有的 <a href="http://127.0.0.1:8006/review">第九步后台 ↗</a>。</p>
+<article class="portal-card"><h2>飞轮待审</h2><p>审核问题与答案，补充知识库。</p><a class="button" href="/review">打开 →</a></article>
+<article class="portal-card"><h2>RAG 评估</h2><p>比较检索策略，查看回答质量。</p><a class="button" href="/rag-eval">打开 →</a></article>
+<article class="portal-card"><h2>观测与成本</h2><p>查看 Token 花销和评估趋势。</p><a class="button" href="/observability">打开 →</a></article>
+<article class="portal-card"><h2>主题分布</h2><p>按主题查看积累的问题。</p><div id="portal-topics" class="portal-state" role="status">正在读取当前统计…</div><a class="button" href="/topics">打开 →</a></article>
+<article class="portal-card"><h2>分类器验收</h2><p>查看分类指标、数据与复核结果。</p><a class="button approve" href="/topics/acceptance">打开 →</a></article>
+<article class="portal-card"><h2>Langfuse</h2><p>查看请求链路和模型调用。</p><a class="button" href="http://127.0.0.1:3000" target="_blank" rel="noopener">打开 ↗</a></article>
+</div><details class="compact-meta"><summary>环境说明</summary><div class="fold-content"><p class="muted">第十步演示实例的收费后台任务保持关闭。需要完整飞轮操作时使用已有的 <a href="http://127.0.0.1:8006/review">第九步后台 ↗</a>。</p></div></details>
 </main></body></html>

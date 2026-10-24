@@ -183,10 +183,10 @@ async function refreshLive() {
   const version=++refreshVersion;$("refresh").disabled=true;
   try {
     const s=await get("/api/topics/summary");if(version!==refreshVersion)return;
-    if(s.status!=="ready")$("live-state").textContent="当前应用未配置模型。下方是已保存的历史证据，不据此认定当前服务就绪。";
-    else if(s.identity.model_version!==evidence.model_version)$("live-state").textContent="当前应用模型与本页报告版本不一致。下方仅是历史证据，不能用于当前模型验收，请核对模型版本。";
-    else $("live-state").textContent="当前应用模型配置与报告一致 · 池流水 "+s.pool_total+" · 有效分类 "+s.effective+" · 未有效归类 "+s.unclassified+" · 命中 "+s.topics.filter(t=>t.count>0).length+"/17 类。推理服务实时在线状态需另查 8103 health；本页没有发起推理。";
-  } catch(error) { if(version===refreshVersion)$("live-state").textContent="实时统计暂不可用，当前服务状态未知。下方保留带时间的历史证据，不显示虚构的零条或在线状态。"; }
+    if(s.status!=="ready")$("live-state").textContent="模型未配置，当前展示已保存报告。";
+    else if(s.identity.model_version!==evidence.model_version)$("live-state").textContent="当前模型与报告版本不同，以下为历史结果。";
+    else $("live-state").textContent="已归类 "+s.effective+" / "+s.pool_total+" 条 · 覆盖 "+s.topics.filter(t=>t.count>0).length+" / 17 类";
+  } catch(error) { if(version===refreshVersion)$("live-state").textContent="实时统计暂不可用，仍可查看已保存报告。"; }
   finally { if(version===refreshVersion)$("refresh").disabled=false; }
 }
 async function acceptance() {
