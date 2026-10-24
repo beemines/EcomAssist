@@ -1,5 +1,13 @@
 # MewHelp · EcomAssist
 
+[![Python](https://img.shields.io/badge/Python-3.11%E2%80%933.13-3776AB?logo=python&logoColor=white)](pyproject.toml)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](app/main.py)
+[![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?logo=langchain&logoColor=white)](pyproject.toml)
+[![LangGraph](https://img.shields.io/badge/LangGraph-1C3C3C?logo=langgraph&logoColor=white)](app/workflow/)
+[![RAG](https://img.shields.io/badge/RAG-2B685C)](app/retrieval/)
+[![Milvus](https://img.shields.io/badge/Milvus-00A1EA)](compose.milvus.yaml)
+[![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)](ml/topic_classifier/)
+[![Docker Compose](https://img.shields.io/badge/Docker_Compose-2496ED?logo=docker&logoColor=white)](compose.yaml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **从流式对话、RAG 和工具调用，到可观测的数据飞轮与多标签模型训练。**
@@ -105,15 +113,23 @@ flowchart LR
 
 ## 技术栈
 
-| 层次 | 选型 |
+标签对应仓库实际依赖与部署配置，点击可查看实现或锁定版本。
+
+| 层次 | 技术标签 |
 | --- | --- |
-| Web / 数据校验 | FastAPI、Pydantic、HTTPX、Uvicorn |
-| 对话编排 | LangChain、LangGraph、SQLite checkpoint |
-| 存储与检索 | SQLAlchemy、MySQL 8.4、Milvus 3.0.2 |
-| 检索模型 | BGE-M3、Milvus 原生中文 BM25、bge-reranker-v2-m3 |
-| 工具与追踪 | MCP、Langfuse 自部署 |
-| 分类训练 | HFL chinese-roberta-wwm-ext、PyTorch、Transformers、scikit-learn |
-| 前端 | 原生 HTML / CSS / JavaScript，浅绿界面，无独立前端构建步骤 |
+| 后端与接口 | [![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)](pyproject.toml) [![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](app/main.py) [![Uvicorn](https://img.shields.io/badge/Uvicorn-4051B5)](pyproject.toml) [![Pydantic](https://img.shields.io/badge/Pydantic-E92063?logo=pydantic&logoColor=white)](pyproject.toml) [![HTTPX](https://img.shields.io/badge/HTTPX-336791)](pyproject.toml) [![JSON Schema](https://img.shields.io/badge/JSON_Schema-4B6C8C)](pyproject.toml) |
+| 对话编排与工具 | [![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?logo=langchain&logoColor=white)](pyproject.toml) [![LangGraph](https://img.shields.io/badge/LangGraph-1C3C3C?logo=langgraph&logoColor=white)](app/workflow/) [![MCP](https://img.shields.io/badge/MCP-343434)](business_mcp/) [![OpenAI compatible API](https://img.shields.io/badge/OpenAI_compatible_API-526A79)](pyproject.toml) |
+| 业务存储与检查点 | [![MySQL](https://img.shields.io/badge/MySQL-8.4-4479A1?logo=mysql&logoColor=white)](compose.yaml) [![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-D71F00?logo=sqlalchemy&logoColor=white)](pyproject.toml) [![aiomysql](https://img.shields.io/badge/aiomysql-4479A1)](pyproject.toml) [![PyMySQL](https://img.shields.io/badge/PyMySQL-4479A1)](pyproject.toml) [![SQLite checkpoint](https://img.shields.io/badge/SQLite-checkpoint-003B57?logo=sqlite&logoColor=white)](pyproject.toml) |
+| 知识检索与重排 | [![Milvus](https://img.shields.io/badge/Milvus-3.0.2-00A1EA)](compose.milvus.yaml) [![BGE M3](https://img.shields.io/badge/BGE--M3-4B6C8C)](app/config.py) [![BM25](https://img.shields.io/badge/BM25-Milvus_native-4B6C8C)](app/retrieval/) [![RRF](https://img.shields.io/badge/RRF-4B6C8C)](app/retrieval/) [![BGE reranker v2 m3](https://img.shields.io/badge/bge--reranker--v2--m3-4B6C8C)](app/config.py) |
+| 可观测性 | [![Langfuse](https://img.shields.io/badge/Langfuse-self_hosted-1C3C3C?logo=langfuse&logoColor=white)](compose.langfuse.yaml) |
+| 合成数据与预标 | [![GLM teacher](https://img.shields.io/badge/GLM--5.3--flash-teacher-6B64D8)](app/topics/teacher.py) |
+| 训练与推理 | [![HFL RoBERTa wwm ext](https://img.shields.io/badge/HFL-RoBERTa--wwm--ext-FFB000)](ml/topic_classifier/doctor.py) [![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)](ml/topic_classifier/pyproject.toml) [![CUDA](https://img.shields.io/badge/CUDA-13.0-76B900?logo=nvidia&logoColor=white)](ml/topic_classifier/pyproject.toml) [![Transformers](https://img.shields.io/badge/Transformers-FFD21E?logo=huggingface&logoColor=black)](ml/topic_classifier/pyproject.toml) [![Accelerate](https://img.shields.io/badge/Accelerate-FFD21E?logo=huggingface&logoColor=black)](ml/topic_classifier/pyproject.toml) |
+| 数据处理与评测 | [![NumPy](https://img.shields.io/badge/NumPy-013243?logo=numpy&logoColor=white)](ml/topic_classifier/pyproject.toml) [![scikit learn](https://img.shields.io/badge/scikit--learn-F7931E?logo=scikitlearn&logoColor=white)](ml/topic_classifier/pyproject.toml) [![iterative stratification](https://img.shields.io/badge/iterative--stratification-5B8C5A)](ml/topic_classifier/pyproject.toml) [![Safetensors](https://img.shields.io/badge/Safetensors-FFD21E?logo=huggingface&logoColor=black)](ml/topic_classifier/pyproject.toml) [![Hugging Face Hub](https://img.shields.io/badge/Hugging_Face_Hub-FFD21E?logo=huggingface&logoColor=black)](ml/topic_classifier/pyproject.toml) |
+| 前端与流式交互 | [![HTML5](https://img.shields.io/badge/HTML5-E34F26?logo=html5&logoColor=white)](app/static/) [![CSS](https://img.shields.io/badge/CSS-663399?logo=css&logoColor=white)](app/static/) [![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black)](app/static/) [![SSE](https://img.shields.io/badge/SSE-2B685C)](app/static/) |
+| 部署与测试 | [![Docker Compose](https://img.shields.io/badge/Docker_Compose-2496ED?logo=docker&logoColor=white)](compose.yaml) [![uv](https://img.shields.io/badge/uv-DE5FE9?logo=uv&logoColor=white)](uv.lock) [![pytest](https://img.shields.io/badge/pytest-0A9EDC?logo=pytest&logoColor=white)](pyproject.toml) [![pytest asyncio](https://img.shields.io/badge/pytest--asyncio-0A9EDC)](pyproject.toml) |
+| 组件配套存储 | [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)](compose.langfuse.yaml) [![ClickHouse](https://img.shields.io/badge/ClickHouse-25.12-FFCC01?logo=clickhouse&logoColor=black)](compose.langfuse.yaml) [![Redis](https://img.shields.io/badge/Redis-7-FF4438?logo=redis&logoColor=white)](compose.langfuse.yaml) [![MinIO](https://img.shields.io/badge/MinIO-C72E49?logo=minio&logoColor=white)](compose.milvus.yaml) [![etcd](https://img.shields.io/badge/etcd-3.5.25-419EDA?logo=etcd&logoColor=white)](compose.milvus.yaml) |
+
+PostgreSQL、ClickHouse、Redis 是自部署 Langfuse 的配套存储；Milvus 使用 etcd 和 MinIO，Langfuse 也使用独立 MinIO。业务库为 MySQL，检查点使用 SQLite。训练采用 HFL RoBERTa 全参数微调，推理为独立 CPU 服务；前端使用原生 HTML / CSS / JavaScript 与 SSE。
 
 业务依赖由根目录 [`uv.lock`](uv.lock) 锁定；ML 环境使用独立的 [Python 3.12.13 配置与锁文件](ml/topic_classifier/pyproject.toml)，不把 Torch 装入业务虚拟环境。本项目当前导出为 **Transformers CPU 服务**，没有 ONNX 产物。
 
