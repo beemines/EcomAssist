@@ -1,10 +1,12 @@
 # 全页面演示
 
-[![点击打开 2 分 11 秒完整视频](assets/pages-walkthrough-preview.gif)](assets/pages-walkthrough.mp4)
+[![2 分 11 秒完整动态导览：点击下载MP4](assets/pages-walkthrough-preview.gif)](https://github.com/beemines/EcomAssist/raw/refs/heads/master/docs/assets/pages-walkthrough.mp4)
 
-[打开或下载 MP4](assets/pages-walkthrough.mp4) · [静态封面](assets/pages-walkthrough-poster.jpg) · [返回项目](../README.md)
+[下载 MP4](https://github.com/beemines/EcomAssist/raw/refs/heads/master/docs/assets/pages-walkthrough.mp4) · [仓库内视频](assets/pages-walkthrough.mp4) · [静态封面](assets/pages-walkthrough-poster.jpg) · [返回项目](../README.md)
 
 这是 **2026-10-24** 当前版本实际页面画面剪辑的无声导览，包含中文说明字幕。视频为 H.264 / MP4、1600 × 900、24 fps，长 **2 分 11 秒**，内含章节；不支持网页预览的 Markdown 阅读器可下载后播放。
+
+GitHub的仓库MP4文件页不内嵌播放器，因此README使用包含全部31个镜头、同样时长的动态GIF展示，MP4提供下载。离线打开仓库内MP4可使用播放器暂停、拖动和按章节查看。
 
 ## 章节
 
