@@ -28,3 +28,9 @@
 初版私有child.py缺少Windows多进程入口保护，导致第六批预算并发测试spawn子进程重复运行pytest、争用临时目录和XML。原失败日志及被覆盖的XML保留，不把它们当作一次有效完整计数；添加__main__保护后同一650项全部通过649/跳过1，剩余13项全部通过。未修改应用或测试源码，没有用删题/改skip让回归变绿。
 
 本次另核对业务/ML/检索校准CLI的--help与uv锁定命令。新文档独立审查0 Critical、1 Important、0 Minor：首次部署缺具体校准闭环。作者查证configured读取与八题金标后补命令、有效性检查、唯一环境配置及费用说明；没有执行付费校准。
+
+## 已完成的本地合并
+
+`master`以明确merge commit `d2ff491e4f44cc52f8ae854af0fb099171a70c83`合入`feat/topic-classifier`的`e39b4110674af9bd5ae17b2b66bfe7773eb42bcf`，没有冲突。合并后的app/evals/tests/ml/config/sql及依赖配置与已完整验证的分支逐文件无差异。
+
+在master工作区另跑页面/聊天/审核/RAG及跨进程预算合同124项，全部通过22.56秒，证据merged.xml。当前可继续执行用户授权的普通push，不使用force；推送结果将在实际远端核对后补记。验收worktree和既有进程保留。
