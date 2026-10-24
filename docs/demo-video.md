@@ -1,6 +1,6 @@
 # 全页面演示
 
-[![2 分 11 秒完整动态导览：点击下载MP4](assets/pages-walkthrough-preview.gif)](https://github.com/beemines/EcomAssist/raw/refs/heads/master/docs/assets/pages-walkthrough.mp4)
+[![2 分 11 秒完整动态导览：点击下载MP4](assets/pages-walkthrough.gif)](https://github.com/beemines/EcomAssist/raw/refs/heads/master/docs/assets/pages-walkthrough.mp4)
 
 [下载 MP4](https://github.com/beemines/EcomAssist/raw/refs/heads/master/docs/assets/pages-walkthrough.mp4) · [仓库内视频](assets/pages-walkthrough.mp4) · [静态封面](assets/pages-walkthrough-poster.jpg) · [返回项目](../README.md)
 
