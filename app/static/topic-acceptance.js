@@ -57,7 +57,7 @@ function gate(index, title, state, description, destination, buttonLabel) {
 }
 function renderOverview(d) {
   const score = d.metrics.silver;
-  $("overview-kpis").replaceChildren(card("银标 Macro-F1", fixed(score.macro_f1), "187 条 · 各类等权，质量待改进"),
+  $("overview-kpis").replaceChildren(card("银标 Macro-F1", fixed(score.macro_f1), "187 条 · 各类等权"),
     card("银标 Micro-F1", fixed(score.micro_f1), "17 类标签一起统计"),
     card("固定诊断", d.probes.filter(p => p.passed).length + " / " + d.probes.length, "已保存的真实推理证据，非总体质量"),
     card("本轮评测复核", "102 条", "用户授权 AI 代审 · 非独立人工"));

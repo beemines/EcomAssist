@@ -1,12 +1,11 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MewHelp · 分类器验收</title><link rel="stylesheet" href="/static/review-queue.css?v=20261024"><link rel="stylesheet" href="/static/topic-acceptance.css?v=20261024"><script src="/static/topic-acceptance.js?v=20261024" defer></script></head>
+<title>MewHelp · 分类器验收</title><link rel="stylesheet" href="/static/review-queue.css?v=20261024"><link rel="stylesheet" href="/static/topic-acceptance.css?v=20261024b"><script src="/static/topic-acceptance.js?v=20261024b" defer></script></head>
 <body><main>
 <header class="page-head"><div><p class="eyebrow">MEWHELP / 模型与数据</p><h1>分类器验收</h1><p>从语料到主题分布，把每一步的证据放在一起。</p></div><button id="refresh" class="approve" type="button">刷新只读状态</button></header>
 <nav class="admin-nav" aria-label="后台管理"><strong>后台管理</strong><a href="/admin">后台首页</a><a href="/review">飞轮待审</a><a href="/topics">主题分布</a><a href="/observability">观测与成本</a><a class="active" aria-current="page" href="/topics/acceptance">分类器验收</a><a href="/">聊天页 →</a></nav>
 <p id="load-error" class="notice error-box" role="alert" hidden></p>
 <div id="report" hidden>
-<section class="quality-note" aria-label="质量结论"><span class="badge caution">质量待改进</span><div><strong>功能链路已跑通，整体泛化仍不足。</strong><p>已知 1 对训练与验证近重复；本轮测试复核为用户授权的 AI 代审，尚未经过独立人工复核。这里保留真实分数。</p></div></section>
 <div class="report-meta"><span id="evidence-time"></span><span id="identity"></span></div>
 <p id="live-state" class="explanation" role="status" aria-live="polite">正在读取当前配置与主题统计…</p>
 <div class="section-tabs" role="tablist" aria-label="验收内容">
