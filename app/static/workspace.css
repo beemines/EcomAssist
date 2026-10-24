@@ -1,0 +1,62 @@
+/* Shared presentation only. Action, data and confirmation contracts stay in their original modules. */
+.ui-admin main{max-width:1160px;margin:24px auto;padding:0 26px 36px}
+.ui-admin .page-head{padding:22px 24px;margin-bottom:14px;border-radius:16px;box-shadow:none;min-height:92px;background:#fcfdfb;border:1px solid #e3ebe1}
+.ui-admin .page-head h1{font-size:24px;line-height:1.4;margin:0;font-weight:620;letter-spacing:-.4px}
+.ui-admin .page-head p{font-size:12px;margin:5px 0 0;color:#7b8d80;line-height:1.7}
+.ui-admin .admin-nav,.ui-admin .workspace-nav{display:flex;align-items:center;gap:4px;padding:5px;background:#edf3ea;border:1px solid #e2eade;border-radius:12px;margin:0 0 20px;overflow:auto;scrollbar-width:thin;scrollbar-color:#d0ddcd transparent}
+.ui-admin .admin-nav a,.ui-admin .workspace-nav a{white-space:nowrap;color:#647e6c;font-size:12px;padding:9px 13px;border-radius:8px;text-decoration:none}
+.ui-admin .admin-nav a:hover,.ui-admin .workspace-nav a:hover{background:#e4eddf}
+.ui-admin .admin-nav a.active,.ui-admin .workspace-nav a.active{background:#fff;color:#286659;font-weight:600;box-shadow:0 1px 5px #25432e08}
+.ui-admin .panel{padding:20px 22px;margin:18px 0;box-shadow:none;border-radius:14px}
+.ui-admin h2{font-size:17px}.ui-admin .kpis{margin:18px 0;gap:12px}.ui-admin .kpi{min-height:94px;padding:15px 17px}
+.ui-admin .kpi strong{font-size:25px}.ui-admin .kpi small{font-size:11px;line-height:1.6}
+.ui-admin .toolbar{gap:10px}.ui-admin .notice{font-size:12px;padding:11px 14px}.ui-admin .explanation{line-height:1.8;font-size:12px}
+.compact-fold{border:1px solid #e2eade;border-radius:11px;padding:13px 16px;background:#fff;margin:14px 0}
+.compact-fold>summary,.ui-admin details.panel>summary{cursor:pointer;color:#5b7866;font-size:13px;font-weight:500;line-height:1.7}
+.compact-fold[open]>summary,.ui-admin details.panel[open]>summary{margin-bottom:16px}
+.fold-content>.panel:first-child{margin-top:0}.fold-content>.panel:last-child{margin-bottom:0}
+.compact-meta{margin:12px 0;color:#839382;font-size:11px}.compact-meta>summary{cursor:pointer}.compact-meta[open]>summary{margin-bottom:10px}
+.compact-meta .explanation{margin:10px 0}.ui-admin .report-meta{font-size:11px}.ui-admin .report-footer{font-size:10px;margin-top:20px;padding-top:14px}
+.workspace-tabs{display:flex;gap:5px;border-bottom:1px solid #e1e9dd;margin:18px 0;padding:4px 0 7px;overflow:auto;position:sticky;top:0;z-index:5;background:#f6f8f5}
+.workspace-tabs button{flex-shrink:0;border:0;border-radius:8px;padding:9px 16px;background:transparent;color:#7a8c7b;font:inherit;font-size:13px;cursor:pointer;min-height:36px}
+.workspace-tabs button[aria-selected=true]{background:#e3eee3;color:#286659;font-weight:600}.workspace-tabs button:focus-visible{outline:2px solid #77a58b;outline-offset:2px}
+.workspace-panel[hidden]{display:none!important}.ui-admin .section-tabs{margin:18px 0;padding:4px}.ui-admin .section-tabs button{padding:9px 16px;min-height:38px}
+.ui-home .portal-grid{gap:14px;margin:18px 0}.ui-home .portal-card{min-height:165px;padding:22px;box-shadow:none}
+.ui-home .portal-card h2{font-size:18px;margin:0 0 10px}.ui-home .portal-card p{font-size:12px;line-height:1.8;margin-bottom:18px}
+.ui-home .portal-state{min-height:0;font-size:11px;margin-bottom:12px}.ui-home .portal-card .button{font-size:12px;min-height:34px;padding:7px 12px}
+.ui-topics .topic-layout{gap:18px}.ui-topics .topic-layout>.panel{padding:22px}.ui-topics .topic-filters{margin:18px 0;align-items:end;gap:12px}
+.ui-topics .topic-filters>label{flex:1 1 170px}.ui-topics .topic-filters>details{flex:0 1 auto;position:relative}
+.ui-topics .filter-dates{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}.ui-topics .filter-dates label{min-width:165px}
+.ui-topics .topic-filters>details>summary{font-size:12px;color:#6f8674;cursor:pointer;padding:11px 5px}
+.ui-topics .topic-footnote{font-size:11px;margin-top:15px;padding-top:12px}.ui-topics .topic-layout h2{font-size:17px}
+.ui-topics .kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ui-acceptance .gate{min-height:168px;padding:18px}.ui-acceptance .gate p{font-size:12px;margin-bottom:10px}.ui-acceptance .gate-grid{gap:12px}
+.ui-acceptance .lineage-grid{margin:18px 0;gap:12px}.ui-acceptance .lineage-step{padding:16px}.ui-acceptance .lineage-step strong{font-size:22px}
+.ui-acceptance .two-columns article{padding:15px}.ui-acceptance .matrix-grid{margin-top:15px}.ui-acceptance .panel>h2+.muted{margin-top:10px}
+.ui-acceptance .report-footer{justify-content:flex-end}.ui-acceptance .error-count{font-size:11px}
+.ui-observability #observability-panels>.panel{margin-top:0}.ui-observability #usage-chart{margin-top:18px}
+.ui-review .guidance{margin:0;padding:13px 15px;line-height:1.9}.ui-review #queue>.compact-fold{background:#f8faf6}
+.ui-review .queue-head{padding:17px;min-height:86px}.ui-review .queue-item{box-shadow:none}
+body.ui-rag{display:block;background:#f6f8f5}body.ui-rag main{padding-top:24px}body.ui-rag main>header{margin-bottom:14px;padding:0;align-items:center}
+.ui-rag h1{font-size:24px;margin:0}.ui-rag main>header p{margin:5px 0 0}.ui-rag .setup-panel{margin-top:0}
+.ui-rag main>header.page-head{padding:20px 22px}.ui-rag .page-head .button{border:1px solid #286659;background:#286659;color:white;padding:9px 14px;border-radius:9px;text-decoration:none;white-space:nowrap;font-size:12px}
+.ui-rag .run-selector{margin:16px 0;gap:10px}.ui-rag .run-selector>label{font-size:12px}.ui-rag .chart-panel,.ui-rag .generation-panel{padding:22px}
+.ui-rag .cards{gap:12px;margin:16px 0}.ui-rag .card{padding:16px}.ui-rag .insight-card .value{font-size:28px}.ui-rag .chart-detail{min-height:0}
+.ui-rag .chart-reading:empty,.ui-rag .chart-detail:empty,.ui-rag #scope-note:empty{display:none}.ui-rag .panel-heading h2{font-size:18px;margin:0}
+.ui-rag .progress-panel{padding:16px 20px}.ui-rag .progress-panel h2{font-size:15px}.ui-rag .progress-panel .actions button{font-size:11px;padding:7px 9px}
+.ui-chat .sidebar{padding-top:27px}.ui-chat .brand{margin-bottom:20px}.ui-chat .new-chat{margin-top:8px;margin-bottom:14px}
+.ui-chat .manage-link{display:flex;align-items:center;justify-content:space-between;color:#718977;padding:10px 11px;margin-bottom:14px;font-size:13px;text-decoration:none;border-radius:8px;min-height:38px}
+.ui-chat .manage-link:hover{background:#e7efe3;color:#286659}.ui-chat .history-label{margin-top:22px}
+.ui-chat .sidebar-signoff{margin-top:auto;padding-top:18px;font-size:10px;letter-spacing:2px;color:#a2afa2}
+.ui-chat .topbar{height:78px;min-height:78px}.ui-chat .welcome{padding-top:42px}.ui-chat .welcome h2{font-size:32px}.ui-chat .welcome-copy{font-size:14px;line-height:1.8}
+.ui-chat .suggestion{min-height:70px;display:flex;gap:10px;align-items:center;padding:15px}.ui-chat .suggestion>strong{font-size:13px;margin:0;white-space:nowrap}.ui-chat .suggestion>span.suggestion-icon{display:grid;margin:0;width:30px;height:30px}.ui-chat .suggestion b{display:none}.ui-chat .fine-print{font-size:10px;margin-top:10px}
+@media(max-width:900px){.ui-admin .page-head{padding:20px}.ui-admin .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.ui-admin main{margin:16px auto;padding:0 15px 26px}.ui-admin .page-head{padding:18px;min-height:0;gap:12px;flex-direction:row;align-items:center}
+.ui-admin .page-head h1{font-size:21px}.ui-admin .page-head p{font-size:11px}.ui-admin .page-head .button,.ui-admin .page-head button{font-size:11px;padding:8px 11px;min-height:35px}
+.ui-admin .panel{padding:17px}.ui-admin .kpis{gap:9px}.ui-admin .kpi{padding:13px;min-height:88px}.ui-admin .kpi strong{font-size:23px}
+.ui-admin .admin-nav a,.ui-admin .workspace-nav a{font-size:11px;padding:9px 11px}.ui-admin .toolbar.split{gap:12px}.workspace-tabs button{padding:9px 13px;font-size:12px}
+.ui-topics .topic-filters>label{flex-basis:100%}.ui-topics .filter-dates label{min-width:0;width:100%}.ui-topics .topic-filters>details{flex-basis:100%}
+.ui-topics .topic-filters>details>summary{padding:5px 0}.ui-topics .topic-layout>.panel{padding:18px}.ui-home .portal-grid{gap:11px}.ui-home .portal-card{min-height:145px;padding:19px}
+.ui-acceptance .lineage-step strong{font-size:19px}.ui-admin .section-tabs button{font-size:12px;padding:9px 13px}.ui-chat .topbar{height:68px;min-height:68px}.ui-chat .welcome h2{font-size:28px}
+.ui-rag .run-selector select{min-width:0;max-width:100%}.ui-rag .panel-heading{gap:12px}.ui-rag .metric-tabs{margin-top:8px}}
+@media(max-width:480px){.ui-chat .suggestions{grid-template-columns:1fr}.ui-chat .suggestion{min-height:52px;padding:11px 14px}.ui-topics .kpi .label{font-size:10px}.ui-topics .kpi{padding:12px 10px}.ui-topics .kpi strong{font-size:22px}}
