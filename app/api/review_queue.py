@@ -39,7 +39,11 @@ class ReviewRoute(APIRoute):
         original = super().get_route_handler()
         async def handle(request):
             try:
-                if request.method != 'GET': _guard_write(request)
+                if request.method != 'GET':
+                    _guard_write(request)
+                    if (getattr(request.app.state,'background_tasks_enabled',True) is False
+                            and request.url.path.startswith(('/api/review-queue/','/api/low-confidence-questions/'))):
+                        raise ServiceError('service_unavailable','本演示的审核后台只读。',503)
                 else: guard_read(request)
                 return await original(request)
             except RequestValidationError: code, status = 'invalid_request', 422

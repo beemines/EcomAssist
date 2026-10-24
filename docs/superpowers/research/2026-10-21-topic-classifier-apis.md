@@ -53,3 +53,28 @@ HFL公开模型元数据返回revision `5c58d0b8ec1d9014354d691c538661bf00bfdb44
 | [ml_stratifiers.py](https://raw.githubusercontent.com/trent-b/iterative-stratification/0.1.9/iterstrat/ml_stratifiers.py) | `5bdfa0db803e006884e2d228c2a97377e438b5ad9a0f24891fe77f2c53f54bf3` | MultilabelStratifiedShuffleSplit及固定random_state |
 
 [FastAPI lifespan](https://fastapi.tiangolo.com/advanced/events/)用于加载一次服务模型及释放资源；[HTTPX超时](https://www.python-httpx.org/advanced/timeouts/)分连接/读/写/连接池，read timeout不是整次操作总时限，旁路调用还须外层总超时。
+
+实施前另核对[huggingface_hub v2.2.0 snapshot_download](https://raw.githubusercontent.com/huggingface/huggingface_hub/v2.2.0/src/huggingface_hub/_snapshot_download.py)，源码SHA-256为`33aea763186df2d6600e2008e91ebb862cfc12907638caeab97e9865cf052d97`；支持`revision`、`local_dir`、`allow_patterns`、`token=False`，不使用已移除的`local_dir_use_symlinks`。上述Transformers锁定源码的`from_pretrained`支持`weights_only=True`、`local_files_only`、`use_safetensors`，底座从固定revision下载后离线安全加载，不执行远端代码。
+
+GPU探测另按[PyTorch2.14 AMP文档](https://docs.pytorch.org/docs/2.14/amp.html)和[AdamW接口](https://docs.pytorch.org/docs/2.14/generated/torch.optim.AdamW.html)核对`torch.amp.GradScaler('cuda')`、autocast、unscale后裁剪与optimizer step；实际安装版本再核验，旧cuda.amp入口已弃用。独立ML锁文件SHA-256为`d8fc8a32b203781aae689f781c3f941b83b4e00bd01695be3c6beb5fbbff0da3`。
+
+Task2按[SQLAlchemy2.0异步文档](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html)核对独立短会话及execute/scalar，按[text绑定参数接口](https://docs.sqlalchemy.org/en/20/core/sqlelement.html#sqlalchemy.sql.expression.text)使用命名参数，不拼接用户范围为SQL。业务锁定2.0.54；复用现有Database.session及3308隔离fixture，不新建第二个引擎生命周期框架。
+
+Task3核对[Python3.13 sqlite3事务语义](https://docs.python.org/3.13/library/sqlite3.html#transaction-control-via-the-isolation-level-attribute)：显式BEGIN IMMEDIATE及参数绑定，连接上下文本身不负责关闭连接，需单独关闭；正常打开使用URI mode=rw，不能隐式新建丢失账本。[HTTPX AsyncClient/stream接口](https://www.python-httpx.org/api/#asyncclient)用于有界读取与显式关闭；主业务锁定httpx0.28.1，生产使用AsyncHTTPTransport(retries=0)、follow_redirects=False/trust_env=False，外层asyncio总时限120秒。智谱官方对话API确认max_tokens、thinking、reasoning_effort及usage三总数；无独立思考明细时保存NULL，不从字符数反推。完整completion作为全部输出计费，有明细仅核对其为子集，不额外重复相加。
+
+Task9沿用已核对的SQLAlchemy2.0.54与ProcessingLease短事务/物理连接边界；另核对[MySQL命名锁官方说明](https://dev.mysql.com/doc/refman/8.4/en/locking-functions.html)中的连接所有权及释放语义，[SQLite UPSERT](https://sqlite.org/lang_upsert.html)中多列唯一冲突目标、excluded引用以及仅处理唯一约束的范围。MySQL locking-reads页面本次浏览返回不可用，不把该页面当已读取证据；实际FOR UPDATE与JOIN行为在3308独立schema真实测试。新增SQLite库仍显式BEGIN IMMEDIATE、FULL同步、显式关闭，错数据库身份/缺失/损坏回执拒绝当作空集合。
+
+Task10实现前核对[MySQL JSON查询函数](https://dev.mysql.com/doc/refman/8.4/en/json-search-functions.html)的JSON_CONTAINS与数组包含语义、[FastAPI Query参数约束](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/)，并沿用项目已锁FastAPI/Pydantic及现有ReviewRoute/guard_read。数据库DATETIME显示沿用既有后台的naive视为UTC口径，查询须显式时区后转换UTC半开范围；本章没有擅改原列或服务器时区，3308在范围端点实际验证。
+
+
+Task6预备核对锁定Transformers5.20.2本机training_args.py、trainer.py、trainer_callback.py与BertTokenizer源码：training_arguments支持restore_callback_states_from_checkpoint；Trainer以严格np.greater更新最佳指标，平分不替换早期checkpoint；BertTokenizer当前构造参数为vocab（可为词表dict）。Windows训练锁按[Python3.12 msvcrt.locking官方接口](https://docs.python.org/3.12/library/msvcrt.html#msvcrt.locking)核对LK_NBLCK/LK_UNLCK及允许锁住文件末尾以外的字节，采用固定文件句柄锁，不按PID删除锁文件。早停、动态float多标签、processing_class、保存safetensors在明确tiny随机CPU连通脚本实际跑过；不据此声称HFL已训练或有分类成绩。
+
+
+Task7核对本机锁定scikit-learn1.9.1的metrics/_classification.py中multilabel_confusion_matrix、f1_score、accuracy_score与hamming_loss签名和多标签分支，使用固定17列输入、zero_division=0；逐类零分母另外显式说明。固定三行矩阵对照已通过，空预测仍在分母内。阈值比较采用等价logit边界，避免对极端logit直接exp溢出；这只是数学/接口核验，不是实际模型评测。
+
+
+Task7另核对锁定torch/autograd/grad_mode.py的inference_mode及NumPy2.5.4 _core/numeric.py的allclose(rtol,atol)，用于CPU float32导出比对。Transformers5.20.2 modeling_utils.py确认output_loading_info=True返回(model,loading_info.to_dict())；utils/loading_report.py的missing_keys/unexpected_keys/mismatched_keys/error_msgs必须全部为空。仅trust_remote_code=False与safetensors还不足以阻止缺分类头时随机初始化，所以显式核对加载报告；此处是推理加载闸，训练从底座新建17类头仍属正常全参训练。
+
+Task8核对[FastAPI lifespan](https://fastapi.tiangolo.com/advanced/events/)、[async/await](https://fastapi.tiangolo.com/async/)与[Python3.12 asyncio同步](https://docs.python.org/3.12/library/asyncio-sync.html)：lifespan一次加载并释放CPU模型，事件循环内计数+Lock限制1执行/2等待，排队2秒超时503；CPU线程取消不能提前释放执行租约。锁定FastAPI0.142.2/Starlette源码签名已读。Uvicorn官方settings网页本次获取超时，不算已读，已以锁定0.54.0 main.py run(app,host,port,workers)源码核对单worker参数。
+
+2026-10-23本地采样对照：先读[PyTorch2.14 Sampler官方文档](https://docs.pytorch.org/docs/2.14/data.html#torch.utils.data.Sampler)和[Transformers Trainer官方文档](https://huggingface.co/docs/transformers/main_classes/trainer#transformers.Trainer.get_train_dataloader)，再核对已锁5.20.2 trainer.py的_get_train_sampler(self, train_dataset=None)及epoch前set_epoch调用、Accelerate1.15.0 data_loader.py中DataLoaderShard.set_epoch向batch_sampler.sampler的转发、torch2.14.1 sampler.py的__iter__/__len__契约。定额Sampler只生成训练索引，4–16字池按原固定seed+epoch循环洗牌，最近整数30%，总步数保持不变；验证仍用原顺序。实际微型Trainer数据加载合同已覆盖，不以文档或普通Python索引测试替代接线验证。

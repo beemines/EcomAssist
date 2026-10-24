@@ -1,5 +1,7 @@
 # 电商智能客服
 
+第十步主题分类旁路：固定17类、HFL RoBERTa-wwm-ext全参训练、CPU服务与主题分布页已实际跑通20条问题池批次，幂等重放没有重复写入。当前完整合成测试Macro-F1为0.7672，整体泛化仍不足；本轮测试复核由用户授权AI代审，明确不是人工gold。入口见[PyCharm手册](docs/ch10-pycharm-acceptance.md)、[实际结果与限制](docs/superpowers/reports/2026-10-21-ch10-delivery.md)、[原始提示词与DDL](docs/prompts/step-10-topic-classifier.md)及[开发记录](dev-notes/ch10.md)。本章未合并推送。
+
 第九步本地可观测性与数据飞轮：本地Langfuse、正式证据置信度、三路问题池、人工审核补库、意图成本与评估趋势已实现并实际运行。[原始提示词与DDL](docs/prompts/step-09-observability-flywheel.md)、[本地演示命令](docs/ch09-local-demo.md)、[PyCharm逐步验收](docs/ch09-pycharm-acceptance.md)、[手动验收](docs/ch09-manual-acceptance.md)及[真实结果与限制](docs/superpowers/reports/2026-10-20-reference-acceptance.md)分别保留需求与事实。客服8006、待审`/review`、观测`/observability`、Langfuse3000，页面沿用聊天界面的浅灰绿与墨绿风格。原两轮20题有9/8个阶段错误，后续一轮完整20题错误0、Faithfulness0.875；配置和有效分母分别展示，不当作两轮同配置质量全绿。留出集误放4、误拒9等质量项继续记录。
 
 第八步工具系统与MCP：两个独立业务Server、动态工具注册、统一执行审计和工单确认流已实现。入口见[演示命令](docs/tool-system-demo.md)、[PyCharm验收](docs/ch08-pycharm-acceptance.md)、[手动验收](docs/ch08-manual-acceptance.md)及[第八步原始提示词与DDL](docs/prompts/step-08-pluggable-tools.md)。测试与真实验收的版本、失败和范围分别保留在[开发记录](dev-notes/ch08.md)及报告中。

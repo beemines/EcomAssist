@@ -1,0 +1,93 @@
+"""Fixture-only IO ordering: freeze validation choices before held-out truth opens."""
+import json
+from pathlib import Path
+import numpy as np
+import pytest
+from app.topics.types import LabelledSample,ClassifyItem
+from ml.topic_classifier.tests.test_data import corpus,Tokenizer
+from ml.topic_classifier.data import build_splits,write_dataset,freeze_augmentations
+from ml.topic_classifier.doctor import file_hash
+from ml.topic_classifier.tests.test_export import fixtures
+from ml.topic_classifier.artifacts import evaluate_run
+
+
+@pytest.mark.parametrize('root_name,port,review_kind',[
+    ('negation-v4',8009,'human'),('coverage-v5',8010,'human'),('coverage-v5',8010,'delegated_ai')])
+def test_evaluation_freezes_choices_before_test_then_creates_pending_review_only(tmp_path,monkeypatch,root_name,port,review_kind):
+    import ml.topic_classifier.artifacts as module
+    rows=corpus();tokenizer=Tokenizer();manifest=build_splits(rows,tokenizer)
+    dataset=tmp_path/'dataset';write_dataset(rows,manifest,dataset)
+    parent=LabelledSample.model_validate_json((dataset/'train.jsonl').read_text(encoding='utf-8').splitlines()[0])
+    child=parent.model_copy(update={'id':parent.id+'-aug','text':parent.text+'呀'})
+    freeze_augmentations(rows,manifest,[child],tokenizer,dataset)
+    training,_,_=fixtures(tmp_path,dataset_hash=manifest.manifest_hash,augmentation_hash=file_hash(dataset/'train-augmentations.jsonl'))
+    reports=tmp_path/'actual-fixture-reports'
+    class FakeCPUClassifierForOrderingOnly:
+        def __init__(self,*args,**kwargs):pass
+        def predict(self,items):
+            assert all(isinstance(row,ClassifyItem) and not hasattr(row,'labels') for row in items)
+            result=np.full((len(items),17),-10.);result[:,0]=10.
+            for i,row in enumerate(items):
+                if row.id.startswith('reserved-probe-'):
+                    result[i,:]=-10.;result[i,2]=10.
+                    if row.text in ('买大了想退','尺码大了想退','买小了想退','太大了想换','尺寸不合适想退'):result[i,0]=10.
+            return result
+        def close(self):pass
+    monkeypatch.setattr(module,'CPUClassifier',FakeCPUClassifierForOrderingOnly)
+    original=Path.open
+    def guard(self,*args,**kwargs):
+        if self==dataset/'test.jsonl':
+            assert (reports/'thresholds.json').exists()
+            assert (reports/'context.json').exists()
+        return original(self,*args,**kwargs)
+    monkeypatch.setattr(Path,'open',guard)
+    review_root=tmp_path/root_name
+    result=evaluate_run(dataset,Path(training.best_checkpoint).parent,reports,pilot_receipt_hash='a'*64,
+        model_output=tmp_path/'model',review_root=review_root)
+    assert result['status']=='complete' and result['human_status']=='pending'
+    assert result['dataset_size']==len(manifest.splits['test'])
+    assert (reports/'silver.json').exists() and (reports/'metrics.html').exists()
+    gold=review_root/'test-review/pack.json';pack=json.loads(gold.read_text(encoding='utf-8'))
+    assert len(pack['samples'])==68 and pack['purpose']=='test'
+    assert f'http://127.0.0.1:{port}' in gold.with_name('review.html').read_text(encoding='utf-8')
+    assert not gold.with_name('review-receipt.json').exists()
+    before=(reports/'thresholds.json').read_bytes()
+    assert evaluate_run(dataset,Path(training.best_checkpoint).parent,reports,pilot_receipt_hash='a'*64,
+        model_output=tmp_path/'model',review_root=review_root)==result
+    assert (reports/'thresholds.json').read_bytes()==before
+    from ml.topic_classifier.artifacts import finalize_run
+    from app.topics.manifest import verify_release
+    from app.topics.reviews import ReviewPack,ReviewDecision,apply_review
+    from datetime import datetime,timezone
+    with pytest.raises(ValueError,match='human review'):
+        finalize_run(reports,tmp_path/'model',review_root=review_root)
+    from app.topics.review_submission import TopicReviewService
+    authority=dict(schema_version=1,kind='user_authorized_ai',human_status='not_performed',
+        user_instruction='fixture: delegate review',recorded_at=datetime.now(timezone.utc).isoformat(),
+        reviewer='Codex AI（用户授权代审，非人工）',model_version=result['model_version'],dataset_hash=manifest.manifest_hash,
+        test_pack_hash=json.loads((review_root/'test-review/pack.json').read_text(encoding='utf-8'))['pack_hash'],
+        error_pack_hash=json.loads((review_root/'error-review/pack.json').read_text(encoding='utf-8'))['pack_hash'])
+    for name in ('test-review','error-review'):
+        local=review_root/name
+        if not (local/'pack.json').exists():continue
+        pack=ReviewPack.model_validate_json((local/'pack.json').read_text(encoding='utf-8'))
+        decisions=[ReviewDecision(sample_id=row.id,pack_hash=pack.pack_hash,decision='accept',final_labels=row.labels,
+            reviewer=authority['reviewer'] if review_kind=='delegated_ai' else 'unit-fixture-only',
+            reviewed_at=authority['recorded_at'],notes='Fixture explicitly reviewed') for row in pack.samples]
+        if review_kind=='human':
+            human=apply_review(pack,decisions)
+            (local/'review-receipt.json').write_text(human.model_dump_json(),encoding='utf-8')
+        else:TopicReviewService(local).save_delegated(decisions,authority=authority)
+    if review_kind=='delegated_ai':
+        with pytest.raises(ValueError,match='human review'):finalize_run(reports,tmp_path/'model',review_root=review_root)
+        released=finalize_run(reports,tmp_path/'model',review_root=review_root,review_kind=review_kind)
+        assert released['human_status']=='not_performed' and released['review_status']=='ai_delegated'
+        assert not (reports/'human-complete.json').exists()
+        assert json.loads((reports/'ai-test.json').read_text(encoding='utf-8'))['source']=='ai_delegated_test_subset'
+    else:
+        released=finalize_run(reports,tmp_path/'model',review_root=review_root)
+        assert released['human_status']=='reviewed'
+    assert verify_release(tmp_path/'model').model_version==result['model_version']
+    assert finalize_run(reports,tmp_path/'model',review_root=review_root,review_kind=review_kind)==released
+    assert (reports/'thresholds.json').read_bytes()==before
+    assert json.loads((reports/'silver.json').read_text(encoding='utf-8'))['human_status']=='pending'

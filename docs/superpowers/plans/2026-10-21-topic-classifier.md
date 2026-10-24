@@ -8,7 +8,7 @@
 
 **Tech Stack:** HFL chinese-roberta-wwm-ext；torch2.14.1+cu130、transformers5.20.2、accelerate1.15.0、numpy2.5.4、scikit-learn1.9.1、iterative-stratification0.1.9、safetensors0.8.0；现有FastAPI0.142.2、Pydantic2.13.5、HTTPX0.28.1、SQLAlchemy2.0.54、MySQL。
 
-**Spec:** [2026-10-21-topic-classifier-design.md](../specs/2026-10-21-topic-classifier-design.md)，用户已批准首版`bb89ce0`。本文待审，尚未执行任务。
+**Spec:** [2026-10-21-topic-classifier-design.md](../specs/2026-10-21-topic-classifier-design.md)，用户已批准首版`bb89ce0`。用户已批准本计划`ce10a63`，选择Native顺序执行及第十步隔离工作树；实际进度追记于dev-notes/ch10.md。
 
 ## Global Constraints
 
@@ -16,7 +16,7 @@
 - 权威顺序：退换货、物流、尺码、发票、质量问题、运费、优惠活动、价保、支付、订单修改、库存补货、商品信息、保修维修、账号、会员积分、评价、其他；其他与前16类互斥，模型低把握独立为needs_review。
 - 目标是清洗去重后约2040个原始问题组（增强前）；至少25%多标签，每类至少100个正例组；train/validation/test目标80/10/10，偏差最多3个百分点，验证/测试各类正反例均至少10。
 - 先68条小批人工抽审再扩量；测试冻结后另抽68条人审、最多34条错例复核。小批同义家族只进训练；测试不调参、不删失败样本。
-- 造数、预标注及其修复/重试累计最多人民币10元，账本独立于第九步，重启不清零；最多300次物理尝试，连续3次失败暂停。
+- 造数、预标注及其修复/重试累计最多人民币10元，账本独立于第九步，重启不清零；原批准300次物理尝试，2026-10-22用户明确“允许400次，费用仍最多10元”后修订为400次。连续3次失败暂停，金额、失败和未知预留不清零。
 - 教师glm-5.3-flash、reasoning_effort=low、输出8192、每批最多16；不改现有线上模型/预算，不运行第九步收费评估。
 - 训练最大128 token、micro-batch4、累积4、FP16/检查点、AdamW 2e-5、weight decay0.01、warmup10%、最多8 epoch、早停patience2/改善0.001；只验证选epoch/阈值。
 - Worker每60秒检查、起批20、最大64；本章实际验收冻结最多100条现有池记录，不造业务池数据。主聊天路径不注册此工具、不触发此worker、不写topic_classifications。
@@ -91,7 +91,7 @@ Consumes：Task1术语与Task2 CleanQuestion；Produces：所有收费数据阶�
 
 - [ ] 写失败测试test_budget_survives_crash_and_competing_processes：10_000_000微元总额，单次预留ceil(1.2058624元)=1_205_863微元；双进程第9个全额未知请求不获许可；重开账本金额相同；重复结算不释放两次；损坏/丢失/错误授权身份拒绝。运行`& $AppPy -m pytest tests/test_topic_budget.py tests/test_topic_teacher.py -q`确认RED。
 - [ ] 用sqlite3事务实现单一本地账本和整数金额；先落许可后HTTP。未知usage保留预留；完整有效usage按未缓存刊例结算，明确思考已包括或额外计入，不能漏/重复解释为实账。记录prompt/请求hash，不存Key。init是单独显式一次性命令，所有正常阶段只open-existing。
-- [ ] 实现受控HTTPX教师传输，固定标准端点/模型、thinking enabled/low、8192、无工具、最大16、序列化请求正文最多64KiB、总时限120秒、禁止跳转及隐式重试。只暂时故障最多再发1次并重新预留，连续3败/300次/额度任一触发即暂停；JSON截断/多余ID/未知标签隔离但仍结算费用。
+- [ ] 实现受控HTTPX教师传输，固定标准端点/模型、thinking enabled/low、8192、无工具、最大16、序列化请求正文最多64KiB、总时限120秒、禁止跳转及隐式重试。只暂时故障最多再发1次并重新预留，连续3败/400次（原300次，按2026-10-22明确授权修订）/额度任一触发即暂停；JSON截断/多余ID/未知标签隔离但仍结算费用。
 - [ ] 用MockTransport验证每个物理请求先有许可；JSON错误且usage有效也收费；timeout保留许可；429余额不足不重试；非JSON/缺usage不退款；响应命令不被执行。运行同命令GREEN，不把传输假响应当标注效果。
 - [ ] 用已批准10元授权初始化共享账本但先不调用教师，记录路径和身份、金额精度、故障用例，提交`feat(ch10): bound teacher calls with durable budget`。
 

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MewHelp · 样本人工审核</title><style>$css</style></head>
+<body>
+<main>
+  <header><h1 id="reviewTitle">样本人工审核</h1>
+    <p>核对问题与标签，完成后保存。</p>
+  </header>
+  <section class="overview" aria-label="审核进度">
+    <div><strong id="total">—</strong><span>本批样本</span></div>
+    <div><strong id="pending">—</strong><span>待核对</span></div>
+    <div><strong id="corrected">—</strong><span>已修正</span></div>
+    <div><strong id="excluded">—</strong><span>已排除</span></div>
+    <progress id="progress" max="100" value="0" aria-label="已完成审核比例"></progress>
+  </section>
+  <details class="guidance"><summary>标注规则与批次信息</summary>
+    <p><b>只标句子明确说出的诉求。</b>修归「保修维修」、退归「退换货」；运费管钱，物流管货；「其他」不能和业务标签同时选。</p>
+    <p class="muted" id="purposeHint">合成题由模型生成；问题池句子的真实性尚未核实。本批所有问题家族只用于训练侧。</p>
+    <details><summary>展开 17 类边界说明</summary><dl id="taxonomy"></dl></details>
+    <details><summary>查看本批标识</summary><code id="packHash"></code></details>
+  </details>
+  <p id="status" role="status" aria-live="polite"></p>
+  <p id="fileNotice" class="notice" hidden>当前是本地文件预览，可导出审核结果。要直接保存，请打开
+    <a id="hostedReviewLink" href="http://127.0.0.1:8007/topics/pilot-review">本机审核页 ↗</a>，在那一页完成审核。</p>
+  <div class="toolbar"><label>显示 <select id="filter"><option value="all">全部样本</option><option value="pending">待核对</option><option value="correct">已修正</option><option value="exclude">已排除</option></select></label>
+    <label class="search">查找问题 <input id="search" type="search" placeholder="输入关键词或序号"></label>
+    <span id="draftHint" class="muted">修改会暂存在当前浏览器</span><a href="#confirmation">去提交区 ↓</a></div>
+  <section id="rows" aria-label="样本列表"></section>
+  <section class="submit-panel" id="confirmation" aria-label="确认审核">
+    <div class="reviewer"><label for="reviewer">审核署名 <span class="muted">只填一次，昵称即可</span></label>
+      <input id="reviewer" maxlength="128" placeholder="填写你的昵称" autocomplete="off"></div>
+    <label class="attestation"><input id="attested" type="checkbox">我已逐条核对全部样本，认可以上审核结果。</label>
+    <div class="submit-actions"><button id="bulk" class="secondary" disabled>已核对的其余样本通过</button>
+      <button id="submit" disabled>确认提交并保存</button><button id="export" class="text-button" disabled>导出备份</button></div>
+    <p id="submitHint" class="muted">可以逐条点「通过」；也可以看完全部样本，勾选上方确认后，将未修改的其余样本一次通过。</p>
+  </section>
+</main>
+<dialog id="editor" aria-labelledby="editTitle"><form id="editForm">
+  <h2 id="editTitle">修改标签</h2><p id="editText"></p>
+  <p class="muted">按字面诉求勾选全部标签，可多选。</p><div id="labelChoices" class="label-choices"></div>
+  <label for="editNotes">备注（选填）</label><textarea id="editNotes" maxlength="1024" rows="2" placeholder="需要记录的纠偏说明"></textarea>
+  <p id="editError" class="error" role="alert"></p>
+  <div class="dialog-actions"><button type="button" id="closeEditor" class="secondary">取消</button><button type="submit">保存标签</button></div>
+</form></dialog>
+<script type="application/json" id="reviewData">$bootstrap</script>
+<script>$script</script>
+</body></html>

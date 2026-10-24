@@ -13,8 +13,8 @@
   <script src="/static/conversations.js?v=20261017-context" defer></script>
   <script src="/static/ticket-confirmation.js?v=20261018-tools" defer></script>
   <script src="/static/chat.js?v=20261020-flywheel" defer></script>
-</head>
-<body>
+<link rel="stylesheet" href="/static/workspace.css?v=20261024-compact"><script src="/static/workspace.js?v=20261024-compact" defer></script></head>
+<body class="ui-chat">
   <!-- 复用同一组内联 SVG 图标，其他区域通过 use 引用，避免依赖外部图标请求。 -->
   <svg class="svg-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <symbol id="icon-bag" viewBox="0 0 24 24"><path d="M5 7h14l1 13H4L5 7Z"/><path d="M8 7V5a4 4 0 0 1 8 0v2M8 12c1 3 7 3 8 0"/></symbol>
@@ -31,17 +31,14 @@
     <button id="conversation-backdrop" class="conversation-backdrop" aria-label="关闭会话导航" tabindex="-1"></button>
     <aside class="sidebar" id="conversation-sidebar" aria-label="会话导航">
       <button id="conversation-close" class="conversation-close" aria-label="关闭会话导航">×</button>
-      <a class="brand" href="/" aria-label="MewHelp 首页"><span class="brand-mark"><svg><use href="#icon-bag"/></svg></span><span>MewHelp<small>每一个问题，都认真回应</small></span></a>
+      <a class="brand" href="/" aria-label="MewHelp 首页"><span class="brand-mark"><svg><use href="#icon-bag"/></svg></span><span>MewHelp</span></a>
       <button class="new-chat" id="new-chat"><svg><use href="#icon-plus"/></svg>开启新对话</button>
-      <a class="new-chat" href="/rag-eval">▦ RAG 评估</a>
-      <a class="new-chat" href="/review">飞轮待审队列</a>
-      <a class="new-chat" href="/observability">观测与成本</a>
+      <a class="manage-link" href="/admin">后台管理 <span aria-hidden="true">↗</span></a>
       <p class="section-label">当前会话</p>
       <div class="conversation-card"><svg><use href="#icon-chat"/></svg><span id="conversation-title">新的客服对话</span><span class="conversation-dot"></span></div>
       <p class="section-label history-label">历史对话</p>
       <nav id="conversation-list" class="conversation-list" aria-label="历史对话"></nav>
-      <div class="sidebar-bottom"><span class="care-icon"><svg><use href="#icon-check"/></svg></span><div><strong>让沟通简单一点</strong><p>把问题说清楚，剩下的我们一起梳理。</p></div></div>
-      <div class="sidebar-signoff">MEWHELP <span>·</span> ALWAYS HERE</div>
+      <div class="sidebar-signoff">MEWHELP</div>
     </aside>
     <main class="main-panel">
       <!-- 顶部连接状态由健康接口更新，窄屏使用右侧按钮替代侧边栏的新对话入口。 -->
@@ -51,14 +48,13 @@
       <div class="chat-scroll" id="chat-scroll">
         <section class="welcome" id="welcome">
           <div class="welcome-mark"><svg><use href="#icon-bag"/></svg><span class="welcome-spark">✦</span></div>
-          <div class="eyebrow">你的专属购物小助手</div>
           <h2>有问题，放心问。</h2>
-          <p class="welcome-copy">订单、退换货或商品使用上的疑问，<br>都可以从这里开始。</p>
+          <p class="welcome-copy">查询订单、处理售后，或了解商品。</p>
           <!-- data-prompt 保存示例原文，点击只填入输入框，不会自动调用模型。 -->
           <div class="suggestions" aria-label="常见问题">
-            <button class="suggestion" data-prompt="订单 1001 的物流到哪了"><span class="suggestion-icon"><svg><use href="#icon-truck"/></svg></span><strong>查询配送</strong><span>查看订单 1001 的物流进度</span><b>↗</b></button>
-            <button class="suggestion" data-prompt="退货政策是什么"><span class="suggestion-icon peach"><svg><use href="#icon-return"/></svg></span><strong>退换货咨询</strong><span>了解常见退货政策</span><b>↗</b></button>
-            <button class="suggestion" data-prompt="新买的商品不太会用，能帮我看看吗？"><span class="suggestion-icon lavender"><svg><use href="#icon-spark"/></svg></span><strong>商品使用</strong><span>一起解决使用上的疑问</span><b>↗</b></button>
+            <button class="suggestion" data-prompt="订单 1001 的物流到哪了"><span class="suggestion-icon"><svg><use href="#icon-truck"/></svg></span><strong>查询配送</strong><b>↗</b></button>
+            <button class="suggestion" data-prompt="退货政策是什么"><span class="suggestion-icon peach"><svg><use href="#icon-return"/></svg></span><strong>退换货咨询</strong><b>↗</b></button>
+            <button class="suggestion" data-prompt="新买的商品不太会用，能帮我看看吗？"><span class="suggestion-icon lavender"><svg><use href="#icon-spark"/></svg></span><strong>商品使用</strong><b>↗</b></button>
           </div>
         </section>
         <!-- 每条回复的多工具徽章、完成后确认按钮和结果均独立创建；无障碍日志提示新增消息。 -->
@@ -74,7 +70,7 @@
           <!-- 同一个按钮在回复期间切换为停止，键盘发送兼容中文输入法选词。 -->
           <div class="composer-bottom"><span id="composer-hint">Enter 发送 · Shift + Enter 换行</span><button type="submit" id="send-button" class="send-button" aria-label="发送消息" disabled><svg><use href="#icon-send"/></svg></button></div>
         </form>
-        <p class="fine-print">订单使用 2026-10-15 演示数据，转人工为页面模拟；工单和退款申请需亲自提交，退款仅登记待审核。</p>
+        <p class="fine-print">演示数据 · 工单与退款申请需确认提交，退款须审核。</p>
       </footer>
     </main>
   </div>

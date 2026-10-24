@@ -1,0 +1,33 @@
+{
+  "author": "Codex authored instruction probes; not customer data or human review",
+  "usage": "instruction_examples_only_do_not_train",
+  "cases": [
+    {"text": "这件商品支持退货吗", "labels": ["退换货"]},
+    {"text": "包裹怎么还没送到", "labels": ["物流"]},
+    {"text": "L码适合多高的人", "labels": ["尺码"]},
+    {"text": "电子发票在哪里开", "labels": ["发票"]},
+    {"text": "刚收到就坏了", "labels": ["质量问题"]},
+    {"text": "寄一次运费多少", "labels": ["运费"]},
+    {"text": "这张券能和满减叠加吗", "labels": ["优惠活动"]},
+    {"text": "昨天买今天降价能补差价吗", "labels": ["价保"]},
+    {"text": "付款一直失败怎么办", "labels": ["支付"]},
+    {"text": "改一下收件地址", "labels": ["订单修改"]},
+    {"text": "现在有没有库存", "labels": ["库存补货"]},
+    {"text": "水杯能装沸水吗", "labels": ["商品信息"]},
+    {"text": "这个能寄修吗", "labels": ["保修维修"]},
+    {"text": "密码忘了怎么登录", "labels": ["账号"]},
+    {"text": "积分什么时候过期", "labels": ["会员积分"]},
+    {"text": "评价怎么修改", "labels": ["评价"]},
+    {"text": "人工客服几点上班", "labels": ["其他"]},
+    {"text": "买大了想退", "labels": ["退换货", "尺码"], "reserved_probe": true},
+    {"text": "商品坏了,要申请退货", "labels": ["退换货", "质量问题"]},
+    {"text": "包裹在哪,为什么还收8元运费", "labels": ["物流", "运费"]},
+    {"text": "这张券怎么用,降价还能补差价吗", "labels": ["优惠活动", "价保"]},
+    {"text": "帮改收货地址,运费会变吗", "labels": ["运费", "订单修改"]},
+    {"text": "外套袖长多少,布料什么成分", "labels": ["尺码", "商品信息"]},
+    {"text": "付款重复扣费,我要申请退款", "labels": ["退换货", "支付"]},
+    {"text": "不要退,只想知道保修能不能修", "labels": ["保修维修"]},
+    {"text": "XL还有货吗", "labels": ["库存补货"], "note": "尺码只是商品规格名词,未独立询问尺寸"},
+    {"text": "不问位置,只想知道邮费", "labels": ["运费"]}
+  ]
+}
