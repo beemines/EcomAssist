@@ -1,0 +1,1564 @@
+{
+  "schema_version": 1,
+  "kind": "immutable_evidence_summary",
+  "exported_at": "2026-10-24T04:43:53.990528+00:00",
+  "evidence_verified_at": "2026-10-23T13:55:13.157551+00:00",
+  "model_version": "ef4652e363bbb8fabcdf4d5d8a4f4ab946bd0f760c1f160934afceda998e9d29",
+  "dataset_hash": "6cbc3ac6f5d610fc81cff66a97f6a953075ff59e2bab8cca5a36ec6465d27143",
+  "base_model": "hfl/chinese-roberta-wwm-ext",
+  "base_revision": "5c58d0b8ec1d9014354d691c538661bf00bfdb44",
+  "taxonomy_version": "ch10-topics-v1",
+  "labels": [
+    "退换货",
+    "物流",
+    "尺码",
+    "发票",
+    "质量问题",
+    "运费",
+    "优惠活动",
+    "价保",
+    "支付",
+    "订单修改",
+    "库存补货",
+    "商品信息",
+    "保修维修",
+    "账号",
+    "会员积分",
+    "评价",
+    "其他"
+  ],
+  "review_kind": "user_authorized_ai",
+  "human_status": "not_performed",
+  "limits": [
+    "整体泛化待改进，当前用于旁路功能演示。",
+    "已发现1对训练与验证近重复，历史验证分数存在乐观偏差风险。",
+    "本轮102条是用户授权的AI代审，不是独立人工gold。",
+    "问题池来源真实性未核实，实际池记录不等于确认真实客户样本。"
+  ],
+  "dataset": {
+    "source_pool_rows": 29,
+    "unverified_seed_rows": 20,
+    "original_samples": 2369,
+    "sizes": {
+      "train": 1887,
+      "validation": 295,
+      "test": 187
+    },
+    "origins": {
+      "train": {
+        "unverified": 20,
+        "synthetic": 1867
+      },
+      "validation": {
+        "synthetic": 295
+      },
+      "test": {
+        "synthetic": 187
+      }
+    },
+    "augmentation": 143,
+    "train_after_augmentation": 2030
+  },
+  "training": {
+    "parameters": 102280721,
+    "trainable_parameters": 102280721,
+    "best_epoch": 5.0,
+    "best_macro_f1": 0.9848708130202928,
+    "duration_seconds": 449.43799999996554,
+    "stop_reason": "early_stopping",
+    "seed": 20261021,
+    "peak_allocated_bytes": 2064832000,
+    "encoder_changed": true,
+    "epochs": [
+      {
+        "epoch": 1.0,
+        "eval_macro_f1": 0.034509803921568626,
+        "eval_micro_f1": 0.10551558752997602,
+        "eval_loss": 0.2278701215982437
+      },
+      {
+        "epoch": 2.0,
+        "eval_macro_f1": 0.8055081718213764,
+        "eval_micro_f1": 0.8266666666666667,
+        "eval_loss": 0.11175570636987686
+      },
+      {
+        "epoch": 3.0,
+        "eval_macro_f1": 0.9603097412053087,
+        "eval_micro_f1": 0.9607329842931938,
+        "eval_loss": 0.07203119248151779
+      },
+      {
+        "epoch": 4.0,
+        "eval_macro_f1": 0.9698321373817862,
+        "eval_micro_f1": 0.9715025906735751,
+        "eval_loss": 0.052984267473220825
+      },
+      {
+        "epoch": 5.0,
+        "eval_macro_f1": 0.9848708130202928,
+        "eval_micro_f1": 0.9846153846153847,
+        "eval_loss": 0.04357720538973808
+      },
+      {
+        "epoch": 6.0,
+        "eval_macro_f1": 0.9823545254582856,
+        "eval_micro_f1": 0.9820971867007673,
+        "eval_loss": 0.03909247741103172
+      },
+      {
+        "epoch": 7.0,
+        "eval_macro_f1": 0.9820696925721135,
+        "eval_micro_f1": 0.982051282051282,
+        "eval_loss": 0.03603672236204147
+      }
+    ]
+  },
+  "metrics": {
+    "silver": {
+      "exact_match": 0.3689839572192513,
+      "hamming_loss": 0.0443535703051274,
+      "macro_f1": 0.7672007103010688,
+      "micro_f1": 0.7606112054329371,
+      "needs_review_rate": 0.06417112299465241,
+      "per_class": [
+        {
+          "confusion": [
+            [
+              127,
+              7
+            ],
+            [
+              24,
+              29
+            ]
+          ],
+          "f1": 0.651685393258427,
+          "label": "退换货",
+          "negative_support": 134,
+          "precision": 0.8055555555555556,
+          "recall": 0.5471698113207547,
+          "support": 53,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              164,
+              3
+            ],
+            [
+              11,
+              9
+            ]
+          ],
+          "f1": 0.5625,
+          "label": "物流",
+          "negative_support": 167,
+          "precision": 0.75,
+          "recall": 0.45,
+          "support": 20,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              129,
+              11
+            ],
+            [
+              5,
+              42
+            ]
+          ],
+          "f1": 0.84,
+          "label": "尺码",
+          "negative_support": 140,
+          "precision": 0.7924528301886793,
+          "recall": 0.8936170212765957,
+          "support": 47,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              176,
+              0
+            ],
+            [
+              0,
+              11
+            ]
+          ],
+          "f1": 1.0,
+          "label": "发票",
+          "negative_support": 176,
+          "precision": 1.0,
+          "recall": 1.0,
+          "support": 11,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              164,
+              2
+            ],
+            [
+              11,
+              10
+            ]
+          ],
+          "f1": 0.6060606060606061,
+          "label": "质量问题",
+          "negative_support": 166,
+          "precision": 0.8333333333333334,
+          "recall": 0.47619047619047616,
+          "support": 21,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              168,
+              0
+            ],
+            [
+              2,
+              17
+            ]
+          ],
+          "f1": 0.9444444444444444,
+          "label": "运费",
+          "negative_support": 168,
+          "precision": 1.0,
+          "recall": 0.8947368421052632,
+          "support": 19,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              173,
+              4
+            ],
+            [
+              1,
+              9
+            ]
+          ],
+          "f1": 0.782608695652174,
+          "label": "优惠活动",
+          "negative_support": 177,
+          "precision": 0.6923076923076923,
+          "recall": 0.9,
+          "support": 10,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              175,
+              1
+            ],
+            [
+              0,
+              11
+            ]
+          ],
+          "f1": 0.9565217391304348,
+          "label": "价保",
+          "negative_support": 176,
+          "precision": 0.9166666666666666,
+          "recall": 1.0,
+          "support": 11,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              176,
+              1
+            ],
+            [
+              0,
+              10
+            ]
+          ],
+          "f1": 0.9523809523809523,
+          "label": "支付",
+          "negative_support": 177,
+          "precision": 0.9090909090909091,
+          "recall": 1.0,
+          "support": 10,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              171,
+              0
+            ],
+            [
+              6,
+              10
+            ]
+          ],
+          "f1": 0.7692307692307693,
+          "label": "订单修改",
+          "negative_support": 171,
+          "precision": 1.0,
+          "recall": 0.625,
+          "support": 16,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              175,
+              1
+            ],
+            [
+              7,
+              4
+            ]
+          ],
+          "f1": 0.5,
+          "label": "库存补货",
+          "negative_support": 176,
+          "precision": 0.8,
+          "recall": 0.36363636363636365,
+          "support": 11,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              141,
+              3
+            ],
+            [
+              21,
+              22
+            ]
+          ],
+          "f1": 0.6470588235294118,
+          "label": "商品信息",
+          "negative_support": 144,
+          "precision": 0.88,
+          "recall": 0.5116279069767442,
+          "support": 43,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              175,
+              1
+            ],
+            [
+              1,
+              10
+            ]
+          ],
+          "f1": 0.9090909090909091,
+          "label": "保修维修",
+          "negative_support": 176,
+          "precision": 0.9090909090909091,
+          "recall": 0.9090909090909091,
+          "support": 11,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              174,
+              3
+            ],
+            [
+              1,
+              9
+            ]
+          ],
+          "f1": 0.8181818181818182,
+          "label": "账号",
+          "negative_support": 177,
+          "precision": 0.75,
+          "recall": 0.9,
+          "support": 10,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              177,
+              0
+            ],
+            [
+              1,
+              9
+            ]
+          ],
+          "f1": 0.9473684210526315,
+          "label": "会员积分",
+          "negative_support": 177,
+          "precision": 1.0,
+          "recall": 0.9,
+          "support": 10,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              174,
+              3
+            ],
+            [
+              0,
+              10
+            ]
+          ],
+          "f1": 0.8695652173913043,
+          "label": "评价",
+          "negative_support": 177,
+          "precision": 0.7692307692307693,
+          "recall": 1.0,
+          "support": 10,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              175,
+              2
+            ],
+            [
+              8,
+              2
+            ]
+          ],
+          "f1": 0.2857142857142857,
+          "label": "其他",
+          "negative_support": 177,
+          "precision": 0.5,
+          "recall": 0.2,
+          "support": 10,
+          "undefined_denominators": []
+        }
+      ],
+      "sample_count": 187,
+      "taxonomy_hash": "e191883681ac7238cd00ad8b2b9202a0da95c9c6d41fb3100144fb873ef0adea",
+      "title": "完整合成银标",
+      "description": "187条独立生成测试；LLM预标，不是人工gold。",
+      "source_sha256": "3bbc0161ea6f4a94d51916f0c88c38a98e58b321350553e232b95eeead904278",
+      "micro_precision": 0.8421052631578947,
+      "micro_recall": 0.6934984520123839,
+      "macro_precision": 0.8416310979685009,
+      "macro_recall": 0.7394746665057121,
+      "false_positive_labels": 42,
+      "false_negative_labels": 99,
+      "exact_count": 69
+    },
+    "ai_test": {
+      "exact_match": 0.417910447761194,
+      "hamming_loss": 0.0456540825285338,
+      "macro_f1": 0.7450818223873253,
+      "micro_f1": 0.7425742574257426,
+      "needs_review_rate": 0.08955223880597014,
+      "per_class": [
+        {
+          "confusion": [
+            [
+              48,
+              3
+            ],
+            [
+              8,
+              8
+            ]
+          ],
+          "f1": 0.5925925925925926,
+          "label": "退换货",
+          "negative_support": 51,
+          "precision": 0.7272727272727273,
+          "recall": 0.5,
+          "support": 16,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              63,
+              0
+            ],
+            [
+              1,
+              3
+            ]
+          ],
+          "f1": 0.8571428571428571,
+          "label": "物流",
+          "negative_support": 63,
+          "precision": 1.0,
+          "recall": 0.75,
+          "support": 4,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              48,
+              4
+            ],
+            [
+              3,
+              12
+            ]
+          ],
+          "f1": 0.7741935483870968,
+          "label": "尺码",
+          "negative_support": 52,
+          "precision": 0.75,
+          "recall": 0.8,
+          "support": 15,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              63,
+              0
+            ],
+            [
+              0,
+              4
+            ]
+          ],
+          "f1": 1.0,
+          "label": "发票",
+          "negative_support": 63,
+          "precision": 1.0,
+          "recall": 1.0,
+          "support": 4,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              57,
+              1
+            ],
+            [
+              6,
+              3
+            ]
+          ],
+          "f1": 0.46153846153846156,
+          "label": "质量问题",
+          "negative_support": 58,
+          "precision": 0.75,
+          "recall": 0.3333333333333333,
+          "support": 9,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              59,
+              0
+            ],
+            [
+              1,
+              7
+            ]
+          ],
+          "f1": 0.9333333333333333,
+          "label": "运费",
+          "negative_support": 59,
+          "precision": 1.0,
+          "recall": 0.875,
+          "support": 8,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              62,
+              2
+            ],
+            [
+              1,
+              2
+            ]
+          ],
+          "f1": 0.5714285714285714,
+          "label": "优惠活动",
+          "negative_support": 64,
+          "precision": 0.5,
+          "recall": 0.6666666666666666,
+          "support": 3,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              62,
+              0
+            ],
+            [
+              0,
+              5
+            ]
+          ],
+          "f1": 1.0,
+          "label": "价保",
+          "negative_support": 62,
+          "precision": 1.0,
+          "recall": 1.0,
+          "support": 5,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              62,
+              0
+            ],
+            [
+              0,
+              5
+            ]
+          ],
+          "f1": 1.0,
+          "label": "支付",
+          "negative_support": 62,
+          "precision": 1.0,
+          "recall": 1.0,
+          "support": 5,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              60,
+              0
+            ],
+            [
+              2,
+              5
+            ]
+          ],
+          "f1": 0.8333333333333334,
+          "label": "订单修改",
+          "negative_support": 60,
+          "precision": 1.0,
+          "recall": 0.7142857142857143,
+          "support": 7,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              64,
+              0
+            ],
+            [
+              1,
+              2
+            ]
+          ],
+          "f1": 0.8,
+          "label": "库存补货",
+          "negative_support": 64,
+          "precision": 1.0,
+          "recall": 0.6666666666666666,
+          "support": 3,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              49,
+              2
+            ],
+            [
+              9,
+              7
+            ]
+          ],
+          "f1": 0.56,
+          "label": "商品信息",
+          "negative_support": 51,
+          "precision": 0.7777777777777778,
+          "recall": 0.4375,
+          "support": 16,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              62,
+              1
+            ],
+            [
+              0,
+              4
+            ]
+          ],
+          "f1": 0.8888888888888888,
+          "label": "保修维修",
+          "negative_support": 63,
+          "precision": 0.8,
+          "recall": 1.0,
+          "support": 4,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              60,
+              2
+            ],
+            [
+              1,
+              4
+            ]
+          ],
+          "f1": 0.7272727272727273,
+          "label": "账号",
+          "negative_support": 62,
+          "precision": 0.6666666666666666,
+          "recall": 0.8,
+          "support": 5,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              65,
+              0
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          "f1": 0.6666666666666666,
+          "label": "会员积分",
+          "negative_support": 65,
+          "precision": 1.0,
+          "recall": 0.5,
+          "support": 2,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              64,
+              0
+            ],
+            [
+              0,
+              3
+            ]
+          ],
+          "f1": 1.0,
+          "label": "评价",
+          "negative_support": 64,
+          "precision": 1.0,
+          "recall": 1.0,
+          "support": 3,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              64,
+              1
+            ],
+            [
+              2,
+              0
+            ]
+          ],
+          "f1": 0.0,
+          "label": "其他",
+          "negative_support": 65,
+          "precision": 0.0,
+          "recall": 0.0,
+          "support": 2,
+          "undefined_denominators": []
+        }
+      ],
+      "sample_count": 67,
+      "taxonomy_hash": "e191883681ac7238cd00ad8b2b9202a0da95c9c6d41fb3100144fb873ef0adea",
+      "title": "AI代审测试子集",
+      "description": "68条逐项代审，排除1条歧义题，保留67条；不回流训练或调整阈值。",
+      "source_sha256": "87617bc63d9b53708f9cc9df9e3f6ce4ed04685d3d52067a7f297e14d2ee0f4b",
+      "micro_precision": 0.8241758241758241,
+      "micro_recall": 0.6756756756756757,
+      "macro_precision": 0.8218657159833631,
+      "macro_recall": 0.7084383753501401,
+      "false_positive_labels": 16,
+      "false_negative_labels": 36,
+      "exact_count": 28
+    },
+    "ai_errors": {
+      "exact_match": 0.14705882352941177,
+      "hamming_loss": 0.06920415224913495,
+      "macro_f1": 0.5462694168576521,
+      "micro_f1": 0.6428571428571429,
+      "needs_review_rate": 0.058823529411764705,
+      "per_class": [
+        {
+          "confusion": [
+            [
+              25,
+              1
+            ],
+            [
+              2,
+              6
+            ]
+          ],
+          "f1": 0.8,
+          "label": "退换货",
+          "negative_support": 26,
+          "precision": 0.8571428571428571,
+          "recall": 0.75,
+          "support": 8,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              26,
+              3
+            ],
+            [
+              3,
+              2
+            ]
+          ],
+          "f1": 0.4,
+          "label": "物流",
+          "negative_support": 29,
+          "precision": 0.4,
+          "recall": 0.4,
+          "support": 5,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              22,
+              3
+            ],
+            [
+              1,
+              8
+            ]
+          ],
+          "f1": 0.8,
+          "label": "尺码",
+          "negative_support": 25,
+          "precision": 0.7272727272727273,
+          "recall": 0.8888888888888888,
+          "support": 9,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              31,
+              1
+            ],
+            [
+              0,
+              2
+            ]
+          ],
+          "f1": 0.8,
+          "label": "发票",
+          "negative_support": 32,
+          "precision": 0.6666666666666666,
+          "recall": 1.0,
+          "support": 2,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              25,
+              1
+            ],
+            [
+              3,
+              5
+            ]
+          ],
+          "f1": 0.7142857142857143,
+          "label": "质量问题",
+          "negative_support": 26,
+          "precision": 0.8333333333333334,
+          "recall": 0.625,
+          "support": 8,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              32,
+              0
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          "f1": 0.6666666666666666,
+          "label": "运费",
+          "negative_support": 32,
+          "precision": 1.0,
+          "recall": 0.5,
+          "support": 2,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              32,
+              2
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "f1": 0.0,
+          "label": "优惠活动",
+          "negative_support": 34,
+          "precision": 0.0,
+          "recall": 0.0,
+          "support": 0,
+          "undefined_denominators": [
+            "没有真实正例，召回率分母为0"
+          ]
+        },
+        {
+          "confusion": [
+            [
+              31,
+              0
+            ],
+            [
+              0,
+              3
+            ]
+          ],
+          "f1": 1.0,
+          "label": "价保",
+          "negative_support": 31,
+          "precision": 1.0,
+          "recall": 1.0,
+          "support": 3,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              32,
+              1
+            ],
+            [
+              1,
+              0
+            ]
+          ],
+          "f1": 0.0,
+          "label": "支付",
+          "negative_support": 33,
+          "precision": 0.0,
+          "recall": 0.0,
+          "support": 1,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              30,
+              0
+            ],
+            [
+              1,
+              3
+            ]
+          ],
+          "f1": 0.8571428571428571,
+          "label": "订单修改",
+          "negative_support": 30,
+          "precision": 1.0,
+          "recall": 0.75,
+          "support": 4,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              30,
+              1
+            ],
+            [
+              2,
+              1
+            ]
+          ],
+          "f1": 0.4,
+          "label": "库存补货",
+          "negative_support": 31,
+          "precision": 0.5,
+          "recall": 0.3333333333333333,
+          "support": 3,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              24,
+              1
+            ],
+            [
+              8,
+              1
+            ]
+          ],
+          "f1": 0.18181818181818182,
+          "label": "商品信息",
+          "negative_support": 25,
+          "precision": 0.5,
+          "recall": 0.1111111111111111,
+          "support": 9,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              33,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          "f1": 1.0,
+          "label": "保修维修",
+          "negative_support": 33,
+          "precision": 1.0,
+          "recall": 1.0,
+          "support": 1,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              33,
+              1
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "f1": 0.0,
+          "label": "账号",
+          "negative_support": 34,
+          "precision": 0.0,
+          "recall": 0.0,
+          "support": 0,
+          "undefined_denominators": [
+            "没有真实正例，召回率分母为0"
+          ]
+        },
+        {
+          "confusion": [
+            [
+              32,
+              0
+            ],
+            [
+              0,
+              2
+            ]
+          ],
+          "f1": 1.0,
+          "label": "会员积分",
+          "negative_support": 32,
+          "precision": 1.0,
+          "recall": 1.0,
+          "support": 2,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              32,
+              1
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          "f1": 0.6666666666666666,
+          "label": "评价",
+          "negative_support": 33,
+          "precision": 0.5,
+          "recall": 1.0,
+          "support": 1,
+          "undefined_denominators": []
+        },
+        {
+          "confusion": [
+            [
+              32,
+              1
+            ],
+            [
+              1,
+              0
+            ]
+          ],
+          "f1": 0.0,
+          "label": "其他",
+          "negative_support": 33,
+          "precision": 0.0,
+          "recall": 0.0,
+          "support": 1,
+          "undefined_denominators": []
+        }
+      ],
+      "sample_count": 34,
+      "taxonomy_hash": "e191883681ac7238cd00ad8b2b9202a0da95c9c6d41fb3100144fb873ef0adea",
+      "title": "AI代审选定错例",
+      "description": "34条主动挑选的错例，有选择偏差，不能代表总体分数。",
+      "source_sha256": "ce94682f18da44275a974ca5cbe02e37c14e0b25d0759f9b2f4e4c5e6075100a",
+      "micro_precision": 0.6792452830188679,
+      "micro_recall": 0.6101694915254238,
+      "macro_precision": 0.587318563789152,
+      "macro_recall": 0.5504901960784313,
+      "false_positive_labels": 17,
+      "false_negative_labels": 23,
+      "exact_count": 5
+    }
+  },
+  "thresholds": [
+    {
+      "calibrated": true,
+      "label": "退换货",
+      "negative_support": 258,
+      "positive_support": 37,
+      "reason": null,
+      "threshold": 0.5,
+      "validation_f1": 0.958904109589041
+    },
+    {
+      "calibrated": true,
+      "label": "物流",
+      "negative_support": 274,
+      "positive_support": 21,
+      "reason": null,
+      "threshold": 0.5,
+      "validation_f1": 1.0
+    },
+    {
+      "calibrated": true,
+      "label": "尺码",
+      "negative_support": 242,
+      "positive_support": 53,
+      "reason": null,
+      "threshold": 0.2,
+      "validation_f1": 1.0
+    },
+    {
+      "calibrated": true,
+      "label": "发票",
+      "negative_support": 274,
+      "positive_support": 21,
+      "reason": null,
+      "threshold": 0.5,
+      "validation_f1": 1.0
+    },
+    {
+      "calibrated": true,
+      "label": "质量问题",
+      "negative_support": 274,
+      "positive_support": 21,
+      "reason": null,
+      "threshold": 0.5,
+      "validation_f1": 0.975609756097561
+    },
+    {
+      "calibrated": true,
+      "label": "运费",
+      "negative_support": 274,
+      "positive_support": 21,
+      "reason": null,
+      "threshold": 0.5,
+      "validation_f1": 1.0
+    },
+    {
+      "calibrated": true,
+      "label": "优惠活动",
+      "negative_support": 274,
+      "positive_support": 21,
+      "reason": null,
+      "threshold": 0.5,
+      "validation_f1": 1.0
+    },
+    {
+      "calibrated": true,
+      "label": "价保",
+      "negative_support": 275,
+      "positive_support": 20,
+      "reason": null,
+      "threshold": 0.2,
+      "validation_f1": 1.0
+    },
+    {
+      "calibrated": true,
+      "label": "支付",
+      "negative_support": 275,
+      "positive_support": 20,
+      "reason": null,
+      "threshold": 0.35,
+      "validation_f1": 1.0
+    },
+    {
+      "calibrated": true,
+      "label": "订单修改",
+      "negative_support": 275,
+      "positive_support": 20,
+      "reason": null,
+      "threshold": 0.5,
+      "validation_f1": 1.0
+    },
+    {
+      "calibrated": true,
+      "label": "库存补货",
+      "negative_support": 275,
+      "positive_support": 20,
+      "reason": null,
+      "threshold": 0.5,
+      "validation_f1": 1.0
+    },
+    {
+      "calibrated": true,
+      "label": "商品信息",
+      "negative_support": 275,
+      "positive_support": 20,
+      "reason": null,
+      "threshold": 0.2,
+      "validation_f1": 1.0
+    },
+    {
+      "calibrated": true,
+      "label": "保修维修",
+      "negative_support": 275,
+      "positive_support": 20,
+      "reason": null,
+      "threshold": 0.45,
+      "validation_f1": 1.0
+    },
+    {
+      "calibrated": true,
+      "label": "账号",
+      "negative_support": 275,
+      "positive_support": 20,
+      "reason": null,
+      "threshold": 0.3,
+      "validation_f1": 0.9743589743589743
+    },
+    {
+      "calibrated": true,
+      "label": "会员积分",
+      "negative_support": 275,
+      "positive_support": 20,
+      "reason": null,
+      "threshold": 0.5,
+      "validation_f1": 1.0
+    },
+    {
+      "calibrated": true,
+      "label": "评价",
+      "negative_support": 275,
+      "positive_support": 20,
+      "reason": null,
+      "threshold": 0.5,
+      "validation_f1": 1.0
+    },
+    {
+      "calibrated": true,
+      "label": "其他",
+      "negative_support": 275,
+      "positive_support": 20,
+      "reason": null,
+      "threshold": 0.5,
+      "validation_f1": 1.0
+    }
+  ],
+  "cpu_roundtrip": {
+    "atol": 1e-05,
+    "max_abs_difference": 0.0,
+    "model_version": "ef4652e363bbb8fabcdf4d5d8a4f4ab946bd0f760c1f160934afceda998e9d29",
+    "passed": true,
+    "rtol": 0.0001,
+    "sample_count": 2
+  },
+  "probes": [
+    {
+      "text": "买大了",
+      "expected_labels": [
+        "尺码"
+      ],
+      "labels": [
+        "尺码"
+      ],
+      "passed": true
+    },
+    {
+      "text": "尺码买大了",
+      "expected_labels": [
+        "尺码"
+      ],
+      "labels": [
+        "尺码"
+      ],
+      "passed": true
+    },
+    {
+      "text": "买大了想退",
+      "expected_labels": [
+        "退换货",
+        "尺码"
+      ],
+      "labels": [
+        "退换货",
+        "尺码"
+      ],
+      "passed": true
+    },
+    {
+      "text": "尺码大了想退",
+      "expected_labels": [
+        "退换货",
+        "尺码"
+      ],
+      "labels": [
+        "退换货",
+        "尺码"
+      ],
+      "passed": true
+    },
+    {
+      "text": "买小了想退",
+      "expected_labels": [
+        "退换货",
+        "尺码"
+      ],
+      "labels": [
+        "退换货",
+        "尺码"
+      ],
+      "passed": true
+    },
+    {
+      "text": "太大了想换",
+      "expected_labels": [
+        "退换货",
+        "尺码"
+      ],
+      "labels": [
+        "退换货",
+        "尺码"
+      ],
+      "passed": true
+    },
+    {
+      "text": "尺寸不合适想退",
+      "expected_labels": [
+        "退换货",
+        "尺码"
+      ],
+      "labels": [
+        "退换货",
+        "尺码"
+      ],
+      "passed": true
+    },
+    {
+      "text": "不退货,只问尺码",
+      "expected_labels": [
+        "尺码"
+      ],
+      "labels": [
+        "尺码"
+      ],
+      "passed": true
+    }
+  ],
+  "example": {
+    "text": "买大了想退",
+    "labels": [
+      "退换货",
+      "尺码"
+    ],
+    "probabilities": [
+      0.9367981553077698,
+      0.05444113165140152,
+      0.8701425790786743,
+      0.033547293394804,
+      0.022372610867023468,
+      0.027392834424972534,
+      0.02465650998055935,
+      0.03425288945436478,
+      0.024256743490695953,
+      0.029090845957398415,
+      0.021975284442305565,
+      0.022203834727406502,
+      0.035583075135946274,
+      0.014411707408726215,
+      0.024022923782467842,
+      0.040178630501031876,
+      0.02395704947412014
+    ]
+  },
+  "batch": {
+    "pool_rows": 29,
+    "classified": 20,
+    "replay_written": 0,
+    "replay_skipped": 20,
+    "labels": {
+      "退换货": 5,
+      "其他": 7,
+      "商品信息": 5,
+      "保修维修": 1,
+      "优惠活动": 2
+    },
+    "authenticity": "unverified"
+  },
+  "budget": {
+    "attempts": 572,
+    "attempt_limit": 600,
+    "conservative_cny": 2.911919,
+    "limit_cny": 10,
+    "unknown_attempts": 1
+  },
+  "files": [
+    {
+      "group": "冻结数据",
+      "path": "dataset/train.jsonl",
+      "bytes": 512539,
+      "sha256": "f2eae2ceab899efb9b43ab2965878e31f23c1e3c90945b37dd607c843c7c7a83",
+      "modified_at": "2026-10-23T11:25:17.423554+00:00"
+    },
+    {
+      "group": "冻结数据",
+      "path": "dataset/validation.jsonl",
+      "bytes": 77469,
+      "sha256": "82a4e348d1f0fbeb5e4ea19467f784bc324ee3e1869fd8c96c621b28e8c5dc5d",
+      "modified_at": "2026-10-23T11:25:17.427185+00:00"
+    },
+    {
+      "group": "冻结数据",
+      "path": "dataset/test.jsonl",
+      "bytes": 48494,
+      "sha256": "44f82faadf2331a0a152814db40e456a54e71ed7f2ab348164c3e14900a6192b",
+      "modified_at": "2026-10-23T11:25:17.430982+00:00"
+    },
+    {
+      "group": "冻结数据",
+      "path": "dataset/train-augmentations.jsonl",
+      "bytes": 40470,
+      "sha256": "157732d2cd8c373cf3d3c38248445bed82b8b716093a1bd67d8f515d8e23e6f8",
+      "modified_at": "2026-10-23T11:25:18.676784+00:00"
+    },
+    {
+      "group": "模型包",
+      "path": "model/config.json",
+      "bytes": 2071,
+      "sha256": "5aca4b8424f1b815cecb4c363861da797ab035b92ac2dc7f27915623a6338479",
+      "modified_at": "2026-10-23T11:37:19.441769+00:00"
+    },
+    {
+      "group": "模型包",
+      "path": "model/model.safetensors",
+      "bytes": 409146380,
+      "sha256": "481a64896a92cebdff3a70672adaeaa8524f77691f52d726757887c17ee77dbd",
+      "modified_at": "2026-10-23T11:37:19.632719+00:00"
+    },
+    {
+      "group": "模型包",
+      "path": "model/tokenizer.json",
+      "bytes": 439124,
+      "sha256": "7dfbf1966ebf99d471c3796e9b457329d2b2182b817e144f1e904b957745c839",
+      "modified_at": "2026-10-23T11:37:19.635723+00:00"
+    },
+    {
+      "group": "模型包",
+      "path": "model/tokenizer_config.json",
+      "bytes": 392,
+      "sha256": "e726c6ab28d8cf6367437cc244cf5aa904ddf303f34f9215cc2ef21e6546525a",
+      "modified_at": "2026-10-23T11:37:19.638002+00:00"
+    },
+    {
+      "group": "模型包",
+      "path": "model/thresholds.json",
+      "bytes": 3776,
+      "sha256": "8b73fd0c704f660c272514631c4b43f7f6ed9d987887e7df268041900eacb4c2",
+      "modified_at": "2026-10-23T11:37:19.640002+00:00"
+    },
+    {
+      "group": "评测证据",
+      "path": "reports/silver.json",
+      "bytes": 15386,
+      "sha256": "3bbc0161ea6f4a94d51916f0c88c38a98e58b321350553e232b95eeead904278",
+      "modified_at": "2026-10-23T11:37:28.191281+00:00"
+    },
+    {
+      "group": "评测证据",
+      "path": "reports/ai-test.json",
+      "bytes": 7236,
+      "sha256": "87617bc63d9b53708f9cc9df9e3f6ce4ed04685d3d52067a7f297e14d2ee0f4b",
+      "modified_at": "2026-10-23T11:58:45.461149+00:00"
+    },
+    {
+      "group": "评测证据",
+      "path": "reports/ai-error.json",
+      "bytes": 7232,
+      "sha256": "ce94682f18da44275a974ca5cbe02e37c14e0b25d0759f9b2f4e4c5e6075100a",
+      "modified_at": "2026-10-23T11:58:45.464452+00:00"
+    },
+    {
+      "group": "评测证据",
+      "path": "reports/cpu-roundtrip.json",
+      "bytes": 193,
+      "sha256": "26633c507e1588979445ecd66b86c6e98c4c53dff79ca147a65bfed235cbb0a5",
+      "modified_at": "2026-10-23T11:37:22.086470+00:00"
+    }
+  ],
+  "reviews": {
+    "test-review": {
+      "count": 68,
+      "accepted": 57,
+      "corrected": 10,
+      "excluded": 1
+    },
+    "error-review": {
+      "count": 34,
+      "accepted": 24,
+      "corrected": 10,
+      "excluded": 0
+    }
+  }
+}

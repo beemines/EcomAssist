@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MewHelp · 后台首页</title><link rel="stylesheet" href="/static/review-queue.css?v=20261024"><link rel="stylesheet" href="/static/topic-acceptance.css?v=20261024b"><script src="/static/topic-acceptance.js?v=20261024-compact" defer></script><link rel="stylesheet" href="/static/workspace.css?v=20261024-compact"><script src="/static/workspace.js?v=20261024-compact" defer></script></head>
+<body data-view="admin" class="ui-admin ui-home"><main>
+<header class="page-head"><div><h1>后台管理</h1></div><a class="button" href="/">返回聊天 →</a></header>
+<nav class="admin-nav" aria-label="后台管理"><a href="/admin" class="active" aria-current="page">后台首页</a><a href="/review">飞轮待审</a><a href="/topics">主题分布</a><a href="/observability">观测成本</a><a href="/rag-eval">RAG 评估</a><a href="/topics/acceptance">模型验收</a></nav>
+
+<div class="portal-grid">
+<article class="portal-card"><h2>飞轮待审</h2><p>审核问题与答案，补充知识库。</p><a class="button" href="/review">打开 →</a></article>
+<article class="portal-card"><h2>RAG 评估</h2><p>比较检索策略，查看回答质量。</p><a class="button" href="/rag-eval">打开 →</a></article>
+<article class="portal-card"><h2>观测与成本</h2><p>查看 Token 花销和评估趋势。</p><a class="button" href="/observability">打开 →</a></article>
+<article class="portal-card"><h2>主题分布</h2><p>按主题查看积累的问题。</p><div id="portal-topics" class="portal-state" role="status">正在读取当前统计…</div><a class="button" href="/topics">打开 →</a></article>
+<article class="portal-card"><h2>分类器验收</h2><p>查看分类指标、数据与复核结果。</p><a class="button approve" href="/topics/acceptance">打开 →</a></article>
+<article class="portal-card"><h2>Langfuse</h2><p>查看请求链路和模型调用。</p><a class="button" href="http://127.0.0.1:3000" target="_blank" rel="noopener">打开 ↗</a></article>
+</div><details class="compact-meta"><summary>环境说明</summary><div class="fold-content"><p class="muted">第十步演示实例的收费后台任务保持关闭。需要完整飞轮操作时使用已有的 <a href="http://127.0.0.1:8006/review">第九步后台 ↗</a>。</p></div></details>
+</main></body></html>

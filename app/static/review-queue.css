@@ -176,3 +176,4 @@ dialog input,dialog textarea { width:100%; }
   .inline-detail { padding:12px; }
   .raw { padding:13px; }
 }
+body[data-readonly="true"] #approve,body[data-readonly="true"] #reject,body[data-readonly="true"] #retry-publication,body[data-readonly="true"] #run-eval,body[data-readonly="true"] .row-actions .approve,body[data-readonly="true"] .row-actions .reject{display:none!important}
