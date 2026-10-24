@@ -1,12 +1,22 @@
 # MewHelp · EcomAssist
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 **从流式对话、RAG 和工具调用，到可观测的数据飞轮与多标签模型训练。**
 
 基于 Python、FastAPI 和 LangGraph 的电商智能客服工程。它把知识检索、业务流程、人工确认、评估和离线改进串起来，并保留每一章的需求、设计、开发过程与实测结果，适合学习、研究和本地功能演示。
 
 [快速开始](docs/getting-started.md) · [文档导航](docs/README.md) · [系统架构](docs/architecture.md) · [主题分类器](docs/topic-classifier.md) · [参与贡献](CONTRIBUTING.md)
 
-![MewHelp 后台首页](docs/assets/admin-overview.png)
+## 页面演示
+
+**2 分 11 秒看全部页面**：聊天、后台、飞轮待审、观测成本、RAG 评估、主题分布、分类器验收及样本审核。点击动态预览打开完整视频。
+
+[![MewHelp 全页面导览：点击观看完整视频](docs/assets/pages-walkthrough-preview.gif)](docs/assets/pages-walkthrough.mp4)
+
+[完整 MP4](docs/assets/pages-walkthrough.mp4) · [章节与页面清单](docs/demo-video.md) · [静态预览](docs/assets/admin-overview.png)
+
+实际页面画面剪辑，含无声字幕；历史原话区域已裁剪，真实指标与当前未就绪状态保留。
 
 ## 能做什么
 
@@ -163,6 +173,6 @@ dev-notes/       逐阶段开发与返工记录
 
 ## 许可证与致谢
 
-仓库目前未附带 `LICENSE`，项目授权条款待维护者明确；本次文档整理不新增或变更授权。模型、数据和第三方依赖的授权分别以各自项目为准。
+本项目采用 [MIT License](LICENSE)。模型、数据和第三方依赖的授权分别以各自项目为准。
 
 感谢 FastAPI、LangChain / LangGraph、Milvus、Langfuse、MCP、HFL 中文预训练模型与 Hugging Face 等项目提供的基础能力。

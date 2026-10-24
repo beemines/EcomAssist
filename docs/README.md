@@ -6,6 +6,7 @@
 
 | 任务 | 文档 |
 | --- | --- |
+| 先看所有页面与主要页签 | [全页面演示视频与章节](demo-video.md) |
 | 安装、数据库、知识库、启动 | [首次部署](getting-started.md) |
 | 理解在线与离线链路 | [系统架构](architecture.md) |
 | 跑测试或提交修改 | [开发与测试](development.md)、[贡献指南](../CONTRIBUTING.md) |
