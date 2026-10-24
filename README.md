@@ -12,7 +12,7 @@
 
 **2 分 11 秒看全部页面**：聊天、后台、飞轮待审、观测成本、RAG 评估、主题分布、分类器验收及样本审核。下方动态导览包含全部31个镜头，也可下载MP4播放。
 
-[![MewHelp 全页面导览：点击下载完整视频](docs/assets/pages-walkthrough-preview.gif)](https://github.com/beemines/EcomAssist/raw/refs/heads/master/docs/assets/pages-walkthrough.mp4)
+[![MewHelp 全页面导览：点击下载完整视频](docs/assets/pages-walkthrough.gif)](https://github.com/beemines/EcomAssist/raw/refs/heads/master/docs/assets/pages-walkthrough.mp4)
 
 [下载 MP4](https://github.com/beemines/EcomAssist/raw/refs/heads/master/docs/assets/pages-walkthrough.mp4) · [仓库内视频](docs/assets/pages-walkthrough.mp4) · [章节与页面清单](docs/demo-video.md) · [静态预览](docs/assets/admin-overview.png)
 
