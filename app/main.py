@@ -426,6 +426,14 @@ def create_app(
     async def topics_page():
         return FileResponse(static_dir/'topics.html',headers={'Cache-Control':'no-store'})
 
+    @app.get('/admin',response_class=FileResponse,include_in_schema=False)
+    async def admin_page():
+        return FileResponse(static_dir/'admin.html',headers={'Cache-Control':'no-store'})
+
+    @app.get('/topics/acceptance',response_class=FileResponse,include_in_schema=False)
+    async def topic_acceptance_page():
+        return FileResponse(static_dir/'topic-acceptance.html',headers={'Cache-Control':'no-store'})
+
     # 将业务异常转换为统一的错误码、提示和 HTTP 状态。
     @app.exception_handler(ServiceError)
     async def service_error(request: Request, exc: ServiceError):
