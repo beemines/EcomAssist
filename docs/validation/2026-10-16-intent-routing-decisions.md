@@ -60,7 +60,7 @@
 
 ## 14
 
-- Ruling: Task5: update shared route_intent and new chapter6 dataset expected_route metadata to after_sales for退款退货/售后; graph consumes one current map — old helper temporarily retained Task2 routing until integration, leaving it now would give Task9 false routes — cost if wrong: historical benchmark route mismatches, explicitly labeled historical, not regraded. Chapter5 gold/saved reports unchanged; new labels/split/questions untouched.
+- Ruling: Task5: update shared route_intent and new step6 dataset expected_route metadata to after_sales for退款退货/售后; graph consumes one current map — old helper temporarily retained Task2 routing until integration, leaving it now would give Task9 false routes — cost if wrong: historical benchmark route mismatches, explicitly labeled historical, not regraded. Step5 gold/saved reports unchanged; new labels/split/questions untouched.
 
 ## 15
 
@@ -164,5 +164,5 @@
 
 ## 40
 
-- Ruling: close implementation tasks and hand over the reviewable feature branch while explicitly retaining repair useful-answer failure and mixed-version quality limitations, rather than lowering the calibrated gate or claiming full acceptance — chapter6 deterministic orchestration and guards are verified; further retrieval quality tuning has no uniquely demonstrated fix within this bounded validation scope — cost if wrong: users can still receive a refusal for a supported repair question; top acceptance summary and final response disclose this, no production-ready or independent48/8 all-pass claim, no merge/push without integration choice. M1 unsigned in-transit support remains deferred before adding such fixtures.
+- Ruling: close implementation tasks and hand over the reviewable feature branch while explicitly retaining repair useful-answer failure and mixed-version quality limitations, rather than lowering the calibrated gate or claiming full acceptance — step6 deterministic orchestration and guards are verified; further retrieval quality tuning has no uniquely demonstrated fix within this bounded validation scope — cost if wrong: users can still receive a refusal for a supported repair question; top acceptance summary and final response disclose this, no production-ready or independent48/8 all-pass claim, no merge/push without integration choice. M1 unsigned in-transit support remains deferred before adding such fixtures.
 

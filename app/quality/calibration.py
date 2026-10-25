@@ -274,8 +274,8 @@ async def run_calibration(settings, output, cap):
         corpus_hash=dataset.corpus_hash, rerank_model=settings.rerank_model,
         model_fingerprint=model_fingerprint(settings.rerank_model), top_k=settings.rerank_top_k,
         budget_fingerprint=evidence_budget_fingerprint(top_k=settings.rerank_top_k, token_budget=budget), source_kind='actual')
-    # Reuse Ch04's strict ownership manifest and hash-checked cleanup; its config is
-    # resource-only here. Actual Ch09 selection is frozen separately above.
+    # Reuse step04's strict ownership manifest and hash-checked cleanup; its config is
+    # resource-only here. Actual step09 selection is frozen separately above.
     store = RunStore(output / 'resources')
     resource_settings = settings.model_copy(update={'max_output_tokens': 512,
         'query_max_output_tokens': 2048, 'sufficiency_max_output_tokens': 2048,

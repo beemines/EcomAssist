@@ -21,7 +21,7 @@
 - 同轮最多一个逻辑工具；单轮改写只读本轮原话；keyword 仍是原话连续片段，1–128 字符；category 可选等值过滤，最长 255。
 - FAQ 链路 90 秒/0 重试，改写 15 秒、嵌入 20 秒、Milvus 5 秒、重排 20 秒、自评 20 秒、单轮总上限 240 秒；其他工具维持原策略。
 - 证据整块裁剪，工具 JSON 满足 20000 字符和 TEXT 65535 UTF-8 字节；稳定引用编号与实际 Prompt 证据全集一致。
-- 中文注释、UTF-8；分支 feat/hybrid-retrieval，提交无 ch04 前缀；前端仅 Vibe Coding/浏览器验收，不安排前端 TDD 或代码审查。
+- 中文注释、UTF-8；分支 feat/hybrid-retrieval，提交无 step04 前缀；前端仅 Vibe Coding/浏览器验收，不安排前端 TDD 或代码审查。
 - 五桶各 6 题、每桶 easy/medium/hard 各 2；独立校准 8 题；真实 MySQL 测试仅 3308/customer_service_test，Milvus 集合随机唯一命名；真实模型报告与受控报告分开。
 - 每任务通过审查后现场追加 dev-notes/ch04.md 四项记录；模型/API 用法先查 Context7；不复制密钥进仓库、日志或子代理提示。
 

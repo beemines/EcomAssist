@@ -1,4 +1,4 @@
-"""Read only selected Ch09 facts; UTF-8 output avoids PowerShell 5.1 JSON decoding."""
+"""Read only selected step09 facts; UTF-8 output avoids PowerShell 5.1 JSON decoding."""
 import argparse
 import asyncio
 import json

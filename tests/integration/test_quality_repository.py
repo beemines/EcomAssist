@@ -27,7 +27,7 @@ async def quality_database(migration_database):
         for statement in re.split(r";(?=(?:[^']*'[^']*')*[^']*$)", quality):
             if statement.strip():
                 await connection.exec_driver_sql(statement.strip())
-    # ConversationRepository now uses ch07 anchor columns. Exercise the old
+    # ConversationRepository now uses step07 anchor columns. Exercise the old
     # quality contract against its real current conversation prerequisite.
     from app.context.migration import migrate_context
     await migrate_context(migration_database)

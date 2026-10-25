@@ -29,7 +29,7 @@
 - 实际浏览器走通后台首页→验收→评测范围切换→数据产物→错例→主题页。187银标、67有效AI代审、34选定错例分别显示0.7672、0.7451、0.5463 Macro-F1，17行指标与17张矩阵均随范围切换。
 - 页面DOM核对17行指标、17矩阵/68格、17阈值、17概率、示例恰好2命中、13项产物。实际561px窗口无整页横向溢出；键盘Home能回总览，长页页签吸顶。此为实际窄窗口检查，不虚构其他视窗实测。
 - 两份代审页面HTTP200，明确非人工来源；不触发再次提交。原池全行hash、20条分类全行hash、工单15、工具审计58及费用账本均与改版前一致。
-- JavaScript语法、Python编译及diff空白检查通过。34项既有主题API/聊天API/审核路由离线回归通过，耗时7.05秒；不是重新跑整章3913项的说法。训练/ML逻辑未改，没有重跑训练测试或新训练。
+- JavaScript语法、Python编译及diff空白检查通过。34项既有主题API/聊天API/审核路由离线回归通过，耗时7.05秒；不是重新跑整个步骤3913项的说法。训练/ML逻辑未改，没有重跑训练测试或新训练。
 
 私有证据在`D:/shixi/ecommerce-customer-service/.cache/ch10-evidence/coverage-v5/frontend-acceptance-20261024/`：`export-proof.json`、`http-proof.json`、`dom-proof.json`、`pytest-elevated.xml/log`和`acceptance-overview.png`；数据库只读结果在同级`real-db-frontend-20261024.json`。公开`topic-acceptance-data.json`只含汇总和合成诊断，源导出SHA为`006b4fb4aa61204bda61efb50f05723795ae9bc17ed6d19bf8fa145f8c1cb833`。
 

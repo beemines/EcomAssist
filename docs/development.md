@@ -9,7 +9,7 @@ uv sync --project ml/topic_classifier --locked
 
 根环境运行应用及业务测试。ML环境固定Python3.12.13及独立Torch/Transformers版本，代码仍从仓库根目录按`ml.topic_classifier...`模块运行。不要把两个环境的site-packages混用，也不要为文档整理顺手升级依赖。
 
-命令依据已核对[uv官方CLI](https://docs.astral.sh/uv/reference/cli/)与[锁定/同步说明](https://docs.astral.sh/uv/concepts/projects/sync/)：`--project`选择项目与环境，不切换当前工作目录；`--locked`在锁文件不一致时失败，避免静默更新。本章既有库接口核对见[锁定源码与官方文档记录](superpowers/research/2026-10-21-topic-classifier-apis.md)。
+命令依据已核对[uv官方CLI](https://docs.astral.sh/uv/reference/cli/)与[锁定/同步说明](https://docs.astral.sh/uv/concepts/projects/sync/)：`--project`选择项目与环境，不切换当前工作目录；`--locked`在锁文件不一致时失败，避免静默更新。本步骤既有库接口核对见[锁定源码与官方文档记录](superpowers/research/2026-10-21-topic-classifier-apis.md)。
 
 ## 默认回归
 
@@ -58,9 +58,9 @@ Node只用于可选JS语法检查，不是应用运行依赖。人工截图保�
 ## 提交前
 
 1. 运行与改动相关的测试；合并前核对完整回归与必要的集成范围。
-2. 更新可复现命令、配置项和行为说明；章节过程按约定追加到`dev-notes/chXX.md`。
+2. 更新可复现命令、配置项和行为说明；步骤过程按约定追加到`dev-notes/chXX.md`。
 3. 保留失败与返工、模型评估的样本数和有效分母，不用单元测试覆盖率替代真实质量。
 4. 检查暂存清单，排除`.env`、私有语料、预算、checkpoint、模型权重和运行日志。
 5. 对有模型/数据库费用或写入的操作，先明确范围；不让普通GET、页面刷新或安装步骤自动开启它们。
 
-主仓库和其他章节worktree可能有正在运行的服务。不要重置他人的未提交修改、删除被服务依赖的worktree或批量结束Python进程。
+主仓库和其他步骤worktree可能有正在运行的服务。不要重置他人的未提交修改、删除被服务依赖的worktree或批量结束Python进程。

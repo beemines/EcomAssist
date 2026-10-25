@@ -20,7 +20,7 @@
 - Python + FastAPI + LangChain
 - 模型接入直连上游,应用侧统一说 OpenAI 协议,地址、模型名、密钥全在 .env,GPT、Claude、DeepSeek、Ollama 都能换着接
 
-## 本章不做
+## 本步骤不做
 - 工具调用、Agent 循环,先跑通纯对话
 
 ## 验收标准
@@ -69,7 +69,7 @@
 - FastAPI + SQLAlchemy + MySQL(Docker 起)
 - LangChain @tool 装饰器
 
-## 本章不做
+## 本步骤不做
 - 多轮自动循环的 Agent Loop
 - 向量检索、RAG
 
@@ -90,8 +90,8 @@
 
 ```sql
 -- =============================================================
--- ch02 · Function Calling 工具链 · 建表 DDL
--- 本章新建:faq / conversations / messages / tickets 四张表
+-- step02 · Function Calling 工具链 · 建表 DDL
+-- 本步骤新建:faq / conversations / messages / tickets 四张表
 -- 商品、订单、物流走工具内 mock,不建表
 -- 全库统一 ENGINE=InnoDB、CHARSET=utf8mb4
 -- 建表顺序:先 conversations,再依赖它的 messages / tickets
@@ -122,7 +122,7 @@ CREATE TABLE messages (
   CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话消息流水';
 
--- FAQ 问答对:query_faq 的数据源;ch03 起检索改走向量库,这张表退居原始录入
+-- FAQ 问答对:query_faq 的数据源;step03 起检索改走向量库,这张表退居原始录入
 CREATE TABLE faq (
   id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'FAQ 主键',
   question    VARCHAR(512)    NOT NULL                COMMENT '问题',
@@ -171,8 +171,8 @@ CREATE TABLE tickets (
 - 嵌入模型 BGE-M3
 - 向量库 Milvus,MySQL 当原文权威源
 
-## 本章不做
-- 关键词召回、混合检索、重排,本章只跑 dense 向量单路
+## 本步骤不做
+- 关键词召回、混合检索、重排,本步骤只跑 dense 向量单路
 
 ## 验收标准
 1. 「邮费是多少」这类换说法的问题,现在能召回运费说明并答对
@@ -190,8 +190,8 @@ CREATE TABLE tickets (
 
 ```sql
 -- =============================================================
--- ch03 · RAG 基础 · 建表 DDL
--- 本章新建:knowledge_chunks(知识库原文权威源)
+-- step03 · RAG 基础 · 建表 DDL
+-- 本步骤新建:knowledge_chunks(知识库原文权威源)
 -- 向量落 Milvus 集合 knowledge(非 MySQL,DDL 不含);MySQL 存原文 + 双写状态
 -- category + questions + answer 三格拼成向量化文本;其余字段是元数据,只存不进向量
 -- =============================================================
@@ -263,7 +263,7 @@ CREATE TABLE qa_extraction_staging (
 - Milvus 原生 BM25 + hybrid_search RRF 融合
 - 重排模型 bge-reranker-v2-m3
 
-## 本章不做
+## 本步骤不做
 - 指代消解、多轮改写
 
 ## 验收标准
@@ -278,10 +278,10 @@ CREATE TABLE qa_extraction_staging (
 3. 涉及具体库、框架、API 的用法(FastAPI、SQLAlchemy、LangChain、LangGraph、Milvus、Langfuse 这些),一律先用 Context7 MCP 查最新官方文档和接口定义再动手,别凭记忆写,版本对不上的 API 是返工重灾区
 4. 上面点名的技术选型是定死的,实现中发现矛盾或走不通,停下来问我,不要自行换方案
 5. 完结交付:功能演示命令、测试结果、dev-notes 路径-- =============================================================
--- ch04 · RAG 进阶 · 建表 DDL
--- 本章新建:low_confidence_questions(低置信度问题池)、faith_cases(编造个案台账)
--- 生成阶段模型自评知识不够答就拒答,把原话落进这张池子,是 ch09 数据飞轮的入口
--- 本章只靠 useful 自评判入池(useful=false 才入,不单独存该字段);ch09 会给这张表 ALTER 加归并字段
+-- step04 · RAG 进阶 · 建表 DDL
+-- 本步骤新建:low_confidence_questions(低置信度问题池)、faith_cases(编造个案台账)
+-- 生成阶段模型自评知识不够答就拒答,把原话落进这张池子,是 step09 数据飞轮的入口
+-- 本步骤只靠 useful 自评判入池(useful=false 才入,不单独存该字段);step09 会给这张表 ALTER 加归并字段
 -- =============================================================
 
 -- 确保中文 ENUM 定义值/DEFAULT/COMMENT 按 utf8mb4 解析
@@ -301,7 +301,7 @@ CREATE TABLE low_confidence_questions (
   CONSTRAINT fk_lcq_conversation FOREIGN KEY (conversation_id) REFERENCES conversations (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='低置信度问题池';
 
--- ch04 编造个案台账:忠实度裁判判出的每条编造,不只留在这一轮的报告里,进表长期管理。
+-- step04 编造个案台账:忠实度裁判判出的每条编造,不只留在这一轮的报告里,进表长期管理。
 --
 -- 为什么要一张表:报告是产物,重跑一次就被覆盖,上一轮判出的个案连带它的处置状态一起没了。
 -- 而这些个案的价值恰恰在跨轮追溯——同一道题反复被判编造,说明库里那一格一直没补对。
@@ -333,7 +333,7 @@ CREATE TABLE faith_cases (
   UNIQUE KEY uk_eval_id (eval_id),
   KEY idx_status (status),
   KEY idx_last_seen_at (last_seen_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='ch04 忠实度编造个案台账';本章验收在这两个页面上完成，本地 make dev  起好应用后直接开 ：
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='ch04 忠实度编造个案台账';本步骤验收在这两个页面上完成，本地 make dev  起好应用后直接开 ：
 - 聊天页 http://localhost:8000/ —— 带引用角标的回答、点角标看原文、库外问题拒答、每段回答的 👍/👎
 - RAG 评估 http://localhost:8000/rag-eval —— 四策略对照的检索排序、证据覆盖、端到端答案覆盖，页面上还能重跑具体来说我们是需要验证四种策略
 vector
@@ -909,7 +909,7 @@ D60,D_absent,"我想在你们平台开店卖东西,怎么入驻",,,是
 ## 使用插件
 
 - Superpowers
-- Context7（原始要求；本章经用户批准以官方文档与锁定源码核对替代）
+- Context7（原始要求；本步骤经用户批准以官方文档与锁定源码核对替代）
 
 ## 完整原始提示词与建表DDL
 

@@ -154,7 +154,7 @@
 - [x] 执行 `uv run --locked pytest -q`、`uv run --locked pytest tests/integration --run-mysql --run-milvus -q`、真实标注提取及在线评估、`git diff --check`。显式要求的集成环境不就绪应失败，普通 gating skips 单列说明，不冒称全部运行。
 - [x] 使用 requesting-code-review 完成整分支独立审查；按 receiving-code-review 核实建议，修复后重跑受影响验证。及时记录每条结论与返工。
 - [x] README 给出保留既有 MySQL 项目的迁移、Milvus 启动、import-document→vectorize-pending、mine-conversations、run-daily、每日定时部署和原问法聊天命令。记录完整测试结果与未解决限制。
-- [x] 使用 verification-before-completion 和 finishing-a-development-branch；只有要求的真实验收及审查通过才报告完成。此次只授权功能开发，Git 合并/推送方式按本章 finish 决策，前章发布授权不自动扩展；保留 prompt.md 的原有改动。最终总回归729通过/0失败/0跳过；集成方式待用户决定。
+- [x] 使用 verification-before-completion 和 finishing-a-development-branch；只有要求的真实验收及审查通过才报告完成。此次只授权功能开发，Git 合并/推送方式按本步骤 finish 决策，前章发布授权不自动扩展；保留 prompt.md 的原有改动。最终总回归729通过/0失败/0跳过；集成方式待用户决定。
 
 ## 计划自查
 

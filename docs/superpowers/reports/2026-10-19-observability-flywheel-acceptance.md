@@ -4,7 +4,7 @@
 
 2026-10-20新增验收基线：用户提供18张标准流程与页面截图后，完成[参考页面差距对照](../../ch09-reference-gap-analysis.md)。**按新增标准当前尚未完整通过**；下文保留原本地运行事实，未覆盖项与质量失败以后续对照表逐项复验。
 
-验收日期：2026-10-20。工作区：`D:/shixi/ecommerce-customer-service/.worktrees/observability-flywheel`，分支 `feat/observability-flywheel`。采用已批准的 Native 顺序实施；一次独立后端整分支审查，前端按用户要求采用 Vibe Coding。设计、计划和本报告的“完成”只覆盖本章本地部署范围。
+验收日期：2026-10-20。工作区：`D:/shixi/ecommerce-customer-service/.worktrees/observability-flywheel`，分支 `feat/observability-flywheel`。采用已批准的 Native 顺序实施；一次独立后端整分支审查，前端按用户要求采用 Vibe Coding。设计、计划和本报告的“完成”只覆盖本步骤本地部署范围。
 
 ## 使用入口
 
@@ -16,7 +16,7 @@
 - [全部执行裁决与finish验证](2026-10-20-observability-flywheel-execution.md)
 - 客服 `http://127.0.0.1:8006/`；审核与统计 `http://127.0.0.1:8006/review-queue`；本地Langfuse `http://127.0.0.1:3000/`。
 
-本章文件在独立worktree里，主目录master尚未合并。用户本次批准的是实施和隔离工作区，没有授权第九步合并或推送。`.env`、本地管理员密码与SDK密钥均未提交。
+本步骤文件在独立worktree里，主目录master尚未合并。用户本次批准的是实施和隔离工作区，没有授权第九步合并或推送。`.env`、本地管理员密码与SDK密钥均未提交。
 
 ## 自动测试及结构
 
@@ -58,13 +58,13 @@
 
 | 检查 | 真实证据 |
 | --- | --- |
-| 缺失政策→可信兜底 | 会话87问星舟CH09体验服务押金/归还期限，retrieval_low_conf入池17 |
+| 缺失政策→可信兜底 | 会话87问星舟step09体验服务押金/归还期限，retrieval_low_conf入池17 |
 | 👎回捞原轮证据 | 同轮反馈18，和17均保存当时Top10正文/得分；不是当前轮或后续新知识 |
 | 同轮幂等/跨入口计数 | 17/18属于同一assistant846，只计一次；两次重放反馈都返回18、created=false |
 | 同义缺口归并 | 会话88同义问入池19，仍归到review1，两个逻辑轮累计2次 |
 | 人工审核/索引就绪 | review1填“验收模拟政策”分类及明确模拟答案，knowledge135一次发布ready，MySQL vectorize_status=done |
 | 新会话重新检索 | 会话89实际答出押金199元、领取后7天内归还，trace中可见新片段135；未用上个会话记忆 |
-| 生成自评入口 | 会话92问CH09专用50元券，相关运费片段不包含领券规则；self_check入池22→review2待审 |
+| 生成自评入口 | 会话92问step09专用50元券，相关运费片段不包含领券规则；self_check入池22→review2待审 |
 | 旧物流MCP主链路 | 会话90订单1001，query_logistics审计source=mcp:logistics、success、retry0，无工单退款 |
 | 闲聊与意图成本 | 会话91正常结束并记录最终闲聊意图 |
 

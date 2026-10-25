@@ -1,6 +1,6 @@
 # 第十步官方接口与环境核对（设计阶段）
 
-日期：2026-10-21。用户批准本章在Context7不可调用时，以官方文档与锁定版本源码核对接口；该批准不更换技术选型。
+日期：2026-10-21。用户批准本步骤在Context7不可调用时，以官方文档与锁定版本源码核对接口；该批准不更换技术选型。
 
 ## 已读来源与设计约束
 
@@ -9,7 +9,7 @@
 3. [PyTorch官方本地安装说明](https://pytorch.org/get-started/locally/)：Windows/NVIDIA使用相匹配的CUDA wheel；先核验具体发布版本、Python/wheel/驱动兼容性。网页部分静态选择器与页面其他版本信息不完全一致，不据此宣称某一数字是当前最新稳定版本。本阶段没有安装训练依赖。
 4. [SQLAlchemy官方2.0异步文档](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html)及仓库锁定2.0.54的app/db/session.py：沿用现有Database/短会话边界，只读SELECT统计现有问题池，未执行建表、清理或写回。
 5. [Transformers早停回调](https://huggingface.co/docs/transformers/en/main_classes/callback)：EarlyStoppingCallback依赖load_best_model_at_end，验证与保存节奏须一致。BERT多标签文档示例使用problem_type=multi_label_classification、sigmoid及float标签，不使用softmax。设计采用验证选最佳、随后验证选阈值，测试不参与。
-6. [scikit-learn原文](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.multilabel_confusion_matrix.html)：类级输出形状为(n_labels,2,2)，顺序为TN/FP/FN/TP；本章固定17列顺序，缺类仍报告支持数。[iterative-stratification原项目](https://github.com/trent-b/iterative-stratification)提供多标签分层基础，普通单标签stratify不能直接替代；小批训练约束及group_id需外围实现，不能声称原库本身支持组约束。
+6. [scikit-learn原文](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.multilabel_confusion_matrix.html)：类级输出形状为(n_labels,2,2)，顺序为TN/FP/FN/TP；本步骤固定17列顺序，缺类仍报告支持数。[iterative-stratification原项目](https://github.com/trent-b/iterative-stratification)提供多标签分层基础，普通单标签stratify不能直接替代；小批训练约束及group_id需外围实现，不能声称原库本身支持组约束。
 7. [智谱模型页](https://docs.bigmodel.cn/cn/guide/models/vlm/glm-5.3-flash)、[核心参数](https://docs.bigmodel.cn/cn/guide/start/concept-param)、[对话接口](https://docs.bigmodel.cn/api-reference/模型-api/对话补全)及[价格](https://docs.bigmodel.cn/cn/guide/start/pricing)：5.3 Flash强制thinking，支持low/high/max，最大输出131072；标准价格未缓存输入0.8、输出2.8元/百万token。预算设计采用最大窗口及输出先预留，完整usage可核对再结算，未知保持预留；不把字符估算当硬计费上限。教师采用low，不改第九步线上配置。
 
 ## 本机与语料只读结果
@@ -64,7 +64,7 @@ Task3核对[Python3.13 sqlite3事务语义](https://docs.python.org/3.13/library
 
 Task9沿用已核对的SQLAlchemy2.0.54与ProcessingLease短事务/物理连接边界；另核对[MySQL命名锁官方说明](https://dev.mysql.com/doc/refman/8.4/en/locking-functions.html)中的连接所有权及释放语义，[SQLite UPSERT](https://sqlite.org/lang_upsert.html)中多列唯一冲突目标、excluded引用以及仅处理唯一约束的范围。MySQL locking-reads页面本次浏览返回不可用，不把该页面当已读取证据；实际FOR UPDATE与JOIN行为在3308独立schema真实测试。新增SQLite库仍显式BEGIN IMMEDIATE、FULL同步、显式关闭，错数据库身份/缺失/损坏回执拒绝当作空集合。
 
-Task10实现前核对[MySQL JSON查询函数](https://dev.mysql.com/doc/refman/8.4/en/json-search-functions.html)的JSON_CONTAINS与数组包含语义、[FastAPI Query参数约束](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/)，并沿用项目已锁FastAPI/Pydantic及现有ReviewRoute/guard_read。数据库DATETIME显示沿用既有后台的naive视为UTC口径，查询须显式时区后转换UTC半开范围；本章没有擅改原列或服务器时区，3308在范围端点实际验证。
+Task10实现前核对[MySQL JSON查询函数](https://dev.mysql.com/doc/refman/8.4/en/json-search-functions.html)的JSON_CONTAINS与数组包含语义、[FastAPI Query参数约束](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/)，并沿用项目已锁FastAPI/Pydantic及现有ReviewRoute/guard_read。数据库DATETIME显示沿用既有后台的naive视为UTC口径，查询须显式时区后转换UTC半开范围；本步骤没有擅改原列或服务器时区，3308在范围端点实际验证。
 
 
 Task6预备核对锁定Transformers5.20.2本机training_args.py、trainer.py、trainer_callback.py与BertTokenizer源码：training_arguments支持restore_callback_states_from_checkpoint；Trainer以严格np.greater更新最佳指标，平分不替换早期checkpoint；BertTokenizer当前构造参数为vocab（可为词表dict）。Windows训练锁按[Python3.12 msvcrt.locking官方接口](https://docs.python.org/3.12/library/msvcrt.html#msvcrt.locking)核对LK_NBLCK/LK_UNLCK及允许锁住文件末尾以外的字节，采用固定文件句柄锁，不按PID删除锁文件。早停、动态float多标签、processing_class、保存safetensors在明确tiny随机CPU连通脚本实际跑过；不据此声称HFL已训练或有分类成绩。

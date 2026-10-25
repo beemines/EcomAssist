@@ -1,4 +1,4 @@
-"""Locate the archived original chapter DDL independently of Markdown fences."""
+"""Locate the archived original step DDL independently of Markdown fences."""
 from pathlib import Path
 
 

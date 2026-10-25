@@ -24,7 +24,7 @@
 - 最终回答 512；理解/分类/扩写/Agent 控制 JSON 2048；单次模型 60 秒、零模型重试，活动聊天累计 240 秒、FAQ 段 90 秒、最多四次逻辑工具调用。强制查单与聚合检索各计一次。
 - 32000 账本包含分类/理解/扩写及 Agent，充分性等检索内部调用另记 usage/期限；不宣称全链路严格费用上限。暂停保留已消费活动时间与计数，人等待另计。
 - UTF-8，新增/修改函数有中文用途说明；每个阶段/任务完成即时追记 `dev-notes/ch06.md` 的用户原话、产出、纠偏、返工。提交标题不加 ch 前缀，只提交本任务文件。
-- Context7 本章月度额度耗尽，用户已允许官方文档替代；动具体 API 前核对锁定版本/官方接口并记来源。已查且无变动的接口复用记录，不反复请求已耗尽服务。
+- Context7 本步骤月度额度耗尽，用户已允许官方文档替代；动具体 API 前核对锁定版本/官方接口并记来源。已查且无变动的接口复用记录，不反复请求已耗尽服务。
 - 后端 RED→GREEN，Prompt/数据以标注样例验证替代纯 Prompt TDD；前端不套 brainstorm/TDD/code review，但需真实浏览器点击验收。不开 300 题评估，不把未执行样例计为通过。
 
 ## Review Focus
@@ -54,7 +54,7 @@
 
 Task 1/2 完成后做 Task 3；Task 4→5→6 接通图；Task 7 依赖 Task 5 的完成 offer 和 Task 6 的动作边界；Task 8 依赖公开契约；Task 9 整体验收。接口依赖密集，实施按顺序推进，不并行修改共享图或服务文件。
 
-执行阶段先读取 using-git-worktrees：检查附加工作树与 Git 状态，独立工作树从含本计划的 master 提交建立，`.env` 仅本机复用且不显示凭据。新检查点路径使用新工作树 `runtime/workflow/checkpoints.sqlite`，不拷贝 8002 的活跃 SQLite。执行 `uv sync --locked` 后一次基线 `uv run --locked pytest -q`，失败先归因，不修改与本章无关的工作。
+执行阶段先读取 using-git-worktrees：检查附加工作树与 Git 状态，独立工作树从含本计划的 master 提交建立，`.env` 仅本机复用且不显示凭据。新检查点路径使用新工作树 `runtime/workflow/checkpoints.sqlite`，不拷贝 8002 的活跃 SQLite。执行 `uv sync --locked` 后一次基线 `uv run --locked pytest -q`，失败先归因，不修改与本步骤无关的工作。
 
 以下命令除特别说明外在新工作树根目录用 PowerShell 执行，先设 `$env:PYTHONUTF8='1'`。仓库没有 Makefile，演示使用实际存在的 uv/CLI 入口。每个任务提交前 `git diff --cached --check`，每次仅 stage 对应文件及本阶段开发记录。
 
@@ -228,7 +228,7 @@ assert not {'done', 'refund_offer'} & {event.event for event in failed_checkpoin
 - `RefundDraft` 仅服务器构造：完整消息定位、offer_id、owner/order、amount_cents/currency、order/policy/decision 快照。`RefundRepository.create_pending(draft:RefundDraft,reason:RefundReason)->RefundReceipt`；receipt 含 request_no/status='待审核'/order_id/amount_cents/currency。
 - `RefundActionService.submit(conversation_id:str,payload:RefundActionRequest)->RefundReceipt` 读取原不可变根 completed 快照、SQL 答复归属及合法 offer，再调用仓储。入口为 POST actions/refund，不放入 Agent 工具表。
 - `async migrate_refunds(database:Database)->None`、`async verify_refunds(database:Database)->None`；`python -m app.refunds.cli init|verify`，默认从现有配置读取目标；仅显式 init 建表，在线启动只 verify。
-- DDL/model 按 spec 全字段：BIGINT 消息外键、唯一 request_no/offer_id/pending_key、用户/订单/状态索引、六值 reason、待审核 status、整数分、JSON 快照、服务端 created_at；utf8mb4。pending_key=SHA256(规范 UTF-8 JSON 数组 `[user_id,order_id]`)，本章不释放。
+- DDL/model 按 spec 全字段：BIGINT 消息外键、唯一 request_no/offer_id/pending_key、用户/订单/状态索引、六值 reason、待审核 status、整数分、JSON 快照、服务端 created_at；utf8mb4。pending_key=SHA256(规范 UTF-8 JSON 数组 `[user_id,order_id]`)，本步骤不释放。
 
 - [ ] **Step 1 — RED 契约/权限测试：** 只接受四字段；缺/非法原因、额外金额/状态、跨会话 root、子图 checkpoint、未完成/clarification/维修/无 offer 一律拒绝且仓储零调用。合法申请金额与证据完全来自服务器，表单 reason 与模型决定分开。
 - [ ] **Step 2 — RED 集成测试：** 真 MySQL 中相同 offer+原因重试同单号；改原因 409；同用户同订单不同会话并发仅一条 pending；不同用户同数字订单号互不冲突。模拟 commit 后丢响应重试同单；非 1062 故障不冒充成功。SQL tickets/订单/会话人工状态均未改变。
@@ -284,7 +284,7 @@ assert dependent_turn['status'] == 'blocked' and dependent_turn['model_calls'] =
 - [ ] **Step 6 — 检查目标：** 48 轮意图 ≥46 正确、完整透传全部保持、明确可消解 ≥95%、歧义零猜单、关键路由全正确；JSON 可解析率与全链路完成率独立统计。未跑完或未达标如实列出，不从离线 fake 推断真实通过；如需改固定模型/技术方案，按用户要求先讨论。
 - [ ] **Step 7 — 后端整分支审查与必要修复：** 按选定执行技能进行全分支接口/行为审查，重点看五项 Review Focus、旧完成工单、SQLite 与 MySQL 非原子边界及输入来源；前端保持用户例外，只依据浏览器验收。不将已验证任务无理由重做；修复后仅重跑受影响测试，最终代码变更后再做一次必要完整验证并分别记录结果。
 - [ ] **Step 8 — 留痕与交付提交：** 更新 README 的 8003 地址、真实启动/迁移/演示命令、模型验证范围及已知边界；验收报告列具体命令/结果，不预填通过数量。每次任务与 review 结论已即时记录，最后只追加 finish。提交 `docs: record intent routing acceptance and demo commands`。
-- [ ] **Step 9 — 完成分支：** 使用 verification-before-completion 和 finishing-a-development-branch，依据本章最终用户整合选择处理，不在当前计划阶段合并/推送。保留仍供用户查看的服务及必要运行资料；功能交付必须附测试结果、演示命令、标注报告与 `dev-notes/ch06.md`。
+- [ ] **Step 9 — 完成分支：** 使用 verification-before-completion 和 finishing-a-development-branch，依据本步骤最终用户整合选择处理，不在当前计划阶段合并/推送。保留仍供用户查看的服务及必要运行资料；功能交付必须附测试结果、演示命令、标注报告与 `dev-notes/ch06.md`。
 
 ## 官方接口与执行前查证清单
 

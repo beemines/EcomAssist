@@ -27,7 +27,7 @@ def run_key(value):
 
 
 class PipelineCaseResult(StrictModel):
-    # Keep the validated public Ch04 stage contract intact, adding audit/usage
+    # Keep the validated public step04 stage contract intact, adding audit/usage
     # beside it. Unattempted gold IDs are explicitly frozen ordinals, not DB IDs.
     record: dict
     id_space: Literal['frozen_ordinal','mysql'] = 'mysql'

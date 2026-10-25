@@ -16,7 +16,7 @@ pwsh -NoProfile -File scripts/start-observability-demo.ps1
 
 Langfuse：<http://127.0.0.1:3000>；客服：<http://127.0.0.1:8006>；审核后台：<http://127.0.0.1:8006/review-queue>。
 
-正常模式没有本次验收的累计调用账本限制；每次手动评估仍有自己的运行上限。定时评估关闭。旧8004/8005服务不会被本章脚本停止。已有8101/8102物流、售后MCP只核对，不接管；未启动时可用项目中的CH08运行配置单独启动。
+正常模式没有本次验收的累计调用账本限制；每次手动评估仍有自己的运行上限。定时评估关闭。旧8004/8005服务不会被本步骤脚本停止。已有8101/8102物流、售后MCP只核对，不接管；未启动时可用项目中的step08运行配置单独启动。
 
 首次安装的结构与真实校准产物应按验收报告准备；缺少真实规则文件时8006会拒绝启用，不能拿测试fixture替代。这里的启动命令不会重新迁移数据库或重跑收费校准。
 
@@ -73,7 +73,7 @@ $runKey=[guid]::NewGuid().ToString()
 .venv\Scripts\python.exe -c "from dotenv import load_dotenv; load_dotenv('runtime/langfuse/sdk.env'); from app.eval_pipeline.cli import main; main()" run --scope smoke_20 --run-key $runKey --execute
 ```
 
-普通CLI按`.env`的Langfuse启用设置运行；没有开启时不会自动向Langfuse导出。上述收费命令不会因本章交付而自动执行。
+普通CLI按`.env`的Langfuse启用设置运行；没有开启时不会自动向Langfuse导出。上述收费命令不会因本步骤交付而自动执行。
 
 本机已验收的两轮UUID分别为`1dca3ee1-5a49-4c60-a82c-7454d49b4be3`、`3ecfae0f-2897-434f-8ec9-b37df20fc3e4`。只读查询这些UUID可核对原结果，不会再花模型费用。
 

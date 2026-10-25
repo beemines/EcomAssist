@@ -1,4 +1,4 @@
-"""Ch04 physical ownership reused with native manifests and truthful model budgets."""
+"""step04 physical ownership reused with native manifests and truthful model budgets."""
 import asyncio
 import math
 from uuid import UUID
@@ -55,7 +55,7 @@ class UsageCollector(BaseCallbackHandler):
 
 
 class ResourceStore:
-    """Adapt only Ch04's ownership/counter protocol, never its fixed-budget config."""
+    """Adapt only step04's ownership/counter protocol, never its fixed-budget config."""
     def __init__(self,store,key): self.store,self.key=store,key
     async def get(self,run_id):
         if run_id!=UUID(self.key).hex: raise ValueError('Resource owner key mismatch')

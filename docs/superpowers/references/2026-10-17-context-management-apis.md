@@ -1,6 +1,6 @@
-# ch07 · 官方接口核对记录
+# step07 · 官方接口核对记录
 
-日期：2026-10-17。用户已批准本章以官方文档和锁定版本源码替代当前不可调用的Context7。以下是设计期核对，未修改产品实现，也不是测试报告。
+日期：2026-10-17。用户已批准本步骤以官方文档和锁定版本源码替代当前不可调用的Context7。以下是设计期核对，未修改产品实现，也不是测试报告。
 
 ## LangGraph：消息增量与持久化
 
@@ -27,7 +27,7 @@
 - [FOR UPDATE官方接口](https://docs.sqlalchemy.org/en/20/core/selectable.html#sqlalchemy.sql.expression.Select.with_for_update)：当前网页为2.0.55；本地2.0.54的`sql/selectable.py:4009`签名为`with_for_update(self, *, nowait=False, read=False, of=None, skip_locked=False, key_share=False)`。计划只用无参数行锁，不把其他数据库的NOWAIT行为套到MySQL。
 - [MySQL8.4隐式提交](https://dev.mysql.com/doc/refman/8.4/en/implicit-commit.html)：项目compose同为mysql:8.4；ALTER TABLE等DDL会隐式提交，迁移必须识别部分完成状态，不宣称包在SQLAlchemy事务里就能整体回滚。
 - [CompiledStateGraph官方成员列表](https://reference.langchain.com/python/langgraph/graph/state/CompiledStateGraph)确认历史读取继承`aget_state_history`；锁定1.2.15的`pregel/main.py:1554`为`aget_state_history(config, *, filter=None, before=None, limit=None) -> AsyncIterator[StateSnapshot]`，SQLite saver3.1.2的`aio.py:448`为`alist(config, *, filter=None, before=None, limit=None) -> AsyncIterator[CheckpointTuple]`。GET历史装饰器使用真实方法，不能编造`alist_state_history`。旧graphs/锚点地址及单方法页抓取失败已区分，不能把这些失败页计为签名核对成功。
-- 本次工具元数据重新检查仍无Context7，继续使用本章已批准的官方资料＋锁定源码方式。真实费用HTTP钩子的用法在任务10实现前另核对HTTPX0.28.1官方事件钩子和安装签名。
+- 本次工具元数据重新检查仍无Context7，继续使用本步骤已批准的官方资料＋锁定源码方式。真实费用HTTP钩子的用法在任务10实现前另核对HTTPX0.28.1官方事件钩子和安装签名。
 
 ## 任务1实施前：Pydantic显式配置与别名
 

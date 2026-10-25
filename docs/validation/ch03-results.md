@@ -1,4 +1,4 @@
-# 第三章 Dense 知识库验证记录
+# 第三步 Dense 知识库验证记录
 
 执行分支：`feat/ch03-dense-knowledge`，实施 worktree：`D:/shixi/ecommerce-customer-service/.worktrees/ch03-dense-knowledge`。Tasks 1–6 独立审查及整分支修复复核通过。最终当前代码总回归为 **729 passed、0 failed、0 skipped**（显式 MySQL/Milvus）；合并/推送尚待用户选择，主库建库与宿主计划任务未部署。下文保留各阶段原始测试、失败与实证，不将旧树结果冒充最终结果。
 
@@ -17,7 +17,7 @@
 | 售后申请如何提交 | 合成演示操作手册/演示申请步骤（85） | 85,83,81 | 命中 |
 | 火星今天的天气如何 | 无相关章节 | 86,82,81 | 域外误召回观察 |
 
-attempted=6 / not_attempted=0；必需域内 5/5，全部标注 **5/6**。域外 required=false 是本章明确的无阈值 Dense 限制，仍记录 passed=false 和实际三条不相关结果。命中定义为 Top3 包含明确目标章节，不代表所有三条均相关，亦不宣称域外拒答已实现。退货问题不能从“8 元”推出退货责任；目标章节明确另确认。
+attempted=6 / not_attempted=0；必需域内 5/5，全部标注 **5/6**。域外 required=false 是本步骤明确的无阈值 Dense 限制，仍记录 passed=false 和实际三条不相关结果。命中定义为 Top3 包含明确目标章节，不代表所有三条均相关，亦不宣称域外拒答已实现。退货问题不能从“8 元”推出退货责任；目标章节明确另确认。
 
 通过真实 create_app lifespan、真实模型工厂、真实 MySQL/Milvus、应用 API 创建独立演示会话 `9007199254741164`，发送 **“邮费是多少”**。实际持久 query_faq 参数为 `{"keyword":"邮费是多少"}`，命中 82/80/81；HTTP 请求 2 次，done=1，101 个非空 delta，完整回答已持久化并与 SSE 文本一致。在线模型 `glm-5.3-flash`，原输出预算 **512** 保持。app 结构验收通过，耗时约 12.68 秒。上游请求数未单独观测，报告 model_request_count=null，不用理论次数充当实测。
 

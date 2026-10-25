@@ -1,4 +1,4 @@
-"""Original CH10 DDL is authoritative; additions preserve default FK semantics."""
+"""Original step10 DDL is authoritative; additions preserve default FK semantics."""
 
 from pathlib import Path
 

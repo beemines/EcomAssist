@@ -1,8 +1,8 @@
 -- =============================================================
--- ch04 · RAG 进阶 · 建表 DDL
--- 本章新建:low_confidence_questions(低置信度问题池)、faith_cases(编造个案台账)
--- 生成阶段模型自评知识不够答就拒答,把原话落进这张池子,是 ch09 数据飞轮的入口
--- 本章只靠 useful 自评判入池(useful=false 才入,不单独存该字段);ch09 会给这张表 ALTER 加归并字段
+-- step04 · RAG 进阶 · 建表 DDL
+-- 本步骤新建:low_confidence_questions(低置信度问题池)、faith_cases(编造个案台账)
+-- 生成阶段模型自评知识不够答就拒答,把原话落进这张池子,是 step09 数据飞轮的入口
+-- 本步骤只靠 useful 自评判入池(useful=false 才入,不单独存该字段);step09 会给这张表 ALTER 加归并字段
 -- =============================================================
 
 -- 确保中文 ENUM 定义值/DEFAULT/COMMENT 按 utf8mb4 解析
@@ -22,7 +22,7 @@ CREATE TABLE low_confidence_questions (
   CONSTRAINT fk_lcq_conversation FOREIGN KEY (conversation_id) REFERENCES conversations (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='低置信度问题池';
 
--- ch04 编造个案台账:忠实度裁判判出的每条编造,不只留在这一轮的报告里,进表长期管理。
+-- step04 编造个案台账:忠实度裁判判出的每条编造,不只留在这一轮的报告里,进表长期管理。
 --
 -- 为什么要一张表:报告是产物,重跑一次就被覆盖,上一轮判出的个案连带它的处置状态一起没了。
 -- 而这些个案的价值恰恰在跨轮追溯——同一道题反复被判编造,说明库里那一格一直没补对。

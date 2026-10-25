@@ -23,23 +23,23 @@
 ## 三、启动Langfuse
 
 1. 先打开Windows的Docker Desktop，等待显示引擎正在运行。
-2. 在PyCharm右上角运行配置下拉框选择 **CH09 01 - 本地 Langfuse**。
+2. 在PyCharm右上角运行配置下拉框选择 **step09 01 - 本地 Langfuse**。
 3. 点绿色三角运行。该配置使用Python模块 `app.observability.local_stack`，参数 `up --port 3000`，不需要Shell插件。
 4. 控制台显示服务就绪后，这个Python命令可以正常退出；Docker容器仍继续运行。
 5. 浏览器打开 <http://127.0.0.1:3000>。邮箱是 `admin@ch09.local`，密码查看当前worktree中 `runtime/langfuse/local.env` 的 `LANGFUSE_INIT_USER_PASSWORD` 值。
-6. 登录后选择 **EcomAssist CH09** 项目，后面在Observability → Tracing里查请求。
+6. 登录后选择 **EcomAssist step09** 项目，后面在Observability → Tracing里查请求。
 
 ## 四、先跑离线检查
 
-1. 右上角选择 **CH09 03 - 离线检查（不调模型）**。
+1. 右上角选择 **step09 03 - 离线检查（不调模型）**。
 2. 点绿色三角，控制台应出现pytest通过结果。
 3. 这验证启动/额度/指标合同，不代表真实模型已验收；也不会生成收费模型请求。
 
-如果下拉框没有CH09配置，点“运行”→“编辑配置”，确认项目根下有`.run`三份CH09 XML，再重新打开本worktree。也可手动新增Python配置：选择“模块名称”，填`pytest`，参数填 `tests/test_observability_startup_guards.py tests/test_ch09_acceptance_cap.py -q`，工作目录选择worktree。
+如果下拉框没有step09配置，点“运行”→“编辑配置”，确认项目根下有`.run`三份step09 XML，再重新打开本worktree。也可手动新增Python配置：选择“模块名称”，填`pytest`，参数填 `tests/test_observability_startup_guards.py tests/test_ch09_acceptance_cap.py -q`，工作目录选择worktree。
 
 ## 五、启动客服8006
 
-1. 右上角选 **CH09 02 - 客服 8006 普通模式**。
+1. 右上角选 **step09 02 - 客服 8006 普通模式**。
 2. 核对运行配置：模块 `uvicorn`；参数 `app.observability.demo:create_observability_app --factory --host 127.0.0.1 --port 8006 --workers 1 --app-dir "$PROJECT_DIR$"`；工作目录为当前项目。
 3. 点绿色三角。看到“Application startup complete”和8006监听后，保留此进程运行。
 4. 浏览器打开 <http://127.0.0.1:8006>。待审页是 <http://127.0.0.1:8006/review>，观测页是 <http://127.0.0.1:8006/observability>。
@@ -50,7 +50,7 @@
 ## 六、物流MCP怎么核验
 
 1. 若8101、8102已运行，直接使用，不再启动第二份。
-2. 未运行时，在另一个PyCharm运行配置选择 **CH08 01 - 物流 MCP 8101**，点运行；再启动 **CH08 02 - 售后 MCP 8102**。
+2. 未运行时，在另一个PyCharm运行配置选择 **step08 01 - 物流 MCP 8101**，点运行；再启动 **step08 02 - 售后 MCP 8102**。
 3. 回8006新建会话，问“订单1001的物流到哪儿了”。
 4. 在Langfuse展开该次请求，工具操作应标记 `source=mcp:logistics`。只有聊天中出现“查询物流”标签不足以证明它来自MCP。
 

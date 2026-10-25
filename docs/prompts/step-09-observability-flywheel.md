@@ -13,7 +13,7 @@
 3. 数据飞轮闭环,三个入口都把问题送进 ch04 建的 low_confidence_questions 问题池,各自标好入池入口;落池时把当轮的召回片段快照(Top 几条的原文和得分)一并存下,问题池新加一列,给人工审核当依据;👎 这种事后落池的,从该会话当轮的检索结果里尽力回捞,那一轮真没走检索(闲聊、业务数据类)才空着:
    - 检索证据置信度低:把 ch05 那道最简版置信度闸升级成正式的置信度检查,拿检索和精排结果算 evidence_confidence(精排 Top1 的相关性分、有效证据数量、Top1 和 Top2 的分差这些信号),阈值拿 ch04 评估集校准、不拍脑袋定;闸的位置不动,仍卡在知识类检索之后、进 Agent 之前,拦下就回兜底话术并落池
    - 生成阶段模型自评知识不够答:ch04 已经在落池,确认接进飞轮即可
-   - 用户反馈没解决:ch04 聊天页那组满意度反馈目前是纯前端采集,本章把 👎 接到后端,用户点了就把该轮的用户问题落池
+   - 用户反馈没解决:ch04 聊天页那组满意度反馈目前是纯前端采集,本步骤把 👎 接到后端,用户点了就把该轮的用户问题落池
 4. 飞轮流水线:
    - 问题标准化:口语原话改写成标准 FAQ 式问题,配一条示例答案备查
    - 查重:让模型判断和待审队列里已有问题是不是同一个意思,是就合并、累加出现次数
@@ -24,7 +24,7 @@
 ## 技术栈
 - Langfuse:开源、自部署,链路数据不出自家服务器
 
-## 本章不做
+## 本步骤不做
 - 低置信度问题按主题归类的微调分类器(下一步的事)
 
 ## 验收标准
@@ -43,10 +43,10 @@
 5. 完结交付:功能演示命令、测试结果、dev-notes 路径
 
 -- =============================================================
--- ch09 · 可观测性与数据飞轮 · 建表 DDL
--- 本章新建:review_queue(待审队列,标准化去重后的知识缺口)
+-- step09 · 可观测性与数据飞轮 · 建表 DDL
+-- 本步骤新建:review_queue(待审队列,标准化去重后的知识缺口)
 --          eval_runs(自动化评估流水线每轮结果,连起来看趋势)
--- 并给 ch04 的 low_confidence_questions 加两列:
+-- 并给 step04 的 low_confidence_questions 加两列:
 --   matched_review_id 记这条原话查重后归并到哪个缺口
 --   retrieved_chunks  存落池时的召回片段快照,审核页给人看
 -- 建表顺序:先 CREATE review_queue,再 ALTER low_confidence_questions 加外键指向它
@@ -92,8 +92,8 @@ ALTER TABLE low_confidence_questions
 
 ## 已批准的实施口径与实际范围
 
-- Langfuse按用户选择在本机独立Compose部署，账号预置组织EcomAssist Local和项目EcomAssist CH09；链路写往本地3000端口。
-- Context7当时没有可调用工具，用户明确批准本章使用官方文档与锁定源码核对；技术选型不替换。来源记录见[接口核对](../superpowers/research/2026-10-19-observability-flywheel-apis.md)。
+- Langfuse按用户选择在本机独立Compose部署，账号预置组织EcomAssist Local和项目EcomAssist step09；链路写往本地3000端口。
+- Context7当时没有可调用工具，用户明确批准本步骤使用官方文档与锁定源码核对；技术选型不替换。来源记录见[接口核对](../superpowers/research/2026-10-19-observability-flywheel-apis.md)。
 - 用户批准[正式设计](../superpowers/specs/2026-10-19-observability-flywheel-design.md)及[实施计划](../superpowers/plans/2026-10-19-observability-flywheel.md)，Native顺序实施，前端按Vibe例外；最新视觉要求沿用聊天页浅灰绿、墨绿与圆角，参考图只借鉴功能和信息组织。
 - 评估范围保留两轮各20题的原额度，未批准两轮300题或收费定时。原两轮有9/8个阶段错误，之后新增一轮完整20题；新旧配置分别保留，不能当成两轮同配置无错误的质量通过。剩余质量项见[实际报告](../superpowers/reports/2026-10-20-reference-acceptance.md)。
 - 原始DDL保留为[sql/ch09-ddl.sql](../../sql/ch09-ddl.sql)，并有设计中列明的运行字段扩展；不把扩展字段反写成用户原始需求。

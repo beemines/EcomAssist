@@ -12,7 +12,7 @@ class Base(DeclarativeBase):
 
 
 class TopicClassification(Base):
-    """CH10 side-channel results; the chat workflow never writes these rows."""
+    """step10 side-channel results; the chat workflow never writes these rows."""
     __tablename__ = 'topic_classifications'
     __table_args__ = (Index('uk_question_id', 'question_id', unique=True),
         Index('idx_topic_model_version', 'model_version'),
@@ -193,7 +193,7 @@ class LowConfidenceQuestion(Base):
     created_at: Mapped[datetime] = mapped_column(DATETIME, nullable=False, server_default=text("CURRENT_TIMESTAMP"), comment="入池时间")
 
 
-# 旧问题池映射保持ch04核心投影；ch09附加列由FlywheelRepository显式SQL管理，
+# 旧问题池映射保持step04核心投影；step09附加列由FlywheelRepository显式SQL管理，
 # 让未迁移的旧质量库仍可使用原仓储。物理全结构由迁移器严格核验。
 class ReviewQueue(Base):
     __tablename__ = 'review_queue'

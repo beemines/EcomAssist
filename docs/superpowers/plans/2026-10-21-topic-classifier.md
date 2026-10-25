@@ -1,4 +1,4 @@
-# Chapter 10 Multilabel Topic Classifier Implementation Plan
+# Step 10 Multilabel Topic Classifier Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -19,10 +19,10 @@
 - 造数、预标注及其修复/重试累计最多人民币10元，账本独立于第九步，重启不清零；原批准300次物理尝试，2026-10-22用户明确“允许400次，费用仍最多10元”后修订为400次。连续3次失败暂停，金额、失败和未知预留不清零。
 - 教师glm-5.3-flash、reasoning_effort=low、输出8192、每批最多16；不改现有线上模型/预算，不运行第九步收费评估。
 - 训练最大128 token、micro-batch4、累积4、FP16/检查点、AdamW 2e-5、weight decay0.01、warmup10%、最多8 epoch、早停patience2/改善0.001；只验证选epoch/阈值。
-- Worker每60秒检查、起批20、最大64；本章实际验收冻结最多100条现有池记录，不造业务池数据。主聊天路径不注册此工具、不触发此worker、不写topic_classifications。
+- Worker每60秒检查、起批20、最大64；本步骤实际验收冻结最多100条现有池记录，不造业务池数据。主聊天路径不注册此工具、不触发此worker、不写topic_classifications。
 - 原DDL保留，独立补充model_version/taxonomy_version/input_hash/batch_id四列；唯一question_id及原FK删除语义保持。
 - 产品依赖、权重、GPU训练、付费调用和数据库迁移须在本计划批准并选择执行方式后开始。按用户例外：数据/Prompt/训练用标注和评估验证；前端Vibe，不套前端TDD或code review。
-- API实现前先读本章research记录和对应锁定源码；未覆盖的具体接口先查官方文档/锁定源码再编码，记录来源，沿用本章已批准的Context7替代方式。
+- API实现前先读本步骤research记录和对应锁定源码；未覆盖的具体接口先查官方文档/锁定源码再编码，记录来源，沿用本步骤已批准的Context7替代方式。
 - 每项任务验证后立即追记dev-notes/ch10.md并提交。后端Native推荐，最终独立整分支审查；不把本计划自检称独立审查。
 
 ## Review Focus
@@ -49,9 +49,9 @@
 
 全部命令从执行时选定的仓库工作树根目录运行。`$Repo`表示该实际工作树；`$AppPy`为该树业务虚拟环境或已核对的主仓库业务解释器；`$MlPy`为`$Repo/ml/topic_classifier/.venv/Scripts/python.exe`。不要用裸python猜环境。
 
-业务data_cli、topics.cli和demo均读取显式`CH10_ENV_FILE`路径并调用既有`load_settings(env_file=...)`，不要求把主仓库.env复制到工作树；`CH10_TOPIC_PROFILE`指本章本地profile JSON，CLI也允许显式--profile覆盖非秘密配置。两项环境变量只由本章入口读取，不往旧Settings的dotenv添加未知键，不输出文件内凭据。
+业务data_cli、topics.cli和demo均读取显式`CH10_ENV_FILE`路径并调用既有`load_settings(env_file=...)`，不要求把主仓库.env复制到工作树；`CH10_TOPIC_PROFILE`指本步骤本地profile JSON，CLI也允许显式--profile覆盖非秘密配置。两项环境变量只由本步骤入口读取，不往旧Settings的dotenv添加未知键，不输出文件内凭据。
 
-本章固定共享运行目录建议`D:/shixi/ecommerce-customer-service/.cache/ch10-evidence`（既有.cache忽略规则已覆盖），跨工作树只使用这里同一本`budget.sqlite3`；目录含账本/人审/权重，不得作为普通临时缓存清理。`$Evidence`指这个绝对路径。数据不写进Git或static目录。实现创建目录与初始化预算时记录授权身份ch10-topic-20261021，不提供reset命令。
+本步骤固定共享运行目录建议`D:/shixi/ecommerce-customer-service/.cache/ch10-evidence`（既有.cache忽略规则已覆盖），跨工作树只使用这里同一本`budget.sqlite3`；目录含账本/人审/权重，不得作为普通临时缓存清理。`$Evidence`指这个绝对路径。数据不写进Git或static目录。实现创建目录与初始化预算时记录授权身份ch10-topic-20261021，不提供reset命令。
 
 ### Task 1: 术语契约与真实模型运行基线
 

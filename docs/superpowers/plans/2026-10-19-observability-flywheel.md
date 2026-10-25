@@ -4,7 +4,7 @@
 
 **Goal:** 在本地 Langfuse 展开客服完整链路和意图 Token 花销，让三路知识缺口经人工审核回写知识库，并实际保存两轮可对比的评估结果。
 
-**Architecture:** 独立 Compose 管理 Langfuse；现有 LangGraph 构造时统一配置追踪，业务执行通过 Runtime 中的可选适配器增加子 observation。MySQL 问题池是后台工作的恢复来源，标准化查重与知识发布使用受管任务和短事务，评估复用 ch04 的冻结资料与指标而不改旧四策略工作台。
+**Architecture:** 独立 Compose 管理 Langfuse；现有 LangGraph 构造时统一配置追踪，业务执行通过 Runtime 中的可选适配器增加子 observation。MySQL 问题池是后台工作的恢复来源，标准化查重与知识发布使用受管任务和短事务，评估复用 step04 的冻结资料与指标而不改旧四策略工作台。
 
 **Tech Stack:** Python>=3.11,<3.14；现有 FastAPI0.142.2、SQLAlchemy2.0.54、MySQL8.4、LangGraph1.2.15、langchain-core1.6.6、SQLite checkpoint、Milvus3.0.2、MCP1.30.0 / adapters0.3.2；新增 langfuse==5.0.2，服务端 v4.63.0；原生 HTML/CSS/JavaScript。
 
@@ -26,7 +26,7 @@
 
 - [ ] 读取两轮逐题报告与请求工厂，确定预算、reasoning和错误传递；先写HTTP传输层回归，确认未继承online effort的RED。
 - [ ] 修复配置传递和指纹，保持model、窗口、阶段输出预算及零重试；补断言取消与真实错误code。
-- [ ] 验证：`.venv/Scripts/python.exe -m pytest tests/test_eval_pipeline_resources.py tests/test_eval_pipeline_runner.py tests/test_rag_judgment.py -q`，预期全通过；追加ch09记录并提交。
+- [ ] 验证：`.venv/Scripts/python.exe -m pytest tests/test_eval_pipeline_resources.py tests/test_eval_pipeline_runner.py tests/test_rag_judgment.py -q`，预期全通过；追加step09记录并提交。
 
 ## Task 12：四信号校准和可读报告
 
@@ -92,19 +92,19 @@
 - 本地 Docker Compose 自部署，默认 http://127.0.0.1:3000；不回落到 Langfuse Cloud，不购买云服务器。SDK5.0.2、服务端v4.63.0和既有核心依赖不自行替换。
 - 镜像全部锁版本或digest；官方Compose浮动tag不直接投入使用。正式镜像不可得或依赖冲突时，按用户要求停止说明，不换技术方案。
 - 统一追踪使用图构造处 compile(...).with_config(callbacks=[handler])，不改变 checkpoint / add_messages；实际工具执行不因追踪失败被重放。
-- 用户原始ch09 DDL完整保留，必要补充字段严格按spec第6节；迁移只增量、先测试3308再业务3307，旧数据和工具审计不删除。
+- 用户原始step09 DDL完整保留，必要补充字段严格按spec第6节；迁移只增量、先测试3308再业务3307，旧数据和工具审计不删除。
 - 正式规则的校准和留出不能混用；校准文件签名与模型 / Top-K / 预算一致。空证据拒答，依赖故障不得伪装为知识缺口。
 - 同一助手消息同一source入池幂等；同一逻辑用户轮次同一缺口只计一次出现次数。反馈只读原轮，不能重新检索或猜相邻问题。
 - AI示例答案仅供备查；非空人工核准答案才能发布。审核通过与索引ready分开，重复提交不重复知识，仅发布本缺口关联的知识ID。
 - 后台最多三个持久化尝试；只重试临时故障。余额不足 / 鉴权错误暂停，不自动消耗后续记录。命名锁连接失效后不得继续提交旧任务。
 - 后端TDD；Prompt以标注样例 / 评估集验证；前端Vibe Coding，不安排前端brainstorm、TDD或code review。
 - 每个任务完成即时更新dev-notes/ch09.md的原话、产物/结果、纠偏、翻车返工，和任务一起提交；不收尾集中补写。
-- 保留8004 / 8005、8101 / 8102及其归属记录。新客服8006、独立checkpoint；只管理本章自有进程和Compose项目，Start-Process使用Hidden。
+- 保留8004 / 8005、8101 / 8102及其归属记录。新客服8006、独立checkpoint；只管理本步骤自有进程和Compose项目，Start-Process使用Hidden。
 - 本计划批准前只核对源码和写文档，不安装、部署、迁移或外发模型请求。具体框架API使用前继续核对[官方与固定源码记录](../research/2026-10-19-observability-flywheel-apis.md)。
 
 ## Review Focus
 
-1. 已有quality严格核验遇到合法ch09扩展：只接受本章精确列 / 索引 / 外键，不把所有结构漂移放开。任务3固定测试。
+1. 已有quality严格核验遇到合法step09扩展：只接受本步骤精确列 / 索引 / 外键，不把所有结构漂移放开。任务3固定测试。
 2. 👎点在旧轮、两轮文字相同、完成根缺失或已变更：匹配原助手和用户身份，保留真快照，不能用最新轮或相邻SQL猜配对。任务4固定测试。
 3. 模型返回队列外ID、审批与查重并发、命名锁丢失、重启恢复：不错误归并、不重复计数，失去所有权立即停止提交。任务3、5固定测试。
 4. 审核成功但向量失败 / 响应丢失 / 其他pending混在库里：只处理原知识ID，未ready不宣称可检索；重试不新建行。任务7固定测试。
@@ -138,7 +138,7 @@
 
 新环境不得复用或更新正在服务8005的venv。只将本项目已使用的.env复制到新工作区的ignored位置，不输出Key，不读取其他账号凭据。真实API继续使用项目当前模型与端点，不为分数换模型、窗口或Agent步数。
 
-本次真实验收只发送：冻结ch04演示资料与问题、已列出的Prompt标注用例、新建模拟会话中的问句、模拟订单1001 / 2002，以及明确标记的验收专用FAQ。Langfuse接收这些新执行的本地trace；不批量上传旧会话、不处理processing=NULL的历史问题、不发送真实联系方式。准入前检查所有新HTTP客户端都接入同一计数器。
+本次真实验收只发送：冻结step04演示资料与问题、已列出的Prompt标注用例、新建模拟会话中的问句、模拟订单1001 / 2002，以及明确标记的验收专用FAQ。Langfuse接收这些新执行的本地trace；不批量上传旧会话、不处理processing=NULL的历史问题、不发送真实联系方式。准入前检查所有新HTTP客户端都接入同一计数器。
 
 | 上游 | 本计划总硬上限 | 分项规划（失败也计数） |
 | --- | --- | --- |
@@ -160,7 +160,7 @@
 - 此任务只提供可注入的client / handler资源；执行scope及其类型完全由任务2增加，任务1不能导入尚未创建的tracing模块。
 - `python -m app.observability.local_stack prepare|up|status|stop --port 3000`统一生成本地配置及调用固定Compose项目；PowerShell脚本只转发到该入口，`-PrepareOnly`对应prepare。stop保留数据卷，up先检查端口和项目归属。
 
-- [x] **1. 建立已同意的工作区并跑基线。** 读取using-git-worktrees；核对AGENTS、git分支/状态、.worktrees忽略和已存在服务。同步现有锁定依赖到独立venv后，运行`.venv/Scripts/python.exe -m pytest -q`，保存基线日志；基线失败先报告原因，不把旧问题归到本章。
+- [x] **1. 建立已同意的工作区并跑基线。** 读取using-git-worktrees；核对AGENTS、git分支/状态、.worktrees忽略和已存在服务。同步现有锁定依赖到独立venv后，运行`.venv/Scripts/python.exe -m pytest -q`，保存基线日志；基线失败先报告原因，不把旧问题归到本步骤。
 - [x] **2. 编写失败测试。** `test_rejects_cloud_destination`断言下例；另测缺BASE_URL、凭据被异常/日志隐藏、关闭超时有界且不反转业务结果。只对这些行为做TDD，不写镜像名称镜像式单测。
 
 ```python
@@ -186,7 +186,7 @@ def test_rejects_cloud_destination():
 
 - [x] **1. 编写失败测试。** `test_preclassification_generations_belong_to_final_intent`用root intent=物流和g1(10输入/2输出)、g2(3/1)，对返回列表的物流行断言`row['actual_tokens'] == 16`、`row['model_calls'] == 2`，重复g1不增加；父span的汇总不累加。另测缺usage单列、未知价格无货币数值、分页游标重复不死循环、并发/取消不串根、replay不产生新generation、resume关联同一逻辑轮次但新execution、exporter故障回复仍成功。
 - [x] **2. 运行RED。** `.venv/Scripts/python.exe -m pytest tests/test_workflow_observability.py tests/test_intent_usage.py -q`，确认目标断言失败。
-- [x] **3. 实现统一绑定与业务span。** 图构造处绑定一次handler；每次_produce/恢复请求建立execution scope，分类后更新根，结束前封存意图。自定义检索、Workflow工具和统一引擎记录子操作；模型usage只由generation记一次。Runtime仅加可选适配器，关闭本章时旧行为保持。后台链使用独立purpose根。不得复制Secret或整个Runtime到trace。
+- [x] **3. 实现统一绑定与业务span。** 图构造处绑定一次handler；每次_produce/恢复请求建立execution scope，分类后更新根，结束前封存意图。自定义检索、Workflow工具和统一引擎记录子操作；模型usage只由generation记一次。Runtime仅加可选适配器，关闭本步骤时旧行为保持。后台链使用独立purpose根。不得复制Secret或整个Runtime到trace。
 - [x] **4. 实现只读统计接口。** GET /api/observability/intent-usage接受带时区时间范围，默认最近7天、最长90天，SDK分页读取根和generation并按trace关联最终意图；缓存60秒。未知usage和进行中执行单列，缺页/重复游标报不完整，不返回伪全零。
 - [x] **5. 验证并提交。** 重跑单测和本地Langfuse集成；集成用注入模型/工具运行真实LangGraph和本地导出，不消耗模型额度。复验现有workflow/工单确认测试，更新记录，提交`feat(ch09): trace workflows and aggregate intent usage`。
 
@@ -216,7 +216,7 @@ def test_rejects_cloud_destination():
 **Interfaces:**
 - `capture_retrieval_snapshot(payload: dict, *, prompt_ids: Sequence[str], strategy: str, retrieved_at: datetime) -> RetrievalSnapshot`最多10条、先按rerank排序，保留原文/得分/送模标记。
 - `FeedbackService.submit(conversation_id: str, *, user_id: str, assistant_message_id: str, checkpoint_id: str|None=None) -> PoolReceipt`只使用服务端原根与SQL。
-- `QualityRepository.commit_refusal`增加可选的可信`user_message_id`和`snapshot`；有本章上下文时助手消息与enqueue_in_session同一事务，保留旧调用兼容。
+- `QualityRepository.commit_refusal`增加可选的可信`user_message_id`和`snapshot`；有本步骤上下文时助手消息与enqueue_in_session同一事务，保留旧调用兼容。
 
 - [x] **1. 编写失败测试。** `test_feedback_reads_original_turn`构造同问句不同证据的两轮，对旧助手反馈断言`stored_snapshot == original_snapshot`且不等于新轮快照；修改知识原文后仍取旧片段。`test_no_retrieval_is_not_zero_recall`断言未检索payload为None、零召回payload['chunks']==[]。另测旧payload缺失unavailable、整根缺失409、越权会话/助手ID、伪checkpoint、未完成回答、重复点击、入池事务失败不能留半条助手/假成功、Agent追加FAQ也能回捞。
 - [x] **2. 运行RED。** `.venv/Scripts/python.exe -m pytest tests/test_retrieval_snapshots.py tests/test_feedback_api.py tests/integration/test_feedback_storage.py --run-mysql -q`。
@@ -253,7 +253,7 @@ def test_rejects_cloud_destination():
 - [x] **1. 编写失败测试。** `test_single_evidence_has_no_infinite_gap`断言`decision.features['gap'] == 0`且confidence有限；`test_held_out_labels_do_not_change_fit`断言仅改变留出标签后`new_result.rule == original_result.rule`。另测display夹心顺序不得当作Top1/2、空集拒答/非有限值错误、重复chunk不加count、常量特征仍可复现且不虚报好分、手填0.25/0.5不能代替校准来源、hash分组/回归不跨集合、权重平局/0权重、签名不符、内容自评不叠旧门槛及工具异常不入池。
 - [x] **2. 运行RED。** `.venv/Scripts/python.exe -m pytest tests/test_evidence_confidence.py tests/test_evidence_calibration.py tests/test_confidence_gate_integration.py -q`。
 - [x] **3. 实现规则与校准。** 按已批准spec精确执行分层split、百分位候选、经验分布、0～3非负权重与观察阈值搜索及平局决策。在线、校准和新评估共用prepare_workflow_evidence及同一实际evidence_token_budget / Top-K，不能各自截不同证据再算分。缺正/负标签或非法样本预检失败；保存calibration与held-out的原始特征/混淆矩阵/版本，不反向调留出。
-- [x] **4. 接入闸门。** 统一Workflow与Agent知识证据检查器；保持订单/政策顺序和业务数据路由。充分性服务在本章模式只做内容自评；旧calibrated_score和旧工作台行为保持。未产生真实校准前只用测试注入rule，不声称线上已校准。
+- [x] **4. 接入闸门。** 统一Workflow与Agent知识证据检查器；保持订单/政策顺序和业务数据路由。充分性服务在本步骤模式只做内容自评；旧calibrated_score和旧工作台行为保持。未产生真实校准前只用测试注入rule，不声称线上已校准。
 - [x] **5. 验证并提交。** 重跑TDD及现有sufficiency、after_sales、context预算用例，CPU样例确认可复现；真实300题检索和规则产出留任务10有计数执行。更新记录，提交`feat(ch09): calibrate and enforce evidence confidence`。
 
 ## Task 7：人工审核、按ID发布和失败恢复
@@ -284,7 +284,7 @@ def test_rejects_cloud_destination():
 - `EvaluationSchedule.next_due(now: datetime) -> datetime`按Asia/Shanghai每天03:00；`tick(now) -> str|None`注入时钟，开关默认关闭。
 - CLI `python -m app.eval_pipeline.cli run --scope smoke_20 --run-key <UUID> --acceptance-run ch09-local-20261019 --execute`；缺execute只显示预检。full_300命令同接口，不属于本次真实运行额度。
 
-- [x] **1. 编写并运行RED。** `test_no_claims_is_not_perfect_faithfulness`断言`metrics['faithfulness']['value'] is None`且valid_n==0；`test_replaying_run_key_does_not_dispatch`断言第二次start后请求计数不变；`test_schedule_is_disabled_by_default`断言tick返回None。另测固定样例Recall/MRR等于ch04公共指标、错误/未执行分母、发布补存、重启不重放、03:00边界、手动/定时互斥、配置标记与scope分组。运行`.venv/Scripts/python.exe -m pytest tests/test_eval_pipeline_metrics.py tests/test_eval_pipeline_manager.py tests/test_eval_pipeline_schedule.py tests/integration/test_eval_runs_storage.py --run-mysql -q`。
+- [x] **1. 编写并运行RED。** `test_no_claims_is_not_perfect_faithfulness`断言`metrics['faithfulness']['value'] is None`且valid_n==0；`test_replaying_run_key_does_not_dispatch`断言第二次start后请求计数不变；`test_schedule_is_disabled_by_default`断言tick返回None。另测固定样例Recall/MRR等于step04公共指标、错误/未执行分母、发布补存、重启不重放、03:00边界、手动/定时互斥、配置标记与scope分组。运行`.venv/Scripts/python.exe -m pytest tests/test_eval_pipeline_metrics.py tests/test_eval_pipeline_manager.py tests/test_eval_pipeline_schedule.py tests/integration/test_eval_runs_storage.py --run-mysql -q`。
 - [x] **2. 实现冻结范围及运行器。** 从留出侧每桶hash前4题组成smoke_20，full_300保留300题；冻结清单在收费前校验。最多2题并发，每题最多4次GLM（改写/自评/生成/裁判），规则拒答可少于4次，模型SDK零重试；同源共享全局call cap。评估用3308自有行和临时集合，结果写当前业务eval_runs；评估拒答只进入独立评估产物/测试库，不自动制造生产待审任务，不触碰生产知识正文或原四策略报告。
 - [x] **3. 实现持久化管理及调度。** runtime manifest先记录run_key/归属/配置，再异步执行，终态幂等落eval_runs；数据库级互斥，关闭收回、重启修复中断。定时开关默认关闭，每轮也有本地上限，API不允许任意文件路径/模型/预算覆盖。
 - [x] **4. 验证GREEN与旧工作台兼容。** 重跑集合，以及现有rag_evaluation数据装载/指标/报告/manager/API测试；以注入模型跑两个完整smoke_20流程核对落表与清理，不将其称为真模型结果。
@@ -312,7 +312,7 @@ def test_rejects_cloud_destination():
 **Interfaces:** 沿用任务1～9全部公共入口，不在验收脚本另造绕过正式检查器、权限或仓储的实现。一次独立后端整分支审查，前端按用户例外排除。
 
 - [x] **1. 提交前核对与一次独立审查。** 使用requesting-code-review，审查范围为后端/API/迁移/部署资源/计数/评估，检查五项Review Focus及spec覆盖；Native不做逐任务子代理。若有反馈，按receiving-code-review验证并补失败测试后修复，记录结论，不能仅根据代理口头结论宣称通过。
-- [x] **2. 跑最新自动回归。** `.venv/Scripts/python.exe -m pytest -q`保存全量结果；再运行本章integration文件加`--run-mysql --run-milvus --run-langfuse`，以及现有quality / context / tool-audit / ticket-confirmation关键集成。测试临时资源只清理有本轮归属的行/集合；临时目录位于工作区runtime，沙箱不能读本地服务时只对明确检查提升。
+- [x] **2. 跑最新自动回归。** `.venv/Scripts/python.exe -m pytest -q`保存全量结果；再运行本步骤integration文件加`--run-mysql --run-milvus --run-langfuse`，以及现有quality / context / tool-audit / ticket-confirmation关键集成。测试临时资源只清理有本轮归属的行/集合；临时目录位于工作区runtime，沙箱不能读本地服务时只对明确检查提升。
 - [x] **3. 应用业务增量迁移并准备计数。** 保存3307现状结构，运行`.venv/Scripts/python.exe -m app.flywheel.cli migrate --database configured`，再只读verify；不清表/重建。检查本轮账本初始状态、模型名称/端点和三个provider hooks，未覆盖不得发收费请求。
 - [x] **4. 在同一计数账本执行真实校准。** 运行任务6的calibrate命令加`--execute`，冻结split与rule，输出新旧闸门留出结果；运行旧八题的有限回归或明确其离线范围。将真实rule配置给8006，不改模型/窗口/步数来掩盖问题；记录嵌入/重排实际用量。
 - [x] **5. 执行有标注的Prompt评估。** `evals/evaluate_flywheel.py`以12组规范化/查重标注运行，最多24次GLM且零SDK重试；输出保留型号/否定/条件、查重命中/拒绝和草稿边界结果。仅改Prompt时按该集验证；若需额外请求从剩余额度记账，不自动扩容。
@@ -337,4 +337,4 @@ def test_rejects_cloud_destination():
 | 前端Vibe Coding例外 | 9；后端API与守卫仍TDD |
 | 六项真实验收、额度与交付留痕 | 10 |
 
-已完成内联自审：每项任务列出可检查产物与验证命令；已修正跨任务类型先后依赖，后续任务沿用Interfaces中的同名接口；没有另造ch04指标或全库pending发布；五项Review Focus均指定失败测试；注入模型结果与真实验收分别留证；依赖、schema、全量评估和收费定时边界已列明。此结论仅指计划文档自审，不是产品测试或功能验收。计划审阅通过及工作区方式确认后，才调用executing-plans开始任务1。
+已完成内联自审：每项任务列出可检查产物与验证命令；已修正跨任务类型先后依赖，后续任务沿用Interfaces中的同名接口；没有另造step04指标或全库pending发布；五项Review Focus均指定失败测试；注入模型结果与真实验收分别留证；依赖、schema、全量评估和收费定时边界已列明。此结论仅指计划文档自审，不是产品测试或功能验收。计划审阅通过及工作区方式确认后，才调用executing-plans开始任务1。

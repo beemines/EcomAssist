@@ -1,4 +1,4 @@
-"""Borrow Ch04's physical ownership/cleanup protocol with the one Ch09 call cap."""
+"""Borrow step04's physical ownership/cleanup protocol with the one step09 call cap."""
 from app.rag_evaluation.resources import OwnedResources
 from app.knowledge.embeddings import SiliconFlowEmbedder
 from app.retrieval.rerank import SiliconFlowReranker

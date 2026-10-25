@@ -1,4 +1,4 @@
--- Explicit, additive Chapter8 migration. No foreign keys or unique call ID.
+-- Explicit, additive Step8 migration. No foreign keys or unique call ID.
 SET NAMES utf8mb4;
 CREATE TABLE IF NOT EXISTS tool_audit_logs (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

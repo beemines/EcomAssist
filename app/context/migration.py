@@ -15,7 +15,7 @@ _COLUMN_QUERY = ('SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,EXTR
 
 
 def _column(definition: str) -> tuple:
-    """仅解析用户本章固定DDL语法，以SQL原文而非ORM推导核验契约。"""
+    """仅解析用户本步骤固定DDL语法，以SQL原文而非ORM推导核验契约。"""
     match = re.fullmatch(
         r'(\w+)\s+(BIGINT UNSIGNED|INT|TEXT|DATETIME)\s+(NOT NULL|NULL)'
         r'(?:\s+DEFAULT (CURRENT_TIMESTAMP))?(?:\s+(AUTO_INCREMENT))?'

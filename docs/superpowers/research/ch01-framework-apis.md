@@ -1,4 +1,4 @@
-# Ch01 框架接口研究
+# step01 框架接口研究
 
 核对时间：2026-10-05。只查文档与公开源码、PyPI 元数据；未安装依赖、未执行产品代码。Context7 MCP 先于接口与包版本核对，调用了 `tools/list`、`resolve-library-id`、`query-docs`。查询使用官方 MCP `https://mcp.context7.com/mcp`；按 SSE `data:` 返回取得资料。
 

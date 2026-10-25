@@ -1,4 +1,4 @@
-"""The Ch04 metric contract, with Ch09's exact prompt evidence selector."""
+"""The step04 metric contract, with step09's exact prompt evidence selector."""
 import hashlib
 import asyncio
 import json

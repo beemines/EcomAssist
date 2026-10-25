@@ -1,4 +1,4 @@
--- ch09原DDL之后的必要补充；旧行NULL不自动进入后台处理。
+-- step09原DDL之后的必要补充；旧行NULL不自动进入后台处理。
 SET NAMES utf8mb4;
 
 ALTER TABLE low_confidence_questions

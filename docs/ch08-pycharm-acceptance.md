@@ -14,17 +14,17 @@ D:\shixi\ecommerce-customer-service\.worktrees\pluggable-tools
 
 | 配置 | Module name | Parameters |
 | --- | --- | --- |
-| CH08 01 - 物流 MCP 8101 | `business_mcp.logistics` | `--port 8101` |
-| CH08 02 - 售后 MCP 8102 | `business_mcp.aftersales` | `--port 8102` |
-| CH08 03 - 客服 8005 | `uvicorn` | `app.tools.demo:create_tool_system_app --factory --host 127.0.0.1 --port 8005 --workers 1` |
-| CH08 04 - MCP 协议验收（不调用大模型） | `pytest` | `tests/test_business_mcp_servers.py tests/test_mcp_execution.py tests/test_mcp_discovery.py -v` |
-| CH08 05 - 物流 MCP 新工具演示（替换01） | `business_mcp.logistics` | `--port 8101 --plugin-module examples.mcp_extra_tools` |
+| step08 01 - 物流 MCP 8101 | `business_mcp.logistics` | `--port 8101` |
+| step08 02 - 售后 MCP 8102 | `business_mcp.aftersales` | `--port 8102` |
+| step08 03 - 客服 8005 | `uvicorn` | `app.tools.demo:create_tool_system_app --factory --host 127.0.0.1 --port 8005 --workers 1` |
+| step08 04 - MCP 协议验收（不调用大模型） | `pytest` | `tests/test_business_mcp_servers.py tests/test_mcp_execution.py tests/test_mcp_discovery.py -v` |
+| step08 05 - 物流 MCP 新工具演示（替换01） | `business_mcp.logistics` | `--port 8101 --plugin-module examples.mcp_extra_tools` |
 
 共同环境变量为 `PYTHONUTF8=1;PYTHONUNBUFFERED=1`。客服配置另有 `WORKFLOW_CHECKPOINT_PATH=$PROJECT_DIR$/runtime/workflow/tool-system-8005.sqlite`，继续使用原8005检查点；`TOOL_SYSTEM_ACCEPTANCE` 留空，运行普通模式。不要给客服加 `--reload`，避免额外进程与重复启动。
 
 ## 先做不消耗模型额度的协议验收
 
-选 **CH08 04**，点击绿色三角。它会自行启动临时、独立的物流/售后进程，在临时端口通过真实 Streamable HTTP 发现并调用工具，并验证未知工具的本地授权、参数、来源及连接故障处理。无需先启动01～03，也不需要关闭现有8005。
+选 **step08 04**，点击绿色三角。它会自行启动临时、独立的物流/售后进程，在临时端口通过真实 Streamable HTTP 发现并调用工具，并验证未知工具的本地授权、参数、来源及连接故障处理。无需先启动01～03，也不需要关闭现有8005。
 
 Run 窗口应显示全部测试 PASSED、退出码0。此项证明真实 MCP 协议/执行引擎链路，尚不等于大模型在聊天中选对工具。
 

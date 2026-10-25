@@ -1,4 +1,4 @@
-# Chapter 7 Context Management Implementation Plan
+# Step 7 Context Management Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -50,7 +50,7 @@
 
 ## 执行前基线（计划获批后执行）
 
-- [x] 确认`git status --short --branch`只有预期文档提交；读取原spec、API记录和各任务现有源码。本章产品基线结果另外记入dev-notes，不能用设计检查代替。
+- [x] 确认`git status --short --branch`只有预期文档提交；读取原spec、API记录和各任务现有源码。本步骤产品基线结果另外记入dev-notes，不能用设计检查代替。
 - [x] 在该worktree使用`uv sync --frozen --offline`准备锁定依赖（从本机既有缓存安装77包）；未复制含密钥的环境内容到报告。PowerShell设`$env:PYTHONUTF8='1'`，以下命令均在该worktree执行。
 - [x] 运行`.venv/Scripts/python.exe -m pytest -q`记录基线实际数量。MySQL集成测试用现有3308随机自有库夹具，显式`--run-mysql`；不清空3307应用库。基线失败须先分清既有失败和环境缺失，不写“基线通过”。
 
@@ -72,7 +72,7 @@ assert budget.layer1 + budget.layer2 == budget.history
 - [x] **确认失败**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_budget.py -q`，因新增模块/计算缺失失败，不接受凭据或数据库连接失败冒充Red。
 - [x] **实现**：类型及六项配置、输入数值严格校验（排除bool/非有限值/非法Top-K，步数仍≤4）、中文与ASCII/协议分项计数、F/U/E/G/V/O/M/P/D计算和启动最低业务轮次校验。稳态夹具包含真实形状的单工具订单、物流、Top-10 FAQ及短回答，T取这些完整轮次的最大估算值、启动最小轮次取最小值，不使用问候或填充文本。估算器参数单独版本化，初始依据及不确定性写入夹具说明；任务7完成实际序列化接线后用实测usage校准，任务11复核，不按目标滑窗倒推系数。旧工具预算仅从Workflow调用链退出，不改离线评估阈值；累计额度缺省可推导，显式值仍生效。
 - [x] **Green**：同一命令通过，再运行`tests/test_config.py tests/test_agent_controls.py tests/test_db_config.py`；已有成本账本实测值不被新估算覆盖，派生上限不当作已花费用。
-- [x] **提交**：追记本任务四项和真实Red/Green结果；`git add`仅本任务文件及ch07记录，`git commit -m "feat: derive workflow context budgets from model window"`。
+- [x] **提交**：追记本任务四项和真实Red/Green结果；`git add`仅本任务文件及step07记录，`git commit -m "feat: derive workflow context budgets from model window"`。
 
 ## Task 2: 用户DDL、边界仓储和追加式摘要事务
 
@@ -271,7 +271,7 @@ assert real_http_dispatches == accepted_reservations  # 不计前端轮数冒充
 ```
 
 - [x] **Red并确认**：运行`.venv/Scripts/python.exe -m pytest tests/test_context_long_conversation.py tests/test_context_call_cap.py -q`，用真正图/SQLite、内存SQL边界替身、受控外部模型和固定真实形状工具结果，断言默认21轮不降级不摘要、演示真实计费触发级联，最初订单进摘要后才能继续理解；不能预置摘要/手改边界。回复被Event挂起摘要也能完成，所有上下文均有日志且在预算内，SQL/checkpoint原文一致。HTTP限额测试模拟聊天与两个摘要并发抢最后额度，只有一个出站；重启读取既有run账本、不清零掩盖次数。
-- [x] **实现与Green**：完成离线replay/budget、只读证据、验收专属HTTP请求计数hook及启动器；重跑测试和两profile replay，输出实际H/H1/H2和所有扣项。所有真实GLM/BGE客户端包括后台摘要共享同一run上限，不能只数前端POST；注入客户端的资源所有权仍由创建者负责。启动器复用上一章进程身份核验方式，必须检查PID创建时间、命令行/工作区和监听所有权；已有未知8004直接拒绝，不停8002/8003，Start-Process用WindowStyle Hidden。Profile显式解决旧steps别名和累计费用配置冲突，不修改用户.env、不暗增限制。
+- [x] **实现与Green**：完成离线replay/budget、只读证据、验收专属HTTP请求计数hook及启动器；重跑测试和两profile replay，输出实际H/H1/H2和所有扣项。所有真实GLM/BGE客户端包括后台摘要共享同一run上限，不能只数前端POST；注入客户端的资源所有权仍由创建者负责。启动器复用上一步进程身份核验方式，必须检查PID创建时间、命令行/工作区和监听所有权；已有未知8004直接拒绝，不停8002/8003，Start-Process用WindowStyle Hidden。Profile显式解决旧steps别名和累计费用配置冲突，不修改用户.env、不暗增限制。
 - [x] **文档和自检**：文档给出`.venv/Scripts/python.exe -m app.context.cli migrate`、`verify`、`budget --profile demo`、`replay --profile demo --output runtime/context-evidence/offline-demo.json`、`pwsh -NoProfile -File scripts/start-context-demo.ps1 -Profile demo`；标明migrate显式DDL、在线启动只读核验，原有DDL前置。进程脚本测试不允许以PID文件单独授权停止。所有命令必须实际验证，不把这里的预期当成运行成绩。
 - [x] **提交**：记四项，`git commit -m "test: add reproducible layered-context acceptance profiles"`。
 
@@ -285,12 +285,12 @@ assert recalled_order_id == '1001' and latest_other_order_id == '1002'
 assert original_order_summary_seq in final_injected_summary_seqs
 ```
 
-- [ ] **离线门槛**：运行`.venv/Scripts/python.exe -m pytest -q`、本章3308集成测试（`tests/integration/test_context_migration.py tests/integration/test_context_repository.py tests/integration/test_context_conversation_reads.py --run-mysql`）和两套受控浏览器脚本。记录总数、skip与环境限制，不能把单个子集累加成全量通过；无新改动/失败不反复扩大回归。
-- [ ] **少量真实页面、prompt与首轮校准**：先接入任务10已验证的共享HTTP限额器，再用8004、真实当前GLM/BGE、现有知识库做政策、订单物流、选单暂停/取消、OTHER/闲聊、回载引用等固定冒烟；不提交工单/退款。前最多3个付费聊天轮次完成任务7准备的首轮校准，随后复核；本章小额阶段合计最多6个付费聊天轮次、60次GLM、12次嵌入、6次重排，后台summary也计GLM；任务5的12个标注prompt样例各真实生成一次，全部计入60次GLM总额，不能用假模型结果代替效果验证。复核provider prompt_tokens误差，未知usage不填0；如需改参数，版本化并重跑受影响离线两profile/预算测试，后续完整批次固定同版本。
-- [ ] **完整批次的调用边界**：准备好代码、离线报告及预计调用账本后，核对当前持续授权；两组21轮预计合计约200–280次GLM，另有BGE调用，已超过“不是上百次大量调用”的边界。须把具体轨迹、每组估算和硬上限交用户批准再启动完整批次。计划预留每组最多150次GLM（含摘要）、50次嵌入、25次重排；达到上限立即终止并留失败结果，不重试整组、不扩大上限。若未取得该批授权，标注真实长会话验收待运行，不称本章全部验收完成。
+- [ ] **离线门槛**：运行`.venv/Scripts/python.exe -m pytest -q`、本步骤3308集成测试（`tests/integration/test_context_migration.py tests/integration/test_context_repository.py tests/integration/test_context_conversation_reads.py --run-mysql`）和两套受控浏览器脚本。记录总数、skip与环境限制，不能把单个子集累加成全量通过；无新改动/失败不反复扩大回归。
+- [ ] **少量真实页面、prompt与首轮校准**：先接入任务10已验证的共享HTTP限额器，再用8004、真实当前GLM/BGE、现有知识库做政策、订单物流、选单暂停/取消、OTHER/闲聊、回载引用等固定冒烟；不提交工单/退款。前最多3个付费聊天轮次完成任务7准备的首轮校准，随后复核；本步骤小额阶段合计最多6个付费聊天轮次、60次GLM、12次嵌入、6次重排，后台summary也计GLM；任务5的12个标注prompt样例各真实生成一次，全部计入60次GLM总额，不能用假模型结果代替效果验证。复核provider prompt_tokens误差，未知usage不填0；如需改参数，版本化并重跑受影响离线两profile/预算测试，后续完整批次固定同版本。
+- [ ] **完整批次的调用边界**：准备好代码、离线报告及预计调用账本后，核对当前持续授权；两组21轮预计合计约200–280次GLM，另有BGE调用，已超过“不是上百次大量调用”的边界。须把具体轨迹、每组估算和硬上限交用户批准再启动完整批次。计划预留每组最多150次GLM（含摘要）、50次嵌入、25次重排；达到上限立即终止并留失败结果，不重试整组、不扩大上限。若未取得该批授权，标注真实长会话验收待运行，不称本步骤全部验收完成。
 - [ ] **真实验收与证据**：获该批授权后，先默认21轮、再演示21轮。每轮核对done、模型调用/用量、实际包与日志；默认S/L/段数不变，演示出现downgrade→trigger→done且原订单确实被摘要覆盖并注入。末轮恢复1001与诉求且本轮重新查业务。核对所有原文哈希、原根/引用、后台未阻塞事件时间；重启自己拥有的8004后，浏览器切回两旧会话继续聊、点原引用，桌面和窄屏截图。失败保留原批次报告；定点修复报告单例与整批是否已复验，不覆盖负例。
-- [ ] **整分支评审**：按已选Subagent-Driven逐任务做规格/代码评审，最终对整分支做一次新评审，重点看Review Focus五项和原文/动作兼容。修复实际问题后跑相应验证；本任务不另造“手动清数据使断言通过”。评审结论、剩余风险、验证版本和实际调用数立刻追记ch07。
-- [ ] **finish**：用verification-before-completion核对演示命令/报告/源码差异，提交`test: verify ch07 context management acceptance`，再按finishing-a-development-branch交付本地分支；本章没有合并/推送授权，不能借用第五步授权推送第七步。
+- [ ] **整分支评审**：按已选Subagent-Driven逐任务做规格/代码评审，最终对整分支做一次新评审，重点看Review Focus五项和原文/动作兼容。修复实际问题后跑相应验证；本任务不另造“手动清数据使断言通过”。评审结论、剩余风险、验证版本和实际调用数立刻追记step07。
+- [ ] **finish**：用verification-before-completion核对演示命令/报告/源码差异，提交`test: verify ch07 context management acceptance`，再按finishing-a-development-branch交付本地分支；本步骤没有合并/推送授权，不能借用第五步授权推送第七步。
 
 ## 计划自审与交接
 

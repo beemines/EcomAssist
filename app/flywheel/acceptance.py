@@ -1,4 +1,4 @@
-"""One approved physical-call allowance shared by every Ch09 entry point."""
+"""One approved physical-call allowance shared by every step09 entry point."""
 from pathlib import Path
 from app.context.acceptance import AcceptanceCallCap
 

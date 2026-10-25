@@ -1,10 +1,10 @@
 # 第八步：官方接口与版本核对
 
-核对日期：2026-10-18。用户明确批准本章使用官方文档与对应版本源码代替当前不可调用的Context7。此文件记录设计阶段只读核对，不代表依赖已经安装或完整解析通过。
+核对日期：2026-10-18。用户明确批准本步骤使用官方文档与对应版本源码代替当前不可调用的Context7。此文件记录设计阶段只读核对，不代表依赖已经安装或完整解析通过。
 
 ## 1. 版本与用户确认
 
-| 包 | 官方查询结果 | 本章选择 |
+| 包 | 官方查询结果 | 本步骤选择 |
 | --- | --- | --- |
 | mcp | 最新正式版2.3.0；最新1.x正式版1.30.0 | 用户选择1.30.0 |
 | langchain-mcp-adapters | 最新正式版0.3.2，要求mcp>=1.24.0,<2.0.0 | 用户选择0.3.2 |
@@ -30,11 +30,11 @@ MCP1.30.0要求Python>=3.10、httpx>=0.27.1,<1.0.0、Python<3.14时pydantic>=2.1
 核对项：
 
 - 导入路径为 mcp.server.fastmcp.FastMCP。
-- FastMCP构造器接受host、port、streamable_http_path、json_response、stateless_http等设置；本章路径默认/mcp。
+- FastMCP构造器接受host、port、streamable_http_path、json_response、stateless_http等设置；本步骤路径默认/mcp。
 - `run(self, transport: Literal['stdio','sse','streamable-http']='stdio', mount_path: str | None=None) -> None` 是同步入口。
 - `streamable_http_app(self) -> Starlette` 使用构造器设置，创建并管理Streamable HTTP会话组件。
 - 不使用SDK2.x的MCPServer导入路径，也不把2.x中运行方法的关键字参数照搬给1.x。
-- 本章Server独立运行；若选择ASGI启动入口，必须核对该应用自身lifespan，不能误以为挂载子应用自动运行lifespan。
+- 本步骤Server独立运行；若选择ASGI启动入口，必须核对该应用自身lifespan，不能误以为挂载子应用自动运行lifespan。
 
 上面的Server传输字符串为带短横线的 `streamable-http`；下面的适配器连接配置为带下划线的 `streamable_http`，不得混淆。
 

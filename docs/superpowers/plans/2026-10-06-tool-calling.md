@@ -20,7 +20,7 @@
 - 工单编号为 `T` 加 `sha256(f"{conversation_id}:{user_message_id}:{tool_call_id}").hexdigest()[:31]`；同次重试复用，不同用户消息不复用。
 - 数据库提交最终回答后才能发送 done；仅正常 EOF、明确 stop、非空且未截断的最终回答可提交。失败流水保留审计但不能回放。
 - 单 worker、会话占用锁；所有 SQLAlchemy Session 都是短生命周期，模型生成及 SSE 等待期间不持有事务。
-- 使用中文注释、UTF-8；产品及 Git 分支/提交不使用章节前缀，保留用户指定的 `dev-notes/ch02.md` 和原 SQL 注释。
+- 使用中文注释、UTF-8；产品及 Git 分支/提交不使用步骤前缀，保留用户指定的 `dev-notes/ch02.md` 和原 SQL 注释。
 - 不加入 Agent Loop、RAG、向量库、登录系统、订单/商品/物流表。模型与协议保持既定选型，实测不兼容时报告证据并询问用户。
 
 ## Review Focus

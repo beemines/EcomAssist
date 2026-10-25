@@ -1,4 +1,4 @@
-# Chapter 3 code review record
+# Step 3 code review record
 
 Current status: the three initial Important findings below were fixed in 86df0d1 and independently re-reviewed as ADDRESSED, with no new or residual findings. Final current-code tests passed 729/729 with MySQL/Milvus explicitly enabled. The initial review is retained verbatim below, followed by the scoped fix-wave verdict. Integration is pending the user's choice.
 
@@ -70,20 +70,20 @@ The package records 652 offline passes / 62 gated skips, all 62 explicitly enabl
 
 Every behavior considered and intentionally left outside this verdict is listed here for controller adjudication:
 
-- **Domain-irrelevant Top3 recall and a universal rejection threshold:** explicitly observed and accepted chapter boundary; no fabricated empty result or threshold fix is requested.
+- **Domain-irrelevant Top3 recall and a universal rejection threshold:** explicitly observed and accepted step boundary; no fabricated empty result or threshold fix is requested.
 - **Semantic duplicate elimination and automatic resolution of conflicting answers:** explicitly excluded; retaining paraphrases/conflicts is required, and R2 addresses the contradictory prompt rather than requesting semantic merging.
 - **Whole-document reimport/version replacement and edits to already-done chunks:** explicitly excluded; per-chunk vector primary-key replay is the supported guarantee.
 - **Byte-for-byte equality with a separate original user DDL attachment/private prompt:** the supplied DDL, ORM, migration, and tests were compared, but independent original-source bytes are not in the permitted package; the recorded source hash is not substituted for unseen original bytes. No private prompt/history was read.
 - **A formal MySQL↔Milvus model-version migration or two independently configured databases sharing the fixed production collection:** fixed model/collection and one local deployment are the accepted architecture; no migration/multi-tenant mechanism is promised.
 - **Historical mixed database timezones and DST migrations:** documented limitation; current fixed UTC storage and Beijing window conversion are covered by explicit integration evidence.
 - **Deterministic generative output on repeated extraction windows:** the selected contract has normalized exact comparison and same-batch/source/question/answer staging checks, not a persisted completed-batch manifest or a promise of deterministic LLM phrasing. R1/R2 still require correctness within that exact-only boundary.
-- **Full Markdown/CommonMark support beyond the named ATX/fence/paragraph/sentence/table/Q&A conventions:** the chapter deliberately uses a bounded standard-library chunker; no renderer or general parser is promised. The named conventions and failure paths were reviewed.
+- **Full Markdown/CommonMark support beyond the named ATX/fence/paragraph/sentence/table/Q&A conventions:** the step deliberately uses a bounded standard-library chunker; no renderer or general parser is promised. The named conventions and failure paths were reviewed.
 - **Repeated lifespan entry on the same already-shut-down FastAPI object:** production uses one lifespan per app process; reentrant test-host lifecycle behavior is not a stated delivery requirement. The intended one-lifespan ownership/error paths were reviewed.
 - **Provider quality for arbitrary private conversations or all possible prompt injections/PII:** eight synthetic labels are evidence only for their samples, not a universal guarantee; no private history/cloud repetition was authorized for review. This does not excuse the concrete prompt conflict in R2.
-- **Browser rendering, actual network frame timing, and complete chapter-2 tool/handoff model quality:** UI is unchanged; this chapter's live ASGI transport is expressly buffered, and prior chapter-2 failures remain disclosed rather than asserted fixed.
+- **Browser rendering, actual network frame timing, and complete step-2 tool/handoff model quality:** UI is unchanged; this step's live ASGI transport is expressly buffered, and prior step-2 failures remain disclosed rather than asserted fixed.
 - **Production main-checkout build, real customer-history mining, host task registration, and deployment security beyond the local loopback setup:** not performed or authorized in this review; the README explicitly gates them on deployment. Logging for the delivered scheduler path is still in scope as R3.
 - **Remote artifact reproducibility on every OS/Python platform, package supply-chain audit, and registry metadata revalidation:** the pinned lockfile diff and reported local 3.0.2 runtime evidence were reviewed; no fresh installs or internet/package downloads were warranted by a concrete defect.
-- **Physical Milvus version/tombstone compaction after upsert:** live checks correctly assert unique currently queryable primary keys and preserved MySQL text; underlying storage compaction is not this chapter's recovery guarantee.
+- **Physical Milvus version/tombstone compaction after upsert:** live checks correctly assert unique currently queryable primary keys and preserved MySQL text; underlying storage compaction is not this step's recovery guarantee.
 - **Credential rotation and proof of eradication from prior private tool output:** the incident is transparently documented, but rotation is user/provider work; no secrets were read or replayed and no credential-eradication claim is made here.
 - **Re-executing actual provider/kill acceptance or the final whole suite at this review seat:** explicitly assigned to existing evidence and the controller's post-review verification; the two new in-memory probes alone were run.
 
@@ -91,7 +91,7 @@ Every behavior considered and intentionally left outside this verdict is listed 
 
 **Ready to merge? With fixes.**
 
-The dense retrieval/state-recovery architecture and actual shipping/restart evidence are sound for the approved chapter scope. Resolve the multi-question dedup omission, contradictory semantic-merging instruction, and missing failed-batch traceability, then complete scoped rereview and the controller's final verification before integration.
+The dense retrieval/state-recovery architecture and actual shipping/restart evidence are sound for the approved step scope. Resolve the multi-question dedup omission, contradictory semantic-merging instruction, and missing failed-batch traceability, then complete scoped rereview and the controller's final verification before integration.
 
 ---
 

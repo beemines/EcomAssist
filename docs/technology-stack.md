@@ -26,7 +26,7 @@ SQLite用于[LangGraph检查点](../app/workflow/persistence.py)，Milvus用于[
 | 检索流程 | RAG、Milvus、BM25、RRF | [检索服务](../app/retrieval/service.py)与[Milvus适配](../app/retrieval/milvus.py)实现向量/中文BM25召回和RRF融合 |
 | 检索模型 | BGE-M3、bge-reranker-v2-m3 | [固定模型配置](../app/config.py)、[嵌入客户端](../app/knowledge/embeddings.py)、[重排客户端](../app/retrieval/rerank.py)；不表示本地训练了这两个模型 |
 | 可观测性 | Langfuse | [SDK生命周期](../app/observability/runtime.py)、[LangChain回调](../app/observability/tracing.py)、[自部署配置](../compose.langfuse.yaml) |
-| 数据预标 | GLM-5.3-flash teacher | [教师客户端](../app/topics/teacher.py)明确锁定智谱接口和教师模型；该标签仅描述本章造数/预标用途 |
+| 数据预标 | GLM-5.3-flash teacher | [教师客户端](../app/topics/teacher.py)明确锁定智谱接口和教师模型；该标签仅描述本步骤造数/预标用途 |
 | 分类模型 | HFL RoBERTa-wwm-ext | [基座定义与下载](../ml/topic_classifier/doctor.py)固定`hfl/chinese-roberta-wwm-ext`，实际由`AutoModelForSequenceClassification`加载 |
 | 训练框架 | PyTorch、Transformers、Accelerate | [训练实现](../ml/topic_classifier/train.py)使用PyTorch与Transformers Trainer；Accelerate为该独立训练环境的锁定依赖及Trainer后端 |
 | 训练设备 | CUDA 13.0 | [ML锁定包](../ml/topic_classifier/pyproject.toml)为`torch==2.14.1+cu130`；本机已有doctor回执记录`torch_cuda=13.0`、`cuda_available=true`。本轮未重训，CPU推理见[独立服务](../ml/topic_classifier/service.py) |

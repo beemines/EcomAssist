@@ -18,20 +18,20 @@
 | 查看第十步真实结果 | [交付报告](superpowers/reports/2026-10-21-ch10-delivery.md)、[最终在线验证](superpowers/reports/2026-10-23-ch10-closeout-verification.md) |
 | 查集成与推送记录 | [第十步集成](superpowers/reports/2026-10-24-ch10-integration.md) |
 
-## 十章路线
+## 十步路线
 
 | 阶段 | 主题 | 过程记录 |
 | --- | --- | --- |
-| 01 | 流式多轮对话与售后信息抽取 | [ch01](../dev-notes/ch01.md) |
-| 02 | 工具调用与持久化 | [ch02](../dev-notes/ch02.md) |
-| 03 | 知识入库、切分与向量化恢复 | [ch03](../dev-notes/ch03.md) |
-| 04 | 混合检索、重排与生成质量 | [ch04](../dev-notes/ch04.md) |
-| 05 | Workflow 与受控 Agent | [ch05](../dev-notes/ch05.md) |
-| 06 | 意图理解、订单选择与退款申请 | [ch06](../dev-notes/ch06.md) |
-| 07 | 分层上下文与长对话 | [ch07](../dev-notes/ch07.md) |
-| 08 | 可插拔工具、MCP 与审计 | [ch08](../dev-notes/ch08.md) |
-| 09 | Langfuse、成本与数据飞轮 | [ch09](../dev-notes/ch09.md) |
-| 10 | 多标签主题分类器 | [ch10](../dev-notes/ch10.md) |
+| 01 | 流式多轮对话与售后信息抽取 | [step01](../dev-notes/ch01.md) |
+| 02 | 工具调用与持久化 | [step02](../dev-notes/ch02.md) |
+| 03 | 知识入库、切分与向量化恢复 | [step03](../dev-notes/ch03.md) |
+| 04 | 混合检索、重排与生成质量 | [step04](../dev-notes/ch04.md) |
+| 05 | Workflow 与受控 Agent | [step05](../dev-notes/ch05.md) |
+| 06 | 意图理解、订单选择与退款申请 | [step06](../dev-notes/ch06.md) |
+| 07 | 分层上下文与长对话 | [step07](../dev-notes/ch07.md) |
+| 08 | 可插拔工具、MCP 与审计 | [step08](../dev-notes/ch08.md) |
+| 09 | Langfuse、成本与数据飞轮 | [step09](../dev-notes/ch09.md) |
+| 10 | 多标签主题分类器 | [step10](../dev-notes/ch10.md) |
 
 ## 文档分工
 
@@ -40,5 +40,6 @@
 - [`superpowers/research/`](superpowers/research/)记录文档与锁定版本接口核对。
 - [`superpowers/reports/`](superpowers/reports/)和[`validation/`](validation/)保存审查、实验、故障与验收结论。
 - [`dev-notes/`](../dev-notes/)按阶段追加用户原话、产出、纠偏、失败与返工。
+- [开发步骤称谓与提交映射](history/2026-10-25-step-terminology.md)说明历史提交哈希调整与旧记录的查找方式。
 
-章节手册包含带日期的本机路径、端口与历史操作。复现当前功能时优先使用通用指南和手册顶部的最新状态；历史“未训练”“未发布”描述保留其时间含义。原始语料、模型权重、预算账本和私有回执未随仓库发布。
+步骤手册包含带日期的本机路径、端口与历史操作。复现当前功能时优先使用通用指南和手册顶部的最新状态；历史“未训练”“未发布”描述保留其时间含义。原始语料、模型权重、预算账本和私有回执未随仓库发布。

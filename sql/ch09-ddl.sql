@@ -1,8 +1,8 @@
 -- =============================================================
--- ch09 · 可观测性与数据飞轮 · 建表 DDL
--- 本章新建:review_queue(待审队列,标准化去重后的知识缺口)
+-- step09 · 可观测性与数据飞轮 · 建表 DDL
+-- 本步骤新建:review_queue(待审队列,标准化去重后的知识缺口)
 --          eval_runs(自动化评估流水线每轮结果,连起来看趋势)
--- 并给 ch04 的 low_confidence_questions 加两列:
+-- 并给 step04 的 low_confidence_questions 加两列:
 --   matched_review_id 记这条原话查重后归并到哪个缺口
 --   retrieved_chunks  存落池时的召回片段快照,审核页给人看
 -- 建表顺序:先 CREATE review_queue,再 ALTER low_confidence_questions 加外键指向它

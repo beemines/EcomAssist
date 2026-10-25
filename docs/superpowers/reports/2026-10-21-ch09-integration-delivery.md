@@ -16,7 +16,7 @@
 | 范围 | 实际结果 | 本地证据 |
 | --- | --- | --- |
 | feature完整离线pytest | 3264通过、257跳过；407.95秒；退出0 | worktree/runtime/ch09-evidence/merge-20261021-offline.log |
-| 本章改动涉及的本地MySQL3308/Milvus/Langfuse集成 | 108通过；83.06秒；退出0；使用隔离库/集合及模拟模型 | worktree/runtime/ch09-evidence/merge-20261021-integration.log |
+| 本步骤改动涉及的本地MySQL3308/Milvus/Langfuse集成 | 108通过；83.06秒；退出0；使用隔离库/集合及模拟模型 | worktree/runtime/ch09-evidence/merge-20261021-integration.log |
 | master合并后启动守卫/累计额度/指标/调度合同 | 18通过；8.82秒；退出0 | 主目录runtime/ch09-evidence/merge-20261021-master-checks.log |
 | 原始DDL/文档链接/JS/Git差异 | 归档SQL与sql/ch09-ddl.sql忽略注释及空白后完全一致；Prompt章节/围栏/入口链接、Node语法、diff --check通过 | 合并前检查及开发记录 |
 

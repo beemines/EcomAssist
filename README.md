@@ -13,7 +13,7 @@
 
 **从流式对话、RAG 和工具调用，到可观测的数据飞轮与多标签模型训练。**
 
-基于 Python、FastAPI 和 LangGraph 的电商智能客服工程。它把知识检索、业务流程、人工确认、评估和离线改进串起来，并保留每一章的需求、设计、开发过程与实测结果，适合学习、研究和本地功能演示。
+基于 Python、FastAPI 和 LangGraph 的电商智能客服工程。它把知识检索、业务流程、人工确认、评估和离线改进串起来，并保留每一步的需求、设计、开发过程与实测结果，适合学习、研究和本地功能演示。
 
 [快速开始](docs/getting-started.md) · [文档导航](docs/README.md) · [系统架构](docs/architecture.md) · [主题分类器](docs/topic-classifier.md) · [参与贡献](CONTRIBUTING.md)
 
@@ -185,13 +185,13 @@ ml/topic_classifier/  独立训练、评测、导出与服务
 evals/           冻结数据集及 RAG 评估
 tests/           默认回归与显式存储集成
 sql/             原始 DDL、运行扩展与种子
-docs/            使用指南、章节提示词、设计及报告
+docs/            使用指南、步骤提示词、设计及报告
 dev-notes/       逐阶段开发与返工记录
 ```
 
 ## 文档与贡献
 
-- [文档总览与十章路线](docs/README.md)：从功能入口找到需求、实现和验收。
+- [文档总览与十步路线](docs/README.md)：从功能入口找到需求、实现和验收。
 - [开发与测试](docs/development.md)：环境隔离、测试开关、提交检查。
 - [贡献指南](CONTRIBUTING.md)：问题反馈、修改流程和 PR 说明。
 - [安全说明](SECURITY.md)：本地部署边界、密钥、隐私与漏洞报告。

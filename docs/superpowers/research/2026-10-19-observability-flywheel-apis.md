@@ -1,6 +1,6 @@
 # 第九步接口与复用核对（设计阶段）
 
-核对日期：2026-10-19。用户已允许本章用官方文档和锁定版本源码替代不可调用的 Context7。以下是设计依据，不是安装或验收完成记录。
+核对日期：2026-10-19。用户已允许本步骤用官方文档和锁定版本源码替代不可调用的 Context7。以下是设计依据，不是安装或验收完成记录。
 
 ## 本地部署
 
@@ -25,9 +25,9 @@
 - `app/core/evidence.py` 的完整 evidence payload 含正文与有限得分；公开 Citation 只含展示字段，没有得分。反馈快照应从原轮 checkpoint 的服务端 payload 提取，不重新检索，不信任页面提交的正文或分数。
 - `app/context/history_reader.py` 已按 SQL final_message_id 和完成根 checkpoint 定位原轮，可复用其身份核验思路。没有检索与原始证据无法恢复应区分，不能都伪称“没有检索”。
 - `app/knowledge/hybrid_jobs.py` 支持按 MySQL 主键重放 pending、检查 ACK 与向量读回，之后标记 done；审核入库应复用此恢复方式，并保证重复审批不会新增重复知识。
-- Ch04 同时保留旧物理 chunk 指标与新版完整证据组指标。新趋势必须固定版本、分母、数据集和配置标识，失败 / 未执行行不能充当成功分数；校准集和验证集不可混用。
+- step04 同时保留旧物理 chunk 指标与新版完整证据组指标。新趋势必须固定版本、分母、数据集和配置标识，失败 / 未执行行不能充当成功分数；校准集和验证集不可混用。
 - 实际读取冻结 cases.jsonl 得到 300 题，A_policy / B_model / C_colloquial / E_multi / D_unanswerable 各 60 题；regressions.jsonl 有 2 条，字段是 case、condition_changes、original_eval_id、reason。分组关联应读取内嵌 case，不假设回归文件顶层就是普通题目。
-- 已核对现有 SufficiencyService 的 content_ablation 模式可执行内容自评而不叠加 calibrated_score 模式的旧 Top1 门槛。本章启用正式规则后需用该内容判断能力，避免两套分数闸门叠加。
+- 已核对现有 SufficiencyService 的 content_ablation 模式可执行内容自评而不叠加 calibrated_score 模式的旧 Top1 门槛。本步骤启用正式规则后需用该内容判断能力，避免两套分数闸门叠加。
 
 ## 本机只读基线
 
@@ -38,11 +38,11 @@
 
 ## 实施核对（2026-10-19，Task 1进行中）
 
-- 固定SDK源码再次核对：Langfuse构造器支持base_url / timeout / tracer_provider；CallbackHandler只接受public_key / trace_context，通过同public_key的已初始化client取资源。关闭使用flush / shutdown，本章有界异步回收。依赖解析与同步成功，仅新增11个SDK相关包，原固定核心版本未变。
+- 固定SDK源码再次核对：Langfuse构造器支持base_url / timeout / tracer_provider；CallbackHandler只接受public_key / trace_context，通过同public_key的已初始化client取资源。关闭使用flush / shutdown，本步骤有界异步回收。依赖解析与同步成功，仅新增11个SDK相关包，原固定核心版本未变。
 - observations.get_many的fields支持core/basic/io/metadata/usage等组；IO字段总是原始字符串，parse_io_as_json=true已废弃并返回400，读回测试必须自行JSON解析。使用trace_id过滤以及cursor分页，metadata长值须按需expand_metadata，不能假设默认完整。固定源码：https://github.com/langfuse/langfuse-python/blob/v5.0.2/langfuse/api/observations/client.py 。
 - Headless初始化按官方变量生成本地独立项目与用户，凭据存ignored的runtime/langfuse/local.env，应用仅使用四项sdk.env，来源：https://langfuse.com/self-hosting/administration/headless-initialization 。
 - 官方注册表核对得到六个固定digest，均写入compose.langfuse.yaml：web/worker为4.63.0；基础服务沿固定发布Compose的ClickHouse25.12、Postgres17、Redis7、Chainguard MinIO分支解析digest。config --quiet已通过，真实容器和读回验收尚未完成。
-- 后续本地验收：六容器启动、中文span导出和observations读回、headless用户登录session核对均通过。登录使用NextAuth公开REST的providers/csrf/callback/session，先检查provider回调为本机，再发送本章生成的凭据；不打印凭据或session。官方接口说明：https://next-auth.js.org/getting-started/rest-api 。
+- 后续本地验收：六容器启动、中文span导出和observations读回、headless用户登录session核对均通过。登录使用NextAuth公开REST的providers/csrf/callback/session，先检查provider回调为本机，再发送本步骤生成的凭据；不打印凭据或session。官方接口说明：https://next-auth.js.org/getting-started/rest-api 。
 
 ## Task 2追踪验证
 
@@ -66,7 +66,7 @@
 
 ## 受限发布接口与HTTP错误（2026-10-20）
 
-- 延用锁定SQLAlchemy2.0.54的短事务、已有KnowledgeRepository._insert、HybridKnowledgeJobs._write/ACK/readback；未凭新库猜接口。原知识锁名仍为ch03:+实际库名SHA256前48位，发布租约使用同名和独占连接；旧CLI与新发布互斥。
+- 延用锁定SQLAlchemy2.0.54的短事务、已有KnowledgeRepository._insert、HybridKnowledgeJobs._write/ACK/readback；未凭新库猜接口。原知识锁名仍为step03:+实际库名SHA256前48位，发布租约使用同名和独占连接；旧CLI与新发布互斥。
 - SiliconFlow官方Embedding接口支持input字符串数组，故50份冻结语料按20批次只产生3次物理嵌入请求，无需缓存改造；BGE-M3输入上限8192，与原适配器一致：https://docs.siliconflow.cn/docs/api/embeddings-post 。未更改固定模型。
 - 官方错误说明列401鉴权、403权限、429速率限制、503/504服务负载；发布采用401/403暂停、429和5xx有界5/30秒重试，参数/ACK/读回错误不自动重试：https://docs.siliconflow.cn/docs/userguide/capabilities/text-generation 。HTTP402作为计费拒绝的保守暂停分支，不宣称官方目前必定用它表示余额；无自由文本错误判断或自动换模型。
 

@@ -1,6 +1,6 @@
 -- =============================================================
--- ch02 · Function Calling 工具链 · 建表 DDL
--- 本章新建:faq / conversations / messages / tickets 四张表
+-- step02 · Function Calling 工具链 · 建表 DDL
+-- 本步骤新建:faq / conversations / messages / tickets 四张表
 -- 商品、订单、物流走工具内 mock,不建表
 -- 全库统一 ENGINE=InnoDB、CHARSET=utf8mb4
 -- 建表顺序:先 conversations,再依赖它的 messages / tickets
@@ -33,7 +33,7 @@ CREATE TABLE messages (
   CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话消息流水';
 
--- FAQ 问答对:query_faq 的数据源;ch03 起检索改走向量库,这张表退居原始录入
+-- FAQ 问答对:query_faq 的数据源;step03 起检索改走向量库,这张表退居原始录入
 CREATE TABLE faq (
   id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'FAQ 主键',
   question    VARCHAR(512)    NOT NULL                COMMENT '问题',

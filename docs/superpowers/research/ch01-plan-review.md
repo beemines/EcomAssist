@@ -1,4 +1,4 @@
-# Ch01 实现计划独立评审
+# step01 实现计划独立评审
 
 日期：2026-10-05。评审对象为 `docs/superpowers/plans/2026-10-05-ch01-pure-chat.md` 与已批准的正式 spec。独立 reviewer 为 plan_review 子代理；两轮均只读，未安装依赖、修改文件或实现产品代码。
 

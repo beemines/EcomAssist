@@ -1,4 +1,4 @@
-"""Explicit CH10 migration with read-only preview and exact known schema stages."""
+"""Explicit step10 migration with read-only preview and exact known schema stages."""
 
 from copy import deepcopy
 import hashlib

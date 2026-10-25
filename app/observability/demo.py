@@ -1,4 +1,4 @@
-"""Explicit Ch09 factory: local tracing, real calibrated rule, ordinary mode by default."""
+"""Explicit step09 factory: local tracing, real calibrated rule, ordinary mode by default."""
 import json
 import os
 from pathlib import Path

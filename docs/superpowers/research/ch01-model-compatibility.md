@@ -1,4 +1,4 @@
-# Ch01 模型兼容性调研
+# step01 模型兼容性调研
 
 日期：2026-10-05。仅查公开文档，未读取凭据、未发送模型请求、未安装依赖。本报告不是上游实测结果。
 
@@ -33,7 +33,7 @@ Context7 确认了主要兼容地址、流式、JSON 模式、ChatOpenAI 路由�
 
 DeepSeek JSON 模式 Prompt 要包含 JSON 要求，输出可能为空，预算不足可能截断：[JSON 指南](https://api-docs.deepseek.com/guides/json_mode)、[API](https://api-docs.deepseek.com/api/create-chat-completion)、[明确字段兼容说明](https://api-docs.deepseek.com/quick_start/agent_integrations/oh_my_pi)。选择无需 `/v1` 的已核对地址即可，不依赖不同集成的路径建议。
 
-Ollama 本地 `api_key="ollama"` 是 SDK 必需但服务忽略的占位值；云端 `https://ollama.com/v1` 需要真实云端 API key，两者不要混同。[兼容说明](https://docs.ollama.com/api/openai-compatibility)。本章示例仍以本地实例为准。
+Ollama 本地 `api_key="ollama"` 是 SDK 必需但服务忽略的占位值；云端 `https://ollama.com/v1` 需要真实云端 API key，两者不要混同。[兼容说明](https://docs.ollama.com/api/openai-compatibility)。本步骤示例仍以本地实例为准。
 
 Claude JSON 依赖 Prompt 遵循与应用 Pydantic 验证；不自动换原生 Messages、工具调用或其他协议。[官方兼容说明](https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk)。
 
@@ -58,4 +58,4 @@ Claude JSON 依赖 Prompt 遵循与应用 Pydantic 验证；不自动换原生 M
 
 ## 执行时补查 OpenAI 配置示例
 
-在既有 Context7 参考查询之后，补查 [OpenAI 官方 Chat Completions API](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)：base_url 为 `https://api.openai.com/v1/`，新模型的示例输出上限字段为 `max_completion_tokens`。`.env.example` 的 GPT 注释要求填写实际可用且支持 Chat Completions 的模型 ID，不以固定示例宣称所有型号都兼容。本章仍按用户固定协议实施，不自动切 Responses。
+在既有 Context7 参考查询之后，补查 [OpenAI 官方 Chat Completions API](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)：base_url 为 `https://api.openai.com/v1/`，新模型的示例输出上限字段为 `max_completion_tokens`。`.env.example` 的 GPT 注释要求填写实际可用且支持 Chat Completions 的模型 ID，不以固定示例宣称所有型号都兼容。本步骤仍按用户固定协议实施，不自动切 Responses。

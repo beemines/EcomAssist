@@ -82,7 +82,7 @@
 
 - Review scope: base 9f1b9298c3069871989cfede814c1adeb75915a3 through head 4555219, supplied diff. Its initial tool output was truncated; only the cut-off integration/unit/CLI hunks were recovered from that diff. No Git commands, test reruns, product edits, or dev-notes edits were performed.
 - Focused unchanged-code check, adapter-contract risk: `app/retrieval/milvus.py:123`, `:153`, `:180`, `:193`, `app/knowledge/vectors.py:14`, and `app/knowledge/embeddings.py:12` confirm complete ACK validation, Strong readback, successful `verify_rows` returning None, dimension/finite validation, and complete ordered ID enumeration.
-- Focused original-lock/cancellation risk: `app/knowledge/locking.py:38` preserves the database-derived ch03 lock name; lines 53–63 preserve cancellation-aware cleanup. The CLI diff omitted the beginning/end of `run`/`main`, so only `app/knowledge/cli.py:58`–73 and `:113`–end were read to verify whole-command lock scope and nonzero exit handling.
+- Focused original-lock/cancellation risk: `app/knowledge/locking.py:38` preserves the database-derived step03 lock name; lines 53–63 preserve cancellation-aware cleanup. The CLI diff omitted the beginning/end of `run`/`main`, so only `app/knowledge/cli.py:58`–73 and `:113`–end were read to verify whole-command lock scope and nonzero exit handling.
 
 
 ## task-4-review

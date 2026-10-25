@@ -33,7 +33,7 @@
 
 本地证据目录runtime/context-evidence/reference-effect-20261018/，汇总final-audit.json与final-storage.json。product-and-contact-pass.png是648实际成功回复，sidebar-summary-badge.png是侧栏；两次末轮失败截图分别保留。product-contact-recall.png最初误拍到旧baseline，明确排除作为通过证明。源码冻结、存储/费用/原文均已核验。
 
-原default真实21轮通过、demo原批20/21失败及R3严格否定复述缺项仍按各自版本保留，未宣称最终源码完整重跑两组21。[原验收记录](2026-10-17-context-management-acceptance.md)保留历史。功能实现和本次离线全量通过，整章严格真实验收尚未全部完成。保留本地分支/worktree，不合并或推送。
+原default真实21轮通过、demo原批20/21失败及R3严格否定复述缺项仍按各自版本保留，未宣称最终源码完整重跑两组21。[原验收记录](2026-10-17-context-management-acceptance.md)保留历史。功能实现和本次离线全量通过，整个步骤严格真实验收尚未全部完成。保留本地分支/worktree，不合并或推送。
 
 可直接访问http://127.0.0.1:8004/；手动演示在本worktree运行 `pwsh -NoProfile -File scripts/start-context-demo.ps1 -Profile demo`。逐阶段过程见dev-notes/ch07.md。
 

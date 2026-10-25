@@ -56,4 +56,4 @@
 - `reports/probe-scores.json`：固定模型的实际分数；阈值仍为验证集决定的0.5，没有据probe修改。
 - `reports/human-complete.json`：真实人审完成且`model_published=false`。
 
-本文件是复盘与下一轮设计讨论的依据，不是第五次训练的批准，也不是整章finish。
+本文件是复盘与下一轮设计讨论的依据，不是第五次训练的批准，也不是整个步骤finish。

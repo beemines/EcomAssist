@@ -20,11 +20,11 @@
 - 保留原投诉按钮的自填表单和POST接口；原表单提交已是确认，不再增加预览。新聊天建单必须原生interrupt/resume，取消不写tickets、审计permission_denied。
 - tool_audit_logs无外键；失败不能影响原工具结果或回滚已成功工单。一次逻辑调用结算一条，内部重试汇总。
 - 继续SQL原文、add_messages、完整checkpoint与三层模型视图；动态Schema按实际估算，暂停不重置费用/决策次数/恢复额度。
-- Context7替代方式已获本章授权；每个实际使用的框架API先核对官方文档和安装后的锁定源码，追加[API记录](../references/2026-10-18-pluggable-tools-apis.md)。不要照抄SDK2.x或新文档的另一套streaming接口。
+- Context7替代方式已获本步骤授权；每个实际使用的框架API先核对官方文档和安装后的锁定源码，追加[API记录](../references/2026-10-18-pluggable-tools-apis.md)。不要照抄SDK2.x或新文档的另一套streaming接口。
 - 后端TDD，Prompt用标注集验证；前端按用户Vibe Coding例外，不写前端TDD、不安排前端code review，以页面操作和像素效果核验。
 - 每个任务完成就追加dev-notes/ch08.md的原话、产出/实际结果、纠偏、翻车与返工，和任务一起提交，不在结尾集中补写。
 - 保留8004及其工作树/检查点/原始证据。新客服默认8005，两Server8101/8102；占用先核验，只停自己创建且身份再次核对的进程，后台启动用Hidden。
-- 本计划批准前不安装依赖、改产品、迁移表或启动服务。实施时使用using-git-worktrees建立新章节隔离工作树，不复用正在服务8004的工作树。
+- 本计划批准前不安装依赖、改产品、迁移表或启动服务。实施时使用using-git-worktrees建立新步骤隔离工作树，不复用正在服务8004的工作树。
 
 ## Review Focus
 
@@ -36,7 +36,7 @@
 
 ## 文件与接口约定
 
-现有app/tools/executor.py、registry.py是扩展入口，原app/workflow/service.py仅保留生命周期和事件胶水；目录、MCP、审计、工单暂停各有独立文件。禁止把本章所有逻辑塞进service.py或agent.py。
+现有app/tools/executor.py、registry.py是扩展入口，原app/workflow/service.py仅保留生命周期和事件胶水；目录、MCP、审计、工单暂停各有独立文件。禁止把本步骤所有逻辑塞进service.py或agent.py。
 
 | 单元 | 责任与文件 |
 | --- | --- |
@@ -74,7 +74,7 @@
 - `ToolCatalog.restore(manifest: dict, *, policy: PolicySnapshot, discovered: Sequence[ToolRegistration]) -> CatalogSnapshot`：恢复原名单并核验契约，不增加后来工具。
 - 测试公共构造器`make_registration(name, *, source='builtin', operation='read', handler=None)`与`allow_policy(*registrations)`分别生成ToolRegistration和PolicySnapshot，不自动放权给任意生产工具。
 
-- [x] **Step 1 — 准备隔离与依赖：** 按using-git-worktrees检查已附加工作树、创建本章隔离分支；保留8004。核对jsonschema官方draft校验API与锁定源码，加入两项已批准固定依赖和直接使用的jsonschema>=4.20,<5，生成uv.lock、uv sync --locked；原有固定依赖版本不变。记录依赖解析与原工具/Workflow/上下文基线结果，不运行第七步付费长批。
+- [x] **Step 1 — 准备隔离与依赖：** 按using-git-worktrees检查已附加工作树、创建本步骤隔离分支；保留8004。核对jsonschema官方draft校验API与锁定源码，加入两项已批准固定依赖和直接使用的jsonschema>=4.20,<5，生成uv.lock、uv sync --locked；原有固定依赖版本不变。记录依赖解析与原工具/Workflow/上下文基线结果，不运行第七步付费长批。
 - [x] **Step 2 — 写失败测试：** tests/test_tool_catalog.py覆盖新增注册、策略修改热加载、坏配置不部分发布、未知工具不开放、重名/保留名拒绝、隐藏参数不可伪造、manifest可JSON序列化及恢复不扩大清单。核心断言：
 
 ```python
@@ -89,7 +89,7 @@ def test_new_registration_is_in_next_snapshot(catalog):
 - [x] **Step 3 — 确认RED：** `./.venv/Scripts/python.exe -m pytest tests/test_tool_catalog.py -q`，预期新接口/行为缺失而失败，保存原输出。
 - [x] **Step 4 — 最小实现：** 按本节接口实现不可变目录和本地插件入口加载；新增模块通过注册导入，不原地reload执行中的模块。启动登记现有工具，暂保持旧工厂调用兼容；冲突与策略错误不默默授予权限。
 - [x] **Step 5 — GREEN与范围检查：** 跑test_tool_catalog.py及现有test_business_tools.py、test_tool_llm_payload.py；确认模型参数没有会话身份/确认字段。按实际失败修正接缝，不在测试中全局关闭权限。
-- [x] **Step 6 — 留痕与提交：** 追加ch08，提交`feat(tools): add policy-backed hot tool catalog`，只暂存本任务文件。
+- [x] **Step 6 — 留痕与提交：** 追加step08，提交`feat(tools): add policy-backed hot tool catalog`，只暂存本任务文件。
 
 ### Task 2: 独立审计表、仓储和显式迁移
 
@@ -222,15 +222,15 @@ async def test_unconfirmed_write_never_reaches_handler(executor, write_call, bou
 - 证据存runtime/tool-system-evidence/，加入现有忽略规则，含版本/SHA/PID、页面/SQL/审计对应，不保存密钥或认证头。
 
 - [x] **Step 1 — 先无模型联调：** 为新启动器写未知监听PID绝不停止、目录/创建时间/解释器/祖先不符拒绝接管的后端测试，RED后实现Hidden启动，再验证显式init/verify审计表、三进程健康、两种工具来源、既有订单/RAG流水、确认/取消以及审计数据库故障。演示DDL先核对当前数据库/主机/端口和容器身份；只读verify成功不冒称执行过迁移。普通启动不重跑DDL。
-- [x] **Step 2 — 后端整分支检查：** 依据Review Focus和已批准执行方式做一次后端整分支独立审查，不审前端；必要修复按一个归因修复波和范围复审处理。不要无新变化重新派已通过任务或重审整章。
+- [x] **Step 2 — 后端整分支检查：** 依据Review Focus和已批准执行方式做一次后端整分支独立审查，不审前端；必要修复按一个归因修复波和范围复审处理。不要无新变化重新派已通过任务或重审整个步骤。
 - [x] **Step 3 — 少量页面验收：** 用生成的测试问句和演示订单，通过页面执行设计第9节全部六项；包含两个Server三种读工具、缺描述补齐、确认、取消、否定/仅转人工、原投诉表单。沿用用户小额页面GLM/BGE授权，整批计划上限40次GLM/12次嵌入/6次重排，含后台摘要和失败请求，自动重试规则不变。达到上限就报告未完成项，不增加新批次。不开新非页面付费诊断，不修改SDK/sitecustomize做临时注入。执行补充：此前未验的组合查询/仅转人工/窄屏于用户2026-10-19新请求后有界复验通过；原热注册与投诉表单等证据按其实际版本保留。
 - [x] **Step 4 — 动态注册与故障证据：** 在本地登记新的内置模块，实际Agent调用query_demo_dispatch_site；在Server侧加载Task4样例并登记本地权限，仅重启该Server，实际Agent调用query_pickup_hours。保存客服PID/core SHA未变、目录变化和审计来源。受控毫秒级读/写超时在独立测试调用中验证物理尝试和审计，不靠供应商真的出故障；确认1张、取消0张及写retry_count=0分别查库。
-- [x] **Step 5 — 最终冻结回归：** 页面问题如需修复，先保留失败、完成相关回归/审查再冻结源码；`./.venv/Scripts/python.exe -m pytest -q`运行一次完整最终回归，显式独立MySQL集成结果与skip分开。真实模型定点结果不能由单元测试代替，旧第七步长验收状态不倒改。最终5acd974：2930通过188跳过；本章SQL专项4通过。
-- [ ] **Step 6 — 交付与finish：** 报告逐项PASS/FAIL/未执行、最终版本、所有用量及演示命令；普通8005无验收cap，两个Server可独立重启，8004未操作。本地证据和工作树保留。按verification-before-completion与finishing-a-development-branch执行本章最终用户整合选择，未获本章整合选择前不沿用第七步推送授权；提交`docs(ch08): record tool system acceptance and delivery`。
+- [x] **Step 5 — 最终冻结回归：** 页面问题如需修复，先保留失败、完成相关回归/审查再冻结源码；`./.venv/Scripts/python.exe -m pytest -q`运行一次完整最终回归，显式独立MySQL集成结果与skip分开。真实模型定点结果不能由单元测试代替，旧第七步长验收状态不倒改。最终5acd974：2930通过188跳过；本步骤SQL专项4通过。
+- [ ] **Step 6 — 交付与finish：** 报告逐项PASS/FAIL/未执行、最终版本、所有用量及演示命令；普通8005无验收cap，两个Server可独立重启，8004未操作。本地证据和工作树保留。按verification-before-completion与finishing-a-development-branch执行本步骤最终用户整合选择，未获本步骤整合选择前不沿用第七步推送授权；提交`docs(ch08): record tool system acceptance and delivery`。
 
-任务9执行补充：初批实用38次GLM；用户另行明确批准最多20次页面定点，追加实用20，累计58，嵌入/重排0。两个简单热工具完整答案、否定建单、原确认/取消与投诉表单已取得页面证据；组合在保/退货进度修复后仅离线复验，Step3保持未完成，未自动追加第三批或宣称整章finish。实际状态优先以验收报告为准。
+任务9执行补充：初批实用38次GLM；用户另行明确批准最多20次页面定点，追加实用20，累计58，嵌入/重排0。两个简单热工具完整答案、否定建单、原确认/取消与投诉表单已取得页面证据；组合在保/退货进度修复后仅离线复验，Step3保持未完成，未自动追加第三批或宣称整个步骤finish。实际状态优先以验收报告为准。
 
-2026-10-19更新：用户主动要求先测试再给步骤，另行有界复验28/30次GLM，截图主流程、两个组合失败原句、转人工和319px窄屏均通过，相关离线34通过、无产品变更。见[本次报告](../reports/2026-10-19-pluggable-tools-reacceptance.md)与[用户验收步骤](../../ch08-manual-acceptance.md)。此前未复验的主要缺口已补齐；热注册/PID和受控故障按各自实际证据版本记录，本章整合选择仍未提出。
+2026-10-19更新：用户主动要求先测试再给步骤，另行有界复验28/30次GLM，截图主流程、两个组合失败原句、转人工和319px窄屏均通过，相关离线34通过、无产品变更。见[本次报告](../reports/2026-10-19-pluggable-tools-reacceptance.md)与[用户验收步骤](../../ch08-manual-acceptance.md)。此前未复验的主要缺口已补齐；热注册/PID和受控故障按各自实际证据版本记录，本步骤整合选择仍未提出。
 
 ## 计划自检与执行交接
 
@@ -238,4 +238,4 @@ async def test_unconfirmed_write_never_reaches_handler(executor, write_call, bou
 
 设计及本计划已分别审批，用户明确选择Native本会话顺序实现。实际实现和独立后端整分支审查已执行，任务9保留未通过/未执行的真实页面项；不据自动化通过宣称全部页面验收完成。
 
-本章已按用户选择执行Native：根代理顺序实现，最后一次独立后端整分支审查，修复由根代理按反例验证，没有第二次整分支审查；前端沿用用户Vibe Coding例外。
+本步骤已按用户选择执行Native：根代理顺序实现，最后一次独立后端整分支审查，修复由根代理按反例验证，没有第二次整分支审查；前端沿用用户Vibe Coding例外。
